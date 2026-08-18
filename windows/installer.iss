@@ -1,6 +1,6 @@
 ; Inno Setup Script for Beleka POS Windows Installer (Windows 8, 8.1, 10, 11)
 #define MyAppName "Beleka POS"
-#define MyAppVersion "1.2.0"
+#define MyAppVersion "1.2.1"
 #define MyAppPublisher "Beleka Technologies"
 #define MyAppURL "https://github.com/altdevzm/belekapro"
 #define MyAppExeName "beleka_pos.exe"
@@ -23,12 +23,10 @@ Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
 
-; Universal Windows compatibility (Windows 7 SP1, 8, 8.1, 10, 11)
+; Universal Windows 64-bit compatibility (Windows 8, 8.1, 10, 11)
 MinVersion=6.1sp1
-ArchitecturesAllowed=x64compatible,x64
-ArchitecturesInstallIn64BitMode=x64compatible,x64
-PrivilegesRequired=lowest
-PrivilegesRequiredOverridesAllowed=dialog
+ArchitecturesAllowed=x64
+ArchitecturesInstallIn64BitMode=x64
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -37,7 +35,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-; Copies all compiled release files including beleka_pos.exe, DLLs, and data/ assets
+; Copies all compiled release files including beleka_pos.exe, all bundled MSVC/UCRT DLLs, and data/ assets
 Source: "..\build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]

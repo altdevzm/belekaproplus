@@ -1,4 +1,4 @@
-name: Release Beleka POS
+name: Release Beleka POS (Windows Only)
 
 on:
   push:
@@ -7,16 +7,16 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version (e.g. 1.0.0)'
+        description: 'Release version (e.g. 1.2.1)'
         required: true
-        default: '1.0.0'
+        default: '1.2.1'
 
 permissions:
   contents: write
 
 jobs:
   # ─────────────────────────────────────────────────────────────────────────────
-  # Job 1: Create a draft release so build jobs can attach assets directly
+  # Job 1: Create a draft release
   # ─────────────────────────────────────────────────────────────────────────────
   create-release:
     name: Create Draft Release
@@ -48,31 +48,23 @@ jobs:
           body: |
             ## 🏪 Beleka POS — ${{ steps.meta.outputs.tag }}
 
-            ### 📦 Downloads
+            ### 📦 Downloads (Windows 8, 8.1, 10, 11)
 
             | Platform | File | Notes |
             |----------|------|-------|
-            | 🪟 Windows | `Beleka_POS_Setup_v${{ steps.meta.outputs.version }}.exe` | Run as Administrator · creates Desktop & Start Menu shortcut |
-            | 🐧 Linux   | `Beleka_POS_Linux_v${{ steps.meta.outputs.version }}.tar.gz` | Extract and run `./beleka_pos` |
+            | 🪟 Windows | `Beleka_POS_Setup_v${{ steps.meta.outputs.version }}.exe` | Full standalone installer for Windows 8, 8.1, 10, and 11 |
 
             ### 🚀 Windows Installation
             1. Download `Beleka_POS_Setup_v${{ steps.meta.outputs.version }}.exe`
-            2. Right-click → **Run as administrator**
-            3. If Windows SmartScreen appears: **More info → Run anyway**
-            4. Follow the setup wizard — shortcut created on Desktop
-
-            ### 🐧 Linux Installation
-            ```bash
-            tar -xzf Beleka_POS_Linux_v${{ steps.meta.outputs.version }}.tar.gz
-            chmod +x beleka_pos
-            ./beleka_pos
-            ```
+            2. Run the installer (Right-click → **Run as administrator**)
+            3. If Windows SmartScreen appears: click **More info → Run anyway**
+            4. Follow the setup wizard — desktop shortcut created automatically
 
             ---
             *Built automatically by GitHub Actions · `${{ github.sha }}`*
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # Job 2: Build Windows installer and upload directly to the draft release
+  # Job 2: Build Windows installer (Windows 8, 8.1, 10, 11)
   # ─────────────────────────────────────────────────────────────────────────────
   build-windows:
     name: Build Windows Installer
@@ -108,7 +100,7 @@ jobs:
             $src = "C:\Windows\System32\$dll"
             if (Test-Path $src) { Copy-Item $src $target -Force; Write-Host "Copied $dll" }
           }
-          # Copy api-ms-win-crt runtime DLLs for Windows 8/8.1 out-of-the-box support
+          # Bundle UCRT API DLLs for standalone Windows 8/8.1/10/11 execution
           Get-ChildItem "C:\Windows\System32\api-ms-win-crt-*.dll" -ErrorAction SilentlyContinue | ForEach-Object {
             Copy-Item $_.FullName $target -Force
           }
@@ -139,56 +131,11 @@ jobs:
           files: build/windows/installer/Beleka_POS_Setup_v${{ needs.create-release.outputs.version }}.exe
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # Job 3: Build Linux bundle and upload directly to the draft release
-  # ─────────────────────────────────────────────────────────────────────────────
-  build-linux:
-    name: Build Linux Bundle
-    needs: create-release
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install Linux dependencies
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y \
-            clang cmake ninja-build pkg-config \
-            libgtk-3-dev \
-            libgstreamer1.0-dev \
-            libgstreamer-plugins-base1.0-dev
-
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: 'stable'
-          cache: true
-
-      - name: Flutter pub get
-        run: flutter pub get
-
-      - name: Build Linux release
-        run: flutter build linux --release --build-name=${{ needs.create-release.outputs.version }}
-
-      - name: Package bundle
-        run: |
-          VER="${{ needs.create-release.outputs.version }}"
-          cd build/linux/x64/release/bundle
-          tar -czf "../../../../../Beleka_POS_Linux_v${VER}.tar.gz" .
-
-      - name: Upload bundle to release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ needs.create-release.outputs.tag }}
-          files: Beleka_POS_Linux_v${{ needs.create-release.outputs.version }}.tar.gz
-
-  # ─────────────────────────────────────────────────────────────────────────────
-  # Job 4: Publish the draft release once both builds succeed
+  # Job 3: Publish the release
   # ─────────────────────────────────────────────────────────────────────────────
   publish-release:
     name: Publish Release
-    needs: [create-release, build-windows, build-linux]
+    needs: [create-release, build-windows]
     runs-on: ubuntu-latest
 
     steps:
