@@ -1,0 +1,90 @@
+# AppVeyor CI — Free Windows builds → GitHub Releases
+# Sign up free at: https://www.appveyor.com (login with GitHub)
+
+version: '{branch}-{build}'
+
+image: Visual Studio 2022
+
+environment:
+  FLUTTER_VERSION: stable
+  FLUTTER_ROOT: C:\flutter
+
+# Only build on version tags
+branches:
+  only:
+    - /^v\d+\.\d+\.\d+$/
+
+install:
+  # Install Flutter
+  - ps: |
+      if (!(Test-Path "C:\flutter")) {
+        Write-Host "Installing Flutter..."
+        $url = "https://storage.googleapis.com/flutter_infra_release/releases/stable/windows/flutter_windows_stable.zip"
+        Invoke-WebRequest $url -OutFile "flutter.zip"
+        Expand-Archive "flutter.zip" -DestinationPath "C:\"
+      }
+  - SET PATH=C:\flutter\bin;%PATH%
+  - flutter --version
+  - flutter pub get
+
+before_build:
+  # Patch audioplayers_windows to fix MSVC C++20 coroutine error
+  - ps: |
+      $pubCache = "$env:LOCALAPPDATA\Pub\Cache"
+      Get-ChildItem "$pubCache\hosted\pub.dev\audioplayers_windows*" -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+        $cmake = "$($_.FullName)\windows\CMakeLists.txt"
+        if (Test-Path $cmake) {
+          $content = Get-Content $cmake -Raw
+          if ($content -notmatch '_SILENCE_EXPERIMENTAL_COROUTINE') {
+            Add-Content $cmake "`ntarget_compile_definitions(audioplayers_windows PRIVATE _SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)"
+            Write-Host "Patched: $cmake"
+          }
+        }
+      }
+
+build_script:
+  # Get version from tag (strip "v" prefix)
+  - ps: |
+      $version = $env:APPVEYOR_REPO_TAG_NAME -replace '^v',''
+      Write-Host "Building version: $version"
+      $env:APP_VERSION = $version
+      [System.Environment]::SetEnvironmentVariable('APP_VERSION', $version, 'Machine')
+
+  - ps: flutter build windows --release --build-name=$env:APP_VERSION
+
+  # Copy MSVC runtime DLLs
+  - ps: |
+      $target = "build\windows\x64\runner\Release"
+      @("msvcp140.dll","vcruntime140.dll","vcruntime140_1.dll","msvcp140_1.dll","msvcp140_2.dll") | ForEach-Object {
+        $src = "C:\Windows\System32\$_"
+        if (Test-Path $src) { Copy-Item $src $target -Force; Write-Host "Copied $_" }
+      }
+
+  # Install Inno Setup and build installer
+  - ps: |
+      $ver = $env:APP_VERSION
+      Invoke-WebRequest "https://jrsoftware.org/download.php/is.exe" -OutFile "innosetup.exe"
+      Start-Process -Wait "innosetup.exe" -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-"
+      (Get-Content "windows\installer.iss") `
+        -replace '#define MyAppVersion ".*"', "#define MyAppVersion `"$ver`"" |
+        Set-Content "windows\installer.iss"
+      New-Item -ItemType Directory -Path "build\windows\installer" -Force | Out-Null
+      & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "windows\installer.iss"
+      Write-Host "Installer ready: Beleka_POS_Setup_v$ver.exe"
+
+artifacts:
+  - path: build\windows\installer\Beleka_POS_Setup_v*.exe
+    name: windows-installer
+
+deploy:
+  - provider: GitHub
+    auth_token:
+      secure: REPLACE_WITH_YOUR_ENCRYPTED_TOKEN
+    tag: $(APPVEYOR_REPO_TAG_NAME)
+    release: "Beleka POS $(APPVEYOR_REPO_TAG_NAME)"
+    description: "Windows installer for Beleka POS $(APPVEYOR_REPO_TAG_NAME)"
+    artifact: windows-installer
+    draft: false
+    prerelease: false
+    on:
+      APPVEYOR_REPO_TAG: true
