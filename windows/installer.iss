@@ -1,6 +1,6 @@
-; Inno Setup Script for Beleka POS Windows Installer
+; Inno Setup Script for Beleka POS Windows Installer (Windows 8, 8.1, 10, 11)
 #define MyAppName "Beleka POS"
-#define MyAppVersion "1.1.0"
+#define MyAppVersion "1.2.0"
 #define MyAppPublisher "Beleka Technologies"
 #define MyAppURL "https://github.com/altdevzm/belekapro"
 #define MyAppExeName "beleka_pos.exe"
@@ -22,6 +22,13 @@ UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
+
+; Universal Windows compatibility (Windows 7 SP1, 8, 8.1, 10, 11)
+MinVersion=6.1sp1
+ArchitecturesAllowed=x64compatible,x64
+ArchitecturesInstallIn64BitMode=x64compatible,x64
+PrivilegesRequired=lowest
+PrivilegesRequiredOverridesAllowed=dialog
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
