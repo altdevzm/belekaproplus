@@ -1,11 +1,14 @@
-name: Build Desktop Apps
+# DISABLED — superseded by release.yml
+# This workflow used upload-artifact which hit free-tier storage quota.
+# All builds and releases are now handled by release.yml
+name: Build Desktop Apps (Disabled)
 
 on:
-  push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
   workflow_dispatch:
+    inputs:
+      disabled:
+        description: 'This workflow is disabled. Use release.yml instead.'
+        required: false
 
 jobs:
   build-windows:

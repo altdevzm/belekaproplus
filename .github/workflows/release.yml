@@ -22,9 +22,8 @@ jobs:
     name: Create Draft Release
     runs-on: ubuntu-latest
     outputs:
-      release_id: ${{ steps.create.outputs.id }}
       version: ${{ steps.meta.outputs.version }}
-      tag: ${{ steps.meta.outputs.tag }}
+      tag:     ${{ steps.meta.outputs.tag }}
 
     steps:
       - name: Resolve version & tag
@@ -41,7 +40,6 @@ jobs:
           echo "tag=$TAG"     >> $GITHUB_OUTPUT
 
       - name: Create draft GitHub Release
-        id: create
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.meta.outputs.tag }}
@@ -94,11 +92,33 @@ jobs:
       - name: Flutter pub get
         run: flutter pub get
 
+      - name: Patch audioplayers_windows — silence MSVC C++20 coroutine error
+        # MSVC 14.4+ (VS 2022 18.x) removed <experimental/coroutine>.
+        # audioplayers_windows uses it indirectly via winrt headers.
+        # We patch its CMakeLists.txt in the pub cache to add the suppressor define.
+        shell: pwsh
+        run: |
+          $pubCache = $env:PUB_CACHE
+          if (-not $pubCache) { $pubCache = "$env:LOCALAPPDATA\Pub\Cache" }
+          $searchPath = "$pubCache\hosted\pub.dev"
+          Write-Host "Scanning: $searchPath"
+
+          Get-ChildItem "$searchPath\audioplayers_windows*" -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+            $cmake = "$($_.FullName)\windows\CMakeLists.txt"
+            if (Test-Path $cmake) {
+              $content = Get-Content $cmake -Raw
+              if ($content -notmatch '_SILENCE_EXPERIMENTAL_COROUTINE') {
+                # Append target_compile_definitions after the last target definition
+                $patch = "`n# Patch: silence MSVC experimental/coroutine deprecation (MSVC 14.4+)`ntarget_compile_definitions(audioplayers_windows PRIVATE _SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)`n"
+                Add-Content $cmake $patch
+                Write-Host "Patched: $cmake"
+              } else {
+                Write-Host "Already patched: $cmake"
+              }
+            }
+          }
+
       - name: Build Windows release
-        # CL env var silences the audioplayers_windows MSVC C++20 coroutine
-        # deprecation error that breaks builds with MSVC 14.4+ (VS 2022 18.x)
-        env:
-          CL: /D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS
         run: flutter build windows --release --build-name=${{ needs.create-release.outputs.version }}
 
       - name: Copy MSVC runtime DLLs
@@ -122,15 +142,12 @@ jobs:
         run: |
           $ver  = "${{ needs.create-release.outputs.version }}"
           $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
-
-          # Patch version into installer script
           (Get-Content "windows\installer.iss") `
             -replace '#define MyAppVersion ".*"', "#define MyAppVersion `"$ver`"" |
             Set-Content "windows\installer.iss"
-
           New-Item -ItemType Directory -Path "build\windows\installer" -Force | Out-Null
           & $iscc "windows\installer.iss"
-          Write-Host "Installer built: Beleka_POS_Setup_v$ver.exe"
+          Write-Host "Built: Beleka_POS_Setup_v$ver.exe"
 
       - name: Upload installer to release
         uses: softprops/action-gh-release@v2
@@ -176,7 +193,6 @@ jobs:
           VER="${{ needs.create-release.outputs.version }}"
           cd build/linux/x64/release/bundle
           tar -czf "../../../../../Beleka_POS_Linux_v${VER}.tar.gz" .
-          echo "Packaged Beleka_POS_Linux_v${VER}.tar.gz"
 
       - name: Upload bundle to release
         uses: softprops/action-gh-release@v2
