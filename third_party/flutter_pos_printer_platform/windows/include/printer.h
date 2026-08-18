@@ -10,31 +10,29 @@ struct Printer
 {
     const std::string name;
     const std::string model;
-    const bool default;
+    const bool isDefault;   // renamed: 'default' is a C++ keyword
     const bool available;
 
     Printer(std::string name,
             std::string model,
-            bool default,
+            bool isDefault,
             bool available)
         : name(name),
           model(model),
-          default(default),
+          isDefault(isDefault),
           available(available) {}
 };
 
 class PrintManager
 {
-private:
-    static HANDLE _hPrinter;
-
 public:
-    PrintManager(){};
     static std::vector<Printer> listPrinters();
-    static BOOL pickPrinter(std::string pPrinterName);
+    static BOOL pickPrinter(std::string printerName);
     static BOOL printBytes(std::vector<uint8_t> data);
     static BOOL close();
-    operator HANDLE() { return _hPrinter; }
+
+private:
+    static HANDLE _hPrinter;
 };
 
-#endif // PRINTER_H_
+#endif

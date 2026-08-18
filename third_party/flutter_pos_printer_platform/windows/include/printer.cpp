@@ -50,7 +50,7 @@ std::vector<Printer> PrintManager::listPrinters()
         printers.push_back(Printer{
             toUtf8(buffer[i].pPrinterName),
             toUtf8(buffer[i].pDriverName),
-            size > 0 && _tcsncmp(buffer[i].pPrinterName, defaultPrinter, size) == 0, // if this is the defaultprinter
+            size > 0 && _tcsncmp(buffer[i].pPrinterName, defaultPrinter, size) == 0, // isDefault
             (buffer[i].Status &
              (PRINTER_STATUS_NOT_AVAILABLE | PRINTER_STATUS_ERROR |
               PRINTER_STATUS_OFFLINE | PRINTER_STATUS_PAUSED)) == 0});
@@ -79,9 +79,9 @@ BOOL PrintManager::printBytes(std::vector<uint8_t> data)
     }
 
     // Fill in default value of the print document
-    docInfo.pDocName = L"FeedMe POS Print Job";
+    docInfo.pDocName    = const_cast<LPWSTR>(L"FeedMe POS Print Job");
     docInfo.pOutputFile = NULL;
-    docInfo.pDatatype = L"RAW";
+    docInfo.pDatatype   = const_cast<LPWSTR>(L"RAW");
 
     // Inform the spooler there is a new document
     dwJob = StartDocPrinterW(_hPrinter, 1, (LPBYTE)&docInfo);

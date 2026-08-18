@@ -40,7 +40,7 @@ std::wstring fromUtf8(std::string str)
                                    static_cast<int>(str.length()), nullptr, 0);
     if (len <= 0)
     {
-        return false;
+        return std::wstring{};  // fix: was 'return false' — wrong return type
     }
 
     auto wstr = std::wstring{};
