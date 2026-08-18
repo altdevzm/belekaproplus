@@ -3,7 +3,7 @@ name: Release Beleka POS
 on:
   push:
     tags:
-      - 'v*.*.*'   # e.g. v1.0.0, v1.2.3
+      - 'v*.*.*'
   workflow_dispatch:
     inputs:
       version:
@@ -15,99 +15,139 @@ permissions:
   contents: write
 
 jobs:
-  # ─────────────────────────────────────────────────────────
-  # 1. Build Windows EXE installer (Inno Setup)
-  # ─────────────────────────────────────────────────────────
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Job 1: Create a draft release so build jobs can attach assets directly
+  # ─────────────────────────────────────────────────────────────────────────────
+  create-release:
+    name: Create Draft Release
+    runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.create.outputs.id }}
+      version: ${{ steps.meta.outputs.version }}
+      tag: ${{ steps.meta.outputs.tag }}
+
+    steps:
+      - name: Resolve version & tag
+        id: meta
+        run: |
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            TAG="${{ github.ref_name }}"
+            VER="${TAG#v}"
+          else
+            VER="${{ inputs.version }}"
+            TAG="v${VER}"
+          fi
+          echo "version=$VER" >> $GITHUB_OUTPUT
+          echo "tag=$TAG"     >> $GITHUB_OUTPUT
+
+      - name: Create draft GitHub Release
+        id: create
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: "Beleka POS ${{ steps.meta.outputs.tag }}"
+          draft: true
+          body: |
+            ## 🏪 Beleka POS — ${{ steps.meta.outputs.tag }}
+
+            ### 📦 Downloads
+
+            | Platform | File | Notes |
+            |----------|------|-------|
+            | 🪟 Windows | `Beleka_POS_Setup_v${{ steps.meta.outputs.version }}.exe` | Run as Administrator · creates Desktop & Start Menu shortcut |
+            | 🐧 Linux   | `Beleka_POS_Linux_v${{ steps.meta.outputs.version }}.tar.gz` | Extract and run `./beleka_pos` |
+
+            ### 🚀 Windows Installation
+            1. Download `Beleka_POS_Setup_v${{ steps.meta.outputs.version }}.exe`
+            2. Right-click → **Run as administrator**
+            3. If Windows SmartScreen appears: **More info → Run anyway**
+            4. Follow the setup wizard — shortcut created on Desktop
+
+            ### 🐧 Linux Installation
+            ```bash
+            tar -xzf Beleka_POS_Linux_v${{ steps.meta.outputs.version }}.tar.gz
+            chmod +x beleka_pos
+            ./beleka_pos
+            ```
+
+            ---
+            *Built automatically by GitHub Actions · `${{ github.sha }}`*
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Job 2: Build Windows installer and upload directly to the draft release
+  # ─────────────────────────────────────────────────────────────────────────────
   build-windows:
     name: Build Windows Installer
+    needs: create-release
     runs-on: windows-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Flutter (stable)
+      - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
           cache: true
 
-      - name: Determine version
-        id: version
-        shell: pwsh
-        run: |
-          if ("${{ github.event_name }}" -eq "push") {
-            $ver = "${{ github.ref_name }}" -replace '^v', ''
-          } else {
-            $ver = "${{ inputs.version }}"
-          }
-          echo "value=$ver" >> $env:GITHUB_OUTPUT
-          Write-Host "Version: $ver"
-
       - name: Flutter pub get
         run: flutter pub get
 
       - name: Build Windows release
-        run: flutter build windows --release --build-name=${{ steps.version.outputs.value }}
+        # CL env var silences the audioplayers_windows MSVC C++20 coroutine
+        # deprecation error that breaks builds with MSVC 14.4+ (VS 2022 18.x)
+        env:
+          CL: /D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS
+        run: flutter build windows --release --build-name=${{ needs.create-release.outputs.version }}
 
       - name: Copy MSVC runtime DLLs
         shell: pwsh
         run: |
           $target = "build\windows\x64\runner\Release"
-          $dlls = @(
-            "msvcp140.dll",
-            "vcruntime140.dll",
-            "vcruntime140_1.dll",
-            "msvcp140_1.dll",
-            "msvcp140_2.dll"
-          )
-          foreach ($dll in $dlls) {
-            $src = "C:\Windows\System32\$dll"
-            if (Test-Path $src) {
-              Copy-Item $src -Destination $target -Force
-              Write-Host "Copied $dll"
-            }
+          @("msvcp140.dll","vcruntime140.dll","vcruntime140_1.dll",
+            "msvcp140_1.dll","msvcp140_2.dll") | ForEach-Object {
+            $src = "C:\Windows\System32\$_"
+            if (Test-Path $src) { Copy-Item $src $target -Force; Write-Host "Copied $_" }
           }
 
       - name: Install Inno Setup
         shell: pwsh
         run: |
           Invoke-WebRequest -Uri "https://jrsoftware.org/download.php/is.exe" -OutFile "innosetup.exe"
-          Start-Process -Wait -FilePath "innosetup.exe" -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-"
+          Start-Process -Wait "innosetup.exe" -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-"
 
-      - name: Build Inno Setup installer
+      - name: Build installer
         shell: pwsh
         run: |
-          $version = "${{ steps.version.outputs.value }}"
+          $ver  = "${{ needs.create-release.outputs.version }}"
           $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
-          
-          # Patch version in installer script
+
+          # Patch version into installer script
           (Get-Content "windows\installer.iss") `
-            -replace '#define MyAppVersion ".*"', "#define MyAppVersion `"$version`"" |
+            -replace '#define MyAppVersion ".*"', "#define MyAppVersion `"$ver`"" |
             Set-Content "windows\installer.iss"
-          
-          # Create output directory
+
           New-Item -ItemType Directory -Path "build\windows\installer" -Force | Out-Null
-          
           & $iscc "windows\installer.iss"
-          Write-Host "Built: Beleka_POS_Setup_v$version.exe"
+          Write-Host "Installer built: Beleka_POS_Setup_v$ver.exe"
 
-      - name: Upload Windows installer artifact
-        uses: actions/upload-artifact@v4
+      - name: Upload installer to release
+        uses: softprops/action-gh-release@v2
         with:
-          name: windows-installer
-          path: build/windows/installer/Beleka_POS_Setup_v${{ steps.version.outputs.value }}.exe
-          retention-days: 1
+          tag_name: ${{ needs.create-release.outputs.tag }}
+          files: build/windows/installer/Beleka_POS_Setup_v${{ needs.create-release.outputs.version }}.exe
 
-  # ─────────────────────────────────────────────────────────
-  # 2. Build Linux bundle
-  # ─────────────────────────────────────────────────────────
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Job 3: Build Linux bundle and upload directly to the draft release
+  # ─────────────────────────────────────────────────────────────────────────────
   build-linux:
     name: Build Linux Bundle
+    needs: create-release
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Install Linux dependencies
@@ -119,117 +159,42 @@ jobs:
             libgstreamer1.0-dev \
             libgstreamer-plugins-base1.0-dev
 
-      - name: Set up Flutter (stable)
+      - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
           cache: true
 
-      - name: Determine version
-        id: version
-        run: |
-          if [[ "${{ github.event_name }}" == "push" ]]; then
-            VER="${{ github.ref_name }}"
-            VER="${VER#v}"
-          else
-            VER="${{ inputs.version }}"
-          fi
-          echo "value=$VER" >> $GITHUB_OUTPUT
-          echo "Version: $VER"
-
       - name: Flutter pub get
         run: flutter pub get
 
       - name: Build Linux release
-        run: flutter build linux --release --build-name=${{ steps.version.outputs.value }}
+        run: flutter build linux --release --build-name=${{ needs.create-release.outputs.version }}
 
-      - name: Package Linux bundle
+      - name: Package bundle
         run: |
-          VERSION="${{ steps.version.outputs.value }}"
+          VER="${{ needs.create-release.outputs.version }}"
           cd build/linux/x64/release/bundle
-          tar -czf "../../../../../Beleka_POS_Linux_v${VERSION}.tar.gz" .
-          echo "Packaged Beleka_POS_Linux_v${VERSION}.tar.gz"
+          tar -czf "../../../../../Beleka_POS_Linux_v${VER}.tar.gz" .
+          echo "Packaged Beleka_POS_Linux_v${VER}.tar.gz"
 
-      - name: Upload Linux artifact
-        uses: actions/upload-artifact@v4
+      - name: Upload bundle to release
+        uses: softprops/action-gh-release@v2
         with:
-          name: linux-bundle
-          path: Beleka_POS_Linux_v${{ steps.version.outputs.value }}.tar.gz
-          retention-days: 1
+          tag_name: ${{ needs.create-release.outputs.tag }}
+          files: Beleka_POS_Linux_v${{ needs.create-release.outputs.version }}.tar.gz
 
-  # ─────────────────────────────────────────────────────────
-  # 3. Create GitHub Release
-  # ─────────────────────────────────────────────────────────
-  release:
-    name: Publish GitHub Release
-    needs: [build-windows, build-linux]
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Job 4: Publish the draft release once both builds succeed
+  # ─────────────────────────────────────────────────────────────────────────────
+  publish-release:
+    name: Publish Release
+    needs: [create-release, build-windows, build-linux]
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Determine version & tag
-        id: meta
-        run: |
-          if [[ "${{ github.event_name }}" == "push" ]]; then
-            TAG="${{ github.ref_name }}"
-            VER="${TAG#v}"
-          else
-            VER="${{ inputs.version }}"
-            TAG="v${VER}"
-          fi
-          echo "version=$VER" >> $GITHUB_OUTPUT
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
-
-      - name: Download Windows installer
-        uses: actions/download-artifact@v4
-        with:
-          name: windows-installer
-          path: dist/
-
-      - name: Download Linux bundle
-        uses: actions/download-artifact@v4
-        with:
-          name: linux-bundle
-          path: dist/
-
-      - name: List artifacts
-        run: ls -lh dist/
-
-      - name: Create GitHub Release
+      - name: Publish (undraft) release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.meta.outputs.tag }}
-          name: "Beleka POS ${{ steps.meta.outputs.tag }}"
-          body: |
-            ## 🏪 Beleka POS — ${{ steps.meta.outputs.tag }}
-
-            ### 📦 Downloads
-
-            | Platform | File | Notes |
-            |----------|------|-------|
-            | 🪟 Windows | `Beleka_POS_Setup_v${{ steps.meta.outputs.version }}.exe` | Run the installer — creates Desktop & Start Menu shortcut |
-            | 🐧 Linux | `Beleka_POS_Linux_v${{ steps.meta.outputs.version }}.tar.gz` | Extract and run `./beleka_pos` |
-
-            ### 🚀 Windows Installation
-            1. Download `Beleka_POS_Setup_v${{ steps.meta.outputs.version }}.exe`
-            2. Run as Administrator *(right-click → Run as administrator)*
-            3. If Windows SmartScreen appears: click **More info → Run anyway**
-            4. Follow the setup wizard and launch from the Desktop shortcut
-
-            ### 🐧 Linux Installation
-            ```bash
-            tar -xzf Beleka_POS_Linux_v${{ steps.meta.outputs.version }}.tar.gz
-            chmod +x beleka_pos
-            ./beleka_pos
-            ```
-
-            ---
-            *Built automatically by GitHub Actions · Commit: `${{ github.sha }}`*
+          tag_name: ${{ needs.create-release.outputs.tag }}
           draft: false
-          prerelease: false
-          generate_release_notes: true
-          files: |
-            dist/Beleka_POS_Setup_v${{ steps.meta.outputs.version }}.exe
-            dist/Beleka_POS_Linux_v${{ steps.meta.outputs.version }}.tar.gz
