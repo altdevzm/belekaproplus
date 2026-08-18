@@ -1,0 +1,21 @@
+{
+  "product": "Beleka Pro POS Master",
+  "customer": "Beleka Master Installer",
+  "installationId": "BP-MASTER-UNIVERSAL",
+  "hardwareId": "BP-UNIVERSAL-MASTER-KEY",
+  "branches": 999,
+  "term": "Universal Master Deployment",
+  "issuedAt": "2026-08-18T12:40:04.987821Z",
+  "expiresAt": null,
+  "features": [
+    "offline_pos",
+    "inventory_management",
+    "category_allocation",
+    "thermal_receipt_printing",
+    "escpos_drivers",
+    "backup_and_restore",
+    "unlimited_transactions",
+    "universal_deployer_mode"
+  ],
+  "signature": "zcXlT+/c/yjL3BPRC1bTB2e3c10cCYjp8FybJpPDx5Prex4rpWwhPk636+7sAnK+L+uSdSAWsposSUdru75CBQ=="
+}

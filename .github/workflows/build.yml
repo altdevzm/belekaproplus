@@ -1,0 +1,109 @@
+name: Build Desktop Apps
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+      - run: flutter pub get
+      - run: flutter build windows --release
+      - name: Bundle MSVC runtime DLLs
+        shell: pwsh
+        run: |
+          $target = (Resolve-Path "build\windows\x64\runner\Release").Path
+          Copy-Item "C:\Windows\System32\msvcp140.dll" -Destination $target
+          Copy-Item "C:\Windows\System32\vcruntime140.dll" -Destination $target
+          Copy-Item "C:\Windows\System32\vcruntime140_1.dll" -Destination $target
+          Copy-Item "C:\Windows\System32\msvcp140_1.dll" -Destination $target -ErrorAction SilentlyContinue
+          Copy-Item "C:\Windows\System32\msvcp140_2.dll" -Destination $target -ErrorAction SilentlyContinue
+      - name: Zip Build
+        shell: pwsh
+        run: |
+          Compress-Archive -Path "build\windows\x64\runner\Release\*" -DestinationPath "beleka-pos-windows.zip"
+      - name: Upload Windows Build
+        uses: actions/upload-artifact@v4
+        with:
+          name: beleka-pos-windows
+          path: beleka-pos-windows.zip
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+      - run: flutter pub get
+      - run: flutter build macos --release
+      - name: Zip Build
+        run: |
+          cd build/macos/Build/Products/Release
+          zip -r ../../../../beleka-pos-macos.zip .
+      - name: Upload MacOS Build
+        uses: actions/upload-artifact@v4
+        with:
+          name: beleka-pos-macos
+          path: beleka-pos-macos.zip
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Linux Dependencies
+        run: sudo apt-get update && sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+      - run: flutter pub get
+      - run: flutter build linux --release
+      - name: Zip Build
+        run: |
+          cd build/linux/x64/release/bundle
+          zip -r ../../../../../beleka-pos-linux.zip .
+      - name: Upload Linux Build
+        uses: actions/upload-artifact@v4
+        with:
+          name: beleka-pos-linux
+          path: beleka-pos-linux.zip
+
+  release:
+    needs: [build-windows, build-macos, build-linux]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    permissions:
+      contents: write
+    steps:
+      - name: Download Windows Build
+        uses: actions/download-artifact@v4
+        with:
+          name: beleka-pos-windows
+      - name: Download MacOS Build
+        uses: actions/download-artifact@v4
+        with:
+          name: beleka-pos-macos
+      - name: Download Linux Build
+        uses: actions/download-artifact@v4
+        with:
+          name: beleka-pos-linux
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name == 'main' && 'latest' || github.ref_name }}
+          files: |
+            beleka-pos-windows.zip
+            beleka-pos-macos.zip
+            beleka-pos-linux.zip
+          generate_release_notes: true

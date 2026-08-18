@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200..800&amp;family=Inter:wght@100..900&amp;family=Plus+Jakarta+Sans:wght@200..800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "secondary-container": "#de0541",
+            "on-background": "#e5e2e1",
+            "on-tertiary-fixed-variant": "#90003b",
+            "on-primary-fixed-variant": "#5300cd",
+            "error": "#ffb4ab",
+            "primary": "#cfbdff",
+            "on-secondary-container": "#fff1f1",
+            "on-secondary-fixed": "#40000c",
+            "secondary-fixed-dim": "#ffb3b5",
+            "on-surface-variant": "#ccc3d4",
+            "inverse-primary": "#6d23f9",
+            "inverse-on-surface": "#313030",
+            "outline": "#958e9e",
+            "on-secondary-fixed-variant": "#920027",
+            "on-error-container": "#ffdad6",
+            "surface-container": "#201f1f",
+            "surface-container-lowest": "#0e0e0e",
+            "tertiary-fixed": "#ffd9de",
+            "outline-variant": "#4a4452",
+            "primary-fixed-dim": "#cfbdff",
+            "on-secondary": "#680019",
+            "surface-dim": "#131313",
+            "on-primary": "#3a0093",
+            "surface-bright": "#393939",
+            "on-error": "#690005",
+            "surface-container-low": "#1c1b1b",
+            "error-container": "#93000a",
+            "tertiary": "#ffb2bf",
+            "on-primary-fixed": "#22005d",
+            "primary-fixed": "#e8ddff",
+            "on-tertiary-fixed": "#3f0016",
+            "secondary": "#ffb3b5",
+            "secondary-fixed": "#ffdada",
+            "surface-tint": "#cfbdff",
+            "surface-variant": "#353534",
+            "surface": "#131313",
+            "on-primary-container": "#b296ff",
+            "tertiary-container": "#7c0032",
+            "on-tertiary-container": "#ff7d9b",
+            "inverse-surface": "#e5e2e1",
+            "background": "#131313",
+            "on-surface": "#e5e2e1",
+            "on-tertiary": "#660028",
+            "primary-container": "#4700b1",
+            "surface-container-highest": "#353534",
+            "surface-container-high": "#2a2a2a"
+          },
+          fontFamily: {
+            "headline": ["Manrope"],
+            "body": ["Inter"],
+            "label": ["Plus Jakarta Sans"]
+          },
+          borderRadius: {
+            "DEFAULT": "0.125rem",
+            "lg": "0.25rem",
+            "xl": "0.5rem",
+            "full": "0.75rem"
+          },
+        },
+      },
+    }
+  </script>
+<style>
+    .glass-effect {
+      background: rgba(20, 19, 19, 0.7);
+      backdrop-filter: blur(24px);
+    }
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+    }
+  </style>
+</head>
+<body class="bg-surface text-on-surface font-body selection:bg-primary selection:text-on-primary">
+<!-- Main Layout Container -->
+<div class="relative flex min-h-screen w-full flex-col overflow-x-hidden">
+<!-- Top Header (Contextual) -->
+<header class="flex items-center justify-between border-b border-outline-variant/20 bg-surface px-8 py-4">
+<div class="flex items-center gap-6">
+<button class="flex items-center justify-center p-2 text-primary hover:bg-surface-container-high rounded-full transition-colors">
+<span class="material-symbols-outlined">arrow_back</span>
+</button>
+<div>
+<div class="flex items-center gap-2 mb-0.5">
+<span class="text-xs font-label uppercase tracking-widest text-outline">Inventory Management</span>
+</div>
+<h1 class="font-headline text-2xl font-extrabold tracking-tight">Session #ST-9921 Details</h1>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<button class="flex h-11 items-center gap-2 rounded-xl border border-outline-variant px-5 text-sm font-bold tracking-wide transition-all hover:bg-surface-container">
+<span class="material-symbols-outlined text-[18px]">picture_as_pdf</span>
+          Export PDF
+        </button>
+<button class="flex h-11 items-center gap-2 rounded-xl bg-surface-container-highest px-5 text-sm font-bold tracking-wide text-primary transition-all hover:bg-primary/10">
+<span class="material-symbols-outlined text-[18px]">replay</span>
+          Flag for Recount
+        </button>
+<button class="flex h-11 items-center gap-2 rounded-xl bg-secondary-container px-6 text-sm font-bold tracking-wide text-on-secondary-container shadow-lg shadow-secondary-container/20 transition-all hover:brightness-110 active:scale-95">
+<span class="material-symbols-outlined text-[18px]">check_circle</span>
+          Approve Adjustments
+        </button>
+</div>
+</header>
+<main class="flex-1 p-8 max-w-[1400px] mx-auto w-full">
+<!-- Session Meta & Summary Grid -->
+<div class="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-10">
+<!-- Auditor Details Card -->
+<div class="lg:col-span-1 flex flex-col justify-center rounded-xl bg-surface-container-low p-6 border border-outline-variant/10">
+<p class="font-label text-[10px] uppercase tracking-widest text-outline mb-4">Audit Session Metadata</p>
+<div class="flex items-center gap-4 mb-4">
+<div class="h-12 w-12 rounded-full bg-primary-container flex items-center justify-center">
+<span class="material-symbols-outlined text-primary">person_check</span>
+</div>
+<div>
+<p class="text-sm font-bold text-on-surface">Jordan Smith</p>
+<p class="text-xs text-outline">Lead Auditor</p>
+</div>
+</div>
+<div class="flex items-center gap-2 text-sm text-on-surface-variant">
+<span class="material-symbols-outlined text-[18px]">calendar_today</span>
+<span>Oct 24, 2023</span>
+</div>
+</div>
+<!-- Summary Statistics -->
+<div class="lg:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-4">
+<div class="rounded-xl bg-surface-container-high p-6 border border-primary/10 relative overflow-hidden group">
+<div class="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
+<span class="material-symbols-outlined text-[48px]">inventory_2</span>
+</div>
+<p class="text-sm font-medium text-outline mb-1">Total Expected</p>
+<h3 class="font-headline text-3xl font-black text-on-surface">4,250 <span class="text-sm font-normal text-outline">units</span></h3>
+<div class="mt-4 flex items-center gap-1.5 text-xs font-label text-primary">
+<span class="material-symbols-outlined text-[14px]">info</span> Target baseline met
+            </div>
+</div>
+<div class="rounded-xl bg-surface-container-high p-6 border border-outline-variant/10 relative overflow-hidden group">
+<div class="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
+<span class="material-symbols-outlined text-[48px]">fact_check</span>
+</div>
+<p class="text-sm font-medium text-outline mb-1">Total Counted</p>
+<h3 class="font-headline text-3xl font-black text-on-surface">4,180 <span class="text-sm font-normal text-outline">units</span></h3>
+<div class="mt-4 flex items-center gap-1.5 text-xs font-label text-secondary">
+<span class="material-symbols-outlined text-[14px]">trending_down</span> -70 units discrepancy
+            </div>
+</div>
+<div class="rounded-xl glass-effect p-6 border border-secondary-container/20 relative overflow-hidden group">
+<div class="absolute inset-0 bg-secondary-container/5 pointer-events-none"></div>
+<div class="absolute top-0 right-0 p-2 opacity-20">
+<span class="material-symbols-outlined text-[48px] text-secondary">payments</span>
+</div>
+<p class="text-sm font-medium text-outline mb-1">Financial Discrepancy</p>
+<h3 class="font-headline text-3xl font-black text-secondary">-$1,420</h3>
+<div class="mt-4 flex items-center gap-1.5 text-xs font-label text-secondary">
+<span class="material-symbols-outlined text-[14px]">warning</span> -1.65% Net Shrinkage
+            </div>
+</div>
+</div>
+</div>
+<!-- Item List Section -->
+<div class="rounded-xl bg-surface-container-low border border-outline-variant/10 overflow-hidden">
+<!-- Table Toolbar -->
+<div class="flex flex-col md:flex-row items-center justify-between gap-4 p-5 border-b border-outline-variant/10">
+<div class="relative w-full md:w-96">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">search</span>
+<input class="w-full h-11 rounded-xl bg-surface-container-high border-none pl-10 text-sm focus:ring-1 focus:ring-primary placeholder:text-outline/50 transition-all" placeholder="Search by product name or SKU..." type="text"/>
+</div>
+<div class="flex items-center gap-2 w-full md:w-auto">
+<button class="flex-1 md:flex-none h-11 flex items-center justify-center gap-2 px-4 rounded-xl bg-surface-container-high text-sm font-medium text-on-surface-variant hover:text-on-surface transition-colors">
+<span class="material-symbols-outlined text-[18px]">filter_list</span>
+              Filters
+            </button>
+<button class="flex-1 md:flex-none h-11 flex items-center justify-center gap-2 px-4 rounded-xl bg-surface-container-high text-sm font-medium text-on-surface-variant hover:text-on-surface transition-colors">
+<span class="material-symbols-outlined text-[18px]">sort_by_alpha</span>
+              Sort
+            </button>
+</div>
+</div>
+<!-- Scrollable Table -->
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-lowest/30">
+<th class="px-6 py-4 text-[11px] font-label font-bold uppercase tracking-widest text-outline">Product &amp; SKU</th>
+<th class="px-6 py-4 text-[11px] font-label font-bold uppercase tracking-widest text-outline">Expected</th>
+<th class="px-6 py-4 text-[11px] font-label font-bold uppercase tracking-widest text-outline">Actual</th>
+<th class="px-6 py-4 text-[11px] font-label font-bold uppercase tracking-widest text-outline">Discrepancy</th>
+<th class="px-6 py-4 text-[11px] font-label font-bold uppercase tracking-widest text-outline">Status</th>
+<th class="px-6 py-4"></th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant/10">
+<!-- Item 1: Correct -->
+<tr class="group hover:bg-surface-container transition-colors">
+<td class="px-6 py-5">
+<div class="flex items-center gap-3">
+<div class="h-10 w-10 rounded-lg bg-surface-container-high border border-outline-variant/10 flex items-center justify-center overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="close-up studio shot of a sleek leather wallet with fine stitching against a dark background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBzYfqXAWpsHkvIu-1p1dIk9SXRUVodTtcBsNNnBpSrztH_fZhdidMIwGf-iy5AiKvPwKlK1XZp7Kc_tlODcR5hMBQ15isOxM1P9AbKb6-tEYNgcFIj-74ncUcQ24HnccBh7d25lJdmjrXaYEbrLEELKnsuTbZfRcxV6NnjJOtX1HqSKGbj2iV8rIEVaB5p1nSNLmesFsn3NL9JiQWNgs70b0DrTJloAo6HAYGuk7SPaJ6mFqhtY84_WPZTq2U-k7pju1YZ2CWrHTI"/>
+</div>
+<div>
+<p class="text-sm font-bold text-on-surface">Heritage Bi-fold Wallet</p>
+<p class="text-xs font-label text-outline">SKU: WLT-HB-BLK</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-5 text-sm">42</td>
+<td class="px-6 py-5 text-sm">42</td>
+<td class="px-6 py-5 text-sm text-outline">0</td>
+<td class="px-6 py-5">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-wider">
+<span class="h-1 w-1 rounded-full bg-primary"></span>
+                    Correct
+                  </span>
+</td>
+<td class="px-6 py-5 text-right">
+<button class="p-2 text-outline hover:text-primary transition-colors">
+<span class="material-symbols-outlined">more_horiz</span>
+</button>
+</td>
+</tr>
+<!-- Item 2: Shortage -->
+<tr class="group hover:bg-surface-container transition-colors">
+<td class="px-6 py-5">
+<div class="flex items-center gap-3">
+<div class="h-10 w-10 rounded-lg bg-surface-container-high border border-outline-variant/10 flex items-center justify-center overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="professional matte black noise canceling headphones resting on a minimalist display stand" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCTlBtW4T-H6mXTyk11P469Z2J1ENdskCZGMMaM3jrNuQbeM-nOb5_EUfmHdOnPbjII-SL4m4NPkPHbMKSqzOc_XG2eqsePu6f5XGKjSpaqvs25w892TB6xEU6SQGmaX29XIlUrIggcHOGRo3zZTDGnUU6v-1N21YYuGASojYMe2ioh5dRrjiscSWEKvzDolEIeYYBiFmzFfxRAyRFkdSMJWPBVWUbiEwm8graumi0eAJt_MtD7izzp2qMYw1v1xit8npqi-Y_oQSo"/>
+</div>
+<div>
+<p class="text-sm font-bold text-on-surface">Obsidian Audio C-1</p>
+<p class="text-xs font-label text-outline">SKU: AUD-OBS-202</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-5 text-sm font-medium">15</td>
+<td class="px-6 py-5 text-sm font-bold">12</td>
+<td class="px-6 py-5 text-sm font-bold text-secondary">-3</td>
+<td class="px-6 py-5">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-secondary-container/20 text-secondary text-[10px] font-bold uppercase tracking-wider">
+<span class="h-1 w-1 rounded-full bg-secondary"></span>
+                    Shortage
+                  </span>
+</td>
+<td class="px-6 py-5 text-right">
+<button class="p-2 text-outline hover:text-primary transition-colors">
+<span class="material-symbols-outlined">more_horiz</span>
+</button>
+</td>
+</tr>
+<!-- Item 3: Surplus -->
+<tr class="group hover:bg-surface-container transition-colors">
+<td class="px-6 py-5">
+<div class="flex items-center gap-3">
+<div class="h-10 w-10 rounded-lg bg-surface-container-high border border-outline-variant/10 flex items-center justify-center overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="aesthetic ceramic minimalist candle with elegant typography and golden flame on dark marble" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBAKRmF4pWeyOpmlQp9qqLRFkepbB3CguVoG6UMslDdTAAPTwRYV2oUHHuZs_ZvSGnaPjRWL0EfvBq8aFiB7TxoKvq_RfGH7JVNbhSYRYwn3uNO-NgLv2VFkfG_7CKB7hvOTq3wWIg8zmMT9SBrEoCa6OZwqakBEQJ5655JnMSPNC5SaAe8Sz-7MomP0MT3tFptO12BxC5Wy1RIrFegIN-Qfxs6DDAT_UI5Sqbkjaobf6_Ukkw1CTWnnyWxkDockReoGvIY2_T11uU"/>
+</div>
+<div>
+<p class="text-sm font-bold text-on-surface">Amber Soy Candle</p>
+<p class="text-xs font-label text-outline">SKU: HOM-ASY-04</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-5 text-sm">88</td>
+<td class="px-6 py-5 text-sm font-bold">92</td>
+<td class="px-6 py-5 text-sm font-bold text-emerald-400">+4</td>
+<td class="px-6 py-5">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-400/10 text-emerald-400 text-[10px] font-bold uppercase tracking-wider">
+<span class="h-1 w-1 rounded-full bg-emerald-400"></span>
+                    Surplus
+                  </span>
+</td>
+<td class="px-6 py-5 text-right">
+<button class="p-2 text-outline hover:text-primary transition-colors">
+<span class="material-symbols-outlined">more_horiz</span>
+</button>
+</td>
+</tr>
+<!-- Item 4: Shortage -->
+<tr class="group hover:bg-surface-container transition-colors">
+<td class="px-6 py-5">
+<div class="flex items-center gap-3">
+<div class="h-10 w-10 rounded-lg bg-surface-container-high border border-outline-variant/10 flex items-center justify-center overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="luxury fountain pen with rose gold accents resting on premium textured stationery" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBWbIIwYxYykEyYl2TwyYY1aZtZXYyT19QcHlGlM-JMaxMERZ_-tJuBNjuLu38iFIm4Ij4fkmQhK0Ytlws3w3iJ4P4MMDzAnmyZXF8hZkXDDtlRvUGxwYSjhBqB2pRVGVbrbNvMNvHm1Pd5zuRcEZ-mY1zuwKtEuHmGGSLHr8uDFF4UKo0bEYClnfbcTYmYdg2lO9vMRo0QLJhhuk8afwfDHgnG_kEIW_5BmFC_sWGnInOUxfvX8tJHCsB7bjUiAduk7yANrgD_n1Y"/>
+</div>
+<div>
+<p class="text-sm font-bold text-on-surface">Executive Fountain Pen</p>
+<p class="text-xs font-label text-outline">SKU: ACC-EXE-PEN</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-5 text-sm">200</td>
+<td class="px-6 py-5 text-sm font-bold">135</td>
+<td class="px-6 py-5 text-sm font-bold text-secondary">-65</td>
+<td class="px-6 py-5">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-secondary-container/20 text-secondary text-[10px] font-bold uppercase tracking-wider">
+<span class="h-1 w-1 rounded-full bg-secondary"></span>
+                    Shortage
+                  </span>
+</td>
+<td class="px-6 py-5 text-right">
+<button class="p-2 text-outline hover:text-primary transition-colors">
+<span class="material-symbols-outlined">more_horiz</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Pagination / Footer info -->
+<div class="px-6 py-4 flex items-center justify-between border-t border-outline-variant/10 bg-surface-container-lowest/20">
+<p class="text-xs text-outline">Showing 1 to 4 of 128 items</p>
+<div class="flex items-center gap-1">
+<button class="h-9 w-9 flex items-center justify-center rounded-lg hover:bg-surface-container-high transition-colors">
+<span class="material-symbols-outlined text-[20px]">chevron_left</span>
+</button>
+<button class="h-9 w-9 flex items-center justify-center rounded-lg bg-primary text-on-primary font-bold text-xs">1</button>
+<button class="h-9 w-9 flex items-center justify-center rounded-lg hover:bg-surface-container-high transition-colors text-xs">2</button>
+<button class="h-9 w-9 flex items-center justify-center rounded-lg hover:bg-surface-container-high transition-colors text-xs">3</button>
+<button class="h-9 w-9 flex items-center justify-center rounded-lg hover:bg-surface-container-high transition-colors">
+<span class="material-symbols-outlined text-[20px]">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Auditor Notes Section -->
+<div class="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
+<div class="lg:col-span-2">
+<div class="flex items-center justify-between mb-4">
+<h2 class="font-headline text-lg font-bold">Auditor Notes</h2>
+<button class="text-xs font-label text-primary flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">edit</span> Edit Note
+            </button>
+</div>
+<div class="rounded-xl bg-surface-container-low border border-outline-variant/10 p-6">
+<div class="flex gap-4">
+<div class="h-10 w-10 flex-shrink-0 rounded-full bg-outline-variant/30 flex items-center justify-center">
+<span class="material-symbols-outlined text-outline">sticky_note_2</span>
+</div>
+<div class="space-y-4">
+<p class="text-on-surface-variant leading-relaxed">
+                  "Significant shortage noted in the obsidian audio category. Warehouse logs show a recent shipment of 50 units, but only 12 were located on-floor. Recommend a full warehouse recount for SKU: AUD-OBS-202. The amber soy candles surplus is likely due to mislabeling with the 'Oasis' line which is currently showing a slight shortage."
+                </p>
+<div class="flex items-center gap-4 text-xs font-label text-outline">
+<span class="flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">schedule</span> 14:45 PM</span>
+<span class="flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">location_on</span> Main Showroom</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="lg:col-span-1">
+<h2 class="font-headline text-lg font-bold mb-4">Quick Stats</h2>
+<div class="rounded-xl bg-surface-container-low border border-outline-variant/10 p-6 space-y-6">
+<div>
+<div class="flex justify-between items-center mb-2">
+<span class="text-xs font-label text-outline">Count Accuracy</span>
+<span class="text-xs font-bold text-on-surface">98.35%</span>
+</div>
+<div class="w-full h-1.5 bg-surface-container-high rounded-full overflow-hidden">
+<div class="h-full bg-primary rounded-full" style="width: 98.35%;"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between items-center mb-2">
+<span class="text-xs font-label text-outline">Items Processed</span>
+<span class="text-xs font-bold text-on-surface">128 / 128</span>
+</div>
+<div class="w-full h-1.5 bg-surface-container-high rounded-full overflow-hidden">
+<div class="h-full bg-emerald-400 rounded-full" style="width: 100%;"></div>
+</div>
+</div>
+<div class="pt-4 border-t border-outline-variant/10">
+<p class="text-[10px] uppercase font-bold tracking-widest text-outline mb-3">Recent Activity</p>
+<ul class="space-y-4">
+<li class="flex items-start gap-3">
+<div class="h-2 w-2 mt-1.5 rounded-full bg-primary"></div>
+<div>
+<p class="text-xs font-bold text-on-surface">Audit session locked</p>
+<p class="text-[10px] text-outline">Jordan Smith • 10 mins ago</p>
+</div>
+</li>
+<li class="flex items-start gap-3">
+<div class="h-2 w-2 mt-1.5 rounded-full bg-outline-variant"></div>
+<div>
+<p class="text-xs font-bold text-on-surface">PDF Export generated</p>
+<p class="text-[10px] text-outline">System • 45 mins ago</p>
+</div>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Context Floating Live Ribbon -->
+<div class="fixed bottom-6 right-6 left-6 md:left-auto md:w-[400px] z-50">
+<div class="glass-effect border border-secondary-container/30 rounded-2xl p-4 shadow-2xl shadow-black/40 flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="h-10 w-10 rounded-xl bg-secondary-container/20 flex items-center justify-center">
+<span class="material-symbols-outlined text-secondary">analytics</span>
+</div>
+<div>
+<p class="text-[10px] font-label font-bold uppercase tracking-widest text-secondary">Final Review Required</p>
+<p class="text-sm font-bold text-on-surface">Shrinkage threshold exceeded</p>
+</div>
+</div>
+<button class="h-10 px-4 rounded-xl bg-surface-container-highest text-xs font-bold text-primary hover:bg-primary/10 transition-all">
+          Review Alerts
+        </button>
+</div>
+</div>
+</div>
+</body></html>

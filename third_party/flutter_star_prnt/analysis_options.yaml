@@ -1,0 +1,18 @@
+# Relaxed analysis for third-party flutter_star_prnt package.
+# Enum constant names follow the upstream SDK convention (PascalCase)
+# and cannot be renamed without breaking the public API.
+analyzer:
+  errors:
+    constant_identifier_names: ignore
+    avoid_print: ignore
+    prefer_for_elements_to_map_fromIterable: ignore
+
+linter:
+  rules:
+    constant_identifier_names: false
+    avoid_print: false
+    prefer_adjacent_string_concatenation: false
+    avoid_function_literals_in_foreach_calls: false
+    library_private_types_in_public_api: false
+    curly_braces_in_flow_control_structures: false
+    unnecessary_this: false

@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200;400;600;700;800&amp;family=Inter:wght@300;400;500;600&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "surface-tint": "#cfbdff",
+              "primary-fixed-dim": "#cfbdff",
+              "on-secondary": "#680019",
+              "tertiary": "#ffb2bf",
+              "secondary-fixed-dim": "#ffb3b5",
+              "secondary-container": "#de0541",
+              "on-primary-fixed-variant": "#5300cd",
+              "outline": "#958e9e",
+              "surface-container-low": "#1c1b1b",
+              "primary-fixed": "#e8ddff",
+              "on-tertiary-fixed": "#3f0016",
+              "surface-dim": "#131313",
+              "surface-container": "#201f1f",
+              "tertiary-fixed": "#ffd9de",
+              "surface-container-lowest": "#0e0e0e",
+              "on-surface": "#e5e2e1",
+              "inverse-primary": "#6d23f9",
+              "on-tertiary-fixed-variant": "#90003b",
+              "tertiary-fixed-dim": "#ffb2bf",
+              "on-surface-variant": "#ccc3d4",
+              "error": "#ffb4ab",
+              "secondary-fixed": "#ffdada",
+              "inverse-surface": "#e5e2e1",
+              "on-tertiary-container": "#ff7d9b",
+              "on-secondary-fixed": "#40000c",
+              "on-error-container": "#ffdad6",
+              "surface-bright": "#393939",
+              "on-primary": "#3a0093",
+              "outline-variant": "#4a4452",
+              "on-tertiary": "#660028",
+              "primary-container": "#4700b1",
+              "inverse-on-surface": "#313030",
+              "on-background": "#e5e2e1",
+              "on-secondary-container": "#fff1f1",
+              "on-primary-container": "#b296ff",
+              "on-secondary-fixed-variant": "#920027",
+              "surface": "#131313",
+              "primary": "#cfbdff",
+              "on-primary-fixed": "#22005d",
+              "surface-container-highest": "#353534",
+              "error-container": "#93000a",
+              "on-error": "#690005",
+              "tertiary-container": "#7c0032",
+              "surface-variant": "#353534",
+              "surface-container-high": "#2a2a2a",
+              "background": "#131313",
+              "secondary": "#ffb3b5"
+            },
+            fontFamily: {
+              "headline": ["Manrope"],
+              "body": ["Inter"],
+              "label": ["Plus Jakarta Sans"]
+            },
+            borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+          },
+        },
+      }
+    </script>
+<style>
+      body {
+        background-color: #131313;
+        color: #e5e2e1;
+        font-family: 'Inter', sans-serif;
+      }
+      .glass-card {
+        background: rgba(28, 27, 27, 0.7);
+        backdrop-filter: blur(24px);
+        -webkit-backdrop-filter: blur(24px);
+      }
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+      }
+      .active-nav-glow {
+        box-shadow: 0 0 15px rgba(207, 189, 255, 0.15);
+      }
+    </style>
+</head>
+<body class="bg-surface text-on-surface antialiased overflow-x-hidden">
+<!-- Side Navigation Shell -->
+<aside class="fixed left-0 top-0 h-full w-72 z-40 bg-[#1c1b1b] dark:bg-zinc-900 flex flex-col border-r-0">
+<div class="p-8">
+<h1 class="text-xl font-bold text-purple-200 tracking-tight font-headline">The Digital Concierge</h1>
+<p class="text-xs text-zinc-500 mt-1 uppercase tracking-widest font-label">Terminal 01 - Admin</p>
+</div>
+<nav class="flex-1 px-4 space-y-2">
+<a class="flex items-center gap-3 px-4 py-3 text-zinc-400 hover:text-white transition-colors duration-300 rounded-xl group" href="#">
+<span class="material-symbols-outlined group-hover:scale-110 transition-transform">dashboard</span>
+<span class="font-label">Overview</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-zinc-400 hover:text-white transition-colors duration-300 rounded-xl group" href="#">
+<span class="material-symbols-outlined group-hover:scale-110 transition-transform">payments</span>
+<span class="font-label">Sales</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-zinc-400 hover:text-white transition-colors duration-300 rounded-xl group" href="#">
+<span class="material-symbols-outlined group-hover:scale-110 transition-transform">inventory_2</span>
+<span class="font-label">Inventory</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 bg-[#353534] text-white rounded-xl font-semibold active-nav-glow" href="#">
+<span class="material-symbols-outlined text-primary">badge</span>
+<span class="font-label">Staff</span>
+</a>
+</nav>
+<div class="px-6 py-6">
+<button class="w-full bg-primary-container text-on-primary-container py-3 rounded-full font-semibold font-label scale-95 hover:scale-100 duration-150 ease-in-out">
+                Quick Transaction
+            </button>
+</div>
+<div class="p-4 border-t border-outline-variant/10 space-y-1">
+<a class="flex items-center gap-3 px-4 py-2 text-zinc-400 hover:text-white transition-colors text-sm rounded-lg" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-label">Settings</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2 text-zinc-400 hover:text-white transition-colors text-sm rounded-lg" href="#">
+<span class="material-symbols-outlined">logout</span>
+<span class="font-label">Logout</span>
+</a>
+</div>
+</aside>
+<!-- Top Navigation Shell -->
+<header class="fixed top-0 left-72 right-0 h-20 z-30 bg-[#131313]/70 backdrop-blur-xl flex items-center justify-between px-10 shadow-2xl shadow-purple-900/5">
+<div class="flex items-center gap-8">
+<h2 class="font-headline text-2xl font-black text-purple-300">Staff Management</h2>
+<nav class="hidden lg:flex items-center gap-6">
+<a class="text-[#cfbdff] border-b-2 border-[#cfbdff] pb-2 font-label text-sm tracking-wide" href="#">Directory</a>
+<a class="text-zinc-500 hover:text-zinc-200 transition-all font-label text-sm tracking-wide" href="#">Roles</a>
+<a class="text-zinc-500 hover:text-zinc-200 transition-all font-label text-sm tracking-wide" href="#">Shifts</a>
+</nav>
+</div>
+<div class="flex items-center gap-6">
+<div class="relative hidden xl:block">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 text-sm">search</span>
+<input class="bg-surface-container border-none rounded-full pl-10 pr-4 py-2 text-sm w-64 focus:ring-1 focus:ring-primary/50 text-on-surface-variant font-body" placeholder="Search staff members..." type="text"/>
+</div>
+<div class="flex items-center gap-3">
+<button class="bg-primary-container text-on-primary-container px-5 py-2.5 rounded-full font-semibold text-sm hover:opacity-80 transition-opacity">
+                    Add Staff
+                </button>
+<button class="text-zinc-400 hover:text-white">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<div class="w-10 h-10 rounded-full overflow-hidden border border-primary/20">
+<img class="w-full h-full object-cover" data-alt="professional male manager portrait in modern studio setting with warm lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDM5NFDq8ob09x71q6kNvGbADzgvPefUTk_mJn0ahQiJpYTAVHc7mbXEqaz5TfcmD_ASKaUCUQmIvdc3v38KNpxqUagV5uI1r-uvb4zfOY12Jhjr-4bXFRflJ5DGlQbZsp7IToq6Eh02Exf-O9BdGnhmHqK35-D_SBaaRn0Aa7UbnfwZgV6zdDdHLD8nKEJQJSTlyOUIlawN8OiL1Q7GAq2yTaE_dcTgGdhWB-8X6rxmwM4--QDbopcPn2O01q1Ahu6riHjodDExWg"/>
+</div>
+</div>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="ml-72 pt-28 p-10 min-h-screen">
+<!-- Bento Grid Layout -->
+<div class="grid grid-cols-12 gap-6 items-start">
+<!-- Staff Directory (Primary Focus) -->
+<section class="col-span-12 xl:col-span-8 bg-surface-container-low rounded-full overflow-hidden p-1 shadow-sm">
+<div class="bg-surface-container rounded-full p-8">
+<div class="flex items-center justify-between mb-8">
+<div>
+<h3 class="font-headline text-xl font-bold">Active Directory</h3>
+<p class="font-label text-xs text-zinc-500 mt-1 uppercase tracking-tighter">8 Total Employees · 3 On Shift</p>
+</div>
+<div class="flex gap-2">
+<button class="p-2 rounded-lg bg-surface-container-high text-zinc-400 hover:text-white">
+<span class="material-symbols-outlined text-sm">filter_list</span>
+</button>
+<button class="p-2 rounded-lg bg-surface-container-high text-zinc-400 hover:text-white">
+<span class="material-symbols-outlined text-sm">more_vert</span>
+</button>
+</div>
+</div>
+<div class="space-y-4">
+<!-- Table Header -->
+<div class="grid grid-cols-12 gap-4 px-4 font-label text-[10px] uppercase tracking-widest text-zinc-500 mb-2">
+<div class="col-span-4">Staff Member</div>
+<div class="col-span-2">Role</div>
+<div class="col-span-2 text-center">Status</div>
+<div class="col-span-3">Weekly Sales</div>
+<div class="col-span-1"></div>
+</div>
+<!-- Staff Row 1 -->
+<div class="grid grid-cols-12 items-center gap-4 p-4 rounded-xl hover:bg-surface-container-highest/40 transition-colors group cursor-pointer">
+<div class="col-span-4 flex items-center gap-4">
+<div class="w-12 h-12 rounded-full overflow-hidden border-2 border-primary/20">
+<img class="w-full h-full object-cover" data-alt="professional female employee with friendly expression in high-end retail environment" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDjZM3Pf_b2dGZmzxlIu9LocomFt2mdd3G5sgxsp1H2DzcisNjsK561MpnZL4ST7kZyxCoLUfsAyFdT9iQNw8aT2NHM7uiQfvGtGKeiwngo383q18_GIi0PD5l4y0GdGGWIwenvhQe8pkWkDqrwDq6PDreUvPKw4WeZ-zBJ1Q1YbhIv3TKFX12MqXcxENDqdxyC8V8w_VZUVB7LdazjZJfgdjGTHZgbG5UV_G8T_8BEkMaO2oyT-md_ahfmHk-SqSWADb-GU54kPho"/>
+</div>
+<div>
+<p class="font-headline font-bold text-sm">Elena Vance</p>
+<p class="font-label text-[11px] text-zinc-500">ID: DC-8802</p>
+</div>
+</div>
+<div class="col-span-2">
+<span class="px-3 py-1 rounded-full bg-primary/10 text-primary font-label text-[10px] font-bold uppercase tracking-tight">Manager</span>
+</div>
+<div class="col-span-2 flex justify-center">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>
+<span class="font-body text-xs text-emerald-500">Clocked In</span>
+</div>
+</div>
+<div class="col-span-3">
+<div class="w-full h-1.5 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-gradient-to-r from-primary to-secondary w-[82%]"></div>
+</div>
+<div class="flex justify-between mt-1.5">
+<p class="font-label text-[9px] text-zinc-500">$12,450</p>
+<p class="font-label text-[9px] text-zinc-400">82% of Target</p>
+</div>
+</div>
+<div class="col-span-1 flex justify-end">
+<button class="opacity-0 group-hover:opacity-100 transition-opacity text-zinc-400 hover:text-white">
+<span class="material-symbols-outlined text-lg">edit_note</span>
+</button>
+</div>
+</div>
+<!-- Staff Row 2 -->
+<div class="grid grid-cols-12 items-center gap-4 p-4 rounded-xl hover:bg-surface-container-highest/40 transition-colors group cursor-pointer">
+<div class="col-span-4 flex items-center gap-4">
+<div class="w-12 h-12 rounded-full overflow-hidden border-2 border-zinc-700">
+<img class="w-full h-full object-cover" data-alt="focused young man in minimal attire looking towards camera in artistic studio lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCcJ46c370oaBde4END52pD4qXNEgrCMwiD8WNC1DX5ls0C8Kxmfenmcat4HtwZ1ceB6Nrb9cK5Uo87jCaNch-phGJHxnVv0C1VfQ_YhxdMPd728XV-Z30cZ5Ufq1Oark5Vz6SOL2OFedbiOXTXa-fz0p6updUyd9hPW9nieeJlMPEgTzQLNlY4IlOX6_si852UaaX1asf4IxfhPrPg9dTkLFEUiIN2JxmQ9n1mrgNnNdeMQGZYf6KCzYUhGhM_LscHA4OTHLFfIag"/>
+</div>
+<div>
+<p class="font-headline font-bold text-sm">Marcus Chen</p>
+<p class="font-label text-[11px] text-zinc-500">ID: DC-8815</p>
+</div>
+</div>
+<div class="col-span-2">
+<span class="px-3 py-1 rounded-full bg-zinc-800 text-zinc-400 font-label text-[10px] font-bold uppercase tracking-tight">Cashier</span>
+</div>
+<div class="col-span-2 flex justify-center">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-zinc-600"></span>
+<span class="font-body text-xs text-zinc-500">Off Duty</span>
+</div>
+</div>
+<div class="col-span-3">
+<div class="w-full h-1.5 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-gradient-to-r from-primary to-secondary w-[45%]"></div>
+</div>
+<div class="flex justify-between mt-1.5">
+<p class="font-label text-[9px] text-zinc-500">$6,210</p>
+<p class="font-label text-[9px] text-zinc-400">45% of Target</p>
+</div>
+</div>
+<div class="col-span-1 flex justify-end">
+<button class="opacity-0 group-hover:opacity-100 transition-opacity text-zinc-400 hover:text-white">
+<span class="material-symbols-outlined text-lg">edit_note</span>
+</button>
+</div>
+</div>
+<!-- Staff Row 3 -->
+<div class="grid grid-cols-12 items-center gap-4 p-4 rounded-xl hover:bg-surface-container-highest/40 transition-colors group cursor-pointer">
+<div class="col-span-4 flex items-center gap-4">
+<div class="w-12 h-12 rounded-full overflow-hidden border-2 border-primary/20">
+<img class="w-full h-full object-cover" data-alt="professional smiling woman in corporate setting with soft natural background light" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAKpnSylZ5YvNeFEBT77g_U9zKOaLv_e10caKaNOAqWkKigN9G0Ev7tUzWFXLFpskmmT3R3vt296joki1JAf59whzNwHkTU3DDY8zvxx2jHAhEbZs146yjcdCbhPxvRhbgadi3q7CfiBi7pmpAlfDP4mVU3OEQ_qMyj9pik2i0r0EU8zAREE3nU2qv7OuOtmNHVll5gvk3Z038fZSzyJz1BIIO4yNIKrJjikBjLY1vKK_QYJELMHVxIWZx-hMBgrufV28c2A9eBVtc"/>
+</div>
+<div>
+<p class="font-headline font-bold text-sm">Sarah Jenkins</p>
+<p class="font-label text-[11px] text-zinc-500">ID: DC-8809</p>
+</div>
+</div>
+<div class="col-span-2">
+<span class="px-3 py-1 rounded-full bg-zinc-800 text-zinc-400 font-label text-[10px] font-bold uppercase tracking-tight">Cashier</span>
+</div>
+<div class="col-span-2 flex justify-center">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]"></span>
+<span class="font-body text-xs text-amber-500">On Break</span>
+</div>
+</div>
+<div class="col-span-3">
+<div class="w-full h-1.5 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-gradient-to-r from-primary to-secondary w-[94%]"></div>
+</div>
+<div class="flex justify-between mt-1.5">
+<p class="font-label text-[9px] text-zinc-500">$14,100</p>
+<p class="font-label text-[9px] text-zinc-400">94% of Target</p>
+</div>
+</div>
+<div class="col-span-1 flex justify-end">
+<button class="opacity-0 group-hover:opacity-100 transition-opacity text-zinc-400 hover:text-white">
+<span class="material-symbols-outlined text-lg">edit_note</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Role Insights (Glass Side Card) -->
+<section class="col-span-12 xl:col-span-4 space-y-6">
+<!-- Role Overview Card -->
+<div class="glass-card rounded-full p-8 relative overflow-hidden group">
+<div class="absolute top-0 right-0 w-32 h-32 bg-primary/10 blur-3xl -mr-16 -mt-16 group-hover:bg-primary/20 transition-all duration-700"></div>
+<div class="relative z-10">
+<h3 class="font-headline text-lg font-bold">Role Permissions</h3>
+<p class="font-label text-[10px] text-zinc-500 mt-1 uppercase tracking-widest mb-6">Access Control Levels</p>
+<div class="space-y-6">
+<div class="p-4 rounded-2xl bg-surface-container-high/50 border border-outline-variant/10">
+<div class="flex justify-between items-center mb-3">
+<span class="font-headline font-bold text-sm text-primary">Administrator</span>
+<span class="material-symbols-outlined text-zinc-600 text-sm">lock_open</span>
+</div>
+<p class="font-body text-xs text-zinc-400 leading-relaxed">Full system override, financial reporting, staff hiring, and backend inventory configuration.</p>
+</div>
+<div class="p-4 rounded-2xl bg-surface-container-high/30 border border-outline-variant/5">
+<div class="flex justify-between items-center mb-3">
+<span class="font-headline font-bold text-sm text-on-surface">Store Manager</span>
+<span class="material-symbols-outlined text-zinc-600 text-sm">shield</span>
+</div>
+<p class="font-body text-xs text-zinc-400 leading-relaxed">Issue refunds up to $500, shift approvals, and stock adjustments.</p>
+</div>
+<div class="p-4 rounded-2xl bg-surface-container-high/30 border border-outline-variant/5">
+<div class="flex justify-between items-center mb-3">
+<span class="font-headline font-bold text-sm text-zinc-500">Service Staff</span>
+<span class="material-symbols-outlined text-zinc-600 text-sm">key</span>
+</div>
+<p class="font-body text-xs text-zinc-500 leading-relaxed">Basic transaction processing, customer returns (requires auth), and stock lookups.</p>
+</div>
+</div>
+<button class="w-full mt-6 py-3 border border-outline-variant/20 rounded-full font-label text-xs font-semibold hover:bg-surface-container-highest transition-colors">
+                            Manage All Roles
+                        </button>
+</div>
+</div>
+<!-- Shift Activity Log -->
+<div class="bg-surface-container-low rounded-full p-8 border border-outline-variant/5">
+<h3 class="font-headline text-lg font-bold mb-6">Today's Activity</h3>
+<div class="space-y-6">
+<div class="flex gap-4 relative">
+<div class="flex flex-col items-center">
+<div class="w-2 h-2 rounded-full bg-emerald-500"></div>
+<div class="w-px flex-1 bg-outline-variant/20 my-1"></div>
+</div>
+<div class="pb-4">
+<p class="font-label text-[10px] text-zinc-500 uppercase tracking-tighter">08:00 AM</p>
+<p class="font-body text-xs mt-1 text-on-surface"><span class="font-bold">Elena Vance</span> clocked in for Morning Shift</p>
+</div>
+</div>
+<div class="flex gap-4 relative">
+<div class="flex flex-col items-center">
+<div class="w-2 h-2 rounded-full bg-primary"></div>
+<div class="w-px flex-1 bg-outline-variant/20 my-1"></div>
+</div>
+<div class="pb-4">
+<p class="font-label text-[10px] text-zinc-500 uppercase tracking-tighter">09:15 AM</p>
+<p class="font-body text-xs mt-1 text-on-surface"><span class="font-bold">Sarah Jenkins</span> clocked in for Support</p>
+</div>
+</div>
+<div class="flex gap-4 relative">
+<div class="flex flex-col items-center">
+<div class="w-2 h-2 rounded-full bg-secondary"></div>
+<div class="w-px flex-1 bg-outline-variant/20 my-1"></div>
+</div>
+<div class="pb-4">
+<p class="font-label text-[10px] text-zinc-500 uppercase tracking-tighter">12:30 PM</p>
+<p class="font-body text-xs mt-1 text-on-surface"><span class="font-bold">Marcus Chen</span> ended shift (End of Day)</p>
+</div>
+</div>
+<div class="flex gap-4">
+<div class="flex flex-col items-center">
+<div class="w-2 h-2 rounded-full bg-amber-500"></div>
+</div>
+<div>
+<p class="font-label text-[10px] text-zinc-500 uppercase tracking-tighter">01:45 PM</p>
+<p class="font-body text-xs mt-1 text-on-surface"><span class="font-bold">Sarah Jenkins</span> started lunch break</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+</div>
+<!-- Float Notification Area (Subtle Contextual) -->
+<div class="fixed bottom-10 right-10 flex items-center gap-4 bg-surface-container-highest/80 backdrop-blur-md px-6 py-4 rounded-2xl border border-primary/10 shadow-2xl">
+<div class="w-10 h-10 rounded-full bg-secondary-container/20 flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined">warning</span>
+</div>
+<div>
+<p class="font-headline font-bold text-sm text-secondary-fixed">Compliance Alert</p>
+<p class="font-body text-[11px] text-zinc-400">Marcus Chen missed 1 checkout verification today.</p>
+</div>
+<button class="ml-4 text-zinc-400 hover:text-white">
+<span class="material-symbols-outlined text-sm">close</span>
+</button>
+</div>
+</main>
+</body></html>

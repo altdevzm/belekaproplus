@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Returns Management | Velvet Ledger</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&amp;family=Inter:wght@400;500;600&amp;family=Plus_Jakarta_Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "on-primary": "#3a0093",
+              "on-tertiary": "#660028",
+              "secondary-fixed": "#ffdada",
+              "on-tertiary-fixed": "#3f0016",
+              "primary-container": "#4700b1",
+              "on-surface-variant": "#ccc3d4",
+              "on-error": "#690005",
+              "inverse-surface": "#e5e2e1",
+              "primary-fixed": "#e8ddff",
+              "on-background": "#e5e2e1",
+              "tertiary-container": "#7c0032",
+              "secondary-fixed-dim": "#ffb3b5",
+              "on-tertiary-container": "#ff7d9b",
+              "outline": "#958e9e",
+              "on-secondary-fixed-variant": "#920027",
+              "tertiary-fixed": "#ffd9de",
+              "inverse-on-surface": "#313030",
+              "surface": "#131313",
+              "primary": "#cfbdff",
+              "on-error-container": "#ffdad6",
+              "on-secondary": "#680019",
+              "outline-variant": "#4a4452",
+              "tertiary": "#ffb2bf",
+              "on-primary-fixed-variant": "#5300cd",
+              "surface-bright": "#393939",
+              "surface-container-highest": "#353534",
+              "error-container": "#93000a",
+              "error": "#ffb4ab",
+              "on-surface": "#e5e2e1",
+              "tertiary-fixed-dim": "#ffb2bf",
+              "on-tertiary-fixed-variant": "#90003b",
+              "surface-container": "#201f1f",
+              "surface-container-lowest": "#0e0e0e",
+              "on-secondary-fixed": "#40000c",
+              "on-primary-container": "#b296ff",
+              "background": "#131313",
+              "secondary-container": "#de0541",
+              "on-secondary-container": "#fff1f1",
+              "surface-variant": "#353534",
+              "surface-tint": "#cfbdff",
+              "surface-dim": "#131313",
+              "surface-container-high": "#2a2a2a",
+              "primary-fixed-dim": "#cfbdff",
+              "secondary": "#ffb3b5",
+              "on-primary-fixed": "#22005d",
+              "inverse-primary": "#6d23f9",
+              "surface-container-low": "#1c1b1b"
+            },
+            fontFamily: {
+              "headline": ["Manrope"],
+              "body": ["Inter"],
+              "label": ["Plus Jakarta Sans"]
+            },
+            borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+          },
+        },
+      }
+    </script>
+<style>
+      body { font-family: 'Inter', sans-serif; }
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+      }
+      .glass-card {
+        background: rgba(32, 31, 31, 0.7);
+        backdrop-filter: blur(24px);
+      }
+      .glow-active:focus-within {
+        box-shadow: 0 0 16px rgba(207, 189, 255, 0.2);
+      }
+    </style>
+</head>
+<body class="bg-background text-on-background min-h-screen">
+<!-- SideNavBar (Authority: JSON) -->
+<aside class="h-screen w-64 fixed left-0 top-0 bg-[#131313] dark:bg-[#131313] flex flex-col py-8 px-4 z-50">
+<div class="mb-10 px-4">
+<h1 class="text-2xl font-bold text-[#cfbdff] tracking-tight font-headline">Velvet Ledger</h1>
+<p class="text-gray-500 text-xs font-label mt-1">Premium POS Management</p>
+</div>
+<nav class="flex-1 space-y-2">
+<!-- Navigation Items Mapping -->
+<a class="flex items-center gap-3 px-4 py-3 text-gray-500 hover:text-gray-300 hover:bg-[#353534] transition-colors duration-200 rounded-xl font-label group scale-95 active:opacity-80" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span>Overview</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-gray-500 hover:text-gray-300 hover:bg-[#353534] transition-colors duration-200 rounded-xl font-label group scale-95 active:opacity-80" href="#">
+<span class="material-symbols-outlined">receipt_long</span>
+<span>Sales</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-gray-500 hover:text-gray-300 hover:bg-[#353534] transition-colors duration-200 rounded-xl font-label group scale-95 active:opacity-80" href="#">
+<span class="material-symbols-outlined">inventory_2</span>
+<span>Inventory</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-gray-500 hover:text-gray-300 hover:bg-[#353534] transition-colors duration-200 rounded-xl font-label group scale-95 active:opacity-80" href="#">
+<span class="material-symbols-outlined">badge</span>
+<span>Staff</span>
+</a>
+<!-- Active Tab: Returns -->
+<a class="flex items-center gap-3 px-4 py-3 text-[#cfbdff] bg-[#201f1f] rounded-xl font-semibold font-label group scale-95 active:opacity-80" href="#">
+<span class="material-symbols-outlined">assignment_return</span>
+<span>Returns</span>
+</a>
+</nav>
+<div class="mt-auto px-2">
+<button class="w-full bg-secondary-container/20 text-secondary border border-secondary/20 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all hover:bg-secondary-container/30 active:scale-95">
+<span class="material-symbols-outlined">add_circle</span>
+                New Return
+            </button>
+<div class="mt-8 flex items-center gap-3 px-2">
+<img alt="Manager Portrait" class="w-10 h-10 rounded-full border border-outline-variant/30" data-alt="close-up studio portrait of a professional store manager in a charcoal suit, soft cinematic lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBd3o7adoY8Y9cgan7cDsqD2oGW0ej3VldIO_e6Td4sJGpE0S_8dIlR8IH_csK8vBtrEOAn1bNCthkffLfapbJkueU7PO4YHxBRUVpFCkWSehfeK20tMHbhFRlBmlEp_W7fkIh3zPMnF5N5VZKeSRp6GdOgqbAs_DiAvxqo2r_P2WXidDVeGqzIz1lgbUEEFAkK_sUvDTtUCJ9LLILtS4yG1Lopz1aecb6d3OkgHtemRfyvbxgGOz4ZyjaJQu9rq4PHe-99fj_La8U"/>
+<div class="flex flex-col">
+<span class="text-sm font-semibold">Julian Vane</span>
+<span class="text-[10px] text-gray-500 uppercase tracking-widest font-label">Lead Manager</span>
+</div>
+</div>
+</div>
+</aside>
+<!-- TopAppBar (Authority: JSON) -->
+<header class="fixed top-0 right-0 left-64 h-16 bg-[#131313]/70 backdrop-blur-xl flex justify-between items-center px-8 w-full border-b border-[#4a4452]/15 shadow-[0_4px_24px_rgba(207,189,255,0.06)] z-40">
+<div class="flex items-center gap-6">
+<h2 class="font-headline text-lg font-bold text-[#cfbdff]">Returns Management</h2>
+<div class="relative group">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">search</span>
+<input class="bg-surface-container-low border-none rounded-full pl-10 pr-4 py-1.5 text-sm w-64 focus:ring-1 focus:ring-primary/30 transition-all font-body" placeholder="Search transactions..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="hover:bg-[#353534] rounded-full p-2 transition-all text-gray-400">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="hover:bg-[#353534] rounded-full p-2 transition-all text-gray-400">
+<span class="material-symbols-outlined">help_outline</span>
+</button>
+<button class="hover:bg-[#353534] rounded-full p-2 transition-all text-gray-400">
+<span class="material-symbols-outlined">settings</span>
+</button>
+<div class="h-6 w-px bg-outline-variant/30 mx-2"></div>
+<img alt="User Profile" class="w-8 h-8 rounded-full" data-alt="professional user profile placeholder with soft purple circular background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDXDxCIwLZ-PXVy69k-_B86g4QQs3rqzpX2SjPL69AocYK5V5U56UYweQhI_u2gLoLvMZxyDrf0Gn8T6xNdlzowe72z7t9Ezv1_Mp7Bwj1GtxYeav_DSrc_ilyz9K_V7EfKwcVNUlw2Dr-qsBD8_5hW30w7RdXZAlLzyAZXezlA4XCX46kcNYzsb0-yCLz2L6MlkN18jmlWuarIxoprQjPfi0xSgsfxb_OtPNELrXPU8ajVCqFikVAILcSS1JPwAXeyTqEZwGElNkE"/>
+</div>
+</header>
+<!-- Main Canvas Content -->
+<main class="ml-64 pt-24 px-8 pb-12">
+<!-- KPI Bento Grid -->
+<section class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6 mb-10">
+<div class="bg-surface-container-low p-6 rounded-full border border-outline-variant/10 flex flex-col justify-between h-40">
+<span class="text-xs font-label text-gray-500 uppercase tracking-widest">Total Returns This Week</span>
+<div class="flex items-end justify-between">
+<span class="text-4xl font-headline font-bold text-primary">142</span>
+<span class="text-error text-xs font-semibold flex items-center bg-error-container/10 px-2 py-1 rounded-lg">
+<span class="material-symbols-outlined text-sm mr-1">trending_up</span>+12%
+                    </span>
+</div>
+</div>
+<div class="bg-surface-container-low p-6 rounded-full border border-outline-variant/10 flex flex-col justify-between h-40">
+<span class="text-xs font-label text-gray-500 uppercase tracking-widest">Pending Refunds</span>
+<div class="flex items-end justify-between">
+<span class="text-4xl font-headline font-bold text-on-surface">28</span>
+<span class="text-primary text-[10px] font-bold px-3 py-1 rounded-full border border-primary/20">ACTION REQ</span>
+</div>
+</div>
+<div class="lg:col-span-2 bg-surface-container-low p-6 rounded-full border border-outline-variant/10 flex items-center justify-between h-40">
+<div class="flex flex-col">
+<span class="text-xs font-label text-gray-500 uppercase tracking-widest mb-4">Refund Reason Breakdown</span>
+<div class="flex gap-4"><div class="flex flex-col"><span class="text-xl font-bold font-headline">35%</span><span class="text-[10px] text-gray-500">Defective</span></div><div class="w-px h-8 bg-outline-variant/30 self-end mb-1"></div><div class="flex flex-col"><span class="text-xl font-bold font-headline">20%</span><span class="text-[10px] text-gray-500">Change of Mind</span></div><div class="w-px h-8 bg-outline-variant/30 self-end mb-1"></div><div class="flex flex-col"><span class="text-xl font-bold font-headline">15%</span><span class="text-[10px] text-gray-500">Incorrect Item</span></div><div class="w-px h-8 bg-outline-variant/30 self-end mb-1"></div><div class="flex flex-col"><span class="text-xl font-bold font-headline">20%</span><span class="text-[10px] text-gray-500">Sizing Issue</span></div><div class="w-px h-8 bg-outline-variant/30 self-end mb-1"></div><div class="flex flex-col"><span class="text-xl font-bold font-headline">10%</span><span class="text-[10px] text-gray-500">Damaged</span></div></div>
+</div>
+<div class="w-24 h-24 flex items-center justify-center relative">
+<!-- Simple Tonal Depth Donut Simulation -->
+<div class="absolute inset-0 rounded-full border-[10px] border-primary-container/20"></div>
+<div class="absolute inset-0 rounded-full border-[10px] border-primary border-t-transparent border-r-transparent rotate-45"></div>
+<span class="material-symbols-outlined text-primary text-xl">pie_chart</span>
+</div>
+</div>
+</section>
+<!-- Filters Strip -->
+<section class="flex flex-wrap items-center justify-between gap-4 mb-8">
+<div class="flex items-center gap-3">
+<div class="group relative bg-surface-container border border-outline-variant/10 rounded-xl px-4 py-2 flex items-center gap-2 cursor-pointer hover:bg-surface-container-high transition-all">
+<span class="material-symbols-outlined text-sm text-gray-400">calendar_month</span>
+<span class="text-sm font-label">Last 30 Days</span>
+</div>
+<div class="group relative bg-surface-container border border-outline-variant/10 rounded-xl px-4 py-2 flex items-center gap-2 cursor-pointer hover:bg-surface-container-high transition-all">
+<span class="material-symbols-outlined text-sm text-gray-400">category</span>
+<span class="text-sm font-label">All Reasons</span>
+</div>
+<div class="group relative bg-surface-container border border-outline-variant/10 rounded-xl px-4 py-2 flex items-center gap-2 cursor-pointer hover:bg-surface-container-high transition-all">
+<span class="material-symbols-outlined text-sm text-gray-400">person</span>
+<span class="text-sm font-label">All Cashiers</span>
+</div>
+</div>
+<button class="flex items-center gap-2 text-primary hover:bg-primary/5 px-4 py-2 rounded-xl transition-all font-label text-sm">
+<span class="material-symbols-outlined text-sm">filter_list</span>
+                Advanced Filters
+            </button>
+</section>
+<!-- Returns List Table (Editorial Style) -->
+<section class="bg-surface-container-low rounded-full border border-outline-variant/10 overflow-hidden">
+<div class="px-8 py-4 border-b border-outline-variant/10 flex justify-between items-center bg-surface-container/30">
+<h3 class="text-sm font-bold font-headline uppercase tracking-widest text-gray-400">Recent Return Logs</h3>
+<span class="text-[10px] font-label px-3 py-1 bg-surface-container-highest rounded-full text-gray-400">Live Updates Enabled</span>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead class="bg-surface-container/10">
+<tr>
+<th class="px-8 py-4 text-[10px] font-label uppercase tracking-widest text-gray-500">Transaction / ID</th>
+<th class="px-6 py-4 text-[10px] font-label uppercase tracking-widest text-gray-500">Customer</th>
+<th class="px-6 py-4 text-[10px] font-label uppercase tracking-widest text-gray-500">Reason</th>
+<th class="px-6 py-4 text-[10px] font-label uppercase tracking-widest text-gray-500">Status</th>
+<th class="px-6 py-4 text-[10px] font-label uppercase tracking-widest text-gray-500 text-right">Amount</th>
+<th class="px-8 py-4 text-[10px] font-label uppercase tracking-widest text-gray-500"></th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant/5">
+<!-- Row 1 -->
+<tr class="hover:bg-[#353534]/30 transition-colors group">
+<td class="px-8 py-5">
+<div class="flex flex-col">
+<span class="text-sm font-semibold">#RTN-99201</span>
+<span class="text-[10px] text-gray-500 font-label">Today at 10:42 AM</span>
+</div>
+</td>
+<td class="px-6 py-5">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary">EL</div>
+<span class="text-sm">Elena Lombardi</span>
+</div>
+</td>
+<td class="px-6 py-5"><span class="text-xs px-2 py-1 bg-surface-container-highest rounded-lg text-gray-300">Defective</span></td>
+<td class="px-6 py-5">
+<div class="flex items-center gap-2">
+<span class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
+<span class="text-xs font-semibold text-primary">Pending</span>
+</div>
+</td>
+<td class="px-6 py-5 text-right">
+<span class="text-sm font-headline font-bold text-on-surface">$1,240.00</span>
+</td>
+<td class="px-8 py-5 text-right">
+<button class="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-white">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-[#353534]/30 transition-colors group">
+<td class="px-8 py-5">
+<div class="flex flex-col">
+<span class="text-sm font-semibold">#RTN-99198</span>
+<span class="text-[10px] text-gray-500 font-label">Today at 09:15 AM</span>
+</div>
+</td>
+<td class="px-6 py-5">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-secondary/10 flex items-center justify-center text-[10px] font-bold text-secondary">MK</div>
+<span class="text-sm">Marcus Kane</span>
+</div>
+</td>
+<td class="px-6 py-5"><span class="text-xs px-2 py-1 bg-surface-container-highest rounded-lg text-gray-300">Change of Mind</span></td>
+<td class="px-6 py-5">
+<div class="flex items-center gap-2">
+<span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+<span class="text-xs font-semibold text-green-500">Approved</span>
+</div>
+</td>
+<td class="px-6 py-5 text-right">
+<span class="text-sm font-headline font-bold text-on-surface">$450.25</span>
+</td>
+<td class="px-8 py-5 text-right">
+<button class="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-white">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-[#353534]/30 transition-colors group">
+<td class="px-8 py-5">
+<div class="flex flex-col">
+<span class="text-sm font-semibold">#RTN-99185</span>
+<span class="text-[10px] text-gray-500 font-label">Yesterday at 11:30 PM</span>
+</div>
+</td>
+<td class="px-6 py-5">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-tertiary/10 flex items-center justify-center text-[10px] font-bold text-tertiary">SP</div>
+<span class="text-sm">Sarah Parker</span>
+</div>
+</td>
+<td class="px-6 py-5"><span class="text-xs px-2 py-1 bg-surface-container-highest rounded-lg text-gray-300">Sizing Issue</span></td>
+<td class="px-6 py-5">
+<div class="flex items-center gap-2 text-gray-500">
+<span class="w-1.5 h-1.5 rounded-full bg-gray-500"></span>
+<span class="text-xs font-semibold">Refunded</span>
+</div>
+</td>
+<td class="px-6 py-5 text-right">
+<span class="text-sm font-headline font-bold text-on-surface">$89.00</span>
+</td>
+<td class="px-8 py-5 text-right">
+<button class="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-white">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="px-8 py-4 bg-surface-container/10 border-t border-outline-variant/5 flex justify-between items-center">
+<p class="text-[10px] font-label text-gray-500">Showing 3 of 1,248 returns</p>
+<div class="flex gap-2">
+<button class="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center text-gray-400 hover:text-white border border-outline-variant/10">
+<span class="material-symbols-outlined text-sm">chevron_left</span>
+</button>
+<button class="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center text-gray-400 hover:text-white border border-outline-variant/10">
+<span class="material-symbols-outlined text-sm">chevron_right</span>
+</button>
+</div>
+</div>
+</section>
+</main>
+<!-- Context-Specific "Live Total" Ribbon (Authority: Design System) -->
+<div class="fixed bottom-6 right-8 left-72 bg-secondary-container/20 backdrop-blur-2xl border border-secondary/10 rounded-full h-16 flex items-center justify-between px-8 z-30">
+<div class="flex items-center gap-4">
+<span class="flex h-3 w-3 relative">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-secondary opacity-75"></span>
+<span class="relative inline-flex rounded-full h-3 w-3 bg-secondary"></span>
+</span>
+<span class="text-xs font-label font-bold uppercase tracking-widest text-secondary">Refund Processing Active</span>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex flex-col text-right">
+<span class="text-[10px] text-gray-400 uppercase font-label">Pending Refund Total</span>
+<span class="font-headline font-extrabold text-xl leading-none text-white tracking-tight">$3,420.50</span>
+</div>
+<button class="bg-secondary text-on-secondary font-bold px-6 py-2 rounded-full transition-all hover:brightness-110 active:scale-95 shadow-lg shadow-secondary/20">
+                Process Queue
+            </button>
+</div>
+</div>
+</body></html>

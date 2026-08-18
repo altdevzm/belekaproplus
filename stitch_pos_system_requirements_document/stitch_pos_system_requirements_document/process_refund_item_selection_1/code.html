@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Manrope:wght@600;700;800&amp;family=Plus+Jakarta+Sans:wght@500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "on-primary": "#3a0093",
+                        "on-tertiary": "#660028",
+                        "secondary-fixed": "#ffdada",
+                        "on-tertiary-fixed": "#3f0016",
+                        "primary-container": "#4700b1",
+                        "on-surface-variant": "#ccc3d4",
+                        "on-error": "#690005",
+                        "inverse-surface": "#e5e2e1",
+                        "primary-fixed": "#e8ddff",
+                        "on-background": "#e5e2e1",
+                        "tertiary-container": "#7c0032",
+                        "secondary-fixed-dim": "#ffb3b5",
+                        "on-tertiary-container": "#ff7d9b",
+                        "outline": "#958e9e",
+                        "on-secondary-fixed-variant": "#920027",
+                        "tertiary-fixed": "#ffd9de",
+                        "inverse-on-surface": "#313030",
+                        "surface": "#131313",
+                        "primary": "#cfbdff",
+                        "on-error-container": "#ffdad6",
+                        "on-secondary": "#680019",
+                        "outline-variant": "#4a4452",
+                        "tertiary": "#ffb2bf",
+                        "on-primary-fixed-variant": "#5300cd",
+                        "surface-bright": "#393939",
+                        "surface-container-highest": "#353534",
+                        "error-container": "#93000a",
+                        "error": "#ffb4ab",
+                        "on-surface": "#e5e2e1",
+                        "tertiary-fixed-dim": "#ffb2bf",
+                        "on-tertiary-fixed-variant": "#90003b",
+                        "surface-container": "#201f1f",
+                        "surface-container-lowest": "#0e0e0e",
+                        "on-secondary-fixed": "#40000c",
+                        "on-primary-container": "#b296ff",
+                        "background": "#131313",
+                        "secondary-container": "#de0541",
+                        "on-secondary-container": "#fff1f1",
+                        "surface-variant": "#353534",
+                        "surface-tint": "#cfbdff",
+                        "surface-dim": "#131313",
+                        "surface-container-high": "#2a2a2a",
+                        "primary-fixed-dim": "#cfbdff",
+                        "secondary": "#ffb3b5",
+                        "on-primary-fixed": "#22005d",
+                        "inverse-primary": "#6d23f9",
+                        "surface-container-low": "#1c1b1b"
+                    },
+                    fontFamily: {
+                        "headline": ["Manrope"],
+                        "body": ["Inter"],
+                        "label": ["Plus Jakarta Sans"]
+                    },
+                    borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-panel {
+            background: rgba(19, 19, 19, 0.7);
+            backdrop-filter: blur(24px);
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #4a4452;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body selection:bg-primary-container selection:text-white">
+<!-- SideNavBar -->
+<aside class="h-screen w-64 fixed left-0 top-0 bg-[#131313] dark:bg-[#131313] flex flex-col py-8 px-4 z-50">
+<div class="mb-10 px-2">
+<h1 class="text-2xl font-bold text-[#cfbdff] tracking-tight font-headline">Velvet Ledger</h1>
+<p class="text-[10px] uppercase tracking-[0.2em] text-gray-500 font-label mt-1">Premium POS Management</p>
+</div>
+<nav class="flex-1 space-y-2">
+<a class="flex items-center gap-3 px-4 py-3 text-gray-500 hover:text-gray-300 hover:bg-[#353534] transition-colors duration-200 rounded-xl font-label group" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span>Overview</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-gray-500 hover:text-gray-300 hover:bg-[#353534] transition-colors duration-200 rounded-xl font-label group" href="#">
+<span class="material-symbols-outlined">receipt_long</span>
+<span>Sales</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-gray-500 hover:text-gray-300 hover:bg-[#353534] transition-colors duration-200 rounded-xl font-label group" href="#">
+<span class="material-symbols-outlined">inventory_2</span>
+<span>Inventory</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-gray-500 hover:text-gray-300 hover:bg-[#353534] transition-colors duration-200 rounded-xl font-label group" href="#">
+<span class="material-symbols-outlined">badge</span>
+<span>Staff</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-[#cfbdff] bg-[#201f1f] rounded-xl font-semibold font-label" href="#">
+<span class="material-symbols-outlined">assignment_return</span>
+<span>Returns</span>
+</a>
+</nav>
+<div class="mt-auto p-4 bg-surface-container-low rounded-2xl flex items-center gap-3">
+<div class="w-10 h-10 rounded-full overflow-hidden bg-primary-container flex items-center justify-center">
+<img alt="Manager Portrait" class="w-full h-full object-cover" data-alt="Close-up portrait of a professional manager with a clean-cut look and friendly expression in soft studio lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC7Jy1RNLJpavWi4cPHjm-xYRddZU9lJGN3KQbin8NmTKAZLqjHIrBlrnUvCAj8s6r9rwzKh6nXvpeF3VjPcj_CV6zj9-H60NXMpu7LyF-82eVzs8m_aFM2BIzp1u7h8WKeEJoMxTnl1FL_6i4brOEdN3HRltkedfHWBMITYXFCu9cjT95Xsn38qylWD3oDd5ObwUVXxQiZx-CdZLktHgHkQfFQguPKTaDt-CWVuTzgE5QYtaZI4dtAPEpyWkG7U8BT3gwThX1UCDc"/>
+</div>
+<div class="overflow-hidden">
+<p class="text-sm font-semibold truncate">Julian Vance</p>
+<p class="text-[10px] text-gray-500 uppercase tracking-wider">Floor Manager</p>
+</div>
+</div>
+</aside>
+<!-- TopAppBar -->
+<header class="fixed top-0 right-0 left-64 h-16 bg-[#131313]/70 backdrop-blur-xl flex justify-between items-center px-8 z-40 border-b border-[#4a4452]/15 shadow-[0_4px_24px_rgba(207,189,255,0.06)]">
+<div class="flex items-center gap-4 flex-1">
+<div class="relative w-full max-w-md">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">search</span>
+<input class="w-full bg-surface-container border-none rounded-full py-2 pl-10 pr-4 text-sm focus:ring-1 focus:ring-primary placeholder:text-gray-600 transition-all" placeholder="Search transactions..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-gray-400 hover:bg-[#353534] rounded-full p-2 cursor-pointer transition-all">notifications</span>
+<span class="material-symbols-outlined text-gray-400 hover:bg-[#353534] rounded-full p-2 cursor-pointer transition-all">help_outline</span>
+<span class="material-symbols-outlined text-gray-400 hover:bg-[#353534] rounded-full p-2 cursor-pointer transition-all">settings</span>
+</div>
+<div class="h-8 w-[1px] bg-outline-variant/30"></div>
+<h2 class="font-headline font-bold text-[#cfbdff] text-lg">Returns Management</h2>
+</div>
+</header>
+<!-- Main Content -->
+<main class="ml-64 pt-16 h-screen overflow-hidden flex">
+<!-- Left: Original Receipt -->
+<section class="w-7/12 p-8 h-full flex flex-col overflow-y-auto custom-scrollbar bg-surface">
+<div class="flex justify-between items-end mb-8">
+<div>
+<span class="text-[10px] uppercase tracking-[0.3em] text-primary/60 font-label">Transaction History</span>
+<h3 class="text-3xl font-headline font-extrabold mt-1">Original Receipt</h3>
+<p class="text-sm text-gray-500 mt-1">ID: #VL-88294-TX • Oct 24, 2023, 14:42</p>
+</div>
+<div class="text-right">
+<p class="text-xs text-gray-500 font-label">Customer</p>
+<p class="font-semibold">Eleanor Fitzgerald</p>
+</div>
+</div>
+<div class="space-y-4">
+<!-- Receipt Item 1 -->
+<div class="group flex items-center gap-6 p-5 bg-surface-container-low rounded-xl border border-transparent hover:border-primary/20 transition-all cursor-pointer">
+<div class="relative">
+<input checked="" class="w-6 h-6 rounded border-outline-variant bg-surface-container text-primary-container focus:ring-primary-container cursor-pointer transition-all" type="checkbox"/>
+</div>
+<div class="w-16 h-16 rounded-lg overflow-hidden bg-surface-container-highest">
+<img alt="Luxury Leather Sneakers" class="w-full h-full object-cover" data-alt="Close-up side view of premium minimalistic white leather sneakers on a dark textured background with soft dramatic lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD-yOXcgO10kYuRG1L5FPAQ3QsqSPoGJFspzwlVCuUGBcfYsadJTuWekmRlYfQOQLvvmyPDitV2uj4zR3hl2hL2jmzgadz85pRb-b77cAGhfIzyc1AcbnnycNqhpCK5za-VAMT7S9KBmKEbs71kNLFGr-1AqIspy4lYzbr0XGFzeHfPLLJ28LxB6pxiXM8i-SRcC7hezgJqRFUjn8Xlo-b_uEdDKXivoeVkZprHI7VhLLSVCBuif9VvWFjJSvUF5HQG_ShHZLYLXio"/>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-start">
+<div>
+<h4 class="font-headline font-bold text-lg">Artisan Leather Sneakers</h4>
+<p class="text-xs text-gray-500 font-label">SKU: 992-WHT-42 • Size: 42</p>
+</div>
+<div class="text-right">
+<p class="font-headline font-bold text-xl">$240.00</p>
+<p class="text-[10px] text-primary/70 font-label">QTY: 1</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Receipt Item 2 -->
+<div class="group flex items-center gap-6 p-5 bg-surface-container-low rounded-xl border border-transparent hover:border-primary/20 transition-all cursor-pointer">
+<div class="relative">
+<input checked="" class="w-6 h-6 rounded border-outline-variant bg-surface-container text-primary-container focus:ring-primary-container cursor-pointer transition-all" type="checkbox"/>
+</div>
+<div class="w-16 h-16 rounded-lg overflow-hidden bg-surface-container-highest">
+<img alt="Silk Scarf" class="w-full h-full object-cover" data-alt="Elegantly folded deep crimson silk scarf with intricate patterns resting on a dark velvet surface in soft ambient light" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAmm6Cb2_s42ztRCP9_e1ttnx97AzHDRWGF4dUV5-UItbapPjlmh_3aHq3kBN67T9Z085kYrwkUG2Sh5C-ERIr9hiWtMYn5KInhCOM9dgE288B0FYTdjrXb8rdfq7QwbVEmJl7bySDhU9e1SNJS83qubQGVsFEG0k_j-vD41yLir_4PDiTPSYEOr9ZiyuHumArZvq6802mqU-inM94snITzCvtGXV4dPhSDDJ8K6vOSnwMXcP9F-R6dE9EgHjc_HgF8sClbTCU7_54"/>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-start">
+<div>
+<h4 class="font-headline font-bold text-lg">Venetian Silk Scarf</h4>
+<p class="text-xs text-gray-500 font-label">SKU: SC-88-RED • Color: Crimson</p>
+</div>
+<div class="text-right">
+<p class="font-headline font-bold text-xl">$125.00</p>
+<p class="text-[10px] text-primary/70 font-label">QTY: 1</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Receipt Item 3 (Unselected) -->
+<div class="group flex items-center gap-6 p-5 bg-surface-container-low/40 opacity-60 rounded-xl border border-transparent hover:border-primary/20 transition-all cursor-pointer">
+<div class="relative">
+<input class="w-6 h-6 rounded border-outline-variant bg-surface-container text-primary-container focus:ring-primary-container cursor-pointer transition-all" type="checkbox"/>
+</div>
+<div class="w-16 h-16 rounded-lg overflow-hidden grayscale">
+<img alt="Fragrance" class="w-full h-full object-cover" data-alt="Minimalist glass perfume bottle with a black cap reflecting soft overhead light on a dark matte surface" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAx7t9zjxgn4YdhV4Pvm4lrIOPClUZsCbObF9L51mim5MDNUvG37VuYIEyD6B9iarH22DvRdqGbxwm_L7eK4ojMCSdw8U7jgQRxYUYVkEw69L4M2lAimWoha3rd_P_kyuvc6J8LkQfCa6YTV11wRdhHICtGBJZvM7zmkfJg1dLLoLoaHxxI3mUveRJ7SARF0buw4XVt2dscV2IVr4-DjzBcB9CCmMGVdfu_khfEkNjJUfTOFtJQSd59ZS9GjE_oocNdCBDPQD9LiMc"/>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-start">
+<div>
+<h4 class="font-headline font-bold text-lg">Obsidian No. 5 Parfum</h4>
+<p class="text-xs text-gray-500 font-label">SKU: PR-OB5-50 • 50ml</p>
+</div>
+<div class="text-right">
+<p class="font-headline font-bold text-xl">$180.00</p>
+<p class="text-[10px] text-gray-500 font-label">QTY: 1</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="mt-12 p-6 border-t border-outline-variant/15">
+<div class="flex justify-between items-center text-gray-400 font-label text-sm">
+<span>Original Subtotal</span>
+<span>$545.00</span>
+</div>
+<div class="flex justify-between items-center text-gray-400 font-label text-sm mt-2">
+<span>Tax (8.5%)</span>
+<span>$46.32</span>
+</div>
+<div class="flex justify-between items-center text-on-surface font-headline font-bold text-2xl mt-4">
+<span>Original Total Paid</span>
+<span>$591.32</span>
+</div>
+</div>
+</section>
+<!-- Right: Refund Summary -->
+<section class="w-5/12 bg-surface-container-low border-l border-outline-variant/10 p-8 h-full flex flex-col overflow-y-auto custom-scrollbar">
+<div>
+<span class="text-[10px] uppercase tracking-[0.3em] text-secondary font-label">Action Panel</span>
+<h3 class="text-3xl font-headline font-extrabold mt-1">Refund Summary</h3>
+</div>
+<div class="mt-10 space-y-8">
+<!-- Return Reason -->
+<div>
+<label class="block text-xs font-label uppercase tracking-widest text-gray-500 mb-3">Reason for Return</label>
+<div class="relative">
+<select class="w-full bg-surface-container border-none rounded-xl py-4 px-4 text-on-surface focus:ring-2 focus:ring-primary-container appearance-none font-body">
+<option>Size/Fit Issue</option>
+<option>Defective Product</option>
+<option>Changed Mind</option>
+<option>Wrong Item Received</option>
+<option>Found Better Price Elsewhere</option>
+</select>
+<span class="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-primary">expand_more</span>
+</div>
+</div>
+<!-- Restock Toggles -->
+<div>
+<label class="block text-xs font-label uppercase tracking-widest text-gray-500 mb-4">Inventory Management</label>
+<div class="space-y-3">
+<div class="flex items-center justify-between p-4 bg-surface-container/50 rounded-xl">
+<span class="text-sm font-body">Restock: Artisan Leather Sneakers</span>
+<button class="w-12 h-6 bg-primary-container rounded-full relative flex items-center px-1 transition-all">
+<div class="w-4 h-4 bg-white rounded-full translate-x-6"></div>
+</button>
+</div>
+<div class="flex items-center justify-between p-4 bg-surface-container/50 rounded-xl">
+<span class="text-sm font-body">Restock: Venetian Silk Scarf</span>
+<button class="w-12 h-6 bg-primary-container rounded-full relative flex items-center px-1 transition-all">
+<div class="w-4 h-4 bg-white rounded-full translate-x-6"></div>
+</button>
+</div>
+</div>
+</div>
+<!-- Refund Method -->
+<div>
+<label class="block text-xs font-label uppercase tracking-widest text-gray-500 mb-4">Refund Method</label>
+<div class="grid grid-cols-3 gap-3">
+<button class="flex flex-col items-center justify-center gap-2 p-4 rounded-xl border border-primary text-primary bg-primary/5 transition-all">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">credit_card</span>
+<span class="text-[10px] font-label font-bold">CARD</span>
+</button>
+<button class="flex flex-col items-center justify-center gap-2 p-4 rounded-xl border border-outline-variant hover:border-primary/50 text-gray-400 transition-all">
+<span class="material-symbols-outlined">payments</span>
+<span class="text-[10px] font-label font-bold">CASH</span>
+</button>
+<button class="flex flex-col items-center justify-center gap-2 p-4 rounded-xl border border-outline-variant hover:border-primary/50 text-gray-400 transition-all">
+<span class="material-symbols-outlined">confirmation_number</span>
+<span class="text-[10px] font-label font-bold">CREDIT</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Total Ribbon -->
+<div class="mt-auto pt-8">
+<div class="glass-panel p-8 rounded-3xl border border-outline-variant/10 relative overflow-hidden">
+<!-- Accent background glow -->
+<div class="absolute -right-10 -top-10 w-40 h-40 bg-secondary/10 blur-[80px]"></div>
+<div class="relative z-10">
+<div class="flex justify-between items-end mb-6">
+<span class="text-xs uppercase tracking-widest text-gray-500 font-label">Total Refund Amount</span>
+<span class="text-5xl font-headline font-extrabold text-on-surface tracking-tighter">$396.03</span>
+</div>
+<div class="flex flex-col gap-3">
+<button class="w-full py-5 bg-gradient-to-tr from-secondary to-on-secondary-container text-on-secondary font-bold font-headline rounded-2xl text-lg hover:scale-[1.02] active:scale-[0.98] transition-all shadow-lg shadow-secondary/10">
+                                Complete Reverse Transaction
+                            </button>
+<button class="w-full py-4 bg-surface-container-highest/50 text-on-surface font-label font-bold rounded-2xl text-sm border border-outline-variant/20 hover:bg-surface-container-highest transition-all">
+                                Cancel &amp; Discard
+                            </button>
+</div>
+</div>
+</div>
+</div>
+</section>
+</main>
+</body></html>

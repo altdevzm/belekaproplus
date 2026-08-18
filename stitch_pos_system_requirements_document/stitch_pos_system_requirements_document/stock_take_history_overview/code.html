@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Stock Take History - Velvet Ledger</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;700;800&amp;family=Inter:wght@400;500;600&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              colors: {
+                "on-tertiary": "#660028",
+                "surface-variant": "#353534",
+                "surface-container-high": "#2a2a2a",
+                "inverse-primary": "#6d23f9",
+                "secondary-fixed-dim": "#ffb3b5",
+                "on-primary": "#3a0093",
+                "on-secondary-fixed-variant": "#920027",
+                "secondary": "#ffb3b5",
+                "on-surface": "#e5e2e1",
+                "primary-fixed": "#e8ddff",
+                "tertiary-fixed": "#ffd9de",
+                "surface-container-highest": "#353534",
+                "outline-variant": "#4a4452",
+                "tertiary-fixed-dim": "#ffb2bf",
+                "surface": "#131313",
+                "secondary-container": "#de0541",
+                "primary-container": "#4700b1",
+                "on-surface-variant": "#ccc3d4",
+                "on-primary-fixed-variant": "#5300cd",
+                "error": "#ffb4ab",
+                "error-container": "#93000a",
+                "on-tertiary-fixed": "#3f0016",
+                "on-error": "#690005",
+                "surface-container-lowest": "#0e0e0e",
+                "surface-bright": "#393939",
+                "inverse-on-surface": "#313030",
+                "primary": "#cfbdff",
+                "surface-container": "#201f1f",
+                "outline": "#958e9e",
+                "on-tertiary-container": "#ff7d9b",
+                "on-secondary-container": "#fff1f1",
+                "on-tertiary-fixed-variant": "#90003b",
+                "on-secondary": "#680019",
+                "tertiary-container": "#7c0032",
+                "surface-tint": "#cfbdff",
+                "surface-dim": "#131313",
+                "tertiary": "#ffb2bf",
+                "on-background": "#e5e2e1",
+                "surface-container-low": "#1c1b1b",
+                "secondary-fixed": "#ffdada",
+                "on-error-container": "#ffdad6",
+                "on-primary-fixed": "#22005d",
+                "primary-fixed-dim": "#cfbdff",
+                "on-primary-container": "#b296ff",
+                "inverse-surface": "#e5e2e1",
+                "on-secondary-fixed": "#40000c",
+                "background": "#131313"
+              },
+              fontFamily: {
+                "headline": ["Manrope"],
+                "body": ["Inter"],
+                "label": ["Plus Jakarta Sans"]
+              },
+              borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+            },
+          },
+        }
+      </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24; }
+        .font-headline { font-family: 'Manrope', sans-serif; }
+        .font-label { font-family: 'Plus Jakarta Sans', sans-serif; }
+        .glass-panel { background: rgba(19, 19, 19, 0.7); backdrop-filter: blur(24px); }
+    </style>
+</head>
+<body class="bg-background text-on-surface selection:bg-primary selection:text-on-primary">
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-0 h-full flex flex-col h-full w-64 border-r-0 bg-[#1c1b1b] dark:bg-[#1c1b1b] z-50">
+<div class="p-8">
+<h1 class="text-2xl font-bold tracking-tight text-[#cfbdff] font-headline">Inventory Portal</h1>
+<p class="text-xs font-label text-outline mt-1 uppercase tracking-widest">Terminal 01</p>
+</div>
+<nav class="flex-1 px-4 space-y-2">
+<a class="flex items-center gap-3 px-4 py-3 text-[#948f99] hover:text-[#cfbdff] hover:bg-[#201f1f] transition-colors duration-200 group" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-label font-medium">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-[#948f99] hover:text-[#cfbdff] hover:bg-[#201f1f] transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="inventory_2">inventory_2</span>
+<span class="font-label font-medium">Inventory</span>
+</a>
+<!-- Active State: Stock Take -->
+<a class="flex items-center gap-3 px-4 py-3 bg-[#353534] text-[#cfbdff] rounded-r-full group scale-95 active:duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="history_toggle_off">history_toggle_off</span>
+<span class="font-label font-medium">Stock Take</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-[#948f99] hover:text-[#cfbdff] hover:bg-[#201f1f] transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="analytics">analytics</span>
+<span class="font-label font-medium">Reports</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-[#948f99] hover:text-[#cfbdff] hover:bg-[#201f1f] transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-label font-medium">Settings</span>
+</a>
+</nav>
+<div class="mt-auto p-4 space-y-2 mb-4">
+<div class="flex items-center gap-3 px-4 py-4 mb-4 bg-surface-container-low rounded-xl">
+<img alt="Manager Profile" class="w-10 h-10 rounded-full object-cover border border-outline-variant/30" data-alt="professional male manager portrait in modern studio setting with warm lighting and neutral background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA3KBfhboFnwVJKJa3GOtaVBda7d5yn8nWHsHzrRl03_jKwe-zbBdjSiGb5nujhViWtyp1jJ6GaG8oe8ftqxxSWWBdNcqByYd0ninVqeOH7Ww_ta5SDjPFYPHwqFvfUmXuPGBnkIXnRaVnjqVf64IiLOdOhUDuje_NRq0dHL_3pZwSXkYnE--OstFEFZmH7n6Gd5uGdMSNb5K-DSov5OaMLEmXsDjoRDNQ3uyMqxeKEHk7ZMk9ys6HYwzqlIEzyARuVGhFjWK-9cHE"/>
+<div>
+<p class="text-sm font-bold font-headline text-on-surface">Alex Rivera</p>
+<p class="text-[10px] font-label text-outline uppercase tracking-wider">Site Manager</p>
+</div>
+</div>
+<a class="flex items-center gap-3 px-4 py-3 text-[#948f99] hover:text-[#cfbdff] transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="help_outline">help_outline</span>
+<span class="font-label text-sm">Support</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-[#948f99] hover:text-[#cfbdff] transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="logout">logout</span>
+<span class="font-label text-sm">Logout</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="ml-64 min-h-screen flex flex-col">
+<!-- TopAppBar -->
+<header class="flex justify-between items-center h-20 px-8 sticky top-0 bg-[#131313]/70 backdrop-blur-xl z-40">
+<div class="flex flex-col">
+<h2 class="text-2xl font-bold font-headline text-[#cfbdff] tracking-tight">Stock Take History</h2>
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-secondary animate-pulse"></span>
+<p class="text-xs font-label text-on-surface-variant">System performance: <span class="text-secondary font-bold">98.5% Accuracy</span></p>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="relative group">
+<span class="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-outline text-sm" data-icon="search">search</span>
+<input class="bg-surface-container border-none rounded-full pl-10 pr-4 py-2 text-sm text-on-surface focus:ring-1 focus:ring-primary w-64 transition-all duration-300 font-label" placeholder="Search sessions..." type="text"/>
+</div>
+<div class="flex items-center gap-2">
+<button class="p-2 text-[#948f99] hover:text-[#cfbdff] hover:bg-surface-container rounded-full transition-all">
+<span class="material-symbols-outlined" data-icon="filter_list">filter_list</span>
+</button>
+<button class="p-2 text-[#948f99] hover:text-[#cfbdff] hover:bg-surface-container rounded-full transition-all">
+<span class="material-symbols-outlined" data-icon="download">download</span>
+</button>
+</div>
+<button class="bg-gradient-to-br from-[#cfbdff] to-[#b296ff] text-on-primary px-6 py-2.5 rounded-full font-headline font-bold text-sm shadow-[0_0_20px_rgba(207,189,255,0.2)] hover:scale-105 active:scale-95 transition-all">
+                    Start New Stock Take
+                </button>
+</div>
+</header>
+<div class="p-8 flex-1">
+<!-- Filter Bar / Editorial Context -->
+<div class="flex flex-wrap items-center gap-4 mb-10">
+<div class="bg-surface-container-low px-4 py-2 rounded-xl flex items-center gap-3 border border-outline-variant/10">
+<span class="text-[10px] font-bold font-label text-outline uppercase tracking-widest">Period</span>
+<span class="text-sm font-medium text-on-surface">Last 30 Days</span>
+<span class="material-symbols-outlined text-outline text-xs" data-icon="expand_more">expand_more</span>
+</div>
+<div class="bg-surface-container-low px-4 py-2 rounded-xl flex items-center gap-3 border border-outline-variant/10">
+<span class="text-[10px] font-bold font-label text-outline uppercase tracking-widest">Auditor</span>
+<span class="text-sm font-medium text-on-surface">All Staff</span>
+<span class="material-symbols-outlined text-outline text-xs" data-icon="expand_more">expand_more</span>
+</div>
+<div class="bg-surface-container-low px-4 py-2 rounded-xl flex items-center gap-3 border border-outline-variant/10">
+<span class="text-[10px] font-bold font-label text-outline uppercase tracking-widest">Adjustment</span>
+<span class="text-sm font-medium text-on-surface">Significant (&gt;5%)</span>
+<span class="material-symbols-outlined text-outline text-xs" data-icon="expand_more">expand_more</span>
+</div>
+<button class="text-primary font-label text-xs font-bold uppercase tracking-widest ml-auto hover:underline">Clear Filters</button>
+</div>
+<!-- Main Table Section -->
+<div class="bg-surface-container-low rounded-3xl overflow-hidden">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-highest/30">
+<th class="px-6 py-5 text-[10px] font-bold font-label text-outline uppercase tracking-widest">Session ID</th>
+<th class="px-6 py-5 text-[10px] font-bold font-label text-outline uppercase tracking-widest">Date &amp; Time</th>
+<th class="px-6 py-5 text-[10px] font-bold font-label text-outline uppercase tracking-widest">Auditor</th>
+<th class="px-6 py-5 text-[10px] font-bold font-label text-outline uppercase tracking-widest">SKUs Counted</th>
+<th class="px-6 py-5 text-[10px] font-bold font-label text-outline uppercase tracking-widest text-center">Discrepancy</th>
+<th class="px-6 py-5 text-[10px] font-bold font-label text-outline uppercase tracking-widest">Status</th>
+<th class="px-6 py-5 text-[10px] font-bold font-label text-outline uppercase tracking-widest text-right">Action</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant/5">
+<!-- Row 1 -->
+<tr class="hover:bg-surface-container transition-colors group">
+<td class="px-6 py-4 font-label text-sm text-on-surface-variant">#ST-9921</td>
+<td class="px-6 py-4">
+<p class="text-sm font-medium text-on-surface">Oct 24, 2023</p>
+<p class="text-xs text-outline font-label">09:45 AM</p>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<img alt="Auditor" class="w-8 h-8 rounded-full" data-alt="close-up of smiling man in casual attire with neutral soft lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBWsIzn6Kh_bclXha4tGe4q9bROMar_HkwZ2FdDBuLGPHRF7SyA7zv_zhSFGwVzhUKAUcGFpdOFkaQhjlrvY7LDODeCvd6LE9TbCWmmAZFBhlNpMBJ-XDzEaZnTI5hSKDbdirflhnJXKN9v8X6bVVtvcrvnsO25xj880zfMaR2URs1X6uRHcQMPy71bO9K2q1hugR-1SdcfArnHHG_LTTyCAZXdAH93Y_G5VALP1FDTqF2YSd3sOxArKaS2TDoIJXZ38d9ObUgSsm4"/>
+<span class="text-sm font-medium text-on-surface">Jordan Smith</span>
+</div>
+</td>
+<td class="px-6 py-4 text-sm font-headline font-bold text-on-surface">1,240</td>
+<td class="px-6 py-4 text-center">
+<span class="px-3 py-1 rounded-full text-[10px] font-bold font-label bg-green-500/10 text-green-400">+0.2%</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-primary"></span>
+<span class="text-xs font-label font-bold text-on-surface">Completed</span>
+</div>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="text-primary text-xs font-bold font-label uppercase hover:bg-primary/10 px-4 py-2 rounded-lg transition-all">View Details</button>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-surface-container transition-colors group">
+<td class="px-6 py-4 font-label text-sm text-on-surface-variant">#ST-9918</td>
+<td class="px-6 py-4">
+<p class="text-sm font-medium text-on-surface">Oct 23, 2023</p>
+<p class="text-xs text-outline font-label">11:15 PM</p>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<img alt="Auditor" class="w-8 h-8 rounded-full" data-alt="professional woman portrait with soft natural lighting and minimalist background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCRL7-F_-YYybwcIXLYi3mkMiNxNWsUdG3u1AHmYSkDAERkehhBqtAE8CteoR6Ije_hNKs9fZ8ShAfpYdqmzpVRIS3rc1mHBDTCX0CY_t7DLV7y50baiUH2MojlsRPJ0grln9NlKDVgbFPdTgQsXqWRTIQSH8VPrnHYqRipDLBbyPPT0wHlGmFobpYrjZiKOgH_m5y7Kzn8xNcqrb5gi7nbdWB7pH4jUWzm8j3OZHKuNBhdLJyLfXerOM-9pl3zJQZj0ZyP8jAIbcg"/>
+<span class="text-sm font-medium text-on-surface">Sarah Chen</span>
+</div>
+</td>
+<td class="px-6 py-4 text-sm font-headline font-bold text-on-surface">842</td>
+<td class="px-6 py-4 text-center">
+<span class="px-3 py-1 rounded-full text-[10px] font-bold font-label bg-error-container/20 text-error">-4.8%</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-error"></span>
+<span class="text-xs font-label font-bold text-on-surface">Flagged</span>
+</div>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="text-primary text-xs font-bold font-label uppercase hover:bg-primary/10 px-4 py-2 rounded-lg transition-all">View Details</button>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-surface-container transition-colors group">
+<td class="px-6 py-4 font-label text-sm text-on-surface-variant">#ST-9915</td>
+<td class="px-6 py-4">
+<p class="text-sm font-medium text-on-surface">Oct 22, 2023</p>
+<p class="text-xs text-outline font-label">02:00 PM</p>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center text-on-primary-container text-[10px] font-bold">MK</div>
+<span class="text-sm font-medium text-on-surface">Marcus Kane</span>
+</div>
+</td>
+<td class="px-6 py-4 text-sm font-headline font-bold text-on-surface">2,105</td>
+<td class="px-6 py-4 text-center">
+<span class="px-3 py-1 rounded-full text-[10px] font-bold font-label bg-surface-container-highest text-outline">0.0%</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-secondary"></span>
+<span class="text-xs font-label font-bold text-on-surface">In-Progress</span>
+</div>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="text-primary text-xs font-bold font-label uppercase hover:bg-primary/10 px-4 py-2 rounded-lg transition-all">Resume Session</button>
+</td>
+</tr>
+<!-- Row 4 -->
+<tr class="hover:bg-surface-container transition-colors group">
+<td class="px-6 py-4 font-label text-sm text-on-surface-variant">#ST-9910</td>
+<td class="px-6 py-4">
+<p class="text-sm font-medium text-on-surface">Oct 21, 2023</p>
+<p class="text-xs text-outline font-label">08:00 AM</p>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<img alt="Auditor" class="w-8 h-8 rounded-full" data-alt="confident young professional with warm studio lighting against a clean dark grey background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCKoxBwc6Tpy_Accc3HP9elRopFTuGYMyhwmTGThUA74mDau1c1v8Q2qZVCHnATbGz3Xp9pv0lo0oDkBTlW2YuFdaXBB0HysHi0z6XNf9fnwiSMCjvT-7BbBBYzug3Imd7FI057funPWeIEcUpuM0yh9lq4v7ioTS0Pq-xG9OlkAHwzFM_ZiL55lp3wOqrmqcAWK2rTMgiOR3Tmdh8N4x463vjsCIrgx9uXOwPtjNfxTfkROn8U3XAnfuxI0qjbyYDDvvbBbphmgow"/>
+<span class="text-sm font-medium text-on-surface">David Vance</span>
+</div>
+</td>
+<td class="px-6 py-4 text-sm font-headline font-bold text-on-surface">432</td>
+<td class="px-6 py-4 text-center">
+<span class="px-3 py-1 rounded-full text-[10px] font-bold font-label bg-green-500/10 text-green-400">-0.1%</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-primary"></span>
+<span class="text-xs font-label font-bold text-on-surface">Completed</span>
+</div>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="text-primary text-xs font-bold font-label uppercase hover:bg-primary/10 px-4 py-2 rounded-lg transition-all">View Details</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Summary Bento Grid Cards -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
+<div class="bg-surface-container-low p-6 rounded-3xl border border-outline-variant/10 relative overflow-hidden group">
+<div class="absolute -right-4 -top-4 opacity-5 group-hover:scale-110 transition-transform duration-500">
+<span class="material-symbols-outlined text-[120px] text-primary" data-icon="inventory">inventory</span>
+</div>
+<p class="text-[10px] font-bold font-label text-outline uppercase tracking-widest mb-2">Inventory Depth</p>
+<h3 class="text-3xl font-headline font-extrabold text-on-surface">42,109</h3>
+<p class="text-xs font-label text-green-400 mt-2 flex items-center gap-1">
+<span class="material-symbols-outlined text-xs" data-icon="trending_up">trending_up</span> 
+                        12% increase from last month
+                    </p>
+</div>
+<div class="bg-surface-container-low p-6 rounded-3xl border border-outline-variant/10 relative overflow-hidden group">
+<div class="absolute -right-4 -top-4 opacity-5 group-hover:scale-110 transition-transform duration-500">
+<span class="material-symbols-outlined text-[120px] text-secondary" data-icon="warning">warning</span>
+</div>
+<p class="text-[10px] font-bold font-label text-outline uppercase tracking-widest mb-2">Outstanding Discrepancies</p>
+<h3 class="text-3xl font-headline font-extrabold text-on-surface">$1,402.12</h3>
+<p class="text-xs font-label text-error mt-2 flex items-center gap-1">
+<span class="material-symbols-outlined text-xs" data-icon="priority_high">priority_high</span> 
+                        4 sessions require review
+                    </p>
+</div>
+<div class="bg-surface-container-low p-6 rounded-3xl border border-outline-variant/10 relative overflow-hidden group">
+<div class="absolute -right-4 -top-4 opacity-5 group-hover:scale-110 transition-transform duration-500">
+<span class="material-symbols-outlined text-[120px] text-primary" data-icon="verified">verified</span>
+</div>
+<p class="text-[10px] font-bold font-label text-outline uppercase tracking-widest mb-2">Verification Rate</p>
+<h3 class="text-3xl font-headline font-extrabold text-[#cfbdff]">99.2%</h3>
+<p class="text-xs font-label text-on-surface-variant mt-2 flex items-center gap-1">
+<span class="material-symbols-outlined text-xs text-primary" data-icon="star">star</span> 
+                        Top performing terminal
+                    </p>
+</div>
+</div>
+</div>
+<!-- Sticky Live Total Ribbon (Glassmorphism) -->
+<div class="sticky bottom-8 mx-auto w-fit glass-panel border border-outline-variant/20 px-8 py-4 rounded-full flex items-center gap-8 shadow-2xl mb-8">
+<div class="flex items-center gap-4 border-r border-outline-variant/30 pr-8">
+<div class="bg-primary/20 p-2 rounded-full">
+<span class="material-symbols-outlined text-primary text-xl" data-icon="update">update</span>
+</div>
+<div>
+<p class="text-[10px] font-bold font-label text-outline uppercase tracking-tighter">Last Sync</p>
+<p class="text-sm font-bold font-headline text-on-surface">2 mins ago</p>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div>
+<p class="text-[10px] font-bold font-label text-outline uppercase tracking-tighter text-right">System Status</p>
+<p class="text-sm font-bold font-headline text-secondary text-right">All Terminals Synced</p>
+</div>
+<div class="w-10 h-10 rounded-full border-2 border-secondary/20 flex items-center justify-center">
+<span class="w-3 h-3 rounded-full bg-secondary"></span>
+</div>
+</div>
+</div>
+</main>
+<!-- Floating Action Button (Alternative placement for mobile/touch) -->
+<button class="fixed bottom-8 right-8 w-16 h-16 rounded-full bg-secondary shadow-lg shadow-secondary/30 flex items-center justify-center text-on-secondary md:hidden z-50 transition-transform active:scale-90">
+<span class="material-symbols-outlined text-3xl" data-icon="add" style="font-variation-settings: 'FILL' 0, 'wght' 600;">add</span>
+</button>
+</body></html>

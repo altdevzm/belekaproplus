@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;700;800&amp;family=Inter:wght@400;500;600&amp;family=Plus+Jakarta+Sans:wght@600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "tertiary-fixed-dim": "#ffb2bf",
+              "on-tertiary": "#660028",
+              "tertiary": "#ffb2bf",
+              "on-secondary-fixed": "#40000c",
+              "on-primary-fixed-variant": "#5300cd",
+              "inverse-surface": "#e5e2e1",
+              "tertiary-container": "#7c0032",
+              "secondary-container": "#de0541",
+              "error-container": "#93000a",
+              "on-tertiary-fixed-variant": "#90003b",
+              "surface-container-highest": "#353534",
+              "surface-container-lowest": "#0e0e0e",
+              "on-secondary": "#680019",
+              "primary-fixed": "#e8ddff",
+              "primary": "#cfbdff",
+              "inverse-primary": "#6d23f9",
+              "surface-container-high": "#2a2a2a",
+              "error": "#ffb4ab",
+              "on-secondary-fixed-variant": "#920027",
+              "on-primary": "#3a0093",
+              "on-error": "#690005",
+              "primary-fixed-dim": "#cfbdff",
+              "surface-container": "#201f1f",
+              "on-primary-fixed": "#22005d",
+              "background": "#131313",
+              "surface": "#131313",
+              "surface-container-low": "#1c1b1b",
+              "surface-bright": "#393939",
+              "on-surface-variant": "#ccc3d4",
+              "tertiary-fixed": "#ffd9de",
+              "surface-tint": "#cfbdff",
+              "secondary": "#ffb3b5",
+              "on-background": "#e5e2e1",
+              "surface-variant": "#353534",
+              "inverse-on-surface": "#313030",
+              "on-surface": "#e5e2e1",
+              "on-primary-container": "#b296ff",
+              "on-tertiary-container": "#ff7d9b",
+              "on-error-container": "#ffdad6",
+              "outline-variant": "#4a4452",
+              "primary-container": "#4700b1",
+              "secondary-fixed": "#ffdada",
+              "secondary-fixed-dim": "#ffb3b5",
+              "surface-dim": "#131313",
+              "outline": "#958e9e",
+              "on-tertiary-fixed": "#3f0016",
+              "on-secondary-container": "#fff1f1"
+            },
+            fontFamily: {
+              "headline": ["Manrope"],
+              "body": ["Inter"],
+              "label": ["Plus Jakarta Sans"]
+            },
+            borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+          },
+        },
+      }
+    </script>
+<style>
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+      }
+      body { background-color: #131313; color: #e5e2e1; }
+      ::-webkit-scrollbar { width: 6px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: #4a4452; border-radius: 10px; }
+    </style>
+</head>
+<body class="font-body selection:bg-primary/30 antialiased overflow-hidden">
+<!-- TopNavBar -->
+<header class="fixed top-0 w-full z-50 flex justify-between items-center px-10 h-20 bg-[#131313]/70 backdrop-blur-3xl">
+<div class="flex items-center gap-8">
+<h1 class="text-xl font-bold tracking-tighter text-[#cfbdff] font-headline uppercase">The Digital Concierge</h1>
+<div class="flex items-center bg-surface-container rounded-full px-4 py-2 border border-outline-variant/15 w-96">
+<span class="material-symbols-outlined text-outline mr-3">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-sm w-full font-body text-on-surface placeholder-outline" placeholder="Search inventory..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-4 text-outline text-sm font-label">
+<span class="material-symbols-outlined hover:text-primary transition-colors cursor-pointer">wifi</span>
+<span class="material-symbols-outlined hover:text-primary transition-colors cursor-pointer">print</span>
+<span class="material-symbols-outlined hover:text-primary transition-colors cursor-pointer">barcode_scanner</span>
+</div>
+<div class="h-6 w-[1px] bg-outline-variant/30"></div>
+<div class="flex flex-col items-end">
+<span class="text-xs font-label uppercase tracking-widest text-outline">Cashier: Alex</span>
+<button class="text-sm font-bold text-[#cfbdff] hover:brightness-125 transition-all">Logout</button>
+</div>
+</div>
+</header>
+<!-- SideNavBar (Left) - Categories -->
+<aside class="fixed left-0 top-20 h-[calc(100vh-5rem)] flex flex-col pt-8 bg-[#1c1b1b] w-64 z-30">
+<div class="px-6 mb-8">
+<h2 class="text-[#cfbdff] font-headline text-lg font-black uppercase">Categories</h2>
+<p class="text-outline text-[10px] font-label uppercase tracking-widest">Retail Floor</p>
+</div>
+<nav class="flex-1 space-y-1">
+<div class="bg-gradient-to-br from-[#cfbdff] to-[#b296ff] text-[#131313] rounded-xl m-2 shadow-lg p-4 flex items-center gap-4 cursor-pointer group transition-transform active:scale-95">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">devices</span>
+<span class="font-label font-bold">Electronics</span>
+</div>
+<div class="text-[#4a4452] p-4 flex items-center gap-4 cursor-pointer hover:text-white hover:bg-[#353534] transition-all duration-300 mx-2 rounded-xl">
+<span class="material-symbols-outlined">checkroom</span>
+<span class="font-label font-bold">Fashion</span>
+</div>
+<div class="text-[#4a4452] p-4 flex items-center gap-4 cursor-pointer hover:text-white hover:bg-[#353534] transition-all duration-300 mx-2 rounded-xl">
+<span class="material-symbols-outlined">local_bar</span>
+<span class="font-label font-bold">Drinks</span>
+</div>
+<div class="text-[#4a4452] p-4 flex items-center gap-4 cursor-pointer hover:text-white hover:bg-[#353534] transition-all duration-300 mx-2 rounded-xl">
+<span class="material-symbols-outlined">restaurant</span>
+<span class="font-label font-bold">Food</span>
+</div>
+<div class="text-[#4a4452] p-4 flex items-center gap-4 cursor-pointer hover:text-white hover:bg-[#353534] transition-all duration-300 mx-2 rounded-xl mt-auto mb-4">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-label font-bold">Settings</span>
+</div>
+</nav>
+</aside>
+<!-- Main Content Area -->
+<main class="ml-64 mr-96 pt-24 px-8 h-screen overflow-y-auto">
+<div class="mb-10 flex justify-between items-end">
+<div>
+<h3 class="text-4xl font-headline font-extrabold text-on-surface tracking-tight">Electronics</h3>
+<p class="text-outline font-body mt-1">42 Premium items available in stock</p>
+</div>
+<button class="bg-surface-container hover:bg-surface-container-highest text-primary border border-outline-variant/15 px-6 py-3 rounded-xl font-label font-bold flex items-center gap-2 transition-all active:scale-95">
+<span class="material-symbols-outlined">barcode_scanner</span>
+                Scan Barcode
+            </button>
+</div>
+<!-- Product Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-20">
+<!-- Product Card 1 -->
+<div class="group bg-surface-container p-4 rounded-xl border border-outline-variant/5 hover:border-primary/20 transition-all cursor-pointer">
+<div class="relative h-48 w-full rounded-lg overflow-hidden bg-surface-container-high mb-4">
+<img class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" data-alt="professional high-end wireless studio headphones in matte black finish on dark reflective surface with dramatic purple accent lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDrtYUvqTksg5f_9fHp7ixU3eIwV_cgph1QxrbaTZZdMKsryBdqS6b72AdBURYXf4ld_PJY3iSzeDsfGH4g1xXkMVfbMm5iCeX15e-J8Tg8wZJ1DUPXbSj3vMVCVXi37mOH4cH89p3ajFCxlSLTRXTc6ETueWCiJ29435IhUWZC2Y4fFxoLeXNqgFtjPb-_RVgos3gBqcUnzGGRSQW75_P8V0Hd3Ne-hmrUIcW6vEbvQzwHCvNiiyK62DGY_GJbl-nh7tNRyvV6eGM"/>
+<div class="absolute top-2 right-2 bg-background/60 backdrop-blur-md px-2 py-1 rounded text-[10px] font-label font-bold text-primary border border-primary/20">NEW</div>
+</div>
+<div class="flex flex-col gap-1">
+<h4 class="font-headline font-bold text-lg text-on-surface">Pro Audio V2</h4>
+<div class="flex justify-between items-center mt-2">
+<span class="text-2xl font-headline font-extrabold text-primary">$299.00</span>
+<span class="text-xs font-label text-outline uppercase tracking-tighter">Stock: 12</span>
+</div>
+</div>
+</div>
+<!-- Product Card 2 -->
+<div class="group bg-surface-container p-4 rounded-xl border border-outline-variant/5 hover:border-primary/20 transition-all cursor-pointer">
+<div class="relative h-48 w-full rounded-lg overflow-hidden bg-surface-container-high mb-4">
+<img class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" data-alt="minimalist modern smartwatch with metallic mesh band and digital interface glowing soft violet on dark velvet backdrop" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC1ketlsSYD3CEIJhTgJ3E5yUKeUpZSZoTakR8P1AOdIxEh3dj7J025skXM7qOWKe8BdsmX0sQUDJhO7BH1NNp9gzA5YYN6PPaEU0F3a5giCBTmoz2jBl8a74PWPcoe_Sc93lg41hBOyljVSBHalW6ErllmPnQYEJ6oVal6fBadHZSAiLVQ9bGYsQljzIyYMVEHEuPQe25sUuSVH-KO4XPX8ilJgNa8iNmnDM3WtTT-Byrp0666cd_Nd8r2TDDUX0RIeoTj09-DzP0"/>
+</div>
+<div class="flex flex-col gap-1">
+<h4 class="font-headline font-bold text-lg text-on-surface">Series 9 Watch</h4>
+<div class="flex justify-between items-center mt-2">
+<span class="text-2xl font-headline font-extrabold text-primary">$449.00</span>
+<span class="text-xs font-label text-outline uppercase tracking-tighter">Stock: 4</span>
+</div>
+</div>
+</div>
+<!-- Product Card 3 -->
+<div class="group bg-surface-container p-4 rounded-xl border border-outline-variant/5 hover:border-primary/20 transition-all cursor-pointer">
+<div class="relative h-48 w-full rounded-lg overflow-hidden bg-surface-container-high mb-4">
+<img class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" data-alt="smart domestic lighting device glowing warm orange and soft purple in a clean modern apartment setting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBXb1xj_f2ySJIFv4BY5XpS_AKGndkHJZp0s-_MewWLQnjSoSC9F_8aN_yiMqbdsd9n22uOR5xyYX_aVtaLAYvlfwTTJmii_jMFchQHb5WkMElRl_Mt_spNaVj5BIP9dACoGkKHzcRz9RFY2i5MWaQ5UwE_ibNglwuUihTKz5qdzZ7MB-bMU_Dq2R3KPYrlauWKiRX-iTK8h7t6Hz-aYZpM8Iyk02l08y7a093FLGSRsAwzUM4h1wdmej11n5yK60uPAz8UtZFftAU"/>
+</div>
+<div class="flex flex-col gap-1">
+<h4 class="font-headline font-bold text-lg text-on-surface">Home Glow Hub</h4>
+<div class="flex justify-between items-center mt-2">
+<span class="text-2xl font-headline font-extrabold text-primary">$185.00</span>
+<span class="text-xs font-label text-outline uppercase tracking-tighter text-error">Low Stock: 2</span>
+</div>
+</div>
+</div>
+<!-- Product Card 4 -->
+<div class="group bg-surface-container p-4 rounded-xl border border-outline-variant/5 hover:border-primary/20 transition-all cursor-pointer">
+<div class="relative h-48 w-full rounded-lg overflow-hidden bg-surface-container-high mb-4">
+<img class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" data-alt="sleek professional tablet computer with stylus pen on desk with soft ambient neon purple office lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDI9bNhTb1c-rQEaL7Hhr-dJ6Srs_gSkCCsiULiEdUUOee1Eha0M3Hfsxrgv2tUd5b8ipSrmLh6Ou12ahfkDPp_onwcMq--zUQ79LpIIqr-V3WEIOwnGFtUd7nJweHfwoPW085HqrIM0r5Qb_2pmJaRZn8Z2pANIFW_yy6CesCwI1iWyIwVrZKv6y6QFprV_QAJOswBsN4Q_Om6AjMDPr3g0YrCK_4hy2QvUB4-DTGjlg6qmaGagF7llrMZIW8cI9cf400hnhIA6z8"/>
+</div>
+<div class="flex flex-col gap-1">
+<h4 class="font-headline font-bold text-lg text-on-surface">Design Tab Pro</h4>
+<div class="flex justify-between items-center mt-2">
+<span class="text-2xl font-headline font-extrabold text-primary">$999.00</span>
+<span class="text-xs font-label text-outline uppercase tracking-tighter">Stock: 25</span>
+</div>
+</div>
+</div>
+<!-- Product Card 5 -->
+<div class="group bg-surface-container p-4 rounded-xl border border-outline-variant/5 hover:border-primary/20 transition-all cursor-pointer">
+<div class="relative h-48 w-full rounded-lg overflow-hidden bg-surface-container-high mb-4">
+<img class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" data-alt="premium mechanical keyboard with backlit keys in violet and pink hues in a dark moody tech workspace" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDv6X3ObQrLy5IBbombdkcVjv6Z-oTiZC_J14aZnhEDBsw1CS3UiFv9oV3i6xCLlLIiVf7CvQDeN-4geMoTOyIpGLHx0VvQtLcI84lNv8wKaTw6GougsCiIijvHXJtTm0--hbKkJjIfK5UEHnZc8qeIGY66zGZCAvNdlJqe6YcPjAJxQRaqRVjtjEBIOP3GgSQ8scgBBoXr5vM87UHlQR_9uIl3dMtnqLEGniKiIB83EIlsxo5hEPTtSB9BtyPndPp39cO54FCTLD8"/>
+</div>
+<div class="flex flex-col gap-1">
+<h4 class="font-headline font-bold text-lg text-on-surface">Neon Tactile KB</h4>
+<div class="flex justify-between items-center mt-2">
+<span class="text-2xl font-headline font-extrabold text-primary">$120.00</span>
+<span class="text-xs font-label text-outline uppercase tracking-tighter">Stock: 8</span>
+</div>
+</div>
+</div>
+<!-- Product Card 6 -->
+<div class="group bg-surface-container p-4 rounded-xl border border-outline-variant/5 hover:border-primary/20 transition-all cursor-pointer">
+<div class="relative h-48 w-full rounded-lg overflow-hidden bg-surface-container-high mb-4">
+<img class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" data-alt="luxury thin bezel laptop open on dark desk displaying vibrant atmospheric wallpaper in purple tones" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBmjbcK375Qbe9fXx33uKkP8A5Dzks87220D08JyWRqYFJ19S1WD5bw0lMRZnCIayjthFYSsdIJ1_kDK4PPK4K-YZy5VxD14d4ftXQQ9o0azUD-dU5KFyjnUfDXwHfUh-PSS6Esp8WYCKqdxmblT-0PQyLEp4DroEjJLtPkiVajOja1Kt-SnnyboRac6GuYfSJFJC6yevxhKT1cKvBoNYOHblodAKiZtIrjl3Ho0CYMkc_GWJruKC9OJE_fd9tx58MiTwoJAN5gu_I"/>
+</div>
+<div class="flex flex-col gap-1">
+<h4 class="font-headline font-bold text-lg text-on-surface">Book Air 15</h4>
+<div class="flex justify-between items-center mt-2">
+<span class="text-2xl font-headline font-extrabold text-primary">$1,299.00</span>
+<span class="text-xs font-label text-outline uppercase tracking-tighter">Stock: 15</span>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Right Side (Cart) -->
+<section class="fixed right-0 top-0 h-screen w-96 flex flex-col p-6 z-40 bg-[#131313]/70 backdrop-blur-2xl border-l border-[#4a4452]/15">
+<div class="mb-8 flex justify-between items-start">
+<div>
+<h2 class="text-[#ffb3b5] font-headline text-2xl font-black uppercase leading-tight">Order Summary</h2>
+<p class="text-outline text-[10px] font-label uppercase tracking-widest">Table 12</p>
+</div>
+<button class="text-outline hover:text-white transition-colors">
+<span class="material-symbols-outlined">delete_sweep</span>
+</button>
+</div>
+<!-- Cart Items List -->
+<div class="flex-1 overflow-y-auto pr-2 space-y-4">
+<!-- Cart Item 1 -->
+<div class="bg-surface-container-high p-4 rounded-2xl flex items-center gap-4 group">
+<div class="w-16 h-16 rounded-lg bg-surface-container-highest overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="close-up of studio headphones" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD9ehTUD8JhAnIk2x30-UZGSBrcQ2muBXtp6E0O7z2_X-5sQwQGTJcmikxbxj9hFhjEx972Lsxu5gyMbZIdviU9J9KkyvNlq3t_nMnBQfOMKmP17dagQm-zwI-cy_gbfib8u4cxSQPrqy6YMFfmAjgcPMfuOm4gd_sG41b29Ie7iULo6KPFy08ueJdosWIO-5re7O5MVRU7PIq2mB495gGBwuWdm7YMDgc8y47wu5XoR9YkrhZTo_pcxWi6slPGnxdJcdoPwEqTsyg"/>
+</div>
+<div class="flex-1">
+<h5 class="text-sm font-headline font-bold text-on-surface">Pro Audio V2</h5>
+<p class="text-xs text-outline font-label">$299.00</p>
+</div>
+<div class="flex items-center gap-3 bg-surface-container-lowest rounded-full px-2 py-1">
+<button class="w-6 h-6 flex items-center justify-center text-primary hover:bg-primary/20 rounded-full transition-colors"><span class="material-symbols-outlined text-sm">remove</span></button>
+<span class="text-sm font-bold font-label">1</span>
+<button class="w-6 h-6 flex items-center justify-center text-primary hover:bg-primary/20 rounded-full transition-colors"><span class="material-symbols-outlined text-sm">add</span></button>
+</div>
+</div>
+<!-- Cart Item 2 -->
+<div class="bg-surface-container-high p-4 rounded-2xl flex items-center gap-4 group">
+<div class="w-16 h-16 rounded-lg bg-surface-container-highest overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="close-up of smartwatch" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA0wY64-dzd33vceIn47JW6_vI4GwaGgrvl07NvaJ5zO7iwGvD1J7ItSVopuuEeCag2hLtdH_FWP7JkaKXnqob-Su8dvWSr49LOuhg0DUzCGFoKWjEYh09SgIwCbudZWG43v2jypBsOUzBk_f0kLxuCG581rMvw9iHa4SiDS31V9qWgYEqWJaQJS6EePJeRtntd0sB6zehx6DnkKtjGW032HgoUUP0ybnGbgzUUu8hC7OliRiAxZWsETyAfnTehayOZLAsIIAzfSIA"/>
+</div>
+<div class="flex-1">
+<h5 class="text-sm font-headline font-bold text-on-surface">Series 9 Watch</h5>
+<p class="text-xs text-outline font-label">$449.00</p>
+</div>
+<div class="flex items-center gap-3 bg-surface-container-lowest rounded-full px-2 py-1">
+<button class="w-6 h-6 flex items-center justify-center text-primary hover:bg-primary/20 rounded-full transition-colors"><span class="material-symbols-outlined text-sm">remove</span></button>
+<span class="text-sm font-bold font-label">2</span>
+<button class="w-6 h-6 flex items-center justify-center text-primary hover:bg-primary/20 rounded-full transition-colors"><span class="material-symbols-outlined text-sm">add</span></button>
+</div>
+</div>
+</div>
+<!-- Checkout Section -->
+<div class="mt-6 pt-6 border-t border-outline-variant/15">
+<div class="flex flex-col gap-2 mb-6">
+<div class="flex justify-between items-center text-sm font-label text-outline">
+<span>Subtotal</span>
+<span>$1,197.00</span>
+</div>
+<div class="flex justify-between items-center text-sm font-label text-outline">
+<span>Tax (8.5%)</span>
+<span>$101.75</span>
+</div>
+<div class="flex justify-between items-end mt-2">
+<span class="text-xs font-label uppercase tracking-widest text-outline mb-1">Total Due</span>
+<span class="text-[3.5rem] font-headline font-black text-on-surface leading-none tracking-tighter">$1,298.75</span>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<button class="p-4 rounded-2xl border border-outline-variant/30 text-on-surface font-label font-bold hover:bg-surface-container-high transition-all active:scale-95">Split Pay</button>
+<button class="p-4 rounded-2xl border border-outline-variant/30 text-on-surface font-label font-bold hover:bg-surface-container-high transition-all active:scale-95">Discount</button>
+</div>
+<button class="w-full mt-4 bg-gradient-to-br from-[#ffb3b5] to-[#de0541] text-[#131313] py-6 rounded-2xl font-headline font-black text-xl flex items-center justify-center gap-3 shadow-2xl shadow-[#de0541]/20 hover:brightness-110 transition-all active:scale-[0.98]">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">shopping_cart</span>
+                Checkout
+            </button>
+</div>
+</section>
+<!-- Contextual "Live Total" Floating Ribbon (Mobile/Tablet View optimization) -->
+<div class="fixed bottom-6 left-1/2 -translate-x-1/2 md:hidden w-[90%] bg-secondary-container/20 backdrop-blur-3xl border border-secondary/20 p-4 rounded-3xl flex justify-between items-center z-[60]">
+<div>
+<p class="text-[10px] font-label uppercase text-on-secondary-container">Total Items: 3</p>
+<p class="text-xl font-headline font-bold text-secondary">$1,298.75</p>
+</div>
+<button class="bg-secondary text-on-secondary px-6 py-2 rounded-full font-label font-black uppercase text-sm">Review Cart</button>
+</div>
+</body></html>

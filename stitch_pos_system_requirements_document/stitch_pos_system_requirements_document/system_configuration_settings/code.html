@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Settings | Velvet Ledger</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;700;800&amp;family=Inter:wght@400;500;600&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              colors: {
+                "surface": "#131313",
+                "on-tertiary-fixed": "#3f0016",
+                "secondary": "#ffb3b5",
+                "primary-fixed-dim": "#cfbdff",
+                "surface-tint": "#cfbdff",
+                "on-primary": "#3a0093",
+                "on-primary-fixed": "#22005d",
+                "tertiary-fixed-dim": "#ffb2bf",
+                "surface-dim": "#131313",
+                "outline-variant": "#4a4452",
+                "on-tertiary-container": "#ff7d9b",
+                "primary-fixed": "#e8ddff",
+                "on-surface-variant": "#ccc3d4",
+                "secondary-container": "#de0541",
+                "inverse-primary": "#6d23f9",
+                "error-container": "#93000a",
+                "tertiary-container": "#7c0032",
+                "surface-bright": "#393939",
+                "outline": "#958e9e",
+                "on-secondary-container": "#fff1f1",
+                "on-secondary-fixed-variant": "#920027",
+                "on-tertiary-fixed-variant": "#90003b",
+                "on-secondary-fixed": "#40000c",
+                "on-secondary": "#680019",
+                "surface-container-high": "#2a2a2a",
+                "secondary-fixed": "#ffdada",
+                "surface-container": "#201f1f",
+                "on-tertiary": "#660028",
+                "tertiary-fixed": "#ffd9de",
+                "inverse-on-surface": "#313030",
+                "secondary-fixed-dim": "#ffb3b5",
+                "on-background": "#e5e2e1",
+                "surface-variant": "#353534",
+                "surface-container-low": "#1c1b1b",
+                "on-surface": "#e5e2e1",
+                "primary": "#cfbdff",
+                "on-primary-container": "#b296ff",
+                "primary-container": "#4700b1",
+                "on-primary-fixed-variant": "#5300cd",
+                "on-error": "#690005",
+                "surface-container-lowest": "#0e0e0e",
+                "tertiary": "#ffb2bf",
+                "error": "#ffb4ab",
+                "surface-container-highest": "#353534",
+                "on-error-container": "#ffdad6",
+                "inverse-surface": "#e5e2e1",
+                "background": "#131313"
+              },
+              fontFamily: {
+                "headline": ["Manrope"],
+                "body": ["Inter"],
+                "label": ["Plus Jakarta Sans"]
+              },
+              borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+            },
+          },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #131313; }
+        ::-webkit-scrollbar-thumb { background: #353534; border-radius: 10px; }
+        .glass-panel {
+            background: rgba(19, 19, 19, 0.7);
+            backdrop-filter: blur(24px);
+        }
+    </style>
+</head>
+<body class="bg-surface text-on-surface font-body overflow-hidden h-screen flex flex-col">
+<!-- TopNavBar -->
+<header class="fixed top-0 w-full z-50 bg-[#131313]/70 backdrop-blur-xl flex justify-between items-center px-10 py-4 w-full">
+<div class="flex items-center gap-8">
+<span class="text-2xl font-black text-[#cfbdff] tracking-tighter">Velvet Ledger</span>
+</div>
+<div class="flex items-center gap-6">
+<div class="relative group">
+<input class="bg-surface-container border-none text-on-surface-variant px-10 py-2 rounded-xl focus:ring-1 focus:ring-primary w-64 transition-all" placeholder="Search settings..." type="text"/>
+<span class="material-symbols-outlined absolute left-3 top-2 text-on-surface-variant text-lg">search</span>
+</div>
+<div class="flex items-center gap-4">
+<button class="text-gray-400 hover:text-white transition-colors duration-300 scale-95 active:duration-150">
+<span class="material-symbols-outlined" data-icon="sync">sync</span>
+</button>
+<button class="text-gray-400 hover:text-white transition-colors duration-300 scale-95 active:duration-150">
+<span class="material-symbols-outlined" data-icon="help_outline">help_outline</span>
+</button>
+<div class="relative">
+<button class="text-gray-400 hover:text-white transition-colors duration-300 scale-95 active:duration-150">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<div class="absolute -top-1 -right-1 w-2 h-2 bg-secondary rounded-full"></div>
+</div>
+<div class="w-10 h-10 rounded-full overflow-hidden border-2 border-primary-container">
+<img alt="Manager Avatar" class="w-full h-full object-cover" data-alt="Close-up portrait of a professional male store manager with a friendly expression in a modern retail setting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAQi9bp-YGatMjQrkTHf66QF4l2VJNEwem42NS7H1o2DVbZaFE54GeU9g1DGnzlmMkBhBisiqsUaGABiU3nvZgvwk-o8lZcI3Trmd_uTUi81JLE7KnCl9TJ_-pd6uGT2tBNfQSg7sJlT7ANEnCG7L47UBiaYasj15aDZzfjKZjkHKCPNyJU6kP0fkAM_4dlQBgiNaKvw3sejYFXGxuIOdKBcvk9g4uTbKWP01F2Ofj94LkVh8VPgGd4WdwYgDdJ-dL-Ct5VwmjY3Lk"/>
+</div>
+</div>
+</div>
+</header>
+<div class="flex flex-1 overflow-hidden pt-16">
+<!-- SideNavBar -->
+<aside class="h-screen w-80 fixed left-0 top-0 pt-20 bg-[#1c1b1b] flex flex-col h-full space-y-2 py-6">
+<div class="px-8 mb-10">
+<h2 class="font-inter text-lg text-[#cfbdff]">System Configuration</h2>
+<p class="text-xs text-gray-500 mt-1 uppercase tracking-widest font-label">Manage your POS environment</p>
+</div>
+<nav class="flex flex-col">
+<a class="text-gray-500 py-4 px-6 hover:bg-[#201f1f] hover:text-[#cfbdff] transition-all flex items-center gap-4" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-label uppercase tracking-widest text-[10px]">General</span>
+</a>
+<a class="bg-gradient-to-r from-[#4700b1] to-transparent text-[#cfbdff] border-l-4 border-[#ffb3b5] py-4 px-6 translate-x-1 transition-transform flex items-center gap-4" href="#">
+<span class="material-symbols-outlined" data-icon="print">print</span>
+<span class="font-label uppercase tracking-widest text-[10px]">Hardware</span>
+</a>
+<a class="text-gray-500 py-4 px-6 hover:bg-[#201f1f] hover:text-[#cfbdff] transition-all flex items-center gap-4" href="#">
+<span class="material-symbols-outlined" data-icon="group">group</span>
+<span class="font-label uppercase tracking-widest text-[10px]">Users &amp; Roles</span>
+</a>
+<a class="text-gray-500 py-4 px-6 hover:bg-[#201f1f] hover:text-[#cfbdff] transition-all flex items-center gap-4" href="#">
+<span class="material-symbols-outlined" data-icon="percent">percent</span>
+<span class="font-label uppercase tracking-widest text-[10px]">Tax &amp; Discounts</span>
+</a>
+<a class="text-gray-500 py-4 px-6 hover:bg-[#201f1f] hover:text-[#cfbdff] transition-all flex items-center gap-4" href="#">
+<span class="material-symbols-outlined" data-icon="info">info</span>
+<span class="font-label uppercase tracking-widest text-[10px]">About</span>
+</a>
+</nav>
+</aside>
+<!-- Main Content Area -->
+<main class="flex-1 ml-80 overflow-y-auto p-10">
+<div class="max-w-5xl mx-auto space-y-12 pb-20">
+<!-- Section Header -->
+<section>
+<h1 class="font-headline text-5xl font-bold tracking-tight text-on-surface mb-2">Hardware Integration</h1>
+<p class="text-on-surface-variant font-body">Configure and manage peripherals for your checkout terminal.</p>
+</section>
+<!-- Bento Grid Layout -->
+<div class="grid grid-cols-12 gap-6">
+<!-- Printer Configuration Card -->
+<div class="col-span-8 bg-surface-container rounded-xl p-8 space-y-8">
+<div class="flex justify-between items-start">
+<div>
+<h3 class="font-headline text-2xl font-bold">Receipt Printers</h3>
+<p class="text-on-surface-variant text-sm">Primary and secondary output devices</p>
+</div>
+<button class="bg-primary-container text-on-primary-container px-6 py-2 rounded-full flex items-center gap-2 hover:bg-opacity-80 transition-all font-label text-xs uppercase tracking-wider font-bold">
+<span class="material-symbols-outlined text-sm" data-icon="add">add</span> Scan for Devices
+                            </button>
+</div>
+<div class="space-y-4">
+<!-- Printer Item 1 -->
+<div class="flex items-center justify-between p-6 bg-surface-container-low rounded-xl">
+<div class="flex items-center gap-6">
+<div class="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center text-primary">
+<span class="material-symbols-outlined" data-icon="print">print</span>
+</div>
+<div>
+<p class="font-bold text-lg">Epson TM-T88VI</p>
+<p class="text-xs text-on-surface-variant uppercase font-label">Network • IP: 192.168.1.45</p>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<span class="text-[10px] bg-green-900/30 text-green-400 px-3 py-1 rounded-full uppercase font-bold tracking-widest">Active</span>
+<button class="text-on-surface-variant hover:text-primary transition-colors"><span class="material-symbols-outlined" data-icon="settings">settings</span></button>
+</div>
+</div>
+<!-- Printer Item 2 -->
+<div class="flex items-center justify-between p-6 bg-surface-container-low rounded-xl border border-outline-variant/10">
+<div class="flex items-center gap-6">
+<div class="w-12 h-12 bg-surface-variant rounded-full flex items-center justify-center text-on-surface-variant">
+<span class="material-symbols-outlined" data-icon="bluetooth">bluetooth</span>
+</div>
+<div>
+<p class="font-bold text-lg">Star Micronics SM-S230i</p>
+<p class="text-xs text-on-surface-variant uppercase font-label">Bluetooth • Disconnected</p>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="text-primary text-xs font-bold uppercase tracking-widest">Connect</button>
+<button class="text-on-surface-variant hover:text-error transition-colors"><span class="material-symbols-outlined" data-icon="delete">delete</span></button>
+</div>
+</div>
+</div>
+</div>
+<!-- Scan Trigger Card (Asymmetric element) -->
+<div class="col-span-4 bg-surface-container-low rounded-xl overflow-hidden relative group">
+<div class="absolute inset-0 opacity-20 group-hover:opacity-30 transition-opacity">
+<img alt="Scanner Background" class="w-full h-full object-cover grayscale" data-alt="Abstract macro shot of a laser barcode scanner red light beam in a dark industrial environment" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBahU46Hr8lQeMDvEZFbCzPzig0eSZWe_4p7d1knBETVqAU3ZOTEnn6EOS18Q5WVTimZ8yognvNCHYk-zav-8tiGW3E2xzt1HPYo4qXd5dtCMif1Ng23V51SgP8919vAx-NX8T4_xyO3N89jlACE2PPCeblfq00rsDPAa91bt1Co5wkXsb65xQgvjkvhVwtmt233lOYI2SEMVSyJXeNuVFKse45DTuIAUjHx_LCZv0_ocDVe2f5jMF2LXkrID8x_TZZmen282-eFEs"/>
+</div>
+<div class="relative p-8 h-full flex flex-col justify-between">
+<div>
+<h3 class="font-headline text-2xl font-bold text-primary">Scanners</h3>
+<p class="text-on-surface-variant text-xs mt-2">Configure auto-focus and scan delay.</p>
+</div>
+<div class="space-y-4">
+<div class="flex justify-between items-center bg-surface/50 p-4 rounded-xl backdrop-blur-md">
+<span class="text-sm font-label uppercase tracking-wider">Quick Scan</span>
+<div class="w-10 h-5 bg-primary rounded-full relative">
+<div class="absolute right-1 top-1 w-3 h-3 bg-white rounded-full"></div>
+</div>
+</div>
+<div class="flex justify-between items-center bg-surface/50 p-4 rounded-xl backdrop-blur-md">
+<span class="text-sm font-label uppercase tracking-wider">Sound Alerts</span>
+<div class="w-10 h-5 bg-surface-variant rounded-full relative">
+<div class="absolute left-1 top-1 w-3 h-3 bg-on-surface-variant rounded-full"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Large Input Configuration Area -->
+<div class="col-span-12 bg-surface-container rounded-xl p-10">
+<div class="grid grid-cols-2 gap-16">
+<div class="space-y-8">
+<h4 class="text-xs uppercase tracking-[0.2em] font-label text-secondary font-bold">Hardware Preferences</h4>
+<div class="space-y-6">
+<div class="space-y-2">
+<label class="text-xs text-on-surface-variant uppercase font-bold font-label">Default Paper Size</label>
+<select class="w-full bg-surface-container-low border-none rounded-xl py-4 px-6 text-on-surface focus:ring-1 focus:ring-primary">
+<option>80mm Standard Thermal</option>
+<option>58mm Compact Thermal</option>
+<option>A4 Laser (Invoices)</option>
+</select>
+</div>
+<div class="space-y-2">
+<label class="text-xs text-on-surface-variant uppercase font-bold font-label">Print Header Logo</label>
+<div class="flex items-center gap-4 p-4 border-2 border-dashed border-outline-variant/30 rounded-xl hover:border-primary transition-all cursor-pointer">
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="cloud_upload">cloud_upload</span>
+<span class="text-sm text-on-surface-variant">Click to upload brand logo...</span>
+</div>
+</div>
+</div>
+</div>
+<div class="space-y-8">
+<h4 class="text-xs uppercase tracking-[0.2em] font-label text-secondary font-bold">Cash Drawer &amp; Logic</h4>
+<div class="space-y-6">
+<div class="flex items-center justify-between">
+<div>
+<p class="font-bold">Automatic Kick-out</p>
+<p class="text-xs text-on-surface-variant">Open drawer automatically on cash payments</p>
+</div>
+<div class="w-12 h-6 bg-primary rounded-full relative cursor-pointer">
+<div class="absolute right-1 top-1 w-4 h-4 bg-white rounded-full shadow-lg"></div>
+</div>
+</div>
+<div class="flex items-center justify-between">
+<div>
+<p class="font-bold">Manager Approval Required</p>
+<p class="text-xs text-on-surface-variant">Requires key for non-sale drawer openings</p>
+</div>
+<div class="w-12 h-6 bg-surface-variant rounded-full relative cursor-pointer">
+<div class="absolute left-1 top-1 w-4 h-4 bg-on-surface-variant rounded-full"></div>
+</div>
+</div>
+<div class="pt-6">
+<button class="w-full py-4 bg-primary text-on-primary font-bold rounded-xl uppercase tracking-[0.1em] text-xs hover:shadow-[0_0_20px_rgba(207,189,255,0.3)] transition-all">
+                                            Test Drawer Connection
+                                        </button>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Payment Terminal Integration -->
+<div class="col-span-6 bg-surface-container-high rounded-xl p-8 flex flex-col justify-between border-l-4 border-secondary">
+<div class="flex items-start justify-between">
+<div class="space-y-2">
+<h4 class="font-headline text-xl font-bold">Payment Terminals</h4>
+<p class="text-sm text-on-surface-variant">Cloud-connected card readers</p>
+</div>
+<span class="material-symbols-outlined text-secondary text-3xl" data-icon="credit_card">credit_card</span>
+</div>
+<div class="mt-8 space-y-4">
+<div class="flex justify-between items-center py-3 border-b border-outline-variant/10">
+<span class="text-sm">Verifone P400</span>
+<span class="text-[10px] text-green-400 font-bold uppercase tracking-tighter">Online</span>
+</div>
+<div class="flex justify-between items-center py-3">
+<span class="text-sm">Square Reader #2</span>
+<span class="text-[10px] text-on-surface-variant font-bold uppercase tracking-tighter">Standby</span>
+</div>
+</div>
+</div>
+<!-- Network Status -->
+<div class="col-span-6 bg-surface-container rounded-xl p-8 flex items-center gap-8">
+<div class="relative">
+<svg class="w-24 h-24 transform -rotate-90">
+<circle class="text-surface-variant" cx="48" cy="48" fill="transparent" r="40" stroke="currentColor" stroke-width="4"></circle>
+<circle class="text-primary" cx="48" cy="48" fill="transparent" r="40" stroke="currentColor" stroke-dasharray="251.2" stroke-dashoffset="50.2" stroke-width="4"></circle>
+</svg>
+<div class="absolute inset-0 flex items-center justify-center font-bold text-sm">80%</div>
+</div>
+<div class="space-y-1">
+<h4 class="font-bold">Sync Health</h4>
+<p class="text-xs text-on-surface-variant">System latency is currently minimal. All hardware signals are optimal.</p>
+<button class="text-xs text-primary font-bold uppercase tracking-widest pt-2 flex items-center gap-1">
+                                View Logs <span class="material-symbols-outlined text-sm" data-icon="chevron_right">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Action Footer Section -->
+<div class="flex items-center justify-end gap-6 pt-10 border-t border-outline-variant/10">
+<button class="text-on-surface-variant hover:text-white transition-colors font-label uppercase tracking-widest text-xs font-bold px-8 py-4">
+                        Discard Changes
+                    </button>
+<button class="bg-secondary text-on-secondary px-12 py-4 rounded-xl font-bold uppercase tracking-[0.15em] text-sm hover:opacity-90 shadow-xl transition-all scale-100 active:scale-95">
+                        Charge &amp; Save Updates
+                    </button>
+</div>
+</div>
+</main>
+</div>
+<!-- Live Total Ribbon (Persistent UI) -->
+<div class="fixed bottom-6 right-10 flex items-center gap-6 glass-panel border border-outline-variant/10 p-4 pl-8 rounded-full shadow-2xl z-40">
+<div class="flex flex-col">
+<span class="text-[10px] uppercase tracking-widest font-label text-on-surface-variant">Session Status</span>
+<span class="font-bold text-green-400 flex items-center gap-2">
+<span class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+                Operational
+            </span>
+</div>
+<div class="h-10 w-px bg-outline-variant/30"></div>
+<div class="flex flex-col pr-4">
+<span class="text-[10px] uppercase tracking-widest font-label text-on-surface-variant">Terminals</span>
+<span class="font-bold">04 Active</span>
+</div>
+<button class="bg-secondary-container/20 text-secondary px-6 py-3 rounded-full font-bold uppercase text-[10px] tracking-widest hover:bg-secondary-container hover:text-white transition-all">
+            System Reboot
+        </button>
+</div>
+</body></html>

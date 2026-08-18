@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>The Digital Concierge | Secure Login</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200..800&amp;family=Inter:wght@100..900&amp;family=Plus_Jakarta_Sans:wght@200..800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "tertiary-fixed-dim": "#ffb2bf",
+                        "on-tertiary": "#660028",
+                        "tertiary": "#ffb2bf",
+                        "on-secondary-fixed": "#40000c",
+                        "on-primary-fixed-variant": "#5300cd",
+                        "inverse-surface": "#e5e2e1",
+                        "tertiary-container": "#7c0032",
+                        "secondary-container": "#de0541",
+                        "error-container": "#93000a",
+                        "on-tertiary-fixed-variant": "#90003b",
+                        "surface-container-highest": "#353534",
+                        "surface-container-lowest": "#0e0e0e",
+                        "on-secondary": "#680019",
+                        "primary-fixed": "#e8ddff",
+                        "primary": "#cfbdff",
+                        "inverse-primary": "#6d23f9",
+                        "surface-container-high": "#2a2a2a",
+                        "error": "#ffb4ab",
+                        "on-secondary-fixed-variant": "#920027",
+                        "on-primary": "#3a0093",
+                        "on-error": "#690005",
+                        "primary-fixed-dim": "#cfbdff",
+                        "surface-container": "#201f1f",
+                        "on-primary-fixed": "#22005d",
+                        "background": "#131313",
+                        "surface": "#131313",
+                        "surface-container-low": "#1c1b1b",
+                        "surface-bright": "#393939",
+                        "on-surface-variant": "#ccc3d4",
+                        "tertiary-fixed": "#ffd9de",
+                        "surface-tint": "#cfbdff",
+                        "secondary": "#ffb3b5",
+                        "on-background": "#e5e2e1",
+                        "surface-variant": "#353534",
+                        "inverse-on-surface": "#313030",
+                        "on-surface": "#e5e2e1",
+                        "on-primary-container": "#b296ff",
+                        "on-tertiary-container": "#ff7d9b",
+                        "on-error-container": "#ffdad6",
+                        "outline-variant": "#4a4452",
+                        "primary-container": "#4700b1",
+                        "secondary-fixed": "#ffdada",
+                        "secondary-fixed-dim": "#ffb3b5",
+                        "surface-dim": "#131313",
+                        "outline": "#958e9e",
+                        "on-tertiary-fixed": "#3f0016",
+                        "on-secondary-container": "#fff1f1"
+                    },
+                    fontFamily: {
+                        "headline": ["Manrope"],
+                        "body": ["Inter"],
+                        "label": ["Plus Jakarta Sans"]
+                    },
+                    borderRadius: { "DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.75rem", "full": "0.75rem" },
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 200, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-panel {
+            background: rgba(19, 19, 19, 0.7);
+            backdrop-filter: blur(24px);
+        }
+        .active-glow:focus-within {
+            box-shadow: 0 0 20px rgba(207, 189, 255, 0.2);
+        }
+        .bg-login-gradient {
+            background: radial-gradient(circle at 10% 20%, rgba(71, 0, 177, 0.15) 0%, rgba(19, 19, 19, 1) 90%),
+                        radial-gradient(circle at 90% 80%, rgba(222, 5, 65, 0.1) 0%, rgba(19, 19, 19, 1) 90%);
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface font-body min-h-screen flex items-center justify-center p-6 bg-login-gradient overflow-hidden">
+<!-- Subtle Background Texture -->
+<div class="fixed inset-0 pointer-events-none opacity-20">
+<div class="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary rounded-full blur-[120px]"></div>
+<div class="absolute bottom-[-10%] right-[-10%] w-[30%] h-[30%] bg-secondary rounded-full blur-[120px]"></div>
+</div>
+<!-- Main Login Shell -->
+<div class="relative z-10 w-full max-w-5xl grid grid-cols-1 md:grid-cols-12 gap-0 overflow-hidden rounded-[2rem] shadow-2xl shadow-black/50">
+<!-- Left Side: Identity & Inputs -->
+<div class="md:col-span-5 bg-surface-container-low p-10 lg:p-14 flex flex-col justify-between">
+<div>
+<header class="mb-12">
+<h1 class="font-headline font-extrabold text-3xl tracking-tighter text-primary mb-2">The Digital Concierge</h1>
+<p class="font-label text-outline text-sm uppercase tracking-widest">Authentication Required</p>
+</header>
+<div class="space-y-8">
+<!-- Role Selector -->
+<div class="flex gap-4 p-1 bg-surface-container-lowest rounded-full">
+<button class="flex-1 py-3 px-4 rounded-full bg-surface-container-highest text-primary font-label text-sm font-bold transition-all">
+                            Cashier
+                        </button>
+<button class="flex-1 py-3 px-4 rounded-full text-outline font-label text-sm font-bold hover:text-on-surface transition-all">
+                            Admin
+                        </button>
+</div>
+<!-- Input Fields -->
+<div class="space-y-6">
+<div class="space-y-2 group active-glow rounded-xl">
+<label class="font-label text-xs font-bold text-outline ml-1 uppercase">Employee ID</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline text-xl">person</span>
+<input class="w-full bg-surface-bright/30 border-0 rounded-xl py-4 pl-12 pr-4 text-on-surface placeholder:text-outline/50 focus:ring-2 focus:ring-primary/30 transition-all font-body" placeholder="Enter Username or ID" type="text"/>
+</div>
+</div>
+<div class="space-y-2 group active-glow rounded-xl">
+<label class="font-label text-xs font-bold text-outline ml-1 uppercase">Secure PIN</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline text-xl">lock_open</span>
+<input class="w-full bg-surface-bright/30 border-0 rounded-xl py-4 pl-12 pr-4 text-on-surface placeholder:text-outline/50 focus:ring-2 focus:ring-primary/30 tracking-[0.5em] transition-all font-body" placeholder="••••" type="password"/>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Transactional Actions -->
+<div class="mt-12 space-y-4">
+<div class="grid grid-cols-2 gap-4">
+<button class="flex items-center justify-center gap-2 py-4 rounded-xl bg-surface-container-highest text-on-surface font-label font-bold border border-outline-variant/15 hover:bg-surface-bright transition-all active:scale-95">
+<span class="material-symbols-outlined text-lg">schedule</span>
+                        Clock In
+                    </button>
+<button class="flex items-center justify-center gap-2 py-4 rounded-xl bg-surface-container-highest text-on-surface font-label font-bold border border-outline-variant/15 hover:bg-surface-bright transition-all active:scale-95">
+<span class="material-symbols-outlined text-lg">logout</span>
+                        Clock Out
+                    </button>
+</div>
+<button class="w-full py-5 rounded-xl bg-gradient-to-br from-primary to-on-primary-container text-on-primary font-headline font-black text-lg shadow-lg shadow-primary/10 hover:brightness-110 active:scale-[0.98] transition-all">
+                    Login to Terminal
+                </button>
+</div>
+</div>
+<!-- Right Side: Visual & Keypad -->
+<div class="md:col-span-7 relative bg-surface p-10 lg:p-14 flex flex-col items-center justify-center min-h-[600px]">
+<!-- Decorative Visual -->
+<div class="absolute inset-0 z-0">
+<img class="w-full h-full object-cover opacity-30 mix-blend-overlay" data-alt="Abstract moody bokeh background with deep purple and crimson light leaks and soft lens flares professional cinematic style" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDMxhKxjT7rNiaaPZwZnvs4n6QNFvYwTdPxc-JVz9WJJFxHZ9_yTgB5Qg69ogjLiQ8HkIUMdhroeO38kBu4iagADfZtBpO_GG6EpGm0n7naWumrhU3atPjdotRz4ITT43Wib8KvqViumNBzmFYQ0__B0hr8iGAh_lmhmpL7KhZG9SOdg9C-Az7UNpCkUYpiOkhff0cfoRPlj4MvBtIq49jJ8w6GV-uQcD3Wen04ARA7oVSSz8aE6XJ0y98OCqIlPzDe2Xys3hCRW2Q"/>
+<div class="absolute inset-0 bg-gradient-to-l from-surface via-transparent to-transparent"></div>
+</div>
+<div class="relative z-10 w-full max-w-sm">
+<!-- Status Display -->
+<div class="text-center mb-10">
+<div class="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-primary/20">
+<span class="material-symbols-outlined text-primary text-4xl" data-weight="fill">shield_person</span>
+</div>
+<h2 class="font-headline font-bold text-2xl text-on-surface">Terminal Security</h2>
+<p class="font-body text-outline mt-2">Station: Main Floor 01</p>
+</div>
+<!-- Numeric Keypad -->
+<div class="grid grid-cols-3 gap-4">
+<!-- Row 1 -->
+<button class="h-20 glass-panel rounded-xl flex items-center justify-center text-2xl font-headline font-bold text-on-surface hover:bg-surface-container-highest transition-all active:scale-90">1</button>
+<button class="h-20 glass-panel rounded-xl flex items-center justify-center text-2xl font-headline font-bold text-on-surface hover:bg-surface-container-highest transition-all active:scale-90">2</button>
+<button class="h-20 glass-panel rounded-xl flex items-center justify-center text-2xl font-headline font-bold text-on-surface hover:bg-surface-container-highest transition-all active:scale-90">3</button>
+<!-- Row 2 -->
+<button class="h-20 glass-panel rounded-xl flex items-center justify-center text-2xl font-headline font-bold text-on-surface hover:bg-surface-container-highest transition-all active:scale-90">4</button>
+<button class="h-20 glass-panel rounded-xl flex items-center justify-center text-2xl font-headline font-bold text-on-surface hover:bg-surface-container-highest transition-all active:scale-90">5</button>
+<button class="h-20 glass-panel rounded-xl flex items-center justify-center text-2xl font-headline font-bold text-on-surface hover:bg-surface-container-highest transition-all active:scale-90">6</button>
+<!-- Row 3 -->
+<button class="h-20 glass-panel rounded-xl flex items-center justify-center text-2xl font-headline font-bold text-on-surface hover:bg-surface-container-highest transition-all active:scale-90">7</button>
+<button class="h-20 glass-panel rounded-xl flex items-center justify-center text-2xl font-headline font-bold text-on-surface hover:bg-surface-container-highest transition-all active:scale-90">8</button>
+<button class="h-20 glass-panel rounded-xl flex items-center justify-center text-2xl font-headline font-bold text-on-surface hover:bg-surface-container-highest transition-all active:scale-90">9</button>
+<!-- Row 4 -->
+<button class="h-20 rounded-xl flex items-center justify-center text-on-surface hover:text-secondary transition-all">
+<span class="material-symbols-outlined text-3xl">backspace</span>
+</button>
+<button class="h-20 glass-panel rounded-xl flex items-center justify-center text-2xl font-headline font-bold text-on-surface hover:bg-surface-container-highest transition-all active:scale-90">0</button>
+<button class="h-20 rounded-xl flex items-center justify-center text-on-surface hover:text-primary transition-all">
+<span class="material-symbols-outlined text-3xl">check_circle</span>
+</button>
+</div>
+<div class="mt-10 flex justify-between items-center px-4">
+<button class="text-outline text-xs font-label font-bold uppercase hover:text-primary transition-colors">Forgot Credentials?</button>
+<button class="text-outline text-xs font-label font-bold uppercase hover:text-primary transition-colors">Need Assistance?</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Live Total Floating Ribbon (Branding Element) -->
+<div class="fixed bottom-8 right-8 z-50 glass-panel px-6 py-3 rounded-full border border-outline-variant/15 flex items-center gap-4">
+<div class="w-2 h-2 rounded-full bg-green-500"></div>
+<span class="text-xs font-label font-bold uppercase text-outline tracking-wider">System Operational</span>
+<div class="h-4 w-px bg-outline-variant/30"></div>
+<span class="text-xs font-label font-bold text-on-surface">v2.4.0-PRIME</span>
+</div>
+</body></html>

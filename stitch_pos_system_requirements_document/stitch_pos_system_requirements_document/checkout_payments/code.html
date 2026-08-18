@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>The Digital Concierge | Checkout</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;700;800&amp;family=Inter:wght@400;500;600&amp;family=Plus_Jakarta_Sans:wght@600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              colors: {
+                "tertiary-fixed-dim": "#ffb2bf",
+                "on-tertiary": "#660028",
+                "tertiary": "#ffb2bf",
+                "on-secondary-fixed": "#40000c",
+                "on-primary-fixed-variant": "#5300cd",
+                "inverse-surface": "#e5e2e1",
+                "tertiary-container": "#7c0032",
+                "secondary-container": "#de0541",
+                "error-container": "#93000a",
+                "on-tertiary-fixed-variant": "#90003b",
+                "surface-container-highest": "#353534",
+                "surface-container-lowest": "#0e0e0e",
+                "on-secondary": "#680019",
+                "primary-fixed": "#e8ddff",
+                "primary": "#cfbdff",
+                "inverse-primary": "#6d23f9",
+                "surface-container-high": "#2a2a2a",
+                "error": "#ffb4ab",
+                "on-secondary-fixed-variant": "#920027",
+                "on-primary": "#3a0093",
+                "on-error": "#690005",
+                "primary-fixed-dim": "#cfbdff",
+                "surface-container": "#201f1f",
+                "on-primary-fixed": "#22005d",
+                "background": "#131313",
+                "surface": "#131313",
+                "surface-container-low": "#1c1b1b",
+                "surface-bright": "#393939",
+                "on-surface-variant": "#ccc3d4",
+                "tertiary-fixed": "#ffd9de",
+                "surface-tint": "#cfbdff",
+                "secondary": "#ffb3b5",
+                "on-background": "#e5e2e1",
+                "surface-variant": "#353534",
+                "inverse-on-surface": "#313030",
+                "on-surface": "#e5e2e1",
+                "on-primary-container": "#b296ff",
+                "on-tertiary-container": "#ff7d9b",
+                "on-error-container": "#ffdad6",
+                "outline-variant": "#4a4452",
+                "primary-container": "#4700b1",
+                "secondary-fixed": "#ffdada",
+                "secondary-fixed-dim": "#ffb3b5",
+                "surface-dim": "#131313",
+                "outline": "#958e9e",
+                "on-tertiary-fixed": "#3f0016",
+                "on-secondary-container": "#fff1f1"
+              },
+              fontFamily: {
+                "headline": ["Manrope"],
+                "body": ["Inter"],
+                "label": ["Plus Jakarta Sans"]
+              },
+              borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+            },
+          },
+        }
+      </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 200, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        .glass-panel {
+            background: rgba(19, 19, 19, 0.7);
+            backdrop-filter: blur(24px);
+        }
+        .ambient-glow {
+            box-shadow: 0 0 64px 0 rgba(207, 189, 255, 0.06);
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body selection:bg-primary selection:text-on-primary">
+<!-- Top Navigation Bar -->
+<header class="fixed top-0 w-full z-50 flex justify-between items-center px-10 h-20 bg-[#131313]/70 backdrop-blur-3xl text-[#cfbdff]">
+<div class="flex items-center gap-8">
+<h1 class="text-xl font-bold tracking-tighter text-[#cfbdff] font-headline">The Digital Concierge</h1>
+<nav class="hidden md:flex gap-6 font-label">
+<a class="text-[#4a4452] hover:bg-[#353534] transition-all duration-300 px-4 py-2 rounded-xl" href="#">Electronics</a>
+<a class="text-[#4a4452] hover:bg-[#353534] transition-all duration-300 px-4 py-2 rounded-xl" href="#">Fashion</a>
+<a class="text-[#4a4452] hover:bg-[#353534] transition-all duration-300 px-4 py-2 rounded-xl" href="#">Drinks</a>
+<a class="text-[#4a4452] hover:bg-[#353534] transition-all duration-300 px-4 py-2 rounded-xl" href="#">Food</a>
+</nav>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex gap-4">
+<span class="material-symbols-outlined text-[#4a4452] hover:text-[#cfbdff] cursor-pointer">wifi</span>
+<span class="material-symbols-outlined text-[#4a4452] hover:text-[#cfbdff] cursor-pointer">print</span>
+<span class="material-symbols-outlined text-[#4a4452] hover:text-[#cfbdff] cursor-pointer">barcode_scanner</span>
+</div>
+<div class="flex flex-col items-end">
+<span class="text-xs font-label uppercase tracking-widest text-[#4a4452]">Cashier: Alex</span>
+<button class="text-[#cfbdff] font-bold text-sm hover:underline">Logout</button>
+</div>
+</div>
+</header>
+<main class="pt-24 pb-12 px-6 md:px-12 grid grid-cols-1 lg:grid-cols-12 gap-8 max-w-[1600px] mx-auto">
+<!-- Left: Cart Summary -->
+<section class="lg:col-span-5 flex flex-col gap-6">
+<div class="bg-surface-container-low rounded-xl p-8 ambient-glow h-full">
+<div class="flex justify-between items-center mb-8">
+<h2 class="text-2xl font-headline font-bold text-on-surface">Order Summary</h2>
+<span class="text-sm font-label text-outline uppercase tracking-wider">Table 12</span>
+</div>
+<div class="space-y-4 mb-10">
+<!-- Cart Items -->
+<div class="flex justify-between items-center group p-3 hover:bg-surface-container rounded-xl transition-colors">
+<div class="flex gap-4 items-center">
+<div class="w-14 h-14 rounded-xl overflow-hidden bg-surface-container-high">
+<img class="w-full h-full object-cover" data-alt="close-up of a high-end luxury mechanical watch with silver bands on a dark background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAUYGfkedBvfGMQkHfJAZ9xSK9XttuVfOgVmvx6hZ_3V9-eQG9Uzx29lGG_EpGRJzjcCszTwDnT2EMeCGklWHcdn0NAC5v7sT8_aIGAE9IHgF1AdftkFTtN4LAfD69mYlHUEADee7a7EfczDP4xFVSYFXfDStFAC2nLpOuHjQPgiU6RfZ4FUNhEitEcq1KfMJOgA1alKhdzvt2-QOYJSSCjRwwi8gedSV-_dP-y5aAHBmGkidsPtWULXbNk3Kru_VIbokLsJp6E0cE"/>
+</div>
+<div>
+<p class="font-body font-semibold text-on-surface">Premium Chronograph</p>
+<p class="text-xs font-label text-outline">SKU: LUX-9920</p>
+</div>
+</div>
+<div class="text-right">
+<p class="font-headline font-bold text-primary">$1,250.00</p>
+<p class="text-xs font-label text-outline">Qty: 1</p>
+</div>
+</div>
+<div class="flex justify-between items-center group p-3 hover:bg-surface-container rounded-xl transition-colors">
+<div class="flex gap-4 items-center">
+<div class="w-14 h-14 rounded-xl overflow-hidden bg-surface-container-high">
+<img class="w-full h-full object-cover" data-alt="professional noise-cancelling headphones in matte black finish on a minimalist designer desk" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCb2r0YWtlQAvvQFmnsjZIR4bg0R0RL1mn7TcFaGFToBq__yPNaf0FjRG_5OOv3YLzEKMrL0TDBHV3pd_YCOxfYA8cLapMGoLY7BYKtbG93W-VP3KWtYLZFszl-Ecn_laKVAXUtNKV60vAiFzkz6-3Of-9RJp-y9VGvrseRuLcIgDwaiDcQdNFIvJd4wNDFZYsHIdjCD9twd2E2A-S92uoBNoJpVQ3-_8ryinR5biT2GsMgTlJkurnpcbwzTF1Dwvwg1TtNJGfCB34"/>
+</div>
+<div>
+<p class="font-body font-semibold text-on-surface">Studio Wireless ANC</p>
+<p class="text-xs font-label text-outline">SKU: AUD-4412</p>
+</div>
+</div>
+<div class="text-right">
+<p class="font-headline font-bold text-primary">$349.00</p>
+<p class="text-xs font-label text-outline">Qty: 2</p>
+</div>
+</div>
+</div>
+<div class="mt-auto pt-8 border-t border-outline-variant/15 space-y-3">
+<div class="flex justify-between font-label text-sm">
+<span class="text-outline">Subtotal</span>
+<span class="text-on-surface">$1,948.00</span>
+</div>
+<div class="flex justify-between font-label text-sm">
+<span class="text-outline">Tax (VAT 15%)</span>
+<span class="text-on-surface">$292.20</span>
+</div>
+<div class="flex justify-between font-label text-sm">
+<span class="text-secondary">Loyalty Discount</span>
+<span class="text-secondary">-$50.00</span>
+</div>
+<div class="flex justify-between items-end pt-6">
+<span class="text-sm font-label text-outline uppercase tracking-widest pb-2">Total Amount</span>
+<span class="text-[3.5rem] font-headline font-extrabold leading-none text-primary tracking-tighter">$2,190.20</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Right: Payment Controls -->
+<section class="lg:col-span-7 space-y-8">
+<!-- Payment Method Grid -->
+<div class="bg-surface-container-low rounded-xl p-8 ambient-glow">
+<div class="flex justify-between items-center mb-6">
+<h3 class="text-xl font-headline font-bold">Payment Method</h3>
+<button class="flex items-center gap-2 text-primary font-label text-sm hover:opacity-80 transition-opacity">
+<span class="material-symbols-outlined text-base">call_split</span>
+                        Split Payment
+                    </button>
+</div>
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+<button class="flex flex-col items-center justify-center gap-3 p-6 rounded-xl bg-surface-container-highest border border-primary/20 transition-all duration-300 scale-95 active:scale-90">
+<span class="material-symbols-outlined text-primary text-3xl" style="font-variation-settings: 'FILL' 1;">payments</span>
+<span class="font-label text-sm font-bold uppercase tracking-wider text-primary">Cash</span>
+</button>
+<button class="flex flex-col items-center justify-center gap-3 p-6 rounded-xl bg-surface-container hover:bg-surface-container-high transition-all duration-300">
+<span class="material-symbols-outlined text-on-surface-variant text-3xl">credit_card</span>
+<span class="font-label text-sm font-bold uppercase tracking-wider text-on-surface-variant">Card</span>
+</button>
+<button class="flex flex-col items-center justify-center gap-3 p-6 rounded-xl bg-surface-container hover:bg-surface-container-high transition-all duration-300">
+<span class="material-symbols-outlined text-on-surface-variant text-3xl">smartphone</span>
+<span class="font-label text-sm font-bold uppercase tracking-wider text-on-surface-variant">MTN Money</span>
+</button>
+<button class="flex flex-col items-center justify-center gap-3 p-6 rounded-xl bg-surface-container hover:bg-surface-container-high transition-all duration-300">
+<span class="material-symbols-outlined text-on-surface-variant text-3xl">send_to_mobile</span>
+<span class="font-label text-sm font-bold uppercase tracking-wider text-on-surface-variant">Airtel</span>
+</button>
+</div>
+</div>
+<!-- Tender Input -->
+<div class="bg-surface-container-low rounded-xl p-8 ambient-glow">
+<div class="grid grid-cols-1 md:grid-cols-2 gap-10">
+<div class="space-y-4">
+<label class="block text-xs font-label uppercase tracking-widest text-outline">Amount Tendered</label>
+<div class="relative group">
+<input class="w-full bg-surface-bright border-none rounded-xl p-6 text-3xl font-headline font-bold text-on-surface focus:ring-2 focus:ring-primary/20 transition-all" type="text" value="2,200.00"/>
+<span class="absolute right-6 top-1/2 -translate-y-1/2 text-outline font-headline font-bold text-xl">$</span>
+<div class="absolute inset-0 rounded-xl pointer-events-none group-focus-within:shadow-[0_0_8px_rgba(207,189,255,0.2)]"></div>
+</div>
+<div class="flex gap-2">
+<button class="flex-1 py-2 bg-surface-container text-xs font-label rounded-lg hover:bg-surface-container-high transition-colors">Exact</button>
+<button class="flex-1 py-2 bg-surface-container text-xs font-label rounded-lg hover:bg-surface-container-high transition-colors">$2,200</button>
+<button class="flex-1 py-2 bg-surface-container text-xs font-label rounded-lg hover:bg-surface-container-high transition-colors">$2,300</button>
+</div>
+</div>
+<div class="space-y-4">
+<label class="block text-xs font-label uppercase tracking-widest text-outline">Change Due</label>
+<div class="w-full bg-primary/5 rounded-xl p-6 h-[88px] flex items-center justify-between border border-primary/10">
+<span class="text-[2.5rem] font-headline font-extrabold text-secondary tracking-tighter">9.80</span>
+<span class="text-secondary font-headline font-bold text-xl">$</span>
+</div>
+<p class="text-[10px] font-label text-outline uppercase text-right tracking-tighter">Automatic refund calculated</p>
+</div>
+</div>
+</div>
+<!-- Primary Action -->
+<div class="pt-4 flex gap-4">
+<button class="flex-1 h-20 rounded-xl bg-surface-container-high border border-outline-variant/15 text-on-surface font-headline font-bold flex items-center justify-center gap-3 hover:bg-surface-bright transition-all active:scale-[0.98]">
+<span class="material-symbols-outlined">cancel</span>
+                    Cancel Transaction
+                </button>
+<button class="flex-[2] h-20 rounded-xl bg-gradient-to-br from-[#ffb3b5] to-[#de0541] text-[#131313] font-headline font-black text-xl flex items-center justify-center gap-3 shadow-xl shadow-secondary/10 hover:brightness-110 transition-all active:scale-[0.98]">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">print</span>
+                    Confirm &amp; Print Receipt
+                </button>
+</div>
+</section>
+</main>
+<!-- Success Modal Overlay (Hidden by Default) -->
+<div class="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-[#0e0e0e]/90 backdrop-blur-md hidden">
+<div class="bg-surface-container-high rounded-full p-12 max-w-md w-full text-center ambient-glow border border-primary/10">
+<div class="w-24 h-24 bg-primary rounded-full flex items-center justify-center mx-auto mb-8 shadow-2xl shadow-primary/20">
+<span class="material-symbols-outlined text-[#131313] text-5xl font-bold">check_circle</span>
+</div>
+<h2 class="text-3xl font-headline font-bold text-on-surface mb-2">Transaction Success</h2>
+<p class="font-body text-outline mb-10">Order #TR-94420 has been finalized and recorded. Receipt is printing...</p>
+<div class="space-y-4">
+<button class="w-full py-4 bg-primary text-on-primary font-headline font-bold rounded-xl hover:opacity-90 transition-all">
+                    Start New Sale
+                </button>
+<button class="w-full py-4 text-primary font-label font-bold">
+                    Email Digital Receipt
+                </button>
+</div>
+</div>
+</div>
+<!-- Live Total Ribbon (Persistent Glass Bar) -->
+<div class="fixed bottom-0 left-0 w-full h-16 bg-secondary-container/10 backdrop-blur-2xl border-t border-secondary/10 flex items-center justify-between px-10 z-40">
+<div class="flex items-center gap-4">
+<div class="flex h-3 w-3 relative">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-secondary opacity-75"></span>
+<span class="relative inline-flex rounded-full h-3 w-3 bg-secondary"></span>
+</div>
+<span class="text-xs font-label uppercase tracking-widest text-on-secondary-container">Active Transaction</span>
+</div>
+<div class="flex items-center gap-8">
+<div class="flex flex-col items-end">
+<span class="text-[10px] font-label text-outline uppercase leading-none">Items</span>
+<span class="text-lg font-headline font-bold text-on-surface">3 Items</span>
+</div>
+<div class="h-8 w-px bg-outline-variant/30"></div>
+<div class="flex flex-col items-end">
+<span class="text-[10px] font-label text-outline uppercase leading-none">Subtotal</span>
+<span class="text-lg font-headline font-bold text-primary">$2,190.20</span>
+</div>
+</div>
+</div>
+</body></html>

@@ -1,0 +1,20 @@
+{
+  "product": "Beleka Pro POS",
+  "customer": "My Store",
+  "installationId": "BP-621569",
+  "hardwareId": "BP-B259-9E44-682F-A143",
+  "branches": 1,
+  "term": "Permanent",
+  "issuedAt": "2026-08-18T12:37:01.569556Z",
+  "expiresAt": null,
+  "features": [
+    "offline_pos",
+    "inventory_management",
+    "category_allocation",
+    "thermal_receipt_printing",
+    "escpos_drivers",
+    "backup_and_restore",
+    "unlimited_transactions"
+  ],
+  "signature": "N7KsDyjnhqDL1PNHMTMzmpIkW2rcmtJGDDlmGU9ABKPyR2rwwuXcab2Uq+x5lZI7jXCK8fsUX2pc+Sjjd/qYCA=="
+}

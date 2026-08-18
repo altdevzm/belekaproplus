@@ -1,0 +1,2 @@
+# Inherit parent's relaxed rules for example code
+include: ../analysis_options.yaml

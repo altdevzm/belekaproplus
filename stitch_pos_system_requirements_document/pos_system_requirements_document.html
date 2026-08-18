@@ -1,0 +1,23 @@
+# Multi-Purpose POS System - Project Requirements
+
+## 1. Architecture (Local PC Setup)
+*   **Frontend (Flutter):** Handles UI, cart management, and hardware interactions (Bluetooth printers, barcode scanners). Communicates via HTTP over local Wi-Fi.
+*   **Backend API (PC):** Local server (Node.js, Python, or Dart) to handle requests.
+*   **Database (PC):** PostgreSQL or MySQL for robust, multi-connection data management.
+
+## 2. Core Software Modules
+*   **A. Authentication & Roles:** JWT-based. Roles: Admin (Full Access), Manager (Refunds, Reports), Cashier (Sales only).
+*   **B. Inventory & Product Management:** Flexible schema with variations (size, color). Includes barcode mapping and low-stock alerts.
+*   **C. Cart & Checkout Flow:** Responsive state management (Provider/Riverpod/BLoC). Features: Discounts, dynamic tax, split payments.
+*   **D. Payment Processing:** Cash, Card, and Mobile Money (MTN/Airtel) integration via webhooks.
+*   **E. Offline Syncing:** Local cache (SQLite/Isar) to prevent crashes during Wi-Fi drops.
+
+## 3. Hardware Integration
+*   **Receipt Printing:** `esc_pos_printer` or `blue_thermal_printer` for Bluetooth/USB/Network thermal printers.
+*   **Barcode Scanning:** Camera-based (`mobile_scanner`) or physical scanners via `RawKeyboardListener`.
+*   **Cash Drawers:** Triggered via specific byte codes sent to the receipt printer (RJ11).
+
+## 4. Implementation Strategy
+*   **Network:** Static IP for the PC server.
+*   **Initial API:** Focus on `/login` and `/products` endpoints.
+*   **UI/UX:** Premium, branded feel using a deep purple and pink-red color palette.
