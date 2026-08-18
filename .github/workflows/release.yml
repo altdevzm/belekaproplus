@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version (e.g. 1.2.1)'
+        description: 'Release version (e.g. 1.2.3)'
         required: true
-        default: '1.2.1'
+        default: '1.2.3'
 
 permissions:
   contents: write
@@ -52,13 +52,12 @@ jobs:
 
             | Platform | File | Notes |
             |----------|------|-------|
-            | 🪟 Windows | `Beleka_POS_Setup_v${{ steps.meta.outputs.version }}.exe` | Full standalone installer for Windows 8, 8.1, 10, and 11 |
+            | 🪟 Windows | `Beleka_POS_Setup_v${{ steps.meta.outputs.version }}.exe` | Universal standalone installer for Windows 8, 8.1, 10, and 11 |
 
             ### 🚀 Windows Installation
             1. Download `Beleka_POS_Setup_v${{ steps.meta.outputs.version }}.exe`
             2. Run the installer (Right-click → **Run as administrator**)
-            3. If Windows SmartScreen appears: click **More info → Run anyway**
-            4. Follow the setup wizard — desktop shortcut created automatically
+            3. Follow the setup wizard — all Microsoft runtimes for Windows 8, 10, and 11 are installed automatically.
 
             ---
             *Built automatically by GitHub Actions · `${{ github.sha }}`*
@@ -87,7 +86,7 @@ jobs:
       - name: Build Windows release
         run: flutter build windows --release --build-name=${{ needs.create-release.outputs.version }}
 
-      - name: Copy MSVC runtime & UCRT DLLs (Windows 8, 8.1, 10, 11 support)
+      - name: Copy MSVC runtime & UCRT DLLs
         shell: pwsh
         run: |
           $target = "build\windows\x64\runner\Release"
@@ -100,14 +99,20 @@ jobs:
             $src = "C:\Windows\System32\$dll"
             if (Test-Path $src) { Copy-Item $src $target -Force; Write-Host "Copied $dll" }
           }
-          # Bundle UCRT API DLLs for standalone Windows 8/8.1/10/11 execution
           Get-ChildItem "C:\Windows\System32\api-ms-win-crt-*.dll" -ErrorAction SilentlyContinue | ForEach-Object {
             Copy-Item $_.FullName $target -Force
           }
           Get-ChildItem "C:\Windows\System32\api-ms-win-core-*.dll" -ErrorAction SilentlyContinue | ForEach-Object {
             Copy-Item $_.FullName $target -Force
           }
-          Write-Host "All Windows 8-11 compatibility DLLs bundled successfully."
+          Write-Host "All Windows compatibility DLLs bundled."
+
+      - name: Download Official Microsoft Visual C++ Redistributable
+        shell: pwsh
+        run: |
+          $vcRedistUrl = "https://aka.ms/vs/17/release/vc_redist.x64.exe"
+          Invoke-WebRequest -Uri $vcRedistUrl -OutFile "windows\vc_redist.x64.exe"
+          Write-Host "Downloaded Microsoft vc_redist.x64.exe for Inno Setup installer bundling."
 
       - name: Install Inno Setup
         run: choco install innosetup -y
