@@ -78,7 +78,7 @@ namespace
         map[EncodableValue("model")] =
             EncodableValue(printer.model);
         map[EncodableValue("default")] =
-            EncodableValue(printer.default);
+            EncodableValue(printer.isDefault);
         map[EncodableValue("available")] =
             EncodableValue(printer.available);
         list.push_back(map);
