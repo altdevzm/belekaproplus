@@ -92,32 +92,6 @@ jobs:
       - name: Flutter pub get
         run: flutter pub get
 
-      - name: Patch audioplayers_windows — silence MSVC C++20 coroutine error
-        # MSVC 14.4+ (VS 2022 18.x) removed <experimental/coroutine>.
-        # audioplayers_windows uses it indirectly via winrt headers.
-        # We patch its CMakeLists.txt in the pub cache to add the suppressor define.
-        shell: pwsh
-        run: |
-          $pubCache = $env:PUB_CACHE
-          if (-not $pubCache) { $pubCache = "$env:LOCALAPPDATA\Pub\Cache" }
-          $searchPath = "$pubCache\hosted\pub.dev"
-          Write-Host "Scanning: $searchPath"
-
-          Get-ChildItem "$searchPath\audioplayers_windows*" -Directory -ErrorAction SilentlyContinue | ForEach-Object {
-            $cmake = "$($_.FullName)\windows\CMakeLists.txt"
-            if (Test-Path $cmake) {
-              $content = Get-Content $cmake -Raw
-              if ($content -notmatch '_SILENCE_EXPERIMENTAL_COROUTINE') {
-                # Append target_compile_definitions after the last target definition
-                $patch = "`n# Patch: silence MSVC experimental/coroutine deprecation (MSVC 14.4+)`ntarget_compile_definitions(audioplayers_windows PRIVATE _SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)`n"
-                Add-Content $cmake $patch
-                Write-Host "Patched: $cmake"
-              } else {
-                Write-Host "Already patched: $cmake"
-              }
-            }
-          }
-
       - name: Build Windows release
         run: flutter build windows --release --build-name=${{ needs.create-release.outputs.version }}
 
