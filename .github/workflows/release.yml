@@ -2,14 +2,16 @@ name: Release Beleka POS (Windows Only)
 
 on:
   push:
+    branches:
+      - main
     tags:
       - 'v*.*.*'
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version (e.g. 1.2.3)'
+        description: 'Release version (e.g. 1.2.4)'
         required: true
-        default: '1.2.3'
+        default: '1.2.4'
 
 permissions:
   contents: write
@@ -29,7 +31,10 @@ jobs:
       - name: Resolve version & tag
         id: meta
         run: |
-          if [[ "${{ github.event_name }}" == "push" ]]; then
+          if [[ "${{ github.ref_name }}" == "main" ]]; then
+            VER="1.2.4"
+            TAG="v1.2.4"
+          elif [[ "${{ github.event_name }}" == "push" ]]; then
             TAG="${{ github.ref_name }}"
             VER="${TAG#v}"
           else
