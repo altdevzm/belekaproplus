@@ -9,7 +9,7 @@ import 'package:intl/intl.dart';
 import 'package:flutter/services.dart';
 import 'package:image/image.dart' as img;
 import 'package:printing/printing.dart' as pnt;
-import 'package:pdf/pdf.dart';
+import 'package:pdf/pdf.dart' as pdf;
 import 'package:pdf/widgets.dart' as pw;
 import 'package:beleka_pos/utils/formatters.dart';
 
@@ -489,9 +489,13 @@ class PrinterService {
     try {
       final preset = activePreset;
       final is58 = preset.widthMm <= 58;
+      final colCount = preset.columnCount;
       final profile = await CapabilityProfile.load();
       final generator = Generator(preset.escPosSize, profile);
       List<int> bytes = [];
+
+      // 0. Hardware Reset Init Command (ESC @)
+      bytes += generator.reset();
 
       final currency = config?.currencySymbol ?? 'K';
 
@@ -571,46 +575,20 @@ class PrinterService {
       final receiptNo = '#${transaction.id.toString().padLeft(8, '0')}';
       final cashier = transaction.cashierName.isNotEmpty ? transaction.cashierName : 'Staff';
       
-      bytes += generator.row([
-        PosColumn(text: 'RECEIPT: $receiptNo', width: is58 ? 6 : 6, styles: const PosStyles(bold: true)),
-        PosColumn(text: dateStr, width: is58 ? 6 : 6, styles: const PosStyles(align: PosAlign.right)),
-      ]);
-      
-      bytes += generator.row([
-        PosColumn(text: 'Attended by: $cashier', width: is58 ? 6 : 6, styles: const PosStyles(bold: true)),
-        PosColumn(text: 'Terminal: ${transaction.terminalName ?? config?.terminalName ?? "POS-01"}', width: is58 ? 6 : 6, styles: const PosStyles(align: PosAlign.right)),
-      ]);
+      bytes += generator.text(_formatRow2('RECEIPT: $receiptNo', dateStr, colCount), styles: const PosStyles(bold: true));
+      bytes += generator.text(_formatRow2('Attended by: $cashier', 'Terminal: ${transaction.terminalName ?? config?.terminalName ?? "POS-01"}', colCount));
 
       if (customer != null) {
-        bytes += generator.row([
-          PosColumn(text: 'Customer: ${customer.name}', width: is58 ? 6 : 6),
-          PosColumn(text: customer.phoneNumber, width: is58 ? 6 : 6, styles: const PosStyles(align: PosAlign.right)),
-        ]);
+        bytes += generator.text(_formatRow2('Customer: ${customer.name}', customer.phoneNumber, colCount));
       }
 
       bytes += generator.text(preset.singleDivider);
 
       // 4. Line Items Table Header
       if (is58) {
-        bytes += generator.row([
-          PosColumn(text: 'ITEM', width: 6, styles: const PosStyles(bold: true)),
-          PosColumn(text: 'QTY', width: 2, styles: const PosStyles(align: PosAlign.center, bold: true)),
-          PosColumn(text: 'TOTAL', width: 4, styles: const PosStyles(align: PosAlign.right, bold: true)),
-        ]);
-      } else if (preset.widthMm <= 76) {
-        bytes += generator.row([
-          PosColumn(text: 'ITEM', width: 5, styles: const PosStyles(bold: true)),
-          PosColumn(text: 'QTY', width: 2, styles: const PosStyles(align: PosAlign.center, bold: true)),
-          PosColumn(text: 'PRICE', width: 2, styles: const PosStyles(align: PosAlign.right, bold: true)),
-          PosColumn(text: 'TOTAL', width: 3, styles: const PosStyles(align: PosAlign.right, bold: true)),
-        ]);
+        bytes += generator.text(_formatRow3('ITEM', 'QTY', 'TOTAL', colCount), styles: const PosStyles(bold: true));
       } else {
-        bytes += generator.row([
-          PosColumn(text: 'ITEM DESCRIPTION', width: 6, styles: const PosStyles(bold: true)),
-          PosColumn(text: 'QTY', width: 2, styles: const PosStyles(align: PosAlign.center, bold: true)),
-          PosColumn(text: 'PRICE', width: 2, styles: const PosStyles(align: PosAlign.right, bold: true)),
-          PosColumn(text: 'TOTAL', width: 2, styles: const PosStyles(align: PosAlign.right, bold: true)),
-        ]);
+        bytes += generator.text(_formatRow4('ITEM DESCRIPTION', 'QTY', 'PRICE', 'TOTAL', colCount), styles: const PosStyles(bold: true));
       }
       bytes += generator.text(preset.singleDivider);
 
@@ -622,126 +600,80 @@ class PrinterService {
 
         if (is58) {
           bytes += generator.text(item.productName.toUpperCase(), styles: const PosStyles(bold: true));
-          bytes += generator.row([
-            PosColumn(text: '  @ ${CurrencyFormatter.format(item.priceAtSale, currency)}', width: 6),
-            PosColumn(text: '${item.quantity}x', width: 2, styles: const PosStyles(align: PosAlign.center)),
-            PosColumn(text: '$totalFormatted $taxLetter', width: 4, styles: const PosStyles(align: PosAlign.right)),
-          ]);
-        } else if (preset.widthMm <= 76) {
-          bytes += generator.row([
-            PosColumn(text: item.productName.toUpperCase(), width: 5),
-            PosColumn(text: '${item.quantity}', width: 2, styles: const PosStyles(align: PosAlign.center)),
-            PosColumn(text: CurrencyFormatter.format(item.priceAtSale, currency), width: 2, styles: const PosStyles(align: PosAlign.right)),
-            PosColumn(text: '$totalFormatted $taxLetter', width: 3, styles: const PosStyles(align: PosAlign.right, bold: true)),
-          ]);
+          bytes += generator.text(_formatRow3(
+            '  @ ${CurrencyFormatter.format(item.priceAtSale, currency)}',
+            '${item.quantity}x',
+            '$totalFormatted $taxLetter',
+            colCount,
+          ));
         } else {
-          bytes += generator.row([
-            PosColumn(text: item.productName.toUpperCase(), width: 6),
-            PosColumn(text: '${item.quantity}', width: 2, styles: const PosStyles(align: PosAlign.center)),
-            PosColumn(text: CurrencyFormatter.format(item.priceAtSale, currency), width: 2, styles: const PosStyles(align: PosAlign.right)),
-            PosColumn(text: '$totalFormatted $taxLetter', width: 2, styles: const PosStyles(align: PosAlign.right, bold: true)),
-          ]);
+          bytes += generator.text(_formatRow4(
+            item.productName.toUpperCase(),
+            '${item.quantity}',
+            CurrencyFormatter.format(item.priceAtSale, currency),
+            '$totalFormatted $taxLetter',
+            colCount,
+          ));
         }
       }
 
       bytes += generator.text(preset.singleDivider);
 
       // 6. Financial Summary
-      bytes += generator.row([
-        PosColumn(text: 'SUBTOTAL', width: 6),
-        PosColumn(text: CurrencyFormatter.format(transaction.subtotal, currency), width: 6, styles: const PosStyles(align: PosAlign.right)),
-      ]);
+      bytes += generator.text(_formatRow2('SUBTOTAL', CurrencyFormatter.format(transaction.subtotal, currency), colCount));
 
       if (transaction.discountAmount > 0) {
-        bytes += generator.row([
-          PosColumn(text: 'DISCOUNT', width: 6),
-          PosColumn(text: '-${CurrencyFormatter.format(transaction.discountAmount, currency)}', width: 6, styles: const PosStyles(align: PosAlign.right)),
-        ]);
+        bytes += generator.text(_formatRow2('DISCOUNT', '-${CurrencyFormatter.format(transaction.discountAmount, currency)}', colCount));
       }
 
       if (transaction.taxAmount > 0) {
-        bytes += generator.row([
-          PosColumn(text: 'TOTAL VAT (INCLUDED)', width: 6),
-          PosColumn(text: CurrencyFormatter.format(transaction.taxAmount, currency), width: 6, styles: const PosStyles(align: PosAlign.right)),
-        ]);
+        bytes += generator.text(_formatRow2('TOTAL VAT (INCLUDED)', CurrencyFormatter.format(transaction.taxAmount, currency), colCount));
       }
 
       bytes += generator.feed(1);
       bytes += generator.text(preset.doubleDivider);
 
       // Grand Total Highlight
-      bytes += generator.row([
-        PosColumn(
-          text: 'TOTAL DUE', 
-          width: 5, 
-          styles: const PosStyles(bold: true, height: PosTextSize.size2, width: PosTextSize.size2),
-        ),
-        PosColumn(
-          text: CurrencyFormatter.format(transaction.totalAmount, currency), 
-          width: 7, 
-          styles: const PosStyles(align: PosAlign.right, bold: true, height: PosTextSize.size2, width: PosTextSize.size2),
-        ),
-      ]);
+      bytes += generator.text(
+        _formatRow2('TOTAL DUE', CurrencyFormatter.format(transaction.totalAmount, currency), (colCount / 2).floor()),
+        styles: const PosStyles(bold: true, height: PosTextSize.size2, width: PosTextSize.size2),
+      );
 
       bytes += generator.text(preset.doubleDivider);
 
       // 7. Payment Tender Details
-      bytes += generator.row([
-        PosColumn(text: 'PAYMENT METHOD', width: 6, styles: const PosStyles(bold: true)),
-        PosColumn(text: transaction.paymentMethod.toUpperCase(), width: 6, styles: const PosStyles(align: PosAlign.right, bold: true)),
-      ]);
+      bytes += generator.text(_formatRow2('PAYMENT METHOD', transaction.paymentMethod.toUpperCase(), colCount), styles: const PosStyles(bold: true));
 
       if (transaction.paymentMethod.toUpperCase() == 'CASH') {
-        bytes += generator.row([
-          PosColumn(text: 'Cash Tendered', width: 6),
-          PosColumn(text: CurrencyFormatter.format(transaction.tenderedAmount, currency), width: 6, styles: const PosStyles(align: PosAlign.right)),
-        ]);
-        bytes += generator.row([
-          PosColumn(text: 'Change Returned', width: 6, styles: const PosStyles(bold: true)),
-          PosColumn(text: CurrencyFormatter.format(transaction.changeAmount, currency), width: 6, styles: const PosStyles(align: PosAlign.right, bold: true)),
-        ]);
+        bytes += generator.text(_formatRow2('Cash Tendered', CurrencyFormatter.format(transaction.tenderedAmount, currency), colCount));
+        bytes += generator.text(_formatRow2('Change Returned', CurrencyFormatter.format(transaction.changeAmount, currency), colCount), styles: const PosStyles(bold: true));
       }
 
       // 8. Tax Summary Table
       bytes += generator.feed(1);
       bytes += generator.text('TAX SUMMARY BREAKDOWN', styles: const PosStyles(bold: true));
-      bytes += generator.row([
-        PosColumn(text: 'CODE / RATE', width: 4, styles: const PosStyles(bold: true)),
-        PosColumn(text: 'VAT', width: 4, styles: const PosStyles(bold: true, align: PosAlign.center)),
-        PosColumn(text: 'TOTAL', width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
-      ]);
+      bytes += generator.text(_formatRow3('CODE / RATE', 'VAT', 'TOTAL', colCount), styles: const PosStyles(bold: true));
 
       final breakdown = _getTaxBreakdown(items);
       breakdown.forEach((rate, values) {
         final letter = _getTaxLetter(rate);
-        bytes += generator.row([
-          PosColumn(text: '$letter (${rate.toStringAsFixed(0)}%)', width: 4),
-          PosColumn(text: CurrencyFormatter.format(values['vat']!, currency), width: 4, styles: const PosStyles(align: PosAlign.center)),
-          PosColumn(text: CurrencyFormatter.format(values['total']!, currency), width: 4, styles: const PosStyles(align: PosAlign.right)),
-        ]);
+        bytes += generator.text(_formatRow3(
+          '$letter (${rate.toStringAsFixed(0)}%)',
+          CurrencyFormatter.format(values['vat']!, currency),
+          CurrencyFormatter.format(values['total']!, currency),
+          colCount,
+        ));
       });
 
       // 9. SDC / ZRA Smart Invoice Compliance
       bytes += generator.feed(1);
       bytes += generator.text('SDC FISCAL CONTROL DATA', styles: const PosStyles(bold: true));
-      bytes += generator.row([
-        PosColumn(text: 'SDC InvNo:', width: 4),
-        PosColumn(text: 'INV${transaction.id.toString().padLeft(10, '0')}', width: 8, styles: const PosStyles(align: PosAlign.right)),
-      ]);
-      bytes += generator.row([
-        PosColumn(text: 'SDC Device ID:', width: 5),
-        PosColumn(text: config?.sdcId ?? 'SDC00300000014', width: 7, styles: const PosStyles(align: PosAlign.right)),
-      ]);
-      bytes += generator.row([
-        PosColumn(text: 'MRC No:', width: 4),
-        PosColumn(text: config?.mrcNo ?? 'WIS00013845', width: 8, styles: const PosStyles(align: PosAlign.right)),
-      ]);
+      bytes += generator.text(_formatRow2('SDC InvNo:', 'INV${transaction.id.toString().padLeft(10, '0')}', colCount));
+      bytes += generator.text(_formatRow2('SDC Device ID:', config?.sdcId ?? 'SDC00300000014', colCount));
+      bytes += generator.text(_formatRow2('MRC No:', config?.mrcNo ?? 'WIS00013845', colCount));
 
-      // 10. QR Code Verification
+      // 10. Footer Section
       bytes += generator.feed(1);
-      final qrPayload = 'https://zra.org.zm/verify?inv=${transaction.id}&amt=${transaction.totalAmount}&tpin=${config?.tpin ?? ""}';
-      bytes += generator.qrcode(qrPayload, size: preset.qrSize, align: PosAlign.center);
-      bytes += generator.text('SCAN TO VERIFY OFFICIAL RECEIPT', styles: const PosStyles(align: PosAlign.center, height: PosTextSize.size1));
 
       // 11. Customer Friendly Footer
       bytes += generator.feed(1);
@@ -768,6 +700,114 @@ class PrinterService {
       return await _sendBytes(bytes);
     } catch (e) {
       debugPrint('Thermal receipt print error: $e');
+      return false;
+    }
+  }
+
+  String _formatRow2(String left, String right, int totalWidth) {
+    if (left.length + right.length + 1 > totalWidth) {
+      final maxLeft = totalWidth - right.length - 1;
+      if (maxLeft > 0) {
+        left = left.substring(0, maxLeft);
+      }
+    }
+    final spaces = totalWidth - left.length - right.length;
+    return left + (' ' * (spaces > 0 ? spaces : 1)) + right;
+  }
+
+  String _formatRow3(String col1, String col2, String col3, int totalWidth) {
+    int w1 = (totalWidth * 0.45).floor();
+    int w2 = (totalWidth * 0.20).floor();
+    int w3 = totalWidth - w1 - w2;
+
+    String c1 = col1.length > w1 ? col1.substring(0, w1) : col1.padRight(w1);
+    String c2 = col2.padLeft(w2);
+    String c3 = col3.padLeft(w3);
+    return '$c1$c2$c3';
+  }
+
+  String _formatRow4(String col1, String col2, String col3, String col4, int totalWidth) {
+    int w1 = (totalWidth * 0.40).floor();
+    int w2 = (totalWidth * 0.14).floor();
+    int w3 = (totalWidth * 0.22).floor();
+    int w4 = totalWidth - w1 - w2 - w3;
+
+    String c1 = col1.length > w1 ? col1.substring(0, w1) : col1.padRight(w1);
+    String c2 = col2.padLeft(w2);
+    String c3 = col3.padLeft(w3);
+    String c4 = col4.padLeft(w4);
+    return '$c1$c2$c3$c4';
+  }
+
+  Future<bool> printDailySummary({
+    required Map<String, double> stats,
+    required List<Map<String, dynamic>> topProducts,
+    required Map<String, double> paymentDist,
+    StoreConfig? config,
+  }) async {
+    if (!_isConnected) {
+      await autoConnect(config: config);
+    }
+
+    if (_activeModel == PrinterModel.system) {
+      return await _printSummaryWithSystem(stats, topProducts, paymentDist, config: config);
+    }
+
+    try {
+      final preset = activePreset;
+      final colCount = preset.columnCount;
+      final profile = await CapabilityProfile.load();
+      final generator = Generator(preset.escPosSize, profile);
+      List<int> bytes = [];
+
+      bytes += generator.reset();
+
+      final currency = config?.currencySymbol ?? 'K';
+
+      bytes += generator.setStyles(const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2));
+      bytes += generator.text('DAILY X-REPORT');
+      bytes += generator.setStyles(const PosStyles(align: PosAlign.center));
+      bytes += generator.text(config?.businessName ?? 'BELEKA POS');
+      if (config?.address != null) bytes += generator.text(config!.address!);
+      if (config?.taxId != null) bytes += generator.text('VAT ID: ${config!.taxId!}');
+      bytes += generator.text(DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now()));
+      bytes += generator.feed(1);
+      bytes += generator.text(preset.doubleDivider);
+
+      final todayCount = (stats['todayCount'] ?? 0).isNaN ? 0 : (stats['todayCount'] ?? 0).toInt();
+      final todayRevenue = (stats['todayRevenue'] ?? 0).isNaN ? 0.0 : stats['todayRevenue']!;
+      final todayTax = (stats['todayTax'] ?? 0).isNaN ? 0.0 : stats['todayTax']!;
+      final netSales = todayRevenue - todayTax;
+
+      bytes += generator.text(_formatRow2('Transactions', '$todayCount', colCount));
+      bytes += generator.text(_formatRow2('Gross Revenue', CurrencyFormatter.format(todayRevenue, currency), colCount), styles: const PosStyles(bold: true));
+      bytes += generator.text(_formatRow2('Total VAT', CurrencyFormatter.format(todayTax, currency), colCount));
+      bytes += generator.text(_formatRow2('Net Sales', CurrencyFormatter.format(netSales, currency), colCount));
+      
+      bytes += generator.feed(1);
+      bytes += generator.text('PAYMENT METHODS', styles: const PosStyles(bold: true));
+      double grandTotal = 0.0;
+      paymentDist.forEach((method, amount) {
+        final val = amount.isNaN ? 0.0 : amount;
+        grandTotal += val;
+        bytes += generator.text(_formatRow2(method.toUpperCase(), CurrencyFormatter.format(val, currency), colCount));
+      });
+      bytes += generator.text(preset.singleDivider);
+      bytes += generator.text(_formatRow2('TOTAL COLLECTED', CurrencyFormatter.format(grandTotal, currency), colCount), styles: const PosStyles(bold: true));
+
+      bytes += generator.feed(1);
+      bytes += generator.text('TOP PRODUCTS', styles: const PosStyles(bold: true));
+      for (var p in topProducts.take(5)) {
+        bytes += generator.text(_formatRow2(p['name'].toString(), p['quantity'].toString(), colCount));
+      }
+      
+      bytes += generator.text(preset.doubleDivider);
+      bytes += generator.feed(3);
+      bytes += generator.cut();
+
+      return await _sendBytes(bytes);
+    } catch (e) {
+      debugPrint('Summary printing error: $e');
       return false;
     }
   }
@@ -959,10 +999,10 @@ class PrinterService {
         debugPrint('Logo load error for PDF: $e');
       }
 
-      final rollFormat = PdfPageFormat(
-        _paperWidthMm * PdfPageFormat.mm,
+      final rollFormat = pdf.PdfPageFormat(
+        _paperWidthMm * pdf.PdfPageFormat.mm,
         double.infinity,
-        marginAll: (_paperWidthMm <= 58 ? 3 : 4) * PdfPageFormat.mm,
+        marginAll: (_paperWidthMm <= 58 ? 3 : 4) * pdf.PdfPageFormat.mm,
       );
       final companyName = (config?.businessName != null && config!.businessName.isNotEmpty 
           ? config.businessName 
@@ -975,17 +1015,17 @@ class PrinterService {
       doc.addPage(
         pw.Page(
           pageFormat: rollFormat,
-          margin: const pw.EdgeInsets.all(4 * PdfPageFormat.mm),
+          margin: const pw.EdgeInsets.all(4 * pdf.PdfPageFormat.mm),
           build: (pw.Context context) {
             return pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.center,
               children: [
                 if (logoImage != null)
                   pw.Container(
-                    height: 25 * PdfPageFormat.mm,
+                    height: 25 * pdf.PdfPageFormat.mm,
                     child: pw.Image(logoImage),
                   ),
-                pw.SizedBox(height: 2 * PdfPageFormat.mm),
+                pw.SizedBox(height: 2 * pdf.PdfPageFormat.mm),
                 pw.Text(
                   companyName, 
                   style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12),
@@ -997,7 +1037,7 @@ class PrinterService {
                 if (config?.address != null && config!.address!.isNotEmpty) pw.Text(config.address!, style: const pw.TextStyle(fontSize: 8)),
                 if (config?.contactNumber != null && config!.contactNumber!.isNotEmpty) pw.Text('Tel: ${config.contactNumber!}', style: const pw.TextStyle(fontSize: 8)),
                 if (config?.tpin != null && config!.tpin!.isNotEmpty) pw.Text('TPIN: ${config.tpin!}', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
-                pw.SizedBox(height: 2 * PdfPageFormat.mm),
+                pw.SizedBox(height: 2 * pdf.PdfPageFormat.mm),
                 pw.Text('--------------------------------'),
                 pw.Text('TAX INVOICE / OFFICIAL RECEIPT', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
                 pw.Text('--------------------------------'),
@@ -1018,7 +1058,7 @@ class PrinterService {
                 ),
                 if (customer != null)
                   pw.Align(alignment: pw.Alignment.centerLeft, child: pw.Text('Customer: ${customer.name}', style: const pw.TextStyle(fontSize: 8))),
-                pw.SizedBox(height: 2 * PdfPageFormat.mm),
+                pw.SizedBox(height: 2 * pdf.PdfPageFormat.mm),
                 pw.Divider(thickness: 0.5),
 
                 ...items.map((item) {
@@ -1076,16 +1116,7 @@ class PrinterService {
                     ],
                   ),
 
-                pw.SizedBox(height: 3 * PdfPageFormat.mm),
-                pw.Container(
-                  height: 20 * PdfPageFormat.mm,
-                  width: 20 * PdfPageFormat.mm,
-                  child: pw.BarcodeWidget(
-                    barcode: pw.Barcode.qrCode(),
-                    data: 'https://zra.org.zm/verify?inv=${transaction.id}',
-                  ),
-                ),
-                pw.SizedBox(height: 2 * PdfPageFormat.mm),
+                pw.SizedBox(height: 2 * pdf.PdfPageFormat.mm),
                 pw.Text('--------------------------------'),
                 pw.Text('THANK YOU FOR SHOPPING WITH US!', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
                 pw.Text('PLEASE VISIT US AGAIN', style: const pw.TextStyle(fontSize: 7)),
@@ -1102,107 +1133,17 @@ class PrinterService {
       if (_activeSystemPrinter != null) {
         return await pnt.Printing.directPrintPdf(
           printer: _activeSystemPrinter!,
-          onLayout: (PdfPageFormat format) async => doc.save(),
+          onLayout: (pdf.PdfPageFormat format) async => doc.save(),
           name: 'Receipt_${transaction.id}',
         );
       } else {
         return await pnt.Printing.layoutPdf(
-          onLayout: (PdfPageFormat format) async => doc.save(),
+          onLayout: (pdf.PdfPageFormat format) async => doc.save(),
           name: 'Receipt_${transaction.id}',
         );
       }
     } catch (e) {
       debugPrint('System print error: $e');
-      return false;
-    }
-  }
-
-  Future<bool> printDailySummary({
-    required Map<String, double> stats,
-    required List<Map<String, dynamic>> topProducts,
-    required Map<String, double> paymentDist,
-    StoreConfig? config,
-  }) async {
-    if (!_isConnected) {
-      await autoConnect(config: config);
-    }
-
-    if (_activeModel == PrinterModel.system) {
-      return await _printSummaryWithSystem(stats, topProducts, paymentDist, config: config);
-    }
-
-    try {
-      final profile = await CapabilityProfile.load();
-      final generator = Generator(_paperWidthMm == 58 ? PaperSize.mm58 : PaperSize.mm80, profile);
-      List<int> bytes = [];
-
-      final currency = config?.currencySymbol ?? 'K';
-
-      bytes += generator.setStyles(const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2));
-      bytes += generator.text('DAILY X-REPORT');
-      bytes += generator.setStyles(const PosStyles(align: PosAlign.center));
-      bytes += generator.text(config?.businessName ?? 'BELEKA POS');
-      if (config?.address != null) bytes += generator.text(config!.address!);
-      if (config?.taxId != null) bytes += generator.text('VAT ID: ${config!.taxId!}');
-      bytes += generator.text(DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now()));
-      bytes += generator.feed(1);
-      bytes += generator.text('================================', styles: const PosStyles(bold: true));
-
-      final todayCount = (stats['todayCount'] ?? 0).isNaN ? 0 : (stats['todayCount'] ?? 0).toInt();
-      final todayRevenue = (stats['todayRevenue'] ?? 0).isNaN ? 0.0 : stats['todayRevenue']!;
-      final todayTax = (stats['todayTax'] ?? 0).isNaN ? 0.0 : stats['todayTax']!;
-      final netSales = todayRevenue - todayTax;
-
-      bytes += generator.row([
-        PosColumn(text: 'Transactions', width: 8),
-        PosColumn(text: '$todayCount', width: 4, styles: const PosStyles(align: PosAlign.right)),
-      ]);
-      bytes += generator.row([
-        PosColumn(text: 'Gross Revenue', width: 8, styles: const PosStyles(bold: true)),
-        PosColumn(text: CurrencyFormatter.format(todayRevenue, currency), width: 4, styles: const PosStyles(align: PosAlign.right, bold: true)),
-      ]);
-      bytes += generator.row([
-        PosColumn(text: 'Total VAT', width: 8),
-        PosColumn(text: CurrencyFormatter.format(todayTax, currency), width: 4, styles: const PosStyles(align: PosAlign.right)),
-      ]);
-      bytes += generator.row([
-        PosColumn(text: 'Net Sales', width: 8),
-        PosColumn(text: CurrencyFormatter.format(netSales, currency), width: 4, styles: const PosStyles(align: PosAlign.right)),
-      ]);
-      
-      bytes += generator.feed(1);
-      bytes += generator.text('PAYMENT METHODS', styles: const PosStyles(bold: true));
-      double grandTotal = 0.0;
-      paymentDist.forEach((method, amount) {
-        final val = amount.isNaN ? 0.0 : amount;
-        grandTotal += val;
-        bytes += generator.row([
-          PosColumn(text: method.toUpperCase(), width: 8),
-          PosColumn(text: CurrencyFormatter.format(val, currency), width: 4, styles: const PosStyles(align: PosAlign.right)),
-        ]);
-      });
-      bytes += generator.text('--------------------------------');
-      bytes += generator.row([
-        PosColumn(text: 'TOTAL COLLECTED', width: 8, styles: const PosStyles(bold: true)),
-        PosColumn(text: CurrencyFormatter.format(grandTotal, currency), width: 4, styles: const PosStyles(align: PosAlign.right, bold: true)),
-      ]);
-
-      bytes += generator.feed(1);
-      bytes += generator.text('TOP PRODUCTS', styles: const PosStyles(bold: true));
-      for (var p in topProducts.take(5)) {
-        bytes += generator.row([
-          PosColumn(text: p['name'].toString(), width: 9),
-          PosColumn(text: p['quantity'].toString(), width: 3, styles: const PosStyles(align: PosAlign.right)),
-        ]);
-      }
-      
-      bytes += generator.text('================================', styles: const PosStyles(bold: true));
-      bytes += generator.feed(3);
-      bytes += generator.cut();
-
-      return await _sendBytes(bytes);
-    } catch (e) {
-      debugPrint('Summary printing error: $e');
       return false;
     }
   }
@@ -1219,8 +1160,8 @@ class PrinterService {
 
       doc.addPage(
         pw.Page(
-          pageFormat: PdfPageFormat.roll80,
-          margin: const pw.EdgeInsets.all(5 * PdfPageFormat.mm),
+          pageFormat: pdf.PdfPageFormat.roll80,
+          margin: const pw.EdgeInsets.all(5 * pdf.PdfPageFormat.mm),
           build: (pw.Context context) {
             final todayCount = (stats['todayCount'] ?? 0).isNaN ? 0 : (stats['todayCount'] ?? 0).toInt();
             final todayRevenue = (stats['todayRevenue'] ?? 0).isNaN ? 0.0 : stats['todayRevenue']!;
@@ -1233,7 +1174,7 @@ class PrinterService {
                 pw.Text('DAILY X-REPORT', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14)),
                 pw.Text(config?.businessName ?? 'BELEKA POS'),
                 pw.Text(DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now())),
-                pw.SizedBox(height: 3 * PdfPageFormat.mm),
+                pw.SizedBox(height: 3 * pdf.PdfPageFormat.mm),
                 pw.Divider(),
                 
                 pw.Row(
@@ -1256,14 +1197,14 @@ class PrinterService {
                   children: [pw.Text('Net Sales'), pw.Text(CurrencyFormatter.format(netSales, currency))],
                 ),
                 
-                pw.SizedBox(height: 3 * PdfPageFormat.mm),
+                pw.SizedBox(height: 3 * pdf.PdfPageFormat.mm),
                 pw.Align(alignment: pw.Alignment.centerLeft, child: pw.Text('PAYMENT METHODS', style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
                 ...paymentDist.entries.map((e) => pw.Row(
                   mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                   children: [pw.Text(e.key.toUpperCase()), pw.Text(CurrencyFormatter.format(e.value, currency))],
                 )),
 
-                pw.SizedBox(height: 3 * PdfPageFormat.mm),
+                pw.SizedBox(height: 3 * pdf.PdfPageFormat.mm),
                 pw.Align(alignment: pw.Alignment.centerLeft, child: pw.Text('TOP PRODUCTS', style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
                 ...topProducts.take(5).map((p) => pw.Row(
                   mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
@@ -1281,12 +1222,12 @@ class PrinterService {
       if (_activeSystemPrinter != null) {
         return await pnt.Printing.directPrintPdf(
           printer: _activeSystemPrinter!,
-          onLayout: (PdfPageFormat format) async => doc.save(),
+          onLayout: (pdf.PdfPageFormat format) async => doc.save(),
           name: 'Daily_Summary',
         );
       } else {
         return await pnt.Printing.layoutPdf(
-          onLayout: (PdfPageFormat format) async => doc.save(),
+          onLayout: (pdf.PdfPageFormat format) async => doc.save(),
           name: 'Daily_Summary',
         );
       }

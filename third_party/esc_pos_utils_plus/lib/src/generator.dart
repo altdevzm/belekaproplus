@@ -764,13 +764,13 @@ class Generator {
   List<int> _text(
     Uint8List textBytes, {
     PosStyles styles = const PosStyles(),
-    int? colInd = 0,
+    int? colInd,
     bool isKanji = false,
     int colWidth = 12,
     int? maxCharsPerLine,
   }) {
     List<int> bytes = [];
-    if (colInd != null) {
+    if (colInd != null && colInd > 0) {
       double charWidth =
           _getCharWidth(styles, maxCharsPerLine: maxCharsPerLine);
       double fromPos = _colIndToPosition(colInd);

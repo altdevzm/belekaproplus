@@ -24,6 +24,8 @@ class _PrinterSettingsModalState extends ConsumerState<PrinterSettingsModal> {
   int _paperWidthMm = 80;
   String _lastScanned = 'Waiting for scan...';
   final TextEditingController _ipController = TextEditingController(text: '192.168.1.100:9100');
+  final TextEditingController _searchController = TextEditingController();
+  String _filterQuery = '';
 
   @override
   void initState() {
@@ -37,6 +39,7 @@ class _PrinterSettingsModalState extends ConsumerState<PrinterSettingsModal> {
   @override
   void dispose() {
     _ipController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -49,7 +52,39 @@ class _PrinterSettingsModalState extends ConsumerState<PrinterSettingsModal> {
         if (config.defaultPrinterAddress != null) {
           _ipController.text = config.defaultPrinterAddress!;
         }
+        if (config.defaultPrinterType != null) {
+          _selectedType = _parsePrinterType(config.defaultPrinterType);
+        }
+        if (config.defaultPrinterModel != null) {
+          _selectedModel = _parsePrinterModel(config.defaultPrinterModel);
+        }
       });
+    }
+  }
+
+  PrinterType _parsePrinterType(String? typeStr) {
+    switch (typeStr?.toLowerCase()) {
+      case 'network':
+        return PrinterType.network;
+      case 'bluetooth':
+        return PrinterType.bluetooth;
+      case 'usb':
+      default:
+        return PrinterType.usb;
+    }
+  }
+
+  PrinterModel _parsePrinterModel(String? modelStr) {
+    switch (modelStr?.toLowerCase()) {
+      case 'star':
+        return PrinterModel.star;
+      case 'system':
+        return PrinterModel.system;
+      case 'directsocket':
+        return PrinterModel.directSocket;
+      case 'generic':
+      default:
+        return PrinterModel.generic;
     }
   }
 
@@ -108,7 +143,28 @@ class _PrinterSettingsModalState extends ConsumerState<PrinterSettingsModal> {
       debugPrint('Save printer config note: $e');
     }
 
-    if (mounted) setState(() {});
+    if (mounted) {
+      setState(() {});
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle, color: Colors.black, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Active printer set to: ${device.name}',
+                  style: GoogleFonts.manrope(fontWeight: FontWeight.bold, color: Colors.black),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: const Color(0xFFC1F11D),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   @override
@@ -350,8 +406,42 @@ class _PrinterSettingsModalState extends ConsumerState<PrinterSettingsModal> {
               ),
             ],
 
-            const SizedBox(height: 18),
+            const SizedBox(height: 14),
             
+            // Search / Filter Bar for long lists
+            Container(
+              height: 38,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.03),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+              ),
+              child: TextField(
+                controller: _searchController,
+                style: GoogleFonts.inter(color: Colors.white, fontSize: 12),
+                onChanged: (val) => setState(() => _filterQuery = val.trim()),
+                decoration: InputDecoration(
+                  hintText: 'Filter printers by name or address...',
+                  hintStyle: GoogleFonts.inter(color: Colors.white24, fontSize: 11),
+                  border: InputBorder.none,
+                  prefixIcon: const Icon(Icons.search_rounded, size: 16, color: Colors.white38),
+                  prefixIconConstraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                  suffixIcon: _filterQuery.isNotEmpty 
+                      ? IconButton(
+                          icon: const Icon(Icons.close, size: 14, color: Colors.white38),
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() => _filterQuery = '');
+                          },
+                        ) 
+                      : null,
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
             // Discovered Devices List
             Expanded(
               child: Container(
@@ -360,30 +450,49 @@ class _PrinterSettingsModalState extends ConsumerState<PrinterSettingsModal> {
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
                 ),
-                child: _devices.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            _isScanning ? Icons.sync_rounded : Icons.print_disabled_outlined, 
-                            size: 40, 
-                            color: _isScanning ? const Color(0xFFC1F11D) : Colors.white24,
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            _isScanning ? 'Scanning hardware interfaces...' : 'No printer devices found. Click REFRESH or enter Network IP above.',
-                            textAlign: TextAlign.center,
-                            style: GoogleFonts.inter(fontSize: 12, color: Colors.white38),
-                          ),
-                        ],
-                      ),
-                    )
-                  : ListView.builder(
+                child: Builder(
+                  builder: (context) {
+                    final filteredDevices = _devices.where((d) {
+                      if (_filterQuery.isEmpty) return true;
+                      final q = _filterQuery.toLowerCase();
+                      return d.name.toLowerCase().contains(q) || (d.address?.toLowerCase().contains(q) ?? false);
+                    }).toList();
+
+                    if (_devices.isEmpty) {
+                      return Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _isScanning ? Icons.sync_rounded : Icons.print_disabled_outlined, 
+                              size: 40, 
+                              color: _isScanning ? const Color(0xFFC1F11D) : Colors.white24,
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              _isScanning ? 'Scanning hardware interfaces...' : 'No printer devices found. Click REFRESH or enter Network IP above.',
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.inter(fontSize: 12, color: Colors.white38),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    if (filteredDevices.isEmpty) {
+                      return Center(
+                        child: Text(
+                          'No printer matching "$_filterQuery"',
+                          style: GoogleFonts.inter(fontSize: 12, color: Colors.white38),
+                        ),
+                      );
+                    }
+
+                    return ListView.builder(
                       padding: const EdgeInsets.all(12),
-                      itemCount: _devices.length,
+                      itemCount: filteredDevices.length,
                       itemBuilder: (context, index) {
-                        final device = _devices[index];
+                        final device = filteredDevices[index];
                         final isSelected = selectedPrinter?.device.address == device.address;
                         
                         return Padding(
@@ -394,10 +503,11 @@ class _PrinterSettingsModalState extends ConsumerState<PrinterSettingsModal> {
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                               decoration: BoxDecoration(
-                                color: isSelected ? const Color(0xFFC1F11D).withValues(alpha: 0.08) : Colors.white.withValues(alpha: 0.02),
+                                color: isSelected ? const Color(0xFFC1F11D).withValues(alpha: 0.1) : Colors.white.withValues(alpha: 0.02),
                                 borderRadius: BorderRadius.circular(10),
                                 border: Border.all(
-                                  color: isSelected ? const Color(0xFFC1F11D).withValues(alpha: 0.4) : Colors.white.withValues(alpha: 0.05),
+                                  color: isSelected ? const Color(0xFFC1F11D) : Colors.white.withValues(alpha: 0.05),
+                                  width: isSelected ? 1.5 : 1,
                                 ),
                               ),
                               child: Row(
@@ -432,15 +542,41 @@ class _PrinterSettingsModalState extends ConsumerState<PrinterSettingsModal> {
                                       ],
                                     ),
                                   ),
-                                  if (isSelected)
-                                    const Icon(Icons.check_circle_rounded, color: Color(0xFFC1F11D), size: 20),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: isSelected ? const Color(0xFFC1F11D) : Colors.white.withValues(alpha: 0.05),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          isSelected ? Icons.check_circle_rounded : Icons.touch_app_rounded,
+                                          color: isSelected ? Colors.black : Colors.white38,
+                                          size: 12,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          isSelected ? 'ACTIVE' : 'SELECT',
+                                          style: GoogleFonts.ibmPlexMono(
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.bold,
+                                            color: isSelected ? Colors.black : Colors.white60,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
                           ),
                         );
                       },
-                    ),
+                    );
+                  },
+                ),
               ),
             ),
             
