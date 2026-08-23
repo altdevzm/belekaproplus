@@ -283,11 +283,12 @@ class StoreConfig {
   DateTime? lastBackupDate;
 
   // Cloud PostgreSQL Database & Multi-Store Configuration
-  bool isCloudSyncEnabled = false;
-  String? cloudApiUrl; // e.g. https://pos-api.beleka.cloud or http://localhost:8000
-  int? cloudStoreId; // Multi-store branch ID in cloud PostgreSQL database
-  String? cloudStoreCode; // Unique store code e.g. STORE-001
+  bool isCloudSyncEnabled = true;
+  String? cloudApiUrl = 'http://23.139.36.20:8003';
+  int? cloudStoreId = 1;
+  String? cloudStoreCode = 'STORE-001';
   DateTime? lastCloudSyncDate;
+
 
   // ZRA Smart Invoice / DigiTax API Configuration
   String bhfId = '00'; // ZRA Branch Code ('00' = HQ, '01' = Branch 1, '02' = Branch 2)
