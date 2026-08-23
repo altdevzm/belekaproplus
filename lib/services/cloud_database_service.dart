@@ -211,4 +211,23 @@ class CloudDatabaseService {
       rethrow;
     }
   }
+
+  /// Fetch list of products from Cloud PostgreSQL DB for a specific store branch.
+  Future<List<Map<String, dynamic>>> getProducts(String baseUrl, {required int storeId}) async {
+    try {
+      final sanitizedUrl = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+      final response = await _dio.get(
+        '$sanitizedUrl/api/v1/products',
+        queryParameters: {'store_id': storeId},
+      );
+      if (response.statusCode == 200 && response.data is List) {
+        return List<Map<String, dynamic>>.from(response.data);
+      }
+      return [];
+    } catch (e) {
+      debugPrint('Error fetching products from cloud DB: $e');
+      return [];
+    }
+  }
 }
+

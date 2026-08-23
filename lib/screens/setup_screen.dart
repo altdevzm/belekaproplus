@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:beleka_pos/services/database_service.dart';
+import 'package:beleka_pos/services/cloud_database_service.dart';
 import 'package:beleka_pos/models/models.dart';
 import 'package:beleka_pos/providers/auth_provider.dart';
 import 'package:beleka_pos/screens/auth/backup_restore_modal.dart';
@@ -17,16 +18,27 @@ class SetupScreen extends ConsumerStatefulWidget {
 }
 
 class _SetupScreenState extends ConsumerState<SetupScreen> {
+  int _activeTab = 0; // 0 = Create New Store, 1 = Connect Cloud Branch / Log in
+
+  // Tab 0: New Store Setup
   final _formKey = GlobalKey<FormState>();
   final _businessNameController = TextEditingController();
   final _adminIdController = TextEditingController();
   final _pinController = TextEditingController();
   final _confirmPinController = TextEditingController();
   final _serverIpController = TextEditingController();
-  
-  bool _isLoading = false;
   bool _isManagerMode = true;
+
+  // Tab 1: Connect Existing Cloud Branch / Log in
+  final _cloudFormKey = GlobalKey<FormState>();
+  final _cloudUrlController = TextEditingController(text: 'http://23.139.36.20:8003');
+  final _cloudStaffIdController = TextEditingController();
+  final _cloudPinController = TextEditingController();
+  final _cloudStoreCodeController = TextEditingController(text: 'STORE-001');
+
+  bool _isLoading = false;
   String? _errorMessage;
+  String? _statusMessage;
 
   @override
   void dispose() {
@@ -35,6 +47,10 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     _pinController.dispose();
     _confirmPinController.dispose();
     _serverIpController.dispose();
+    _cloudUrlController.dispose();
+    _cloudStaffIdController.dispose();
+    _cloudPinController.dispose();
+    _cloudStoreCodeController.dispose();
     super.dispose();
   }
 
@@ -44,6 +60,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
+      _statusMessage = 'Initializing local database...';
     });
 
     try {
@@ -59,6 +76,10 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
         ..currencySymbol = 'ZK'
         ..isManagerMode = _isManagerMode
         ..serverIp = _isManagerMode ? '' : _serverIpController.text.trim()
+        ..isCloudSyncEnabled = true
+        ..cloudApiUrl = 'http://23.139.36.20:8003'
+        ..cloudStoreId = 1
+        ..cloudStoreCode = 'STORE-001'
         ..recoveryCodeHash = hashPin(recoveryCode);
       
       await db.saveStoreConfig(config);
@@ -96,19 +117,190 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     } catch (e) {
       setState(() => _errorMessage = 'Failed to initialize terminal: $e');
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _statusMessage = null;
+        });
+      }
+    }
+  }
+
+  Future<void> _handleCloudLogin() async {
+    if (!_cloudFormKey.currentState!.validate()) return;
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+      _statusMessage = 'Connecting to Beleka Cloud Server...';
+    });
+
+    try {
+      final db = ref.read(databaseServiceProvider);
+      final cloudService = CloudDatabaseService();
+      final baseUrl = _cloudUrlController.text.trim();
+      final userId = _cloudStaffIdController.text.trim();
+      final pin = _cloudPinController.text.trim();
+      final storeCode = _cloudStoreCodeController.text.trim();
+
+      // 1. Verify connection to Cloud Server
+      final isConnected = await cloudService.checkConnection(baseUrl);
+      if (!isConnected) {
+        throw Exception('Cannot reach Cloud Server at $baseUrl. Verify internet connection.');
+      }
+
+      setState(() => _statusMessage = 'Fetching store branches & credentials...');
+
+      // 2. Fetch available store branches from Cloud DB
+      final stores = await cloudService.getStores(baseUrl);
+      Map<String, dynamic>? targetStore;
+      if (stores.isNotEmpty) {
+        if (storeCode.isNotEmpty) {
+          for (final s in stores) {
+            final sCode = (s['store_code'] ?? '').toString().toUpperCase();
+            final sName = (s['name'] ?? '').toString().toUpperCase();
+            if (sCode == storeCode.toUpperCase() || sName == storeCode.toUpperCase()) {
+              targetStore = s;
+              break;
+            }
+          }
+        }
+        targetStore ??= stores.first;
+      }
+
+      final storeId = targetStore != null ? (targetStore['id'] as int? ?? 1) : 1;
+      final storeName = targetStore != null ? (targetStore['name'] as String? ?? 'Beleka Branch') : 'Branch Store';
+      final bhfId = targetStore != null ? (targetStore['bhf_id'] as String? ?? '00') : '00';
+      final tpin = targetStore != null ? (targetStore['tpin'] as String? ?? '') : '';
+      final finalStoreCode = targetStore != null ? (targetStore['store_code'] as String? ?? storeCode) : storeCode;
+
+      setState(() => _statusMessage = 'Authenticating staff user on Cloud DB...');
+
+      // 3. Fetch cloud users for this store
+      final cloudUsers = await cloudService.getUsers(baseUrl, storeId: storeId);
+      Map<String, dynamic>? matchedUser;
+      
+      for (final u in cloudUsers) {
+        if ((u['numeric_id'] ?? '').toString() == userId) {
+          matchedUser = u;
+          break;
+        }
+      }
+
+      // 4. Save Store Config
+      final recoveryCode = _generateRecoveryCode();
+      final config = StoreConfig()
+        ..businessName = storeName
+        ..terminalName = 'BRANCH-TERMINAL'
+        ..currencySymbol = 'ZK'
+        ..isManagerMode = true
+        ..isCloudSyncEnabled = true
+        ..cloudApiUrl = baseUrl
+        ..cloudStoreId = storeId
+        ..cloudStoreCode = finalStoreCode
+        ..bhfId = bhfId
+        ..tpin = tpin
+        ..recoveryCodeHash = hashPin(recoveryCode);
+
+      await db.saveStoreConfig(config);
+
+      // 5. Populate users from Cloud DB into local offline Isar DB
+      User? activeUser;
+      if (cloudUsers.isNotEmpty) {
+        for (final u in cloudUsers) {
+          final uNumId = (u['numeric_id'] ?? '').toString();
+          final userObj = User()
+            ..numericId = uNumId
+            ..name = (u['name'] ?? 'Staff').toString()
+            ..role = (u['role'] ?? 'cashier').toString()
+            ..passwordHash = (uNumId == userId) ? hashPin(pin) : (u['password_hash'] ?? hashPin('1234'))
+            ..branchName = (u['branch_name'] ?? storeName).toString()
+            ..phone = u['phone']?.toString();
+          
+          await db.saveUser(userObj);
+          if (uNumId == userId) {
+            activeUser = userObj;
+          }
+        }
+      }
+
+      if (activeUser == null) {
+        activeUser = User()
+          ..numericId = userId
+          ..passwordHash = hashPin(pin)
+          ..name = matchedUser != null ? (matchedUser['name'] ?? 'Branch Manager') : 'Branch Manager'
+          ..role = 'manager'
+          ..branchName = storeName;
+        await db.saveUser(activeUser);
+      }
+
+      setState(() => _statusMessage = 'Syncing cloud catalog & products...');
+
+      // 6. Pull products & categories from Cloud DB
+      try {
+        final cloudProducts = await cloudService.getProducts(baseUrl, storeId: storeId);
+        if (cloudProducts.isNotEmpty) {
+          final Set<String> catNames = {};
+          for (final p in cloudProducts) {
+            final catName = (p['category'] as String?) ?? 'General';
+            catNames.add(catName);
+          }
+          if (catNames.isNotEmpty) {
+            final catList = catNames.map((name) => Category(name: name)).toList();
+            await db.saveCategories(catList);
+          }
+
+          final savedCategories = await db.getAllCategories();
+          final Map<String, int> catMap = {
+            for (final c in savedCategories) c.name: c.id,
+          };
+
+          for (final p in cloudProducts) {
+            final catName = (p['category'] as String?) ?? 'General';
+            final catId = catMap[catName] ?? 1;
+            final prod = Product(
+              name: (p['name'] as String?) ?? 'Product',
+              sku: (p['sku'] as String?) ?? (p['barcode'] as String?) ?? 'SKU-${DateTime.now().millisecondsSinceEpoch}',
+              price: (p['price'] as num?)?.toDouble() ?? 0.0,
+              unitCost: (p['cost_price'] as num?)?.toDouble() ?? 0.0,
+              stockLevel: (p['stock_quantity'] as num?)?.toInt() ?? 0,
+              categoryId: catId,
+              branchCode: bhfId,
+              branchName: storeName,
+            );
+            await db.saveProduct(prod);
+          }
+        }
+      } catch (e) {
+        debugPrint('Cloud product pull warning: $e');
+      }
+
+      // 7. Auto-login & Navigate to POS
+      ref.read(authProvider.notifier).login(activeUser);
+      ref.invalidate(hasUsersProvider);
+      ref.invalidate(appStartupProvider);
+
+    } catch (e) {
+      setState(() => _errorMessage = 'Cloud Login & Setup Failed: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _statusMessage = null;
+        });
+      }
     }
   }
 
   String _generateRecoveryCode() {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // No O, 0, I, 1 to avoid confusion
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     final rnd = math.Random();
     String code = '';
     for (var i = 0; i < 8; i++) {
       if (i == 4) code += '-';
       code += chars[rnd.nextInt(chars.length)];
     }
-    return code; // Format: XXXX-XXXX
+    return code;
   }
 
   Future<void> _showRecoveryDialog(String code) {
@@ -117,7 +309,10 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF141418),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24), side: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+        ),
         title: Row(
           children: [
             const Icon(Icons.warning_amber_rounded, color: Color(0xFFC1F11D), size: 28),
@@ -188,8 +383,8 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       backgroundColor: const Color(0xFF141418),
       body: Center(
         child: Container(
-          width: 500,
-          padding: const EdgeInsets.all(40),
+          width: 540,
+          padding: const EdgeInsets.all(36),
           decoration: BoxDecoration(
             color: const Color(0xFF1A1A1E),
             borderRadius: BorderRadius.circular(20),
@@ -203,163 +398,424 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
             ],
           ),
           child: SingleChildScrollView(
-            child: Form(
-              key: _formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFC1F11D).withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(Icons.security_rounded, color: Color(0xFFC1F11D), size: 32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFC1F11D).withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      const SizedBox(width: 20),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'INITIAL SETUP',
-                            style: GoogleFonts.manrope(
-                              fontSize: 12,
-                              letterSpacing: 2,
-                              fontWeight: FontWeight.w900,
-                              color: const Color(0xFFC1F11D),
-                            ),
+                      child: const Icon(Icons.security_rounded, color: Color(0xFFC1F11D), size: 30),
+                    ),
+                    const SizedBox(width: 16),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'TERMINAL INITIALIZATION',
+                          style: GoogleFonts.manrope(
+                            fontSize: 11,
+                            letterSpacing: 2,
+                            fontWeight: FontWeight.w900,
+                            color: const Color(0xFFC1F11D),
                           ),
-                          Text(
-                            'BELEKA TERMINAL',
-                            style: GoogleFonts.manrope(
-                              fontSize: 24,
-                              fontWeight: FontWeight.w800,
-                              color: Colors.white,
-                            ),
+                        ),
+                        Text(
+                          'BELEKA PRO POS',
+                          style: GoogleFonts.manrope(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
                           ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 32),
-                  _buildField(
-                    label: 'BUSINESS NAME',
-                    controller: _businessNameController,
-                    hint: 'e.g. Beleka Boutique',
-                    validator: (v) => v!.isEmpty ? 'Enter business name' : null,
-                  ),
-                  const SizedBox(height: 20),
-                  _buildField(
-                    label: 'ADMIN STAFF ID (MAX 4 DIGITS)',
-                    controller: _adminIdController,
-                    hint: 'e.g. 1001',
-                    isStaffId: true,
-                    validator: (v) {
-                      if (v == null || v.isEmpty) return 'Enter admin ID';
-                      if (v.length > 4) return 'Admin ID cannot exceed 4 digits';
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 20),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildField(
-                          label: 'SECURITY PIN (4-6 DIGITS)',
-                          controller: _pinController,
-                          hint: '****',
-                          isPin: true,
-                          validator: (v) {
-                            if (v == null || v.isEmpty) return 'Required';
-                            if (v.length < 4) return 'Min 4 digits';
-                            if (v.length > 6) return 'Max 6 digits';
-                            return null;
-                          },
                         ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: _buildField(
-                          label: 'CONFIRM PIN',
-                          controller: _confirmPinController,
-                          hint: '****',
-                          isPin: true,
-                          validator: (v) => v != _pinController.text ? 'PINs do not match' : null,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 32),
-                  _buildSectionHeader('NETWORK TERMINAL ROLE'),
-                  const SizedBox(height: 16),
-                  _buildRoleSwitcher(),
-                  if (!_isManagerMode) ...[
-                    const SizedBox(height: 20),
-                    _buildField(
-                      label: 'MANAGER SERVER IP ADDRESS',
-                      controller: _serverIpController,
-                      hint: 'e.g. 192.168.1.100',
-                      validator: (v) => v!.isEmpty ? 'Manager IP is required for cashier terminals' : null,
+                      ],
                     ),
                   ],
-                  const SizedBox(height: 40),
-                  if (_errorMessage != null)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 20),
-                      child: Text(
-                        _errorMessage!,
-                        style: GoogleFonts.inter(color: Colors.redAccent, fontSize: 13),
-                      ),
+                ),
+                const SizedBox(height: 24),
+
+                // Mode Tabs (Create New vs Cloud Branch Login)
+                _buildTabSwitcher(),
+                const SizedBox(height: 24),
+
+                // Form based on active tab
+                if (_activeTab == 0) _buildNewStoreForm() else _buildCloudLoginForm(),
+
+                const SizedBox(height: 16),
+                Center(
+                  child: TextButton.icon(
+                    onPressed: () => showDialog(
+                      context: context,
+                      builder: (context) => const BackupRestoreModal(),
                     ),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 56,
-                    child: ElevatedButton(
-                      onPressed: _isLoading ? null : _handleSetup,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFC1F11D),
-                        foregroundColor: Colors.black,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        elevation: 0,
-                      ),
-                      child: _isLoading
-                          ? const CircularProgressIndicator(color: Colors.black)
-                          : Text(
-                              'INITIALIZE TERMINAL',
-                              style: GoogleFonts.manrope(
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 1,
-                              ),
-                            ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Center(
-                    child: TextButton.icon(
-                      onPressed: () => showDialog(
-                        context: context,
-                        builder: (context) => const BackupRestoreModal(),
-                      ),
-                      icon: const Icon(Icons.settings_backup_restore_rounded, size: 16, color: Color(0xFFC1F11D)),
-                      label: Text(
-                        'OR RESTORE AN EXISTING BACKUP',
-                        style: GoogleFonts.ibmPlexMono(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: const Color(0xFFC1F11D),
-                          letterSpacing: 1,
-                        ),
+                    icon: const Icon(Icons.settings_backup_restore_rounded, size: 16, color: Color(0xFFC1F11D)),
+                    label: Text(
+                      'OR RESTORE AN EXISTING BACKUP',
+                      style: GoogleFonts.ibmPlexMono(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFFC1F11D),
+                        letterSpacing: 1,
                       ),
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildTabSwitcher() {
+    const accentColor = Color(0xFFC1F11D);
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: InkWell(
+              onTap: () => setState(() {
+                _activeTab = 0;
+                _errorMessage = null;
+              }),
+              borderRadius: BorderRadius.circular(10),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  color: _activeTab == 0 ? accentColor.withValues(alpha: 0.15) : Colors.transparent,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: _activeTab == 0 ? accentColor.withValues(alpha: 0.4) : Colors.transparent,
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.storefront_rounded,
+                      size: 16,
+                      color: _activeTab == 0 ? accentColor : Colors.white38,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'CREATE NEW STORE',
+                      style: GoogleFonts.manrope(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w900,
+                        color: _activeTab == 0 ? Colors.white : Colors.white38,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: InkWell(
+              onTap: () => setState(() {
+                _activeTab = 1;
+                _errorMessage = null;
+              }),
+              borderRadius: BorderRadius.circular(10),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  color: _activeTab == 1 ? accentColor.withValues(alpha: 0.15) : Colors.transparent,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: _activeTab == 1 ? accentColor.withValues(alpha: 0.4) : Colors.transparent,
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.cloud_sync_rounded,
+                      size: 16,
+                      color: _activeTab == 1 ? accentColor : Colors.white38,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'CONNECT CLOUD / BRANCH',
+                      style: GoogleFonts.manrope(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w900,
+                        color: _activeTab == 1 ? Colors.white : Colors.white38,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNewStoreForm() {
+    return Form(
+      key: _formKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildField(
+            label: 'BUSINESS NAME',
+            controller: _businessNameController,
+            hint: 'e.g. Beleka Boutique',
+            validator: (v) => v!.isEmpty ? 'Enter business name' : null,
+          ),
+          const SizedBox(height: 16),
+          _buildField(
+            label: 'ADMIN STAFF ID (MAX 4 DIGITS)',
+            controller: _adminIdController,
+            hint: 'e.g. 1001',
+            isStaffId: true,
+            validator: (v) {
+              if (v == null || v.isEmpty) return 'Enter admin ID';
+              if (v.length > 4) return 'Admin ID cannot exceed 4 digits';
+              return null;
+            },
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _buildField(
+                  label: 'SECURITY PIN (4-6 DIGITS)',
+                  controller: _pinController,
+                  hint: '****',
+                  isPin: true,
+                  validator: (v) {
+                    if (v == null || v.isEmpty) return 'Required';
+                    if (v.length < 4) return 'Min 4 digits';
+                    if (v.length > 6) return 'Max 6 digits';
+                    return null;
+                  },
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: _buildField(
+                  label: 'CONFIRM PIN',
+                  controller: _confirmPinController,
+                  hint: '****',
+                  isPin: true,
+                  validator: (v) => v != _pinController.text ? 'PINs do not match' : null,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          _buildSectionHeader('NETWORK TERMINAL ROLE'),
+          const SizedBox(height: 12),
+          _buildRoleSwitcher(),
+          if (!_isManagerMode) ...[
+            const SizedBox(height: 16),
+            _buildField(
+              label: 'MANAGER SERVER IP ADDRESS',
+              controller: _serverIpController,
+              hint: 'e.g. 192.168.1.100',
+              validator: (v) => v!.isEmpty ? 'Manager IP is required for cashier terminals' : null,
+            ),
+          ],
+          const SizedBox(height: 28),
+          if (_errorMessage != null) _buildErrorMessage(),
+          if (_statusMessage != null) _buildStatusMessage(),
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: ElevatedButton(
+              onPressed: _isLoading ? null : _handleSetup,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFC1F11D),
+                foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 0,
+              ),
+              child: _isLoading
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2.5),
+                    )
+                  : Text(
+                      'INITIALIZE STORE & ADMIN',
+                      style: GoogleFonts.manrope(fontWeight: FontWeight.w900, letterSpacing: 1),
+                    ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCloudLoginForm() {
+    return Form(
+      key: _cloudFormKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            margin: const EdgeInsets.only(bottom: 16),
+            decoration: BoxDecoration(
+              color: const Color(0xFFC1F11D).withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFC1F11D).withValues(alpha: 0.2)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.info_outline_rounded, color: Color(0xFFC1F11D), size: 18),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Log in with your existing Branch Manager credentials to download store settings & inventory.',
+                    style: GoogleFonts.inter(color: Colors.white70, fontSize: 12),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          _buildField(
+            label: 'CLOUD API SERVER URL',
+            controller: _cloudUrlController,
+            hint: 'http://23.139.36.20:8003',
+            validator: (v) => v!.isEmpty ? 'Cloud Server URL is required' : null,
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                flex: 3,
+                child: _buildField(
+                  label: 'BRANCH CODE',
+                  controller: _cloudStoreCodeController,
+                  hint: 'STORE-001',
+                  validator: (v) => v!.isEmpty ? 'Enter branch code' : null,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                flex: 3,
+                child: _buildField(
+                  label: 'STAFF / USER ID',
+                  controller: _cloudStaffIdController,
+                  hint: 'e.g. 1001',
+                  isStaffId: true,
+                  validator: (v) => v!.isEmpty ? 'Enter ID' : null,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _buildField(
+            label: 'PASSWORD / PIN',
+            controller: _cloudPinController,
+            hint: '****',
+            isPin: true,
+            validator: (v) => (v == null || v.isEmpty) ? 'Enter password or PIN' : null,
+          ),
+          const SizedBox(height: 28),
+          if (_errorMessage != null) _buildErrorMessage(),
+          if (_statusMessage != null) _buildStatusMessage(),
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: ElevatedButton.icon(
+              onPressed: _isLoading ? null : _handleCloudLogin,
+              icon: _isLoading
+                  ? const SizedBox.shrink()
+                  : const Icon(Icons.cloud_download_rounded, color: Colors.black, size: 20),
+              label: _isLoading
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2.5),
+                    )
+                  : Text(
+                      'CONNECT & LOG IN TO BRANCH',
+                      style: GoogleFonts.manrope(fontWeight: FontWeight.w900, letterSpacing: 1),
+                    ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFC1F11D),
+                foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 0,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorMessage() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.redAccent.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.redAccent.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              _errorMessage!,
+              style: GoogleFonts.inter(color: Colors.redAccent, fontSize: 12),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusMessage() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFC1F11D).withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFC1F11D).withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        children: [
+          const SizedBox(
+            width: 14,
+            height: 14,
+            child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFC1F11D)),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              _statusMessage!,
+              style: GoogleFonts.inter(color: Colors.white, fontSize: 12),
+            ),
+          ),
+        ],
       ),
     );
   }

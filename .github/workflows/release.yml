@@ -91,26 +91,19 @@ jobs:
       - name: Build Windows release
         run: flutter build windows --release --build-name=${{ needs.create-release.outputs.version }}
 
-      - name: Copy MSVC runtime & UCRT DLLs
+      - name: Copy MSVC runtime DLLs
         shell: pwsh
         run: |
           $target = "build\windows\x64\runner\Release"
           $dlls = @(
             "msvcp140.dll", "vcruntime140.dll", "vcruntime140_1.dll",
-            "msvcp140_1.dll", "msvcp140_2.dll", "vcomp140.dll", "concrt140.dll",
-            "ucrtbase.dll"
+            "msvcp140_1.dll", "msvcp140_2.dll", "vcomp140.dll", "concrt140.dll"
           )
           foreach ($dll in $dlls) {
             $src = "C:\Windows\System32\$dll"
             if (Test-Path $src) { Copy-Item $src $target -Force; Write-Host "Copied $dll" }
           }
-          Get-ChildItem "C:\Windows\System32\api-ms-win-crt-*.dll" -ErrorAction SilentlyContinue | ForEach-Object {
-            Copy-Item $_.FullName $target -Force
-          }
-          Get-ChildItem "C:\Windows\System32\api-ms-win-core-*.dll" -ErrorAction SilentlyContinue | ForEach-Object {
-            Copy-Item $_.FullName $target -Force
-          }
-          Write-Host "All Windows compatibility DLLs bundled."
+          Write-Host "MSVC runtime DLLs bundled."
 
       - name: Download Official Microsoft Visual C++ Redistributable
         shell: pwsh

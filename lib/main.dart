@@ -22,75 +22,88 @@ import 'package:beleka_pos/services/local_sql_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Initialize Local SQLite SQL Database
-  final localSqlService = await LocalSqlService.init();
-
-  final dir = await getApplicationDocumentsDirectory();
-  final isar = await Isar.open(
-    [
-      UserSchema,
-      CategorySchema,
-      ProductSchema,
-      SaleTransactionSchema,
-      SaleItemSchema,
-      AttendanceLogSchema,
-      StoreConfigSchema,
-      CustomerSchema,
-      SupplierSchema,
-      PurchaseOrderSchema,
-      PurchaseOrderItemSchema,
-      GoodsReceivedNoteSchema,
-      PurchaseInvoiceSchema,
-      PurchaseReturnSchema,
-      PaymentAccountSchema,
-      ExpenseSchema,
-      AccountTransferSchema,
-      CashShiftSchema,
-      RefundTransactionSchema,
-      StoreBranchSchema,
-      PosTerminalSchema,
-    ],
-    directory: dir.path,
-  );
-
-  // Purge any legacy dummy mock seed branches from earlier development versions
-  final legacyMockBranches = await isar.storeBranchs.filter().codeEqualTo('KT-002').or().codeEqualTo('ND-003').or().codeEqualTo('HQ-001').findAll();
-  if (legacyMockBranches.isNotEmpty) {
-    await isar.writeTxn(() async {
-      for (final b in legacyMockBranches) {
-        await isar.storeBranchs.delete(b.id);
-      }
-    });
+  LocalSqlService? localSqlService;
+  try {
+    // Initialize Local SQLite SQL Database
+    localSqlService = await LocalSqlService.init();
+  } catch (e) {
+    debugPrint('LocalSqlService init notice: $e');
   }
 
-  // Automatic product deduplication purge
-  final allProducts = await isar.products.where().findAll();
-  final Map<String, Product> uniqueMap = {};
-  final List<Id> duplicateProductIds = [];
-  for (final p in allProducts) {
-    final key = p.name.trim().toLowerCase();
-    if (key.isEmpty) continue;
-    if (uniqueMap.containsKey(key)) {
-      final existing = uniqueMap[key]!;
-      if (p.stockLevel > existing.stockLevel) existing.stockLevel = p.stockLevel;
-      duplicateProductIds.add(p.id);
-    } else {
-      uniqueMap[key] = p;
+  late final Isar isar;
+  try {
+    final dir = await getApplicationDocumentsDirectory();
+    isar = await Isar.open(
+      [
+        UserSchema,
+        CategorySchema,
+        ProductSchema,
+        SaleTransactionSchema,
+        SaleItemSchema,
+        AttendanceLogSchema,
+        StoreConfigSchema,
+        CustomerSchema,
+        SupplierSchema,
+        PurchaseOrderSchema,
+        PurchaseOrderItemSchema,
+        GoodsReceivedNoteSchema,
+        PurchaseInvoiceSchema,
+        PurchaseReturnSchema,
+        PaymentAccountSchema,
+        ExpenseSchema,
+        AccountTransferSchema,
+        CashShiftSchema,
+        RefundTransactionSchema,
+        StoreBranchSchema,
+        PosTerminalSchema,
+      ],
+      directory: dir.path,
+    );
+
+    // Purge any legacy dummy mock seed branches from earlier development versions
+    final legacyMockBranches = await isar.storeBranchs.filter().codeEqualTo('KT-002').or().codeEqualTo('ND-003').or().codeEqualTo('HQ-001').findAll();
+    if (legacyMockBranches.isNotEmpty) {
+      await isar.writeTxn(() async {
+        for (final b in legacyMockBranches) {
+          await isar.storeBranchs.delete(b.id);
+        }
+      });
     }
-  }
-  if (duplicateProductIds.isNotEmpty) {
-    await isar.writeTxn(() async {
-      for (final id in duplicateProductIds) {
-        await isar.products.delete(id);
+
+    // Automatic product deduplication purge
+    final allProducts = await isar.products.where().findAll();
+    final Map<String, Product> uniqueMap = {};
+    final List<Id> duplicateProductIds = [];
+    for (final p in allProducts) {
+      final key = p.name.trim().toLowerCase();
+      if (key.isEmpty) continue;
+      if (uniqueMap.containsKey(key)) {
+        final existing = uniqueMap[key]!;
+        if (p.stockLevel > existing.stockLevel) existing.stockLevel = p.stockLevel;
+        duplicateProductIds.add(p.id);
+      } else {
+        uniqueMap[key] = p;
       }
-    });
+    }
+    if (duplicateProductIds.isNotEmpty) {
+      await isar.writeTxn(() async {
+        for (final id in duplicateProductIds) {
+          await isar.products.delete(id);
+        }
+      });
+    }
+  } catch (e) {
+    debugPrint('Isar initialization error: $e');
+    // Fallback: rethrow or attempt recovery
+    rethrow;
   }
 
   runApp(
     ProviderScope(
       overrides: [
         isarProvider.overrideWithValue(isar),
-        localSqlServiceProvider.overrideWithValue(localSqlService),
+        if (localSqlService != null)
+          localSqlServiceProvider.overrideWithValue(localSqlService),
       ],
       child: const BelekaApp(),
     ),
