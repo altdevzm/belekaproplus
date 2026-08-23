@@ -2,7 +2,7 @@ import os
 import time
 import random
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import requests
 
 logger = logging.getLogger("digitax_zra")
