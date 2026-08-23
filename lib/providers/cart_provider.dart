@@ -50,12 +50,18 @@ class CartState {
   final Customer? customer;
   final int appliedPoints;
   final double discountAmount;
+  final String? customerTpin;
+  final String? customerBusinessName;
+  final String? customerAddress;
 
   CartState({
     this.items = const [],
     this.customer,
     this.appliedPoints = 0,
     this.discountAmount = 0.0,
+    this.customerTpin,
+    this.customerBusinessName,
+    this.customerAddress,
   });
 
   CartState copyWith({
@@ -63,13 +69,20 @@ class CartState {
     Customer? customer,
     int? appliedPoints,
     double? discountAmount,
+    String? customerTpin,
+    String? customerBusinessName,
+    String? customerAddress,
     bool clearCustomer = false,
+    bool clearTpin = false,
   }) {
     return CartState(
       items: items ?? this.items,
       customer: clearCustomer ? null : (customer ?? this.customer),
       appliedPoints: appliedPoints ?? this.appliedPoints,
       discountAmount: discountAmount ?? this.discountAmount,
+      customerTpin: clearTpin ? null : (customerTpin ?? this.customerTpin),
+      customerBusinessName: clearTpin ? null : (customerBusinessName ?? this.customerBusinessName),
+      customerAddress: clearTpin ? null : (customerAddress ?? this.customerAddress),
     );
   }
 }
@@ -155,6 +168,15 @@ class CartNotifier extends StateNotifier<CartState> {
     state = state.copyWith(
       appliedPoints: points,
       discountAmount: value,
+    );
+  }
+
+  void setCustomerTpin(String? tpin, {String? businessName, String? address}) {
+    state = state.copyWith(
+      customerTpin: tpin,
+      customerBusinessName: businessName,
+      customerAddress: address,
+      clearTpin: tpin == null || tpin.isEmpty,
     );
   }
 

@@ -9,6 +9,8 @@ import 'package:path/path.dart' as path;
 import 'dart:io';
 import 'package:beleka_pos/providers/store_provider.dart';
 import 'package:beleka_pos/providers/theme_provider.dart';
+import 'package:beleka_pos/providers/auth_provider.dart';
+import 'package:beleka_pos/services/digitax_inventory_service.dart';
 import 'package:beleka_pos/screens/inventory/category_management_modal.dart';
 
 class ProductEditorModal extends ConsumerStatefulWidget {
@@ -32,7 +34,6 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
   late TextEditingController _stockController;
   late TextEditingController _discountPriceController;
   late TextEditingController _discountDurationController;
-  late TextEditingController _taxRateController;
   bool _hasDiscount = false;
   bool _isTaxInclusive = true;
   int? _selectedCategoryId;
@@ -57,7 +58,6 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
     _discountDurationController = TextEditingController(text: durationDays > 0 ? durationDays.toString() : '');
     _hasDiscount = widget.product?.discountPrice != null;
     
-    _taxRateController = TextEditingController(text: widget.product?.taxRate.toString() ?? '0.0');
     _isTaxInclusive = widget.product?.isTaxInclusive ?? true;
     
     _selectedCategoryId = widget.product?.categoryId;
@@ -73,7 +73,6 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
     _stockController.dispose();
     _discountPriceController.dispose();
     _discountDurationController.dispose();
-    _taxRateController.dispose();
     super.dispose();
   }
 
@@ -372,13 +371,16 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              'CATEGORY ALLOCATION',
-              style: GoogleFonts.manrope(
-                fontSize: 10,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1,
-                color: Colors.white.withValues(alpha: 0.4),
+            Expanded(
+              child: Text(
+                'CATEGORY',
+                style: GoogleFonts.manrope(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1,
+                  color: Colors.white.withValues(alpha: 0.4),
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
             Row(
@@ -516,59 +518,52 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.02),
+        color: _isTaxInclusive ? accentColor.withValues(alpha: 0.04) : Colors.white.withValues(alpha: 0.02),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        border: Border.all(color: _isTaxInclusive ? accentColor.withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.05)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
+              Icon(
+                _isTaxInclusive ? Icons.cloud_done_rounded : Icons.inventory_2_outlined,
+                color: _isTaxInclusive ? accentColor : Colors.white38,
+                size: 22,
+              ),
+              const SizedBox(width: 14),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.receipt_long_outlined, color: Colors.white24, size: 18),
-                  const SizedBox(width: 12),
                   Text(
-                    'TAX CONFIGURATION',
+                    'TAX INCLUSIVE',
                     style: GoogleFonts.manrope(
-                      fontSize: 11,
+                      fontSize: 12,
                       fontWeight: FontWeight.w900,
                       letterSpacing: 1,
-                      color: Colors.white.withValues(alpha: 0.3),
+                      color: Colors.white,
                     ),
                   ),
-                ],
-              ),
-              Row(
-                children: [
+                  const SizedBox(height: 2),
                   Text(
-                    'INCLUSIVE',
+                    _isTaxInclusive
+                        ? 'Tax Inclusive • Syncs to DigiTax cloud'
+                        : 'Tax Exclusive • Local stock only (won\'t sync)',
                     style: GoogleFonts.inter(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      color: _isTaxInclusive ? accentColor : Colors.white24,
+                      fontSize: 11,
+                      color: _isTaxInclusive ? accentColor : Colors.white38,
+                      fontWeight: FontWeight.w500,
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Switch(
-                    value: _isTaxInclusive,
-                    onChanged: (v) => setState(() => _isTaxInclusive = v),
-                    activeThumbColor: accentColor,
                   ),
                 ],
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          _buildTextField(
-            controller: _taxRateController,
-            label: 'TAX RATE (%)',
-            hint: '0.0',
-            keyboardType: TextInputType.number,
-            accentColor: accentColor,
-            validator: (v) => (v != null && double.tryParse(v) == null) ? 'Invalid' : null,
+          Switch(
+            value: _isTaxInclusive,
+            onChanged: (v) => setState(() => _isTaxInclusive = v),
+            activeThumbColor: accentColor,
           ),
         ],
       ),
@@ -653,6 +648,7 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
   Future<void> _save() async {
     if (_formKey.currentState?.validate() ?? false) {
       final db = ref.read(databaseServiceProvider);
+      final currentUser = ref.read(authProvider);
       final discountPrice = _hasDiscount ? double.tryParse(_discountPriceController.text) : null;
       final durationDays = _hasDiscount ? int.tryParse(_discountDurationController.text) : null;
       
@@ -668,9 +664,16 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
         discountStartDate: _hasDiscount ? DateTime.now() : null,
         discountEndDate: (_hasDiscount && durationDays != null) ? DateTime.now().add(Duration(days: durationDays)) : null,
         isTaxInclusive: _isTaxInclusive,
-        taxRate: double.tryParse(_taxRateController.text) ?? 0.0,
+        taxRate: _isTaxInclusive ? 16.0 : 0.0,
+        zraTaxCode: 'A',
+        branchCode: currentUser?.branchCode ?? '00',
+        branchName: currentUser?.branchName ?? 'Lusaka Main HQ',
+        isSyncedWithDigitax: false,
+        lastDigitaxSyncDate: null,
       );
       
+      final previousStock = widget.product?.stockLevel;
+
       if (widget.product != null) {
         product.name = _nameController.text;
         product.sku = _skuController.text;
@@ -683,10 +686,20 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
         product.discountStartDate = _hasDiscount ? (product.discountStartDate ?? DateTime.now()) : null;
         product.discountEndDate = (_hasDiscount && durationDays != null) ? DateTime.now().add(Duration(days: durationDays)) : null;
         product.isTaxInclusive = _isTaxInclusive;
-        product.taxRate = double.tryParse(_taxRateController.text) ?? 0.0;
+        product.taxRate = _isTaxInclusive ? 16.0 : 0.0;
+        product.zraTaxCode = 'A';
       }
 
       await db.saveProduct(product);
+
+      // If product is tax inclusive, push to DigiTax VSDC Cloud. If tax exclusive, keep as local stock only!
+      if (_isTaxInclusive) {
+        ref.read(digitaxInventoryServiceProvider).syncSingleProductToDigitax(
+          product,
+          previousStock: previousStock,
+        );
+      }
+
       if (mounted) Navigator.pop(context, true);
     }
   }

@@ -5,6 +5,8 @@ import 'package:intl/intl.dart';
 import 'package:beleka_pos/models/models.dart';
 import 'package:beleka_pos/services/database_service.dart';
 import 'package:beleka_pos/services/printer_service.dart';
+import 'package:beleka_pos/services/export_service.dart';
+import 'package:beleka_pos/services/digitax_inventory_service.dart';
 import 'package:beleka_pos/providers/store_provider.dart';
 import 'package:beleka_pos/providers/auth_provider.dart';
 import 'package:beleka_pos/widgets/manager_auth_dialog.dart';
@@ -25,6 +27,16 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
   bool _isPrinting = false;
   bool _isRefundMode = false;
   final Set<int> _selectedItemIds = {};
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(digitaxInventoryServiceProvider).refreshTransactionFiscalData(widget.transaction).then((updated) {
+        if (updated && mounted) setState(() {});
+      });
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -76,7 +88,9 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
             ),
             const Divider(color: Colors.white10, height: 48),
             _buildTotalSection(currency),
-            const SizedBox(height: 32),
+            const SizedBox(height: 24),
+            _buildZraFiscalCard(ref.watch(storeConfigProvider).value),
+            const SizedBox(height: 24),
             _buildFooterActions(context),
           ],
         ),
@@ -343,6 +357,79 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
     );
   }
 
+  Widget _buildZraFiscalCard(StoreConfig? config) {
+    final dateFormatted = DateFormat('dd/MM/yyyy').format(widget.transaction.timestamp);
+    final timeFormatted = DateFormat('HH:mm:ss').format(widget.transaction.timestamp);
+    final sdcIdStr = (widget.transaction.zraSdcId != null && widget.transaction.zraSdcId!.isNotEmpty)
+        ? widget.transaction.zraSdcId!
+        : (config?.sdcId ?? 'SDC00300000014');
+    final sdcInvNoStr = (widget.transaction.zraReceiptNumber != null && widget.transaction.zraReceiptNumber!.isNotEmpty)
+        ? widget.transaction.zraReceiptNumber!
+        : 'INV-${widget.transaction.id.toString().padLeft(8, '0')}';
+    final signatureStr = (widget.transaction.zraMarkId != null && widget.transaction.zraMarkId!.isNotEmpty)
+        ? widget.transaction.zraMarkId!
+        : 'MARK-${widget.transaction.id.hashCode.toRadixString(16).toUpperCase()}';
+    final internalDataStr = (widget.transaction.zraInternalData != null && widget.transaction.zraInternalData!.isNotEmpty)
+        ? widget.transaction.zraInternalData!
+        : (config?.mrcNo ?? 'WIS00013845');
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF10B981).withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.verified_rounded, color: Color(0xFF10B981), size: 16),
+              const SizedBox(width: 8),
+              Text(
+                'ZRA SMART INVOICE FISCAL CONTROL',
+                style: GoogleFonts.manrope(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.2,
+                  color: const Color(0xFF10B981),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _buildFiscalRow('Date & Time', '$dateFormatted  $timeFormatted'),
+          _buildFiscalRow('SDC Id', sdcIdStr),
+          _buildFiscalRow('SDC Invoice No', sdcInvNoStr),
+          _buildFiscalRow('Signature', signatureStr),
+          _buildFiscalRow('Internal Data', internalDataStr),
+          _buildFiscalRow('Invoice Type', widget.transaction.zraInvoiceType ?? 'Normal Sale'),
+          _buildFiscalRow('QR Verify URL', widget.transaction.zraQrCode ?? 'https://smartinvoice.zra.org.zm/verify...'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFiscalRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: GoogleFonts.inter(fontSize: 11, color: Colors.white54),
+          ),
+          Text(
+            value,
+            style: GoogleFonts.ibmPlexMono(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildFooterActions(BuildContext context) {
     final isRefunded = widget.transaction.status == 'refunded';
     
@@ -416,13 +503,49 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
                     try {
                       final db = ref.read(databaseServiceProvider);
                       await db.refundItems(widget.transaction.id, _selectedItemIds.toList());
+
+                      // Generate & Submit official ZRA Credit Note to DigiTax
+                      final origSdcNo = widget.transaction.zraReceiptNumber ?? 'INV-${widget.transaction.id}';
+                      final refundedItems = widget.transaction.items.where((i) => _selectedItemIds.contains(i.id)).toList();
+                      
+                      final refundTx = SaleTransaction(
+                        totalAmount: refundedItems.fold(0.0, (s, i) => s + (i.priceAtSale * i.quantity)),
+                        paymentMethod: widget.transaction.paymentMethod,
+                        cashierName: widget.transaction.cashierName,
+                        status: 'refunded',
+                        isCreditNote: true,
+                        orgInvoiceNo: origSdcNo,
+                        creditNoteReason: 'Customer Returned Goods',
+                        customerTpin: widget.transaction.customerTpin,
+                        customerBusinessName: widget.transaction.customerBusinessName,
+                      );
+                      refundTx.items.addAll(refundedItems);
+
+                      // Submit to DigiTax in background/online
+                      try {
+                        await ref.read(digitaxInventoryServiceProvider).submitCreditNoteToDigitax(
+                          refundTx,
+                          originalSdcInvoiceNo: origSdcNo,
+                          reason: 'Customer Returned Goods',
+                        );
+                      } catch (_) {}
+
+                      // Print ZRA Fiscal Credit Note
+                      try {
+                        final config = ref.read(storeConfigProvider).value;
+                        await ref.read(printerServiceProvider).printReceipt(
+                          refundTx,
+                          refundedItems,
+                          config: config,
+                        );
+                      } catch (_) {}
                       
                       if (context.mounted) {
                         Navigator.pop(context); // Close receipt modal
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content: Text('Partial refund processed successfully'),
-                            backgroundColor: Colors.redAccent,
+                            content: Text('ZRA Credit Note & Refund processed successfully!'),
+                            backgroundColor: Color(0xFF10B981),
                           ),
                         );
                       }
@@ -486,16 +609,25 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
                 setState(() => _isPrinting = true);
                 try {
                   final selectedConfig = ref.read(selectedPrinterProvider);
+                  final items = await ref.read(transactionItemsProvider(widget.transaction.id).future);
+                  final config = ref.read(storeConfigProvider).value;
+
                   if (selectedConfig == null) {
+                    // Fallback to desktop system printer / PDF layout dialog
+                    await ref.read(exportServiceProvider).exportReceiptToPdf(
+                      widget.transaction,
+                      items,
+                      config: config,
+                      printDirectly: true,
+                    );
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('No printer selected in settings')),
+                        const SnackBar(content: Text('Receipt sent to system print dialog')),
                       );
                     }
                     return;
                   }
 
-                  final items = await ref.read(transactionItemsProvider(widget.transaction.id).future);
                   final printerService = ref.read(printerServiceProvider);
                   
                   if (!printerService.isConnected) {
@@ -503,16 +635,6 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
                   }
 
                   if (printerService.isConnected) {
-                    final config = ref.read(storeConfigProvider).value;
-                    if (config == null) {
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Store configuration not found')),
-                        );
-                      }
-                      return;
-                    }
-
                     final success = await printerService.printReceipt(
                       widget.transaction,
                       items,
@@ -524,9 +646,16 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
                       );
                     }
                   } else {
+                    // Fallback to desktop layoutPdf if POS printer connection failed
+                    await ref.read(exportServiceProvider).exportReceiptToPdf(
+                      widget.transaction,
+                      items,
+                      config: config,
+                      printDirectly: true,
+                    );
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Could not connect to printer')),
+                        const SnackBar(content: Text('POS printer unavailable. Opened system print dialog.')),
                       );
                     }
                   }

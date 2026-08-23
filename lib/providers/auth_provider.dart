@@ -36,17 +36,38 @@ final authProvider = NotifierProvider<AuthNotifier, User?>(AuthNotifier.new);
 /// Convenient provider to check if an Admin is logged in.
 final isAdminProvider = Provider<bool>((ref) {
   final user = ref.watch(authProvider);
-  return user?.role == 'admin';
+  return user?.role == 'admin' || user?.role == 'owner' || user?.role == 'manager';
 });
 
-/// Convenient provider to check if a Manager or Admin is logged in.
+/// Convenient provider to check if an Owner / Corporate Admin is logged in.
+final isOwnerProvider = Provider<bool>((ref) {
+  final user = ref.watch(authProvider);
+  return user?.role == 'owner' || user?.role == 'admin' || user?.role == 'manager';
+});
+
+/// Convenient provider to check if a Branch Manager is logged in.
+final isBranchManagerProvider = Provider<bool>((ref) {
+  final user = ref.watch(authProvider);
+  return user?.role == 'branch_manager';
+});
+
+/// Convenient provider to check if any Manager or Owner is logged in.
 final isManagerProvider = Provider<bool>((ref) {
   final user = ref.watch(authProvider);
-  return user?.role == 'manager' || user?.role == 'admin';
+  return user?.role == 'owner' || user?.role == 'admin' || user?.role == 'manager' || user?.role == 'branch_manager';
 });
 
 /// Convenient provider to check if a Cashier is logged in.
 final isCashierProvider = Provider<bool>((ref) {
   final user = ref.watch(authProvider);
   return user?.role == 'cashier';
+});
+
+/// Real-time stream provider to retrieve all active users in the system.
+final allUsersProvider = StreamProvider<List<User>>((ref) async* {
+  final db = ref.watch(databaseServiceProvider);
+  yield await db.isar.users.where().findAll();
+  await for (final _ in db.isar.users.watchLazy()) {
+    yield await db.isar.users.where().findAll();
+  }
 });

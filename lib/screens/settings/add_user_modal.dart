@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:beleka_pos/models/models.dart';
 import 'package:beleka_pos/providers/users_provider.dart';
 import 'package:beleka_pos/services/database_service.dart';
+import 'package:beleka_pos/services/postgres_sync_service.dart';
 
 class AddUserModal extends ConsumerStatefulWidget {
   final User? userToEdit;
@@ -348,6 +349,9 @@ class _AddUserModalState extends ConsumerState<AddUserModal> {
       // If editing and password field is blank, keep the existing hash unchanged.
 
       await ref.read(usersProvider.notifier).saveUser(user);
+      try {
+        ref.read(postgresSyncServiceProvider).syncUser(user);
+      } catch (_) {}
       if (mounted) Navigator.pop(context);
     }
   }

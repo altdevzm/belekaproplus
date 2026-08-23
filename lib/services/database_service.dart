@@ -262,13 +262,52 @@ class DatabaseService {
         final customer = await isar.customers.get(transaction.customerId!);
         if (customer != null) {
           if (loyaltyActive) {
-            // Centralized point calculation: Accumulated + Earned - Redeemed
             final earned = transaction.pointsEarned;
             final redeemed = transaction.pointsRedeemed;
             customer.accumulatedPoints = (customer.accumulatedPoints + earned - redeemed).clamp(0, 999999);
           }
           customer.totalSpend += transaction.totalAmount;
           await isar.customers.put(customer);
+        }
+      }
+
+      // 6. Update Active Cash Till Shift & Payment Treasury Account
+      final isCash = transaction.paymentMethod.toLowerCase().contains('cash');
+      if (isCash) {
+        final activeShift = await isar.cashShifts
+            .filter()
+            .statusEqualTo('OPEN')
+            .and()
+            .group((q) => q.cashierIdEqualTo(transaction.cashierId).or().cashierNameEqualTo(transaction.cashierName))
+            .findFirst() ?? await isar.cashShifts.filter().statusEqualTo('OPEN').findFirst();
+
+        if (activeShift != null) {
+          activeShift.cashSales += transaction.totalAmount;
+          await isar.cashShifts.put(activeShift);
+        }
+
+        final cashAccount = await isar.paymentAccounts.filter().accountTypeEqualTo('CASH').findFirst();
+        if (cashAccount != null) {
+          cashAccount.balance += transaction.totalAmount;
+          await isar.paymentAccounts.put(cashAccount);
+        }
+      } else if (transaction.paymentMethod.toLowerCase().contains('airtel')) {
+        final airtelAccount = await isar.paymentAccounts.filter().accountTypeEqualTo('AIRTEL_MONEY').findFirst();
+        if (airtelAccount != null) {
+          airtelAccount.balance += transaction.totalAmount;
+          await isar.paymentAccounts.put(airtelAccount);
+        }
+      } else if (transaction.paymentMethod.toLowerCase().contains('mtn')) {
+        final mtnAccount = await isar.paymentAccounts.filter().accountTypeEqualTo('MTN_MOMO').findFirst();
+        if (mtnAccount != null) {
+          mtnAccount.balance += transaction.totalAmount;
+          await isar.paymentAccounts.put(mtnAccount);
+        }
+      } else if (transaction.paymentMethod.toLowerCase().contains('bank') || transaction.paymentMethod.toLowerCase().contains('card') || transaction.paymentMethod.toLowerCase().contains('visa')) {
+        final bankAccount = await isar.paymentAccounts.filter().accountTypeEqualTo('BANK').or().accountTypeEqualTo('CARD').findFirst();
+        if (bankAccount != null) {
+          bankAccount.balance += transaction.totalAmount;
+          await isar.paymentAccounts.put(bankAccount);
         }
       }
     });

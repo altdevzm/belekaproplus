@@ -9,6 +9,7 @@ import 'package:beleka_pos/services/database_service.dart';
 import 'package:beleka_pos/providers/auth_provider.dart';
 import 'package:beleka_pos/providers/store_provider.dart';
 import 'package:beleka_pos/services/network_client.dart';
+import 'package:beleka_pos/services/postgres_sync_service.dart';
 import 'package:beleka_pos/models/models.dart';
 import 'package:isar/isar.dart';
 
@@ -125,7 +126,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ..numericId = userData['numericId']
             ..name = userData['name']
             ..role = userData['role']
-            ..passwordHash = 'REMOTE_AUTH'; 
+            ..passwordHash = hashPin(_pin.trim()); 
           
           await db.isar.writeTxn(() async {
             final existing = await db.isar.users.filter().numericIdEqualTo(remoteUser.numericId).findFirst();
@@ -135,6 +136,50 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             await db.isar.users.put(remoteUser);
           });
           user = remoteUser;
+        }
+      }
+
+      // 3. If local & LAN fail, authenticate against Cloud PostgreSQL Backend
+      if (user == null) {
+        final cloudDb = ref.read(cloudDatabaseServiceProvider);
+        final cloudUrl = config?.cloudApiUrl ?? (config?.serverIp != null ? 'http://${config!.serverIp}:8000' : null);
+        if (cloudUrl != null && cloudUrl.isNotEmpty) {
+          final cloudAuth = await cloudDb.authenticateUser(
+            baseUrl: cloudUrl,
+            numericId: _idController.text.trim(),
+            pin: _pin.trim(),
+            terminalName: config?.terminalName ?? 'BRANCH-POS',
+          );
+
+          if (cloudAuth != null && cloudAuth['user'] is Map) {
+            final uData = cloudAuth['user'] as Map;
+            final remoteUser = User()
+              ..numericId = uData['numeric_id']?.toString() ?? _idController.text.trim()
+              ..name = uData['name']?.toString() ?? 'Branch Manager'
+              ..role = uData['role']?.toString() ?? 'branch_manager'
+              ..branchName = uData['branch_name']?.toString()
+              ..phone = uData['phone']?.toString()
+              ..passwordHash = hashPin(_pin.trim())
+              ..isActive = true;
+
+            await db.isar.writeTxn(() async {
+              final existing = await db.isar.users.filter().numericIdEqualTo(remoteUser.numericId).findFirst();
+              if (existing != null) {
+                remoteUser.id = existing.id;
+              }
+              await db.isar.users.put(remoteUser);
+
+              // If store branch info was returned, update local branch profile
+              if (cloudAuth['store'] is Map && config != null) {
+                final sData = cloudAuth['store'] as Map;
+                if (sData['name'] != null) config.businessName = sData['name'].toString();
+                if (sData['bhf_id'] != null) config.bhfId = sData['bhf_id'].toString();
+                if (sData['branch_name'] != null) config.branchName = sData['branch_name'].toString();
+                await db.isar.storeConfigs.put(config);
+              }
+            });
+            user = remoteUser;
+          }
         }
       }
 

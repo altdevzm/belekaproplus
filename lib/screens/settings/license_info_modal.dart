@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:beleka_pos/services/license_service.dart';
+import 'package:beleka_pos/services/hwid_service.dart';
 import 'package:beleka_pos/screens/auth/activation_screen.dart';
 
 class LicenseInfoModal extends ConsumerStatefulWidget {
@@ -15,6 +16,8 @@ class LicenseInfoModal extends ConsumerStatefulWidget {
 class _LicenseInfoModalState extends ConsumerState<LicenseInfoModal> {
   bool _isLoading = true;
   LicenseVerificationResult? _result;
+  Map<String, String>? _hardwareDiag;
+  bool _showHardwareDetails = false;
   bool _hasCopiedHwid = false;
 
   @override
@@ -25,10 +28,13 @@ class _LicenseInfoModalState extends ConsumerState<LicenseInfoModal> {
 
   Future<void> _loadLicenseInfo() async {
     final licenseService = ref.read(licenseServiceProvider);
+    final hwidService = ref.read(hwidServiceProvider);
     final res = await licenseService.verifyCurrentMachineLicense();
+    final diag = await hwidService.getHardwareDiagnostics();
     if (mounted) {
       setState(() {
         _result = res;
+        _hardwareDiag = diag;
         _isLoading = false;
       });
     }
@@ -207,6 +213,89 @@ class _LicenseInfoModalState extends ConsumerState<LicenseInfoModal> {
                       ],
                     ),
                   ),
+
+                  const SizedBox(height: 12),
+
+                  // Expandable Hardware Details Section
+                  InkWell(
+                    onTap: () => setState(() => _showHardwareDetails = !_showHardwareDetails),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            _showHardwareDetails ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
+                            color: const Color(0xFFC1F11D),
+                            size: 18,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            _showHardwareDetails ? 'Hide Machine Hardware Details' : 'View Machine Hardware Components',
+                            style: GoogleFonts.inter(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFFC1F11D),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  if (_showHardwareDetails && _hardwareDiag != null) ...[
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'MACHINE HARDWARE COMPONENTS',
+                            style: GoogleFonts.manrope(
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1.2,
+                              color: Colors.white38,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          ..._hardwareDiag!.entries.map((e) => Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 3),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  e.key,
+                                  style: GoogleFonts.inter(fontSize: 11, color: Colors.white54),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    e.value,
+                                    textAlign: TextAlign.end,
+                                    style: GoogleFonts.ibmPlexMono(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.white,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )),
+                        ],
+                      ),
+                    ),
+                  ],
 
                   const SizedBox(height: 24),
 

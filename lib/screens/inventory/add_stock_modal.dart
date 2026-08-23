@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:beleka_pos/models/models.dart';
 import 'package:beleka_pos/services/database_service.dart';
+import 'package:beleka_pos/services/digitax_inventory_service.dart';
 
 class AddStockModal extends ConsumerStatefulWidget {
   final Product product;
@@ -194,6 +195,10 @@ class _AddStockModalState extends ConsumerState<AddStockModal> {
       )..id = widget.product.id;
 
       await db.saveProduct(updatedProduct);
+      ref.read(digitaxInventoryServiceProvider).syncSingleProductToDigitax(
+        updatedProduct,
+        previousStock: widget.product.stockLevel,
+      );
       if (mounted) Navigator.pop(context, true);
     }
   }

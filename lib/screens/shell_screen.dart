@@ -8,15 +8,19 @@ import 'package:beleka_pos/screens/sales_screen.dart';
 import 'package:beleka_pos/screens/settings_screen.dart';
 import 'package:beleka_pos/screens/reports_screen.dart';
 import 'package:beleka_pos/screens/terminals_screen.dart';
+import 'package:beleka_pos/screens/purchases_screen.dart';
+import 'package:beleka_pos/screens/accounts_screen.dart';
+import 'package:beleka_pos/screens/branches_screen.dart';
 import 'package:beleka_pos/providers/auth_provider.dart';
 import 'package:beleka_pos/providers/theme_provider.dart';
 import 'package:beleka_pos/providers/store_provider.dart';
+import 'package:beleka_pos/models/models.dart';
 import 'dart:io';
 
 import 'package:beleka_pos/services/network_client.dart';
 import 'package:beleka_pos/core/core.dart';
 
-enum ScreenType { dashboard, sales, inventory, terminals, settings, reports }
+enum ScreenType { dashboard, sales, inventory, purchases, accounts, branches, terminals, settings, reports }
 
 final navigationProvider = StateProvider<ScreenType>((ref) {
   // Cashiers default to Sales screen
@@ -53,7 +57,8 @@ class ShellScreen extends ConsumerWidget {
     bool isManager, {
     required bool isCompact,
   }) {
-    final destinations = _getNavigationDestinations(isManager);
+    final user = ref.watch(authProvider);
+    final destinations = _getNavigationDestinations(user);
     final selectedIndex = _getSelectedIndex(current, destinations);
 
     return Column(
@@ -133,12 +138,24 @@ class ShellScreen extends ConsumerWidget {
     );
   }
 
-  List<_NavDestination> _getNavigationDestinations(bool isManager) {
-    if (isManager) {
+  List<_NavDestination> _getNavigationDestinations(User? user) {
+    if (user?.role == 'branch_manager') {
       return const [
-        _NavDestination(ScreenType.dashboard, Icons.dashboard_rounded, 'Home'),
-        _NavDestination(ScreenType.sales, Icons.point_of_sale_rounded, 'Sales'),
+        _NavDestination(ScreenType.dashboard, Icons.dashboard_rounded, 'Overview'),
         _NavDestination(ScreenType.inventory, Icons.inventory_2_rounded, 'Stock'),
+        _NavDestination(ScreenType.purchases, Icons.shopping_bag_rounded, 'Purchases'),
+        _NavDestination(ScreenType.accounts, Icons.account_balance_wallet_rounded, 'Accounts'),
+        _NavDestination(ScreenType.terminals, Icons.monitor_rounded, 'Terminals'),
+        _NavDestination(ScreenType.reports, Icons.assessment_rounded, 'Reports'),
+        _NavDestination(ScreenType.settings, Icons.settings_rounded, 'Settings'),
+      ];
+    } else if (user?.role == 'owner' || user?.role == 'admin' || user?.role == 'manager') {
+      return const [
+        _NavDestination(ScreenType.dashboard, Icons.dashboard_rounded, 'Overview'),
+        _NavDestination(ScreenType.inventory, Icons.inventory_2_rounded, 'Stock'),
+        _NavDestination(ScreenType.purchases, Icons.shopping_bag_rounded, 'Purchases'),
+        _NavDestination(ScreenType.accounts, Icons.account_balance_wallet_rounded, 'Accounts'),
+        _NavDestination(ScreenType.branches, Icons.store_rounded, 'Branches'),
         _NavDestination(ScreenType.terminals, Icons.monitor_rounded, 'Terminals'),
         _NavDestination(ScreenType.reports, Icons.assessment_rounded, 'Reports'),
         _NavDestination(ScreenType.settings, Icons.settings_rounded, 'Settings'),
@@ -161,7 +178,7 @@ class ShellScreen extends ConsumerWidget {
     ScreenType current, {
     required bool isCompactRail,
   }) {
-    final isManager = ref.watch(isManagerProvider);
+    final user = ref.watch(authProvider);
     final width = isCompactRail ? 72.0 : 140.0;
 
     return Container(
@@ -174,26 +191,28 @@ class ShellScreen extends ConsumerWidget {
       ),
       child: Column(
         children: [
-          const SizedBox(height: 20),
-          // App Indicator / Home Shortcut
-          if (isManager) ...[
-            _buildSidebarItem(ref, ScreenType.dashboard, Icons.dashboard_rounded, 'Home', current, isCompactRail: isCompactRail),
-            const SizedBox(height: 12),
-          ],
-          if (!isManager) ...[
-            _buildSidebarItem(ref, ScreenType.sales, Icons.point_of_sale_rounded, 'Sales', current, isCompactRail: isCompactRail),
-            const SizedBox(height: 12),
-          ],
-          if (isManager) ...[
-            _buildSidebarItem(ref, ScreenType.inventory, Icons.inventory_2_rounded, 'Stock', current, isCompactRail: isCompactRail),
-            const SizedBox(height: 12),
-            _buildSidebarItem(ref, ScreenType.terminals, Icons.monitor_rounded, 'Terminals', current, isCompactRail: isCompactRail),
-            const SizedBox(height: 12),
-            _buildSidebarItem(ref, ScreenType.reports, Icons.assessment_rounded, 'Reports', current, isCompactRail: isCompactRail),
-            const SizedBox(height: 12),
-            _buildSidebarItem(ref, ScreenType.settings, Icons.settings_rounded, 'Settings', current, isCompactRail: isCompactRail),
-          ],
-          const Spacer(),
+          const SizedBox(height: 16),
+          Expanded(
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+                  ..._getNavigationDestinations(user).map(
+                    (dest) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: _buildSidebarItem(
+                        ref,
+                        dest.type,
+                        dest.icon,
+                        dest.label,
+                        current,
+                        isCompactRail: isCompactRail,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
           // Logo
           if (!isCompactRail)
             Padding(
@@ -460,6 +479,12 @@ class ShellScreen extends ConsumerWidget {
         return const SalesScreen();
       case ScreenType.inventory:
         return const InventoryScreen();
+      case ScreenType.purchases:
+        return const PurchasesScreen();
+      case ScreenType.accounts:
+        return const AccountsScreen();
+      case ScreenType.branches:
+        return const BranchesScreen();
       case ScreenType.terminals:
         return const TerminalsScreen();
       case ScreenType.settings:

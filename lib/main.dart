@@ -11,16 +11,20 @@ import 'package:beleka_pos/screens/setup_screen.dart';
 import 'package:beleka_pos/screens/login_screen.dart';
 import 'package:beleka_pos/screens/shell_screen.dart';
 import 'package:beleka_pos/providers/auth_provider.dart';
-import 'package:beleka_pos/utils/category_seeder.dart';
 import 'package:isar/isar.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:beleka_pos/services/network_manager.dart';
 import 'package:beleka_pos/services/printer_service.dart';
 import 'package:beleka_pos/services/barcode_service.dart';
 
+import 'package:beleka_pos/services/local_sql_service.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
+  // Initialize Local SQLite SQL Database
+  final localSqlService = await LocalSqlService.init();
+
   final dir = await getApplicationDocumentsDirectory();
   final isar = await Isar.open(
     [
@@ -32,17 +36,61 @@ void main() async {
       AttendanceLogSchema,
       StoreConfigSchema,
       CustomerSchema,
+      SupplierSchema,
+      PurchaseOrderSchema,
+      PurchaseOrderItemSchema,
+      GoodsReceivedNoteSchema,
+      PurchaseInvoiceSchema,
+      PurchaseReturnSchema,
+      PaymentAccountSchema,
+      ExpenseSchema,
+      AccountTransferSchema,
+      CashShiftSchema,
+      RefundTransactionSchema,
+      StoreBranchSchema,
+      PosTerminalSchema,
     ],
     directory: dir.path,
   );
 
-  // Seed minimum data
-  await CategorySeeder.seed(DatabaseService(isar));
+  // Purge any legacy dummy mock seed branches from earlier development versions
+  final legacyMockBranches = await isar.storeBranchs.filter().codeEqualTo('KT-002').or().codeEqualTo('ND-003').or().codeEqualTo('HQ-001').findAll();
+  if (legacyMockBranches.isNotEmpty) {
+    await isar.writeTxn(() async {
+      for (final b in legacyMockBranches) {
+        await isar.storeBranchs.delete(b.id);
+      }
+    });
+  }
+
+  // Automatic product deduplication purge
+  final allProducts = await isar.products.where().findAll();
+  final Map<String, Product> uniqueMap = {};
+  final List<Id> duplicateProductIds = [];
+  for (final p in allProducts) {
+    final key = p.name.trim().toLowerCase();
+    if (key.isEmpty) continue;
+    if (uniqueMap.containsKey(key)) {
+      final existing = uniqueMap[key]!;
+      if (p.stockLevel > existing.stockLevel) existing.stockLevel = p.stockLevel;
+      duplicateProductIds.add(p.id);
+    } else {
+      uniqueMap[key] = p;
+    }
+  }
+  if (duplicateProductIds.isNotEmpty) {
+    await isar.writeTxn(() async {
+      for (final id in duplicateProductIds) {
+        await isar.products.delete(id);
+      }
+    });
+  }
 
   runApp(
     ProviderScope(
       overrides: [
         isarProvider.overrideWithValue(isar),
+        localSqlServiceProvider.overrideWithValue(localSqlService),
       ],
       child: const BelekaApp(),
     ),

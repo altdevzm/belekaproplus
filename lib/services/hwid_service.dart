@@ -46,46 +46,69 @@ class HwidService {
     final deviceInfo = DeviceInfoPlugin();
 
     if (Platform.isLinux) {
-      // 1. Linux Machine ID
-      data['machine_id'] = _readFirstAvailableFile([
+      // 1. Model Name (Vendor + Product Name)
+      final vendor = _readFirstAvailableFile(['/sys/class/dmi/id/sys_vendor']);
+      final product = _readFirstAvailableFile(['/sys/class/dmi/id/product_name']);
+      final family = _readFirstAvailableFile(['/sys/class/dmi/id/product_family']);
+      final modelStr = [vendor, product].where((s) => s.isNotEmpty).join(' ');
+      data['model_name'] = modelStr.isNotEmpty ? modelStr : (family.isNotEmpty ? family : 'Generic POS Hardware');
+
+      // 2. Serial Number
+      final productSerial = _readFirstAvailableFile([
+        '/sys/class/dmi/id/product_serial',
+        '/sys/class/dmi/id/board_serial',
+        '/sys/class/dmi/id/chassis_serial',
+      ]);
+      final machineId = _readFirstAvailableFile([
         '/etc/machine-id',
         '/var/lib/dbus/machine-id',
       ]);
+      data['serial_number'] = productSerial.isNotEmpty ? productSerial : (machineId.isNotEmpty ? machineId : 'N/A');
 
-      // 2. Motherboard / Product UUID
+      // 3. Motherboard & BIOS
+      final boardName = _readFirstAvailableFile(['/sys/class/dmi/id/board_name']);
+      final biosVer = _readFirstAvailableFile(['/sys/class/dmi/id/bios_version']);
+      if (boardName.isNotEmpty) data['board_name'] = boardName;
+      if (biosVer.isNotEmpty) data['bios_version'] = biosVer;
+
+      // 4. Linux Machine ID & UUID
+      data['machine_id'] = machineId;
       data['product_uuid'] = _readFirstAvailableFile([
         '/sys/class/dmi/id/product_uuid',
         '/sys/devices/virtual/dmi/id/product_uuid',
       ]);
 
-      // 3. Board Serial
-      data['board_serial'] = _readFirstAvailableFile([
-        '/sys/class/dmi/id/board_serial',
-        '/sys/class/dmi/id/product_serial',
-      ]);
-
-      // 4. CPU Information
+      // 5. CPU Information
       data['cpu_model'] = _extractCpuModel();
 
-      // 5. Linux Device Info Plugin
+      // 6. Linux Device Info Plugin
       try {
         final linuxInfo = await deviceInfo.linuxInfo;
         data['linux_machine_id'] = linuxInfo.machineId ?? '';
         data['linux_name'] = linuxInfo.name;
+        if (data['model_name'] == 'Generic POS Hardware' && linuxInfo.prettyName.isNotEmpty) {
+          data['model_name'] = linuxInfo.prettyName;
+        }
       } catch (_) {}
     } else if (Platform.isWindows) {
       try {
         final winInfo = await deviceInfo.windowsInfo;
+        data['model_name'] = '${winInfo.productName} (${winInfo.computerName})';
+        data['serial_number'] = winInfo.deviceId;
         data['win_device_id'] = winInfo.deviceId;
         data['win_computer_name'] = winInfo.computerName;
         data['win_registered_owner'] = winInfo.registeredOwner;
+        data['cpu_model'] = Platform.environment['PROCESSOR_IDENTIFIER'] ?? 'x86_64 Processor';
       } catch (_) {}
     } else if (Platform.isMacOS) {
       try {
         final macInfo = await deviceInfo.macOsInfo;
+        data['model_name'] = macInfo.model;
+        data['serial_number'] = macInfo.systemGUID ?? 'N/A';
         data['mac_system_guid'] = macInfo.systemGUID ?? '';
         data['mac_model'] = macInfo.model;
         data['mac_computer_name'] = macInfo.computerName;
+        data['cpu_model'] = macInfo.kernelVersion;
       } catch (_) {}
     }
 
@@ -103,7 +126,7 @@ class HwidService {
         final file = File(p);
         if (file.existsSync()) {
           final content = file.readAsStringSync().trim();
-          if (content.isNotEmpty) {
+          if (content.isNotEmpty && !content.toLowerCase().contains('none') && !content.toLowerCase().contains('to be filled')) {
             return content;
           }
         }
@@ -131,13 +154,35 @@ class HwidService {
     return '';
   }
 
-  /// Returns diagnostic info for troubleshooting
+  /// Returns diagnostic info for troubleshooting with human-friendly labels
   Future<Map<String, String>> getHardwareDiagnostics() async {
     final components = await _collectHardwareComponents();
     final hwid = await getHardwareId();
-    return {
-      'Generated HWID': hwid,
-      ...components,
-    };
+    
+    final Map<String, String> diagnostics = {};
+    
+    // 1. Primary Identifiers
+    if (components['model_name'] != null) {
+      diagnostics['Model Name'] = components['model_name']!;
+    }
+    if (components['serial_number'] != null) {
+      diagnostics['Serial / Hardware ID'] = components['serial_number']!;
+    }
+    if (components['cpu_model'] != null && components['cpu_model']!.isNotEmpty) {
+      diagnostics['Processor (CPU)'] = components['cpu_model']!;
+    }
+    if (components['board_name'] != null && components['board_name']!.isNotEmpty) {
+      diagnostics['Motherboard'] = components['board_name']!;
+    }
+    if (components['bios_version'] != null && components['bios_version']!.isNotEmpty) {
+      diagnostics['BIOS Version'] = components['bios_version']!;
+    }
+    
+    // 2. Machine Fingerprint & OS
+    diagnostics['Hardware HWID'] = hwid;
+    diagnostics['Hostname'] = components['hostname'] ?? Platform.localHostname;
+    diagnostics['Operating System'] = Platform.operatingSystem;
+
+    return diagnostics;
   }
 }

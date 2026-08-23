@@ -10,6 +10,7 @@ import 'package:beleka_pos/services/database_service.dart';
 import 'package:beleka_pos/services/printer_service.dart';
 import 'package:beleka_pos/services/barcode_service.dart';
 import 'package:beleka_pos/services/sync_service.dart';
+import 'package:beleka_pos/services/digitax_inventory_service.dart';
 import 'package:beleka_pos/utils/formatters.dart';
 import 'package:beleka_pos/providers/auth_provider.dart';
 
@@ -65,8 +66,19 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
 
   List<Product> _getFilteredProducts(List<Product> allProducts) {
     final query = _searchController.text.trim().toLowerCase();
+    final user = ref.watch(authProvider);
+    final config = ref.watch(storeConfigProvider).value;
+    final activeBranch = user?.branchCode ?? config?.bhfId ?? '00';
+
     return allProducts.where((p) {
       if (p.isArchived) return false;
+      
+      // Multi-Branch Inventory Isolation:
+      if (user?.role == 'cashier' || user?.role == 'branch_manager') {
+        if (p.branchCode != activeBranch && p.branchCode != '00') {
+          return false;
+        }
+      }
       
       final matchesCategory = _selectedCategoryId == null || p.categoryId == _selectedCategoryId;
       if (!matchesCategory) return false;
@@ -1409,6 +1421,60 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       ),
       child: Column(
         children: [
+          // B2B Corporate / Tax Invoice Customer TPIN Card
+          if (cartState.customerTpin != null && cartState.customerTpin!.isNotEmpty)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              margin: const EdgeInsets.only(bottom: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF10B981).withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.business_rounded, color: Color(0xFF10B981), size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('BUYER TPIN: ${cartState.customerTpin}', style: const TextStyle(color: Color(0xFF10B981), fontWeight: FontWeight.bold, fontSize: 11)),
+                        if (cartState.customerBusinessName != null)
+                          Text(cartState.customerBusinessName!, style: const TextStyle(color: Colors.white70, fontSize: 10)),
+                      ],
+                    ),
+                  ),
+                  InkWell(
+                    onTap: () => cartNotifier.setCustomerTpin(null),
+                    child: const Icon(Icons.close, size: 16, color: Colors.white54),
+                  ),
+                ],
+              ),
+            )
+          else
+            InkWell(
+              onTap: () => _showB2bCustomerModal(context, cartNotifier, cartState),
+              borderRadius: BorderRadius.circular(10),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.03),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.business_rounded, color: Color(0xFFC1F11D), size: 16),
+                    SizedBox(width: 8),
+                    Text('+ Buyer TPIN / Tax Invoice', style: TextStyle(color: Color(0xFFC1F11D), fontSize: 11, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ),
+            ),
+
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -1428,6 +1494,115 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  void _showB2bCustomerModal(BuildContext context, CartNotifier cartNotifier, CartState cartState) {
+    final tpinCtrl = TextEditingController(text: cartState.customerTpin ?? '');
+    final nameCtrl = TextEditingController(text: cartState.customerBusinessName ?? '');
+    final addrCtrl = TextEditingController(text: cartState.customerAddress ?? '');
+    bool isVerifying = false;
+
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (context, setModalState) => AlertDialog(
+          backgroundColor: const Color(0xFF1A1A1E),
+          title: Row(
+            children: [
+              const Icon(Icons.business_rounded, color: Color(0xFFC1F11D)),
+              const SizedBox(width: 10),
+              Text('BUYER TPIN / TAX INVOICE', style: GoogleFonts.manrope(fontWeight: FontWeight.w900, color: Colors.white, fontSize: 16)),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Enter the corporate buyer’s ZRA TPIN to issue an official Tax Invoice for VAT claim.', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: tpinCtrl,
+                  style: const TextStyle(color: Colors.white),
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: 'Customer TPIN (10 Digits) *',
+                    hintText: '1000000000',
+                    filled: true,
+                    fillColor: Colors.black26,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    suffixIcon: isVerifying
+                        ? const SizedBox(height: 18, width: 18, child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFC1F11D))))
+                        : TextButton(
+                            onPressed: () async {
+                              final tpin = tpinCtrl.text.trim();
+                              if (tpin.isEmpty) return;
+                              setModalState(() => isVerifying = true);
+                              try {
+                                final res = await ref.read(digitaxInventoryServiceProvider).lookupTaxpayerTpin(tpin);
+                                if (res != null) {
+                                  nameCtrl.text = res['taxpayer_name'] ?? res['name'] ?? '';
+                                  addrCtrl.text = res['physical_address'] ?? res['address'] ?? '';
+                                }
+                              } finally {
+                                setModalState(() => isVerifying = false);
+                              }
+                            },
+                            child: const Text('Verify', style: TextStyle(color: Color(0xFFC1F11D), fontWeight: FontWeight.bold)),
+                          ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: nameCtrl,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    labelText: 'Registered Business Name',
+                    hintText: 'e.g. ABC Holdings Ltd',
+                    filled: true,
+                    fillColor: Colors.black26,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: addrCtrl,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    labelText: 'Physical Address',
+                    hintText: 'e.g. Plot 45, Cairo Road, Lusaka',
+                    filled: true,
+                    fillColor: Colors.black26,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx),
+              child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final tpin = tpinCtrl.text.trim();
+                final name = nameCtrl.text.trim();
+                final addr = addrCtrl.text.trim();
+                cartNotifier.setCustomerTpin(
+                  tpin.isNotEmpty ? tpin : null,
+                  businessName: name.isNotEmpty ? name : null,
+                  address: addr.isNotEmpty ? addr : null,
+                );
+                Navigator.pop(dialogCtx);
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFC1F11D), foregroundColor: Colors.black),
+              child: const Text('Apply to Invoice'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1462,11 +1637,17 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         discountAmount: cartState.discountAmount,
         tenderedAmount: _selectedPaymentMethod == 'CASH' ? _tenderedAmount : total,
         changeAmount: _selectedPaymentMethod == 'CASH' ? change : 0.0,
+        customerTpin: cartState.customerTpin,
+        customerBusinessName: cartState.customerBusinessName,
+        customerAddress: cartState.customerAddress,
       );
 
       await db.saveTransaction(transaction, saleItems);
       
-      // Attempt real-time sync (or queue for offline)
+      // Fiscalize with DigiTax VSDC Cloud (Live ZRA Smart Invoice & Server-Side Tax Calculations)
+      await ref.read(digitaxInventoryServiceProvider).fiscalizeSaleTransaction(transaction, saleItems);
+
+      // Attempt local real-time sync (or queue for offline)
       ref.read(syncServiceProvider).trySyncTransaction(transaction, saleItems);
       
       await printer.printReceipt(transaction, saleItems, config: config);

@@ -11,7 +11,11 @@ class User {
   
   late String name;
   late String passwordHash; 
-  late String role; // 'manager', 'cashier'
+  late String role; // 'owner', 'branch_manager', 'cashier'
+  
+  String? branchName; // e.g. 'Main Branch (HQ)', 'Kitwe Retail Store'
+  String? branchCode; // e.g. '00', '01'
+  String? phone;
   
   @Index()
   bool isActive = true;
@@ -62,7 +66,20 @@ class Product {
   String? imagePath;
   
   bool isTaxInclusive = true;
-  double taxRate = 0.0;
+  double taxRate = 16.0;
+  
+  // ZRA Smart Invoice / EFD Tax Classification
+  String zraTaxCode = 'A'; // 'A' (Standard 16%), 'B' (Zero 0%), 'C' (Exempt 0%), 'E' (Non-VAT), 'TOT' (Turnover 3%)
+  String itemClsCd = '10101501';
+
+  // Multi-Branch Store Isolation (bhfId: '00' = HQ, '01' = Branch 1, etc.)
+  @Index()
+  String branchCode = '00';
+  String? branchName;
+
+  // DigiTax Inventory Synchronization Status
+  bool isSyncedWithDigitax = false;
+  DateTime? lastDigitaxSyncDate;
   
   @Index()
   bool isArchived = false;
@@ -82,7 +99,13 @@ class Product {
     this.colors,
     this.imagePath,
     this.isTaxInclusive = true,
-    this.taxRate = 0.0,
+    this.taxRate = 16.0,
+    this.zraTaxCode = 'A',
+    this.itemClsCd = '10101501',
+    this.branchCode = '00',
+    this.branchName,
+    this.isSyncedWithDigitax = false,
+    this.lastDigitaxSyncDate,
     this.isArchived = false,
     this.discountPrice,
     this.discountStartDate,
@@ -118,6 +141,25 @@ class SaleTransaction {
   String? cashierId;
   String? terminalName;
 
+  // B2B Corporate / Tax Invoice Customer Data
+  String? customerTpin;
+  String? customerBusinessName;
+  String? customerAddress;
+
+  // ZRA Smart Invoice / EFD Fiscal Data
+  String? zraSdcId;
+  String? zraReceiptNumber;
+  String? zraMarkId;
+  String? zraInternalData;
+  String? zraQrCode;
+  String? zraInvoiceType;
+  String zraStatus = 'pending';
+
+  // ZRA Credit Note / Fiscal Return Fields
+  bool isCreditNote = false;
+  String? orgInvoiceNo;
+  String? creditNoteReason;
+
   SaleTransaction({
     required this.totalAmount,
     required this.paymentMethod,
@@ -136,7 +178,20 @@ class SaleTransaction {
     this.isSynced = false,
     this.cashierId,
     this.terminalName,
+    this.customerTpin,
+    this.customerBusinessName,
+    this.customerAddress,
     this.transactionId,
+    this.zraSdcId,
+    this.zraReceiptNumber,
+    this.zraMarkId,
+    this.zraInternalData,
+    this.zraQrCode,
+    this.zraInvoiceType,
+    this.zraStatus = 'pending',
+    this.isCreditNote = false,
+    this.orgInvoiceNo,
+    this.creditNoteReason,
   }) : timestamp = DateTime.now() {
     transactionId ??= _generateUuid();
   }
@@ -227,6 +282,19 @@ class StoreConfig {
   String? backupPath;
   DateTime? lastBackupDate;
 
+  // Cloud PostgreSQL Database & Multi-Store Configuration
+  bool isCloudSyncEnabled = false;
+  String? cloudApiUrl; // e.g. https://pos-api.beleka.cloud or http://localhost:8000
+  int? cloudStoreId; // Multi-store branch ID in cloud PostgreSQL database
+  String? cloudStoreCode; // Unique store code e.g. STORE-001
+  DateTime? lastCloudSyncDate;
+
+  // ZRA Smart Invoice / DigiTax API Configuration
+  String bhfId = '00'; // ZRA Branch Code ('00' = HQ, '01' = Branch 1, '02' = Branch 2)
+  String businessTaxType = 'VAT_STANDARD'; // 'VAT_STANDARD', 'TURNOVER_TAX', 'EXEMPT', 'COMPOSITE'
+  String? digitaxApiKey;
+  String digitaxEnvironment = 'sandbox'; // 'sandbox', 'production'
+
   // Network Multi-Terminal Settings
   bool isManagerMode = true; // true = Server/Manager, false = Terminal/Cashier
   String? serverIp; // IP of the manager terminal (for client mode)
@@ -288,4 +356,299 @@ class Customer {
       createdAt: createdAt ?? this.createdAt,
     );
   }
+}
+
+@collection
+class Supplier {
+  Id id = Isar.autoIncrement;
+
+  @Index(unique: true)
+  late String name;
+
+  String? tpin;
+  String? contactPerson;
+  String? phoneNumber;
+  String? email;
+  String? address;
+  double balance = 0.0; // Outstanding balance owed to supplier
+  double totalPurchases = 0.0;
+  
+  @Index()
+  DateTime createdAt = DateTime.now();
+}
+
+@collection
+class PurchaseOrder {
+  Id id = Isar.autoIncrement;
+
+  @Index(unique: true)
+  late String poNumber;
+
+  late int storeId;
+  int? supplierId;
+  late String supplierName;
+  String? supplierTpin;
+  late String status; // 'draft', 'pending', 'approved', 'received', 'cancelled'
+  double subtotal = 0.0;
+  double discountAmount = 0.0;
+  double taxAmount = 0.0;
+  double totalAmount = 0.0;
+  DateTime? expectedDeliveryDate;
+  String? notes;
+  
+  @Index()
+  DateTime createdAt = DateTime.now();
+  
+  DateTime? approvedAt;
+
+  final items = IsarLinks<PurchaseOrderItem>();
+}
+
+@collection
+class PurchaseOrderItem {
+  Id id = Isar.autoIncrement;
+
+  int? productId;
+  late String productName;
+  double unitCost = 0.0;
+  int quantityOrdered = 1;
+  int quantityReceived = 0;
+  int quantityDamaged = 0;
+  double discount = 0.0;
+  double taxRate = 0.0;
+  String? batchNumber;
+  DateTime? expiryDate;
+}
+
+@collection
+class GoodsReceivedNote {
+  Id id = Isar.autoIncrement;
+
+  @Index(unique: true)
+  late String grnNumber;
+
+  late String poNumber;
+  late String supplierName;
+  DateTime receivedDate = DateTime.now();
+  String? receivedBy;
+  String warehouseBranch = 'Main Branch';
+  int totalItemsReceived = 0;
+  String? notes;
+  
+  @Index()
+  DateTime createdAt = DateTime.now();
+}
+
+@collection
+class PurchaseInvoice {
+  Id id = Isar.autoIncrement;
+
+  @Index(unique: true)
+  late String invoiceNumber;
+
+  String? supplierInvoiceNumber;
+  late String poNumber;
+  late String supplierName;
+  double totalAmount = 0.0;
+  double amountPaid = 0.0;
+  double balanceDue = 0.0;
+  late String paymentStatus; // 'unpaid', 'partial', 'paid'
+  DateTime? dueDate;
+  
+  @Index()
+  DateTime createdAt = DateTime.now();
+}
+
+@collection
+class PurchaseReturn {
+  Id id = Isar.autoIncrement;
+
+  @Index(unique: true)
+  late String returnNumber;
+
+  late String supplierName;
+  String? poNumber;
+  double totalAmount = 0.0;
+  late String reason; // 'Damaged Goods', 'Expired Stock', 'Wrong Item Received', 'Excess Delivery'
+  String refundMethod = 'Supplier Credit Note'; // 'Cash Refund', 'Supplier Credit Note'
+  
+  @Index()
+  DateTime createdAt = DateTime.now();
+}
+
+@collection
+class PaymentAccount {
+  Id id = Isar.autoIncrement;
+
+  @Index(unique: true)
+  late String name; // 'Cash in Till', 'Main Bank Account', 'Airtel Money', 'MTN Money', 'Zamtel Money', 'Visa/Mastercard'
+
+  late String accountType; // 'CASH', 'BANK', 'AIRTEL_MONEY', 'MTN_MONEY', 'ZAMTEL_MONEY', 'CARD', 'OTHER'
+  String? accountNumber;
+  double balance = 0.0;
+  String currency = 'ZMW';
+  bool isDefault = false;
+
+  @Index()
+  DateTime createdAt = DateTime.now();
+}
+
+@collection
+class Expense {
+  Id id = Isar.autoIncrement;
+
+  @Index(unique: true)
+  late String expenseNumber;
+
+  late String category; // 'Rent', 'Utilities', 'Salaries & Wages', 'Transport / Fuel', 'Inventory & Supplies', 'Repairs', 'Marketing', 'Other'
+  double amount = 0.0;
+  int? paymentAccountId;
+  late String paymentAccountName;
+  String? recordedBy;
+  String branch = 'Main Branch';
+  String? referenceNumber;
+  String? notes;
+  String? receiptImagePath;
+  
+  @Index()
+  DateTime expenseDate = DateTime.now();
+
+  @Index()
+  DateTime createdAt = DateTime.now();
+}
+
+@collection
+class AccountTransfer {
+  Id id = Isar.autoIncrement;
+
+  @Index(unique: true)
+  late String transferNumber;
+
+  int? fromAccountId;
+  late String fromAccountName;
+  int? toAccountId;
+  late String toAccountName;
+  double amount = 0.0;
+  String? reference;
+  String? transferredBy;
+
+  @Index()
+  DateTime transferDate = DateTime.now();
+
+  @Index()
+  DateTime createdAt = DateTime.now();
+}
+
+@collection
+class CashShift {
+  Id id = Isar.autoIncrement;
+
+  @Index(unique: true)
+  late String shiftNumber;
+
+  String? cashierId;
+  late String cashierName;
+  String terminalId = 'POS-1';
+  String branchName = 'Main Branch';
+  DateTime openingTime = DateTime.now();
+  DateTime? closingTime;
+  
+  double openingCash = 0.0;
+  double cashSales = 0.0;
+  double cashExpenses = 0.0;
+  double cashRefunds = 0.0;
+  double cashReceived = 0.0;
+  double cashDeposits = 0.0;
+  double cashWithdrawals = 0.0;
+  
+  double expectedClosingCash = 0.0;
+  double actualClosingCash = 0.0;
+  double cashVariance = 0.0; // Actual - Expected
+  
+  late String status; // 'OPEN', 'CLOSED'
+  String? notes;
+
+  @Index()
+  DateTime createdAt = DateTime.now();
+}
+
+@collection
+class RefundTransaction {
+  Id id = Isar.autoIncrement;
+
+  @Index(unique: true)
+  late String refundNumber;
+
+  String? saleTransactionUuid;
+  late String refundType; // 'CASH', 'CARD', 'MOBILE_MONEY', 'CREDIT_NOTE'
+  double amount = 0.0;
+  late String reason;
+  String? authorizedBy;
+  
+  @Index()
+  DateTime refundDate = DateTime.now();
+
+  @Index()
+  DateTime createdAt = DateTime.now();
+}
+
+@collection
+class StoreBranch {
+  Id id = Isar.autoIncrement;
+
+  @Index(unique: true)
+  late String code; // e.g. 'HQ-001', 'KT-002', 'ND-003'
+
+  late String name;
+  
+  @Index()
+  late String bhfId; // ZRA Branch Code ('00' = HQ, '01', '02', etc.)
+  
+  String tpin = '1000000000';
+  String? sdcId;
+  String? mrcNo;
+  String? address;
+  String? phone;
+  String? email;
+  
+  String? managerId;
+  String? managerName;
+  String? managerPhone;
+  
+  bool isHQ = false;
+  String status = 'ONLINE'; // 'ONLINE', 'OFFLINE'
+  String zraStatus = 'FISCALIZED'; // 'FISCALIZED', 'PENDING'
+  double salesToday = 0.0;
+  
+  @Index()
+  DateTime createdAt = DateTime.now();
+}
+
+@collection
+class PosTerminal {
+  Id id = Isar.autoIncrement;
+
+  @Index(unique: true)
+  late String terminalCode; // e.g. 'TILL-01', 'POS-01', 'TILL-CBD-02'
+
+  late String name; // e.g. 'Main Counter Till 1'
+  String branchCode = '00';
+  String branchName = 'Main Branch (HQ)';
+  
+  String? deviceIp;
+  String? serialNumber;
+  
+  String? assignedCashierId;
+  String? assignedCashierName;
+  
+  String status = 'ACTIVE'; // 'ACTIVE', 'INACTIVE', 'MAINTENANCE'
+  String digitaxBhfId = '00'; // DigiTax Branch / Till ID
+  
+  double salesToday = 0.0;
+  
+  @Index()
+  DateTime lastActive = DateTime.now();
+  
+  @Index()
+  DateTime createdAt = DateTime.now();
 }

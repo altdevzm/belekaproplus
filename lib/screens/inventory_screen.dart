@@ -10,10 +10,13 @@ import 'package:beleka_pos/screens/inventory/category_management_modal.dart';
 import 'package:beleka_pos/providers/store_provider.dart';
 import 'package:beleka_pos/providers/theme_provider.dart';
 import 'package:beleka_pos/services/barcode_service.dart';
+import 'package:beleka_pos/services/digitax_inventory_service.dart';
+import 'package:beleka_pos/providers/auth_provider.dart';
 
 final showArchivedProvider = StateProvider<bool>((ref) => false);
 final inventorySearchProvider = StateProvider<String>((ref) => '');
 final inventoryCategoryFilterProvider = StateProvider<int?>((ref) => null);
+final inventoryBranchFilterProvider = StateProvider<String?>((ref) => null);
 
 final inventoryProductsProvider = StreamProvider<List<Product>>((ref) {
   final db = ref.watch(databaseServiceProvider);
@@ -30,6 +33,69 @@ class InventoryScreen extends ConsumerStatefulWidget {
 
 class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   final TextEditingController _searchController = TextEditingController();
+  bool _isSyncingDigitax = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Instant sync: Whenever opening Inventory, immediately sync and pull any changes made on DigiTax catalog
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _performInstantDigiTaxSync(silent: true);
+    });
+  }
+
+  Future<void> _performInstantDigiTaxSync({bool silent = false}) async {
+    if (_isSyncingDigitax) return;
+    if (!silent) setState(() => _isSyncingDigitax = true);
+    try {
+      final currentUser = ref.read(authProvider);
+      final currentBranch = currentUser?.branchCode ?? '00';
+      final syncService = ref.read(digitaxInventoryServiceProvider);
+
+      final result = await syncService.syncAllInventoryWithDigitax(
+        branchCode: currentBranch,
+      );
+
+      ref.invalidate(inventoryProductsProvider);
+
+      if (mounted && !silent) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(
+                  result.success ? Icons.cloud_done_rounded : Icons.warning_amber_rounded,
+                  color: result.success ? const Color(0xFF10B981) : Colors.orangeAccent,
+                  size: 20,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    result.message,
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: const Color(0xFF16161C),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted && !silent) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('DigiTax Sync Error: $e'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSyncingDigitax = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -43,11 +109,23 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     final categoriesAsync = ref.watch(categoriesProvider);
     final search = ref.watch(inventorySearchProvider);
     final categoryFilter = ref.watch(inventoryCategoryFilterProvider);
+    final branchFilter = ref.watch(inventoryBranchFilterProvider);
+    final user = ref.watch(authProvider);
     final totalProducts = productsAsync.value ?? [];
     final categories = categoriesAsync.value ?? [];
     
-    // Filter products based on search & category filter
+    // Filter products based on search, category, and multi-branch store isolation
     final filteredProducts = totalProducts.where((p) {
+      // 1. Multi-Branch Store Isolation
+      if (user?.role == 'branch_manager' || user?.role == 'cashier') {
+        final assignedBranch = user?.branchCode ?? '00';
+        if (p.branchCode != assignedBranch && p.branchCode != '00') {
+          return false;
+        }
+      } else if (branchFilter != null) {
+        if (p.branchCode != branchFilter) return false;
+      }
+
       final query = search.toLowerCase();
       final matchesSearch = p.name.toLowerCase().contains(query) || p.sku.toLowerCase().contains(query);
       final matchesCategory = categoryFilter == null || p.categoryId == categoryFilter;
@@ -166,6 +244,29 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                     ),
                   ],
                 ),
+              ),
+            ),
+            const SizedBox(width: 10),
+
+            // Instant DigiTax Sync Button
+            OutlinedButton.icon(
+              onPressed: _isSyncingDigitax ? null : () => _performInstantDigiTaxSync(silent: false),
+              icon: _isSyncingDigitax
+                  ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF10B981)),
+                    )
+                  : const Icon(Icons.sync_rounded, size: 16, color: Color(0xFF10B981)),
+              label: Text(
+                _isSyncingDigitax ? 'Syncing...' : 'Sync DigiTax',
+                style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13, color: const Color(0xFF10B981)),
+              ),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Color(0xFF10B981), width: 1),
+                backgroundColor: const Color(0xFF10B981).withValues(alpha: 0.08),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
             ),
             const SizedBox(width: 10),
@@ -596,7 +697,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
               ),
             ),
 
-            // Product Name & Image
+            // Product Name & Image & Branch Tag
             Expanded(
               flex: 3,
               child: Row(
@@ -604,14 +705,48 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                   _buildProductThumbnail(product.imagePath),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: Text(
-                      product.name,
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
-                      overflow: TextOverflow.ellipsis,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          product.name,
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.05),
+                                borderRadius: BorderRadius.circular(3),
+                              ),
+                              child: Text(
+                                'BHF-${product.branchCode}',
+                                style: GoogleFonts.jetBrainsMono(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white54,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              product.isSyncedWithDigitax ? '🟢 DigiTax Synced' : '🟡 Local Stock',
+                              style: GoogleFonts.inter(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w600,
+                                color: product.isSyncedWithDigitax ? const Color(0xFF10B981) : Colors.amber,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
                 ],

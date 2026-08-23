@@ -8,6 +8,8 @@ import 'package:beleka_pos/services/export_service.dart';
 import 'package:beleka_pos/providers/store_provider.dart';
 import 'package:beleka_pos/utils/formatters.dart';
 import 'package:beleka_pos/screens/sales/receipt_detail_modal.dart';
+import 'package:beleka_pos/services/digitax_inventory_service.dart';
+import 'package:beleka_pos/services/printer_service.dart';
 
 final reportDateRangeProvider = StateProvider<DateTimeRange>((ref) {
   final now = DateTime.now();
@@ -126,6 +128,31 @@ class ReportsScreen extends ConsumerWidget {
           children: [
             _buildDateRangePicker(context, ref, range),
             const SizedBox(width: 12),
+            ActionButton(
+              icon: Icons.receipt_long_rounded,
+              label: 'ZRA Fiscal Z-Report',
+              onPressed: () async {
+                final digitaxService = ref.read(digitaxInventoryServiceProvider);
+                final printerService = ref.read(printerServiceProvider);
+                final config = ref.read(storeConfigProvider).value;
+
+                final reportData = await digitaxService.compileZraFiscalZReport(date: range.start);
+                final printed = await printerService.printZraFiscalZReport(
+                  reportData: reportData,
+                  config: config,
+                );
+
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(printed ? 'ZRA Fiscal Z-Report printed successfully!' : 'ZRA Fiscal Z-Report generated (Check printer connection).'),
+                      backgroundColor: printed ? const Color(0xFF10B981) : Colors.orangeAccent,
+                    ),
+                  );
+                }
+              },
+            ),
+            const SizedBox(width: 12),
             _buildExportMenu(context, ref),
           ],
         ),
@@ -158,10 +185,7 @@ class ReportsScreen extends ConsumerWidget {
           },
         );
         if (picked != null) {
-          ref.read(reportDateRangeProvider.notifier).state = DateTimeRange(
-            start: picked.start,
-            end: DateTime(picked.end.year, picked.end.month, picked.end.day, 23, 59, 59, 999),
-          );
+          ref.read(reportDateRangeProvider.notifier).state = picked;
         }
       },
     );
@@ -445,7 +469,7 @@ class ReportsScreen extends ConsumerWidget {
             separatorBuilder: (context, index) => const SizedBox(height: 12),
             itemBuilder: (context, index) {
               final tx = transactions[index];
-              return _buildTransactionCard(context, tx, currency);
+              return _buildTransactionCard(context, ref, tx, currency);
             },
           ),
         ),
@@ -453,7 +477,7 @@ class ReportsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildTransactionCard(BuildContext context, SaleTransaction tx, String currency) {
+  Widget _buildTransactionCard(BuildContext context, WidgetRef ref, SaleTransaction tx, String currency) {
     final itemNames = tx.items.map((i) => '${i.quantity}x ${i.productName}').join(', ');
 
     return Container(
@@ -586,6 +610,30 @@ class ReportsScreen extends ConsumerWidget {
                         letterSpacing: 1.0,
                         color: Colors.white.withValues(alpha: 0.2),
                       ),
+                    ),
+                  ],
+                ),
+                const SizedBox(width: 12),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      onPressed: () async {
+                        final items = await ref.read(transactionItemsProvider(tx.id).future);
+                        final config = ref.read(storeConfigProvider).value;
+                        ref.read(exportServiceProvider).exportReceiptToPdf(tx, items, config: config, printDirectly: true);
+                      },
+                      icon: const Icon(Icons.print_rounded, size: 18, color: Colors.white70),
+                      tooltip: 'Print Tax Receipt',
+                    ),
+                    IconButton(
+                      onPressed: () async {
+                        final items = await ref.read(transactionItemsProvider(tx.id).future);
+                        final config = ref.read(storeConfigProvider).value;
+                        ref.read(exportServiceProvider).exportReceiptToPdf(tx, items, config: config, printDirectly: false);
+                      },
+                      icon: const Icon(Icons.picture_as_pdf_rounded, size: 18, color: Colors.redAccent),
+                      tooltip: 'Export Receipt PDF',
                     ),
                   ],
                 ),

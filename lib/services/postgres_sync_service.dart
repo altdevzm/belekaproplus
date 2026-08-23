@@ -1,0 +1,124 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:isar/isar.dart';
+import 'package:beleka_pos/models/models.dart';
+import 'package:beleka_pos/services/database_service.dart';
+import 'package:beleka_pos/services/cloud_database_service.dart';
+
+final cloudDatabaseServiceProvider = Provider<CloudDatabaseService>((ref) {
+  return CloudDatabaseService();
+});
+
+final postgresSyncServiceProvider = Provider<PostgresSyncService>((ref) {
+  final isar = ref.watch(isarProvider);
+  final cloudDb = ref.watch(cloudDatabaseServiceProvider);
+  return PostgresSyncService(isar: isar, cloudDb: cloudDb);
+});
+
+class PostgresSyncService {
+  final Isar isar;
+  final CloudDatabaseService cloudDb;
+
+  PostgresSyncService({required this.isar, required this.cloudDb});
+
+  /// Push/Sync a specific user or branch manager to Cloud PostgreSQL DB.
+  Future<bool> syncUser(User user, {String? plainPin}) async {
+    final config = await isar.storeConfigs.where().findFirst();
+    final cloudUrl = config?.cloudApiUrl ?? (config?.serverIp != null ? 'http://${config!.serverIp}:8000' : null);
+    if (cloudUrl == null || cloudUrl.isEmpty) return false;
+
+    final storeId = config?.cloudStoreId ?? 1;
+    return await cloudDb.syncUser(
+      baseUrl: cloudUrl,
+      storeId: storeId,
+      user: user,
+      plainPin: plainPin,
+    );
+  }
+
+  /// Push/Sync a Store Branch to Cloud PostgreSQL DB.
+  Future<bool> syncBranch(StoreBranch branch) async {
+    final config = await isar.storeConfigs.where().findFirst();
+    final cloudUrl = config?.cloudApiUrl ?? (config?.serverIp != null ? 'http://${config!.serverIp}:8000' : null);
+    if (cloudUrl == null || cloudUrl.isEmpty) return false;
+
+    return await cloudDb.syncBranch(
+      baseUrl: cloudUrl,
+      branch: branch,
+    );
+  }
+
+  /// Sync all local users up to Cloud PostgreSQL DB.
+  Future<int> syncAllUsersToCloud() async {
+    final config = await isar.storeConfigs.where().findFirst();
+    final cloudUrl = config?.cloudApiUrl ?? (config?.serverIp != null ? 'http://${config!.serverIp}:8000' : null);
+    if (cloudUrl == null || cloudUrl.isEmpty) return 0;
+
+    final storeId = config?.cloudStoreId ?? 1;
+    final allUsers = await isar.users.where().findAll();
+    int count = 0;
+    for (final u in allUsers) {
+      final success = await cloudDb.syncUser(
+        baseUrl: cloudUrl,
+        storeId: storeId,
+        user: u,
+      );
+      if (success) count++;
+    }
+    return count;
+  }
+
+  /// Sync unsynced transactions from local Isar cache up to online PostgreSQL Cloud DB.
+  Future<int> syncPendingTransactions() async {
+    final config = await isar.storeConfigs.where().findFirst();
+    final cloudUrl = config?.cloudApiUrl ?? (config?.serverIp != null ? 'http://${config!.serverIp}:8000' : null);
+    if (cloudUrl == null || cloudUrl.isEmpty) {
+      debugPrint('Cloud PostgreSQL sync skipped: Cloud sync not configured');
+      return 0;
+    }
+
+    final storeId = config?.cloudStoreId ?? 1;
+
+    // Query unsynced sales from local storage
+    final unsyncedSales = await isar.saleTransactions
+        .filter()
+        .isSyncedEqualTo(false)
+        .findAll();
+
+    if (unsyncedSales.isEmpty) {
+      return 0;
+    }
+
+    try {
+      final syncedUuids = await cloudDb.syncBatchSales(
+        baseUrl: cloudUrl,
+        storeId: storeId,
+        transactions: unsyncedSales,
+      );
+
+      if (syncedUuids.isNotEmpty) {
+        // Mark items as synced in local DB
+        await isar.writeTxn(() async {
+          for (final sale in unsyncedSales) {
+            if (syncedUuids.contains(sale.transactionId)) {
+              sale.isSynced = true;
+              await isar.saleTransactions.put(sale);
+            }
+          }
+
+          if (config != null) {
+            config.lastCloudSyncDate = DateTime.now();
+            await isar.storeConfigs.put(config);
+          }
+        });
+
+        debugPrint('Successfully synced ${syncedUuids.length} transactions to Cloud PostgreSQL DB');
+      }
+
+      return syncedUuids.length;
+    } catch (e) {
+      debugPrint('Error syncing sales to PostgreSQL Cloud DB: $e');
+      rethrow;
+    }
+  }
+}

@@ -9,6 +9,9 @@ import 'package:beleka_pos/screens/settings/printer_settings_modal.dart';
 import 'package:beleka_pos/screens/settings/loyalty_settings_modal.dart';
 import 'package:beleka_pos/screens/settings/backup_settings_modal.dart';
 import 'package:beleka_pos/screens/settings/license_info_modal.dart';
+import 'package:beleka_pos/screens/settings/network_sync_modal.dart';
+import 'package:beleka_pos/widgets/zra_tax_config_modal.dart';
+import 'package:beleka_pos/providers/auth_provider.dart';
 
 import 'package:beleka_pos/core/core.dart';
 
@@ -17,6 +20,8 @@ class SettingsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final isBranchManager = ref.watch(isBranchManagerProvider);
+
     return Padding(
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -65,17 +70,18 @@ class SettingsScreen extends ConsumerWidget {
                   ),
                   buttonLabel: 'View License',
                 ),
-                _buildSettingsCard(
-                  context,
-                  'Tax & Compliance',
-                  'Configure VAT, GST and tax regulations',
-                  Icons.account_balance_rounded,
-                  const Color(0xFFC6B4FF),
-                  onPressed: () => showDialog(
-                    context: context,
-                    builder: (context) => const StoreConfigModal(),
+                if (!isBranchManager)
+                  _buildSettingsCard(
+                    context,
+                    'Tax & Compliance',
+                    'Configure VAT, GST and tax regulations',
+                    Icons.account_balance_rounded,
+                    const Color(0xFFC6B4FF),
+                    onPressed: () => showDialog(
+                      context: context,
+                      builder: (context) => const StoreConfigModal(),
+                    ),
                   ),
-                ),
                 _buildSettingsCard(
                   context,
                   'Printers & Hardware',
@@ -139,11 +145,34 @@ class SettingsScreen extends ConsumerWidget {
                   'Configure automated database backups and storage',
                   Icons.security_rounded,
                   Colors.orangeAccent,
+                  onPressed: () => showDialog(
+                    context: context,
+                    builder: (context) => const BackupSettingsModal(),
+                  ),
+                ),
+                if (!isBranchManager)
+                  _buildSettingsCard(
+                    context,
+                    'DigiTax & ZRA Smart Invoice',
+                    'Configure DigiTax API Key, Environment & Live Tax Rates',
+                    Icons.receipt_long_rounded,
+                    const Color(0xFF10B981),
                     onPressed: () => showDialog(
                       context: context,
-                      builder: (context) => const BackupSettingsModal(),
+                      builder: (context) => const ZraTaxConfigModal(),
                     ),
                   ),
+                _buildSettingsCard(
+                  context,
+                  'Network & Multi-Till Sync',
+                  'Configure Master Server IP, Cashier Client Tills & Live LAN Sync',
+                  Icons.hub_rounded,
+                  const Color(0xFF6366F1),
+                  onPressed: () => showDialog(
+                    context: context,
+                    builder: (context) => const NetworkSyncModal(),
+                  ),
+                ),
                 ],
               );
             },

@@ -532,7 +532,7 @@ class PrinterService {
           : 'BELEKA POS').toUpperCase();
       final branchName = (config?.terminalName != null && config!.terminalName.isNotEmpty 
           ? config.terminalName 
-          : 'MAIN BRANCH').toUpperCase();
+          : (config?.branchName ?? 'MAIN BRANCH')).toUpperCase();
 
       bytes += generator.text(
         companyName,
@@ -563,22 +563,34 @@ class PrinterService {
       }
 
       bytes += generator.feed(1);
-      bytes += generator.text(preset.singleDivider);
+      bytes += generator.text(preset.doubleDivider);
       bytes += generator.text(
-        'TAX INVOICE / OFFICIAL RECEIPT',
+        transaction.isCreditNote ? 'ZRA FISCAL CREDIT NOTE' : 'TAX INVOICE / OFFICIAL RECEIPT',
         styles: const PosStyles(align: PosAlign.center, bold: true),
       );
-      bytes += generator.text(preset.singleDivider);
+      if (transaction.isCreditNote && transaction.orgInvoiceNo != null) {
+        bytes += generator.text('ORIGINAL SDC INV: ${transaction.orgInvoiceNo}', styles: const PosStyles(align: PosAlign.center, bold: true));
+        if (transaction.creditNoteReason != null) {
+          bytes += generator.text('REASON: ${transaction.creditNoteReason}', styles: const PosStyles(align: PosAlign.center));
+        }
+      }
+      bytes += generator.text(preset.doubleDivider);
 
       // 3. Receipt Metadata & Attended By
-      final dateStr = DateFormat('yyyy-MM-dd HH:mm').format(transaction.timestamp);
-      final receiptNo = '#${transaction.id.toString().padLeft(8, '0')}';
+      final dateOnlyStr = DateFormat('dd/MM/yyyy').format(transaction.timestamp);
+      final timeOnlyStr = DateFormat('HH:mm:ss').format(transaction.timestamp);
+      final receiptNo = transaction.isCreditNote ? 'CN-#${transaction.id.toString().padLeft(8, '0')}' : '#${transaction.id.toString().padLeft(8, '0')}';
       final cashier = transaction.cashierName.isNotEmpty ? transaction.cashierName : 'Staff';
       
-      bytes += generator.text(_formatRow2('RECEIPT: $receiptNo', dateStr, colCount), styles: const PosStyles(bold: true));
-      bytes += generator.text(_formatRow2('Attended by: $cashier', 'Terminal: ${transaction.terminalName ?? config?.terminalName ?? "POS-01"}', colCount));
+      bytes += generator.text(_formatRow2('RECEIPT: $receiptNo', '$dateOnlyStr $timeOnlyStr', colCount), styles: const PosStyles(bold: true));
+      bytes += generator.text(_formatRow2('Cashier: $cashier', 'Terminal: ${transaction.terminalName ?? config?.terminalName ?? "POS-01"}', colCount));
 
-      if (customer != null) {
+      if (transaction.customerTpin != null && transaction.customerTpin!.isNotEmpty) {
+        bytes += generator.text(_formatRow2('BUYER TPIN: ${transaction.customerTpin}', '', colCount), styles: const PosStyles(bold: true));
+        if (transaction.customerBusinessName != null && transaction.customerBusinessName!.isNotEmpty) {
+          bytes += generator.text(_formatRow2('BUYER NAME: ${transaction.customerBusinessName}', '', colCount));
+        }
+      } else if (customer != null) {
         bytes += generator.text(_formatRow2('Customer: ${customer.name}', customer.phoneNumber, colCount));
       }
 
@@ -620,14 +632,15 @@ class PrinterService {
       bytes += generator.text(preset.singleDivider);
 
       // 6. Financial Summary
-      bytes += generator.text(_formatRow2('SUBTOTAL', CurrencyFormatter.format(transaction.subtotal, currency), colCount));
+      bytes += generator.text(_formatRow2('SUBTOTAL (NET)', CurrencyFormatter.format(transaction.subtotal, currency), colCount));
 
       if (transaction.discountAmount > 0) {
         bytes += generator.text(_formatRow2('DISCOUNT', '-${CurrencyFormatter.format(transaction.discountAmount, currency)}', colCount));
       }
 
       if (transaction.taxAmount > 0) {
-        bytes += generator.text(_formatRow2('TOTAL VAT (INCLUDED)', CurrencyFormatter.format(transaction.taxAmount, currency), colCount));
+        final taxLabel = (config?.businessTaxType == 'TURNOVER_TAX') ? 'TURNOVER TAX (INCL)' : 'TOTAL VAT (INCLUDED)';
+        bytes += generator.text(_formatRow2(taxLabel, CurrencyFormatter.format(transaction.taxAmount, currency), colCount));
       }
 
       bytes += generator.feed(1);
@@ -645,14 +658,14 @@ class PrinterService {
       bytes += generator.text(_formatRow2('PAYMENT METHOD', transaction.paymentMethod.toUpperCase(), colCount), styles: const PosStyles(bold: true));
 
       if (transaction.paymentMethod.toUpperCase() == 'CASH') {
-        bytes += generator.text(_formatRow2('Cash Tendered', CurrencyFormatter.format(transaction.tenderedAmount, currency), colCount));
+        bytes += generator.text(_formatRow2('Cash Tendered', CurrencyFormatter.format(transaction.tenderedAmount > 0 ? transaction.tenderedAmount : transaction.totalAmount, currency), colCount));
         bytes += generator.text(_formatRow2('Change Returned', CurrencyFormatter.format(transaction.changeAmount, currency), colCount), styles: const PosStyles(bold: true));
       }
 
       // 8. Tax Summary Table
       bytes += generator.feed(1);
       bytes += generator.text('TAX SUMMARY BREAKDOWN', styles: const PosStyles(bold: true));
-      bytes += generator.text(_formatRow3('CODE / RATE', 'VAT', 'TOTAL', colCount), styles: const PosStyles(bold: true));
+      bytes += generator.text(_formatRow3('CODE / RATE', 'TAX AMT', 'TOTAL', colCount), styles: const PosStyles(bold: true));
 
       final breakdown = _getTaxBreakdown(items);
       breakdown.forEach((rate, values) {
@@ -665,17 +678,54 @@ class PrinterService {
         ));
       });
 
-      // 9. SDC / ZRA Smart Invoice Compliance
-      bytes += generator.feed(1);
-      bytes += generator.text('SDC FISCAL CONTROL DATA', styles: const PosStyles(bold: true));
-      bytes += generator.text(_formatRow2('SDC InvNo:', 'INV${transaction.id.toString().padLeft(10, '0')}', colCount));
-      bytes += generator.text(_formatRow2('SDC Device ID:', config?.sdcId ?? 'SDC00300000014', colCount));
-      bytes += generator.text(_formatRow2('MRC No:', config?.mrcNo ?? 'WIS00013845', colCount));
+      // 9. SDC / ZRA Smart Invoice Compliance (Mandatory Fields)
+      final dateFormatted = DateFormat('dd/MM/yyyy').format(transaction.timestamp);
+      final timeFormatted = DateFormat('HH:mm:ss').format(transaction.timestamp);
+      final sdcIdStr = (transaction.zraSdcId != null && transaction.zraSdcId!.isNotEmpty)
+          ? transaction.zraSdcId!
+          : (config?.sdcId ?? 'SDC00300000014');
+      final sdcInvNoStr = (transaction.zraReceiptNumber != null && transaction.zraReceiptNumber!.isNotEmpty)
+          ? transaction.zraReceiptNumber!
+          : 'INV-${transaction.id.toString().padLeft(8, '0')}';
+      final signatureStr = (transaction.zraMarkId != null && transaction.zraMarkId!.isNotEmpty)
+          ? transaction.zraMarkId!
+          : 'MARK-${transaction.id.hashCode.toRadixString(16).toUpperCase()}';
+      final internalDataStr = (transaction.zraInternalData != null && transaction.zraInternalData!.isNotEmpty)
+          ? transaction.zraInternalData!
+          : (config?.mrcNo ?? 'WIS00013845');
 
-      // 10. Footer Section
       bytes += generator.feed(1);
+      bytes += generator.text(preset.singleDivider);
+      bytes += generator.text(
+        '*** ZRA FISCAL CONTROL DATA ***',
+        styles: const PosStyles(align: PosAlign.center, bold: true),
+      );
+      bytes += generator.text(preset.singleDivider);
+      bytes += generator.text(_formatRow2('Date:', dateFormatted, colCount));
+      bytes += generator.text(_formatRow2('Time:', timeFormatted, colCount));
+      bytes += generator.text(_formatRow2('SDC Id:', sdcIdStr, colCount));
+      bytes += generator.text(_formatRow2('SDC Invoice No:', sdcInvNoStr, colCount));
+      bytes += generator.text(_formatRow2('Signature:', signatureStr, colCount));
+      bytes += generator.text(_formatRow2('Internal Data:', internalDataStr, colCount));
+      bytes += generator.text(_formatRow2('Invoice Type:', transaction.zraInvoiceType ?? 'Normal Sale', colCount));
+      bytes += generator.text(preset.singleDivider);
 
-      // 11. Customer Friendly Footer
+      // Print Live ZRA Smart Invoice Verification QR Code
+      final zraQrData = (transaction.zraQrCode != null && transaction.zraQrCode!.isNotEmpty)
+          ? transaction.zraQrCode!
+          : 'https://smartinvoice.zra.org.zm/verify?tpin=${config?.tpin ?? "1000000000"}&sdc=$sdcIdStr&rcpt=$sdcInvNoStr';
+      bytes += generator.feed(1);
+      bytes += generator.qrcode(
+        zraQrData,
+        size: preset.qrSize,
+      );
+      bytes += generator.feed(1);
+      bytes += generator.text(
+        'Scan QR Code to Verify on ZRA Portal',
+        styles: const PosStyles(align: PosAlign.center, bold: true),
+      );
+
+      // 10. Customer Friendly Footer
       bytes += generator.feed(1);
       bytes += generator.text(preset.doubleDivider);
       bytes += generator.text(
@@ -700,6 +750,104 @@ class PrinterService {
       return await _sendBytes(bytes);
     } catch (e) {
       debugPrint('Thermal receipt print error: $e');
+      return false;
+    }
+  }
+
+  /// Print official ZRA End-of-Day Fiscal Z-Report
+  Future<bool> printZraFiscalZReport({
+    required Map<String, dynamic> reportData,
+    required StoreConfig? config,
+    ThermalPaperPreset? preset,
+  }) async {
+    final currentPreset = preset ?? activePreset;
+    final currency = config?.currencySymbol ?? 'K';
+    final paperSize = currentPreset.escPosSize;
+    final profile = await CapabilityProfile.load();
+    final generator = Generator(paperSize, profile);
+    List<int> bytes = [];
+
+    final colCount = currentPreset.columnCount;
+    final date = (reportData['date'] is DateTime) ? reportData['date'] as DateTime : DateTime.now();
+    final dateStr = DateFormat('dd/MM/yyyy HH:mm:ss').format(date);
+
+    try {
+      bytes += generator.reset();
+      bytes += generator.feed(1);
+
+      // Store Header
+      bytes += generator.text(
+        config?.businessName ?? 'BELEKA RETAIL STORE',
+        styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2),
+      );
+      if (config?.tpin != null) {
+        bytes += generator.text('TPIN: ${config!.tpin!}', styles: const PosStyles(align: PosAlign.center, bold: true));
+      }
+      bytes += generator.text('SDC ID: ${config?.sdcId ?? "SDC00300000014"}', styles: const PosStyles(align: PosAlign.center));
+      bytes += generator.text('BRANCH CODE (bhfId): ${config?.bhfId ?? "00"}', styles: const PosStyles(align: PosAlign.center));
+
+      bytes += generator.feed(1);
+      bytes += generator.text(currentPreset.doubleDivider);
+      bytes += generator.text('ZRA FISCAL DAY SUMMARY (Z-REPORT)', styles: const PosStyles(align: PosAlign.center, bold: true));
+      bytes += generator.text('REPORT DATE: $dateStr', styles: const PosStyles(align: PosAlign.center));
+      bytes += generator.text(currentPreset.doubleDivider);
+
+      // SDC Invoices Count and Range
+      bytes += generator.text(_formatRow2('TOTAL TRANSACTIONS', '${reportData["totalTransactions"] ?? 0}', colCount));
+      bytes += generator.text(_formatRow2('NORMAL INVOICES', '${reportData["normalInvoicesCount"] ?? 0}', colCount));
+      bytes += generator.text(_formatRow2('CREDIT NOTES (REFUNDS)', '${reportData["creditNotesCount"] ?? 0}', colCount));
+      bytes += generator.text(_formatRow2('FIRST SDC INVOICE', '${reportData["firstSdcReceipt"] ?? "N/A"}', colCount));
+      bytes += generator.text(_formatRow2('LAST SDC INVOICE', '${reportData["lastSdcReceipt"] ?? "N/A"}', colCount));
+
+      bytes += generator.text(currentPreset.singleDivider);
+      bytes += generator.text('TAX CATEGORIZATION BREAKDOWN', styles: const PosStyles(align: PosAlign.center, bold: true));
+      bytes += generator.text(currentPreset.singleDivider);
+
+      // Tax A (16% VAT)
+      final taxATaxable = (reportData['taxA16Taxable'] as num?)?.toDouble() ?? 0.0;
+      final taxAVat = (reportData['taxA16Vat'] as num?)?.toDouble() ?? 0.0;
+      bytes += generator.text(_formatRow2('TAX A (16.0% VAT) TAXABLE', CurrencyFormatter.format(taxATaxable, currency), colCount));
+      bytes += generator.text(_formatRow2('TAX A (16.0% VAT) TAX AMOUNT', CurrencyFormatter.format(taxAVat, currency), colCount), styles: const PosStyles(bold: true));
+
+      // Tax B (0.0% Zero-Rated)
+      final taxBTaxable = (reportData['taxB0Taxable'] as num?)?.toDouble() ?? 0.0;
+      bytes += generator.text(_formatRow2('TAX B (0.0% ZERO-RATED)', CurrencyFormatter.format(taxBTaxable, currency), colCount));
+
+      // Tax C (Export)
+      final taxCTaxable = (reportData['taxCExportTaxable'] as num?)?.toDouble() ?? 0.0;
+      if (taxCTaxable != 0) {
+        bytes += generator.text(_formatRow2('TAX C (EXPORT)', CurrencyFormatter.format(taxCTaxable, currency), colCount));
+      }
+
+      // Tax D (Exempt)
+      final taxDTaxable = (reportData['taxDExemptTaxable'] as num?)?.toDouble() ?? 0.0;
+      if (taxDTaxable != 0) {
+        bytes += generator.text(_formatRow2('TAX D (EXEMPT)', CurrencyFormatter.format(taxDTaxable, currency), colCount));
+      }
+
+      bytes += generator.text(currentPreset.doubleDivider);
+
+      // Financial Totals
+      final grossSales = (reportData['grossSales'] as num?)?.toDouble() ?? 0.0;
+      final totalTax = (reportData['totalTax'] as num?)?.toDouble() ?? 0.0;
+      final netSales = (reportData['netSales'] as num?)?.toDouble() ?? 0.0;
+
+      bytes += generator.text(_formatRow2('NET TAXABLE SALES', CurrencyFormatter.format(netSales, currency), colCount));
+      bytes += generator.text(_formatRow2('TOTAL TAX COLLECTED', CurrencyFormatter.format(totalTax, currency), colCount), styles: const PosStyles(bold: true));
+      bytes += generator.text(
+        _formatRow2('GROSS SALES (INCL)', CurrencyFormatter.format(grossSales, currency), (colCount / 2).floor()),
+        styles: const PosStyles(bold: true, height: PosTextSize.size2, width: PosTextSize.size2),
+      );
+
+      bytes += generator.text(currentPreset.doubleDivider);
+      bytes += generator.feed(1);
+      bytes += generator.text('*** END OF ZRA FISCAL Z-REPORT ***', styles: const PosStyles(align: PosAlign.center, bold: true));
+      bytes += generator.feed(3);
+      bytes += generator.cut();
+
+      return await _sendBytes(bytes);
+    } catch (e) {
+      debugPrint('ZRA Fiscal Z-Report print error: $e');
       return false;
     }
   }
@@ -909,8 +1057,10 @@ class PrinterService {
     commands.append('${preset.singleDivider}\n');
 
     commands.appendAlignment(star.StarAlignmentPosition.Left);
+    final dateOnlyStr = DateFormat('dd/MM/yyyy').format(transaction.timestamp);
+    final timeOnlyStr = DateFormat('HH:mm:ss').format(transaction.timestamp);
     commands.append('RECEIPT: #${transaction.id.toString().padLeft(8, '0')}\n');
-    commands.append('Date: ${DateFormat('yyyy-MM-dd HH:mm').format(transaction.timestamp)}\n');
+    commands.append('Date: $dateOnlyStr $timeOnlyStr\n');
     commands.append('Attended by: $cashier\n');
     commands.append('Terminal: ${transaction.terminalName ?? config?.terminalName ?? "POS-01"}\n');
     if (customer != null) commands.append('Customer: ${customer.name} (${customer.phoneNumber})\n');
@@ -925,26 +1075,65 @@ class PrinterService {
     }
 
     commands.append('${preset.singleDivider}\n');
-    commands.append('${"SUBTOTAL".padRight(18)}${CurrencyFormatter.format(transaction.subtotal, currency).padLeft(14)}\n');
+    commands.append('${"SUBTOTAL (NET)".padRight(18)}${CurrencyFormatter.format(transaction.subtotal, currency).padLeft(14)}\n');
+
+    if (transaction.discountAmount > 0) {
+      commands.append('${"DISCOUNT".padRight(18)}${"-${CurrencyFormatter.format(transaction.discountAmount, currency)}".padLeft(14)}\n');
+    }
 
     if (transaction.taxAmount > 0) {
-      commands.append('${"TOTAL VAT".padRight(18)}${CurrencyFormatter.format(transaction.taxAmount, currency).padLeft(14)}\n');
+      final taxLabel = (config?.businessTaxType == 'TURNOVER_TAX') ? 'TURNOVER TAX' : 'TOTAL VAT';
+      commands.append('${taxLabel.padRight(18)}${CurrencyFormatter.format(transaction.taxAmount, currency).padLeft(14)}\n');
     }
 
     commands.append('${preset.doubleDivider}\n');
     commands.appendEmphasis(true);
-    commands.append('${"TOTAL".padRight(16)}${CurrencyFormatter.format(transaction.totalAmount, currency).padLeft(16)}\n');
+    commands.append('${"TOTAL DUE".padRight(16)}${CurrencyFormatter.format(transaction.totalAmount, currency).padLeft(16)}\n');
     commands.appendEmphasis(false);
     commands.append('${preset.doubleDivider}\n');
 
     commands.append('Payment: ${transaction.paymentMethod.toUpperCase()}\n');
     if (transaction.paymentMethod.toUpperCase() == 'CASH') {
-      commands.append('${"Cash Tendered".padRight(18)}${CurrencyFormatter.format(transaction.tenderedAmount, currency).padLeft(14)}\n');
+      commands.append('${"Cash Tendered".padRight(18)}${CurrencyFormatter.format(transaction.tenderedAmount > 0 ? transaction.tenderedAmount : transaction.totalAmount, currency).padLeft(14)}\n');
       commands.append('${"Change".padRight(18)}${CurrencyFormatter.format(transaction.changeAmount, currency).padLeft(14)}\n');
     }
 
-    commands.append('\n');
+    // ZRA Fiscal Control Block for Star
+    final sdcIdStr = (transaction.zraSdcId != null && transaction.zraSdcId!.isNotEmpty)
+        ? transaction.zraSdcId!
+        : (config?.sdcId ?? 'SDC00300000014');
+    final sdcInvNoStr = (transaction.zraReceiptNumber != null && transaction.zraReceiptNumber!.isNotEmpty)
+        ? transaction.zraReceiptNumber!
+        : 'INV-${transaction.id.toString().padLeft(8, '0')}';
+    final signatureStr = (transaction.zraMarkId != null && transaction.zraMarkId!.isNotEmpty)
+        ? transaction.zraMarkId!
+        : 'MARK-${transaction.id.hashCode.toRadixString(16).toUpperCase()}';
+    final internalDataStr = (transaction.zraInternalData != null && transaction.zraInternalData!.isNotEmpty)
+        ? transaction.zraInternalData!
+        : (config?.mrcNo ?? 'WIS00013845');
+
+    commands.append('\n${preset.singleDivider}\n');
+    commands.appendEmphasis(true);
+    commands.append('*** ZRA FISCAL CONTROL DATA ***\n');
+    commands.appendEmphasis(false);
+    commands.append('${preset.singleDivider}\n');
+    commands.append('Date: $dateOnlyStr\n');
+    commands.append('Time: $timeOnlyStr\n');
+    commands.append('SDC Id: $sdcIdStr\n');
+    commands.append('SDC Invoice No: $sdcInvNoStr\n');
+    commands.append('Signature: $signatureStr\n');
+    commands.append('Internal Data: $internalDataStr\n');
+    commands.append('Invoice Type: ${transaction.zraInvoiceType ?? "Normal Sale"}\n');
+    commands.append('${preset.singleDivider}\n');
+
+    final zraQrData = (transaction.zraQrCode != null && transaction.zraQrCode!.isNotEmpty)
+        ? transaction.zraQrCode!
+        : 'https://smartinvoice.zra.org.zm/verify?tpin=${config?.tpin ?? "1000000000"}&sdc=$sdcIdStr&rcpt=$sdcInvNoStr';
+
     commands.appendAlignment(star.StarAlignmentPosition.Center);
+    commands.append('Scan QR Code to Verify on ZRA Portal\n');
+    commands.append('$zraQrData\n\n');
+
     commands.append('${preset.doubleDivider}\n');
     commands.appendEmphasis(true);
     commands.append('THANK YOU FOR SHOPPING WITH US!\n');
@@ -954,7 +1143,7 @@ class PrinterService {
     if (config?.contactNumber != null && config!.contactNumber!.isNotEmpty) {
       commands.append('Helpline: ${config.contactNumber!}\n');
     }
-    commands.append('powered by Beleka POS Retail OS\n');
+    commands.append('*** BELEKA POS RETAIL OS ***\n');
     commands.append('${preset.doubleDivider}\n\n');
     
     commands.appendCutPaper(star.StarCutPaperAction.PartialCutWithFeed);
@@ -1009,8 +1198,26 @@ class PrinterService {
           : 'BELEKA POS').toUpperCase();
       final branchName = (config?.terminalName != null && config!.terminalName.isNotEmpty 
           ? config.terminalName 
-          : 'MAIN BRANCH').toUpperCase();
+          : (config?.branchName ?? 'MAIN BRANCH')).toUpperCase();
       final cashier = transaction.cashierName.isNotEmpty ? transaction.cashierName : 'Staff';
+
+      final dateFormatted = DateFormat('dd/MM/yyyy').format(transaction.timestamp);
+      final timeFormatted = DateFormat('HH:mm:ss').format(transaction.timestamp);
+      final sdcIdStr = (transaction.zraSdcId != null && transaction.zraSdcId!.isNotEmpty)
+          ? transaction.zraSdcId!
+          : (config?.sdcId ?? 'SDC00300000014');
+      final sdcInvNoStr = (transaction.zraReceiptNumber != null && transaction.zraReceiptNumber!.isNotEmpty)
+          ? transaction.zraReceiptNumber!
+          : 'INV-${transaction.id.toString().padLeft(8, '0')}';
+      final signatureStr = (transaction.zraMarkId != null && transaction.zraMarkId!.isNotEmpty)
+          ? transaction.zraMarkId!
+          : 'MARK-${transaction.id.hashCode.toRadixString(16).toUpperCase()}';
+      final internalDataStr = (transaction.zraInternalData != null && transaction.zraInternalData!.isNotEmpty)
+          ? transaction.zraInternalData!
+          : (config?.mrcNo ?? 'WIS00013845');
+      final zraQrData = (transaction.zraQrCode != null && transaction.zraQrCode!.isNotEmpty)
+          ? transaction.zraQrCode!
+          : 'https://smartinvoice.zra.org.zm/verify?tpin=${config?.tpin ?? "1000000000"}&sdc=$sdcIdStr&rcpt=$sdcInvNoStr';
 
       doc.addPage(
         pw.Page(
@@ -1038,26 +1245,26 @@ class PrinterService {
                 if (config?.contactNumber != null && config!.contactNumber!.isNotEmpty) pw.Text('Tel: ${config.contactNumber!}', style: const pw.TextStyle(fontSize: 8)),
                 if (config?.tpin != null && config!.tpin!.isNotEmpty) pw.Text('TPIN: ${config.tpin!}', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
                 pw.SizedBox(height: 2 * pdf.PdfPageFormat.mm),
-                pw.Text('--------------------------------'),
+                pw.Text('================================'),
                 pw.Text('TAX INVOICE / OFFICIAL RECEIPT', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
-                pw.Text('--------------------------------'),
+                pw.Text('================================'),
                 
                 pw.Row(
                   mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                   children: [
                     pw.Text('RECEIPT: #${transaction.id.toString().padLeft(8, '0')}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8)),
-                    pw.Text(DateFormat('yyyy-MM-dd HH:mm').format(transaction.timestamp), style: const pw.TextStyle(fontSize: 8)),
+                    pw.Text('$dateFormatted $timeFormatted', style: const pw.TextStyle(fontSize: 8)),
                   ],
                 ),
                 pw.Row(
                   mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                   children: [
-                    pw.Text('Attended by: $cashier', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8)),
+                    pw.Text('Cashier: $cashier', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8)),
                     pw.Text('Terminal: ${transaction.terminalName ?? config?.terminalName ?? "POS-01"}', style: const pw.TextStyle(fontSize: 8)),
                   ],
                 ),
                 if (customer != null)
-                  pw.Align(alignment: pw.Alignment.centerLeft, child: pw.Text('Customer: ${customer.name}', style: const pw.TextStyle(fontSize: 8))),
+                  pw.Align(alignment: pw.Alignment.centerLeft, child: pw.Text('Customer: ${customer.name} (${customer.phoneNumber})', style: const pw.TextStyle(fontSize: 8))),
                 pw.SizedBox(height: 2 * pdf.PdfPageFormat.mm),
                 pw.Divider(thickness: 0.5),
 
@@ -1079,15 +1286,23 @@ class PrinterService {
                 pw.Row(
                   mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                   children: [
-                    pw.Text('SUBTOTAL', style: const pw.TextStyle(fontSize: 8)),
+                    pw.Text('SUBTOTAL (NET)', style: const pw.TextStyle(fontSize: 8)),
                     pw.Text(CurrencyFormatter.format(transaction.subtotal, currency), style: const pw.TextStyle(fontSize: 8)),
                   ],
                 ),
+                if (transaction.discountAmount > 0)
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text('DISCOUNT', style: const pw.TextStyle(fontSize: 8)),
+                      pw.Text('-${CurrencyFormatter.format(transaction.discountAmount, currency)}', style: const pw.TextStyle(fontSize: 8)),
+                    ],
+                  ),
                 if (transaction.taxAmount > 0)
                   pw.Row(
                     mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                     children: [
-                      pw.Text('TOTAL VAT', style: const pw.TextStyle(fontSize: 8)),
+                      pw.Text((config?.businessTaxType == 'TURNOVER_TAX') ? 'TURNOVER TAX' : 'TOTAL VAT', style: const pw.TextStyle(fontSize: 8)),
                       pw.Text(CurrencyFormatter.format(transaction.taxAmount, currency), style: const pw.TextStyle(fontSize: 8)),
                     ],
                   ),
@@ -1095,7 +1310,7 @@ class PrinterService {
                 pw.Row(
                   mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                   children: [
-                    pw.Text('TOTAL', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11)),
+                    pw.Text('TOTAL DUE', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11)),
                     pw.Text(CurrencyFormatter.format(transaction.totalAmount, currency), style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11)),
                   ],
                 ),
@@ -1118,12 +1333,76 @@ class PrinterService {
 
                 pw.SizedBox(height: 2 * pdf.PdfPageFormat.mm),
                 pw.Text('--------------------------------'),
+                pw.Text('*** ZRA FISCAL CONTROL DATA ***', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8)),
+                pw.Text('--------------------------------'),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text('Date:', style: const pw.TextStyle(fontSize: 7)),
+                    pw.Text(dateFormatted, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7)),
+                  ],
+                ),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text('Time:', style: const pw.TextStyle(fontSize: 7)),
+                    pw.Text(timeFormatted, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7)),
+                  ],
+                ),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text('SDC Id:', style: const pw.TextStyle(fontSize: 7)),
+                    pw.Text(sdcIdStr, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7)),
+                  ],
+                ),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text('SDC Invoice No:', style: const pw.TextStyle(fontSize: 7)),
+                    pw.Text(sdcInvNoStr, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7)),
+                  ],
+                ),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text('Signature:', style: const pw.TextStyle(fontSize: 7)),
+                    pw.Text(signatureStr, style: const pw.TextStyle(fontSize: 6.5)),
+                  ],
+                ),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text('Internal Data:', style: const pw.TextStyle(fontSize: 7)),
+                    pw.Text(internalDataStr, style: const pw.TextStyle(fontSize: 6.5)),
+                  ],
+                ),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text('Invoice Type:', style: const pw.TextStyle(fontSize: 7)),
+                    pw.Text(transaction.zraInvoiceType ?? 'Normal Sale', style: const pw.TextStyle(fontSize: 6.5)),
+                  ],
+                ),
+                
+                pw.SizedBox(height: 2 * pdf.PdfPageFormat.mm),
+                pw.BarcodeWidget(
+                  barcode: pw.Barcode.qrCode(),
+                  data: zraQrData,
+                  width: 58,
+                  height: 58,
+                ),
+                pw.SizedBox(height: 1 * pdf.PdfPageFormat.mm),
+                pw.Text('Scan QR Code to Verify on ZRA Portal', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 6.5)),
+
+                pw.SizedBox(height: 2 * pdf.PdfPageFormat.mm),
+                pw.Text('================================'),
                 pw.Text('THANK YOU FOR SHOPPING WITH US!', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
                 pw.Text('PLEASE VISIT US AGAIN', style: const pw.TextStyle(fontSize: 7)),
                 if (config?.contactNumber != null && config!.contactNumber!.isNotEmpty) 
                   pw.Text('Helpline: ${config.contactNumber!}', style: const pw.TextStyle(fontSize: 6)),
-                pw.Text('Powered by Beleka POS Retail OS', style: const pw.TextStyle(fontSize: 6)),
-                pw.Text('--------------------------------'),
+                pw.Text('*** BELEKA POS RETAIL OS ***', style: const pw.TextStyle(fontSize: 6)),
+                pw.Text('================================'),
               ],
             );
           },

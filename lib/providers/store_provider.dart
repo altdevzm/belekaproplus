@@ -18,3 +18,19 @@ final categoriesProvider = StreamProvider<List<Category>>((ref) async* {
     yield await db.isar.categorys.where().findAll();
   }
 });
+
+final storeBranchesProvider = StreamProvider<List<StoreBranch>>((ref) async* {
+  final db = ref.watch(databaseServiceProvider);
+  yield await db.isar.storeBranchs.where().sortByCode().findAll();
+  await for (final _ in db.isar.storeBranchs.watchLazy()) {
+    yield await db.isar.storeBranchs.where().sortByCode().findAll();
+  }
+});
+
+final posTerminalsProvider = StreamProvider<List<PosTerminal>>((ref) async* {
+  final db = ref.watch(databaseServiceProvider);
+  yield await db.isar.posTerminals.where().sortByTerminalCode().findAll();
+  await for (final _ in db.isar.posTerminals.watchLazy()) {
+    yield await db.isar.posTerminals.where().sortByTerminalCode().findAll();
+  }
+});
