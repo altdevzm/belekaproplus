@@ -19,7 +19,7 @@ class _BackupSettingsModalState extends ConsumerState<BackupSettingsModal> {
 
   Future<void> _pickBackupPath() async {
     try {
-      String? selectedDirectory = await FilePicker.getDirectoryPath();
+      String? selectedDirectory = await FilePicker.platform.getDirectoryPath();
       
       if (selectedDirectory != null) {
         final db = ref.read(databaseServiceProvider);

@@ -2653,7 +2653,7 @@ class ExportService {
   }
 
   Future<void> _saveFile(Uint8List bytes, String fileName, {List<String>? extensions}) async {
-    String? outputFile = await FilePicker.saveFile(
+    String? outputFile = await FilePicker.platform.saveFile(
       dialogTitle: 'Save Export',
       fileName: fileName,
       type: extensions != null ? FileType.custom : FileType.any,

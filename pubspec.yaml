@@ -43,7 +43,7 @@ dependencies:
   intl: ^0.20.2
   fl_chart: ^1.2.0
   lucide_icons: ^0.257.0
-  file_picker: ^11.0.0
+  file_picker: ^8.1.7
   csv: ^6.0.0
   flutter_pos_printer_platform: ^1.4.2
   esc_pos_utils_plus: ^2.0.1+6

@@ -26,7 +26,6 @@ import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
-import io.flutter.plugin.common.PluginRegistry.Registrar
 import java.io.IOException
 import java.nio.charset.Charset
 import java.nio.charset.UnsupportedCharsetException
@@ -38,12 +37,6 @@ public class FlutterStarPrntPlugin : FlutterPlugin, MethodCallHandler {
   companion object {
     protected lateinit var applicationContext: Context
 
-    @JvmStatic
-    fun registerWith(registrar: Registrar) {
-      val channel = MethodChannel(registrar.messenger(), "flutter_star_prnt")
-      channel.setMethodCallHandler(FlutterStarPrntPlugin())
-      FlutterStarPrntPlugin.setupPlugin(registrar.messenger(), registrar.context())
-    }
     @JvmStatic
     fun setupPlugin(messenger: BinaryMessenger, context: Context) {
       try {

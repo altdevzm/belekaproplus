@@ -60,7 +60,7 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
     });
 
     try {
-      final FilePickerResult? result = await FilePicker.pickFiles(
+      final FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['lic', 'json', 'txt'],
       );

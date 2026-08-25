@@ -37,7 +37,7 @@ class _BackupRestoreModalState extends ConsumerState<BackupRestoreModal> {
     });
 
     try {
-      final FilePickerResult? result = await FilePicker.pickFiles(
+      final FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['json', 'isar'],
         dialogTitle: 'Select Beleka POS Backup File',

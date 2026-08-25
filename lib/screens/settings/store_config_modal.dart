@@ -738,7 +738,7 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
   }
 
   Future<void> _pickLogo() async {
-    FilePickerResult? result = await FilePicker.pickFiles(
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
       type: FileType.image,
     );
 

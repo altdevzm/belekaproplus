@@ -289,7 +289,7 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
   }
 
   Future<void> _pickImage() async {
-    final result = await FilePicker.pickFiles(
+    final result = await FilePicker.platform.pickFiles(
       type: FileType.image,
       allowMultiple: false,
     );
