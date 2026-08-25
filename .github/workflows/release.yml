@@ -1,4 +1,4 @@
-name: Release Beleka POS (Windows Only)
+name: Release Beleka POS (Windows & Android)
 
 on:
   push:
@@ -53,16 +53,16 @@ jobs:
           body: |
             ## 🏪 Beleka POS — ${{ steps.meta.outputs.tag }}
 
-            ### 📦 Downloads (Windows 8, 8.1, 10, 11)
+            ### 📦 Downloads
 
             | Platform | File | Notes |
             |----------|------|-------|
-            | 🪟 Windows | `Beleka_POS_Setup_v${{ steps.meta.outputs.version }}.exe` | Universal standalone installer for Windows 8, 8.1, 10, and 11 |
+            | 🪟 Windows | `Beleka_POS_Setup_v${{ steps.meta.outputs.version }}.exe` | Standalone installer for Windows 8, 8.1, 10, and 11 |
+            | 📱 Android | `Beleka_POS_v${{ steps.meta.outputs.version }}.apk` | Universal APK for Android phones, tablets, and POS devices |
 
-            ### 🚀 Windows Installation
-            1. Download `Beleka_POS_Setup_v${{ steps.meta.outputs.version }}.exe`
-            2. Run the installer (Right-click → **Run as administrator**)
-            3. Follow the setup wizard — all Microsoft runtimes for Windows 8, 10, and 11 are installed automatically.
+            ### 🚀 Installation Guide
+            - **Windows**: Download and run `Beleka_POS_Setup_v${{ steps.meta.outputs.version }}.exe` as Administrator.
+            - **Android**: Download and install `Beleka_POS_v${{ steps.meta.outputs.version }}.apk` on your mobile/tablet POS.
 
             ---
             *Built automatically by GitHub Actions · `${{ github.sha }}`*
@@ -134,11 +134,51 @@ jobs:
           files: build/windows/installer/Beleka_POS_Setup_v${{ needs.create-release.outputs.version }}.exe
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # Job 3: Publish the release
+  # Job 3: Build Android APK
+  # ─────────────────────────────────────────────────────────────────────────────
+  build-android:
+    name: Build Android APK
+    needs: create-release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Build Android APK
+        run: flutter build apk --release --build-name=${{ needs.create-release.outputs.version }}
+
+      - name: Stage Android APK
+        run: |
+          cp build/app/outputs/flutter-apk/app-release.apk Beleka_POS_v${{ needs.create-release.outputs.version }}.apk
+
+      - name: Upload APK to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.create-release.outputs.tag }}
+          files: Beleka_POS_v${{ needs.create-release.outputs.version }}.apk
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Job 4: Publish the release
   # ─────────────────────────────────────────────────────────────────────────────
   publish-release:
     name: Publish Release
-    needs: [create-release, build-windows]
+    needs: [create-release, build-windows, build-android]
     runs-on: ubuntu-latest
 
     steps:
@@ -147,3 +187,4 @@ jobs:
         with:
           tag_name: ${{ needs.create-release.outputs.tag }}
           draft: false
+
