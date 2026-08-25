@@ -39,8 +39,9 @@ class PostgresSyncService {
   /// Push/Sync a Store Branch to Cloud PostgreSQL DB.
   Future<bool> syncBranch(StoreBranch branch) async {
     final config = await isar.storeConfigs.where().findFirst();
-    final cloudUrl = config?.cloudApiUrl ?? (config?.serverIp != null ? 'http://${config!.serverIp}:8003' : null);
-    if (cloudUrl == null || cloudUrl.isEmpty) return false;
+    final cloudUrl = config?.cloudApiUrl?.isNotEmpty == true 
+        ? config!.cloudApiUrl! 
+        : (config?.serverIp?.isNotEmpty == true ? 'http://${config!.serverIp}:8003' : 'http://23.139.36.20:8003');
 
     return await cloudDb.syncBranch(
       baseUrl: cloudUrl,
@@ -50,8 +51,9 @@ class PostgresSyncService {
 
   /// Push/Sync Store Configuration (TPIN, DigiTax Key, Tax Settings) to Cloud DB.
   Future<bool> syncStoreConfigToCloud(StoreConfig config) async {
-    final cloudUrl = config.cloudApiUrl ?? (config.serverIp != null ? 'http://${config.serverIp}:8003' : null);
-    if (cloudUrl == null || cloudUrl.isEmpty) return false;
+    final cloudUrl = config.cloudApiUrl?.isNotEmpty == true 
+        ? config.cloudApiUrl! 
+        : (config.serverIp?.isNotEmpty == true ? 'http://${config.serverIp}:8003' : 'http://23.139.36.20:8003');
 
     final storeId = config.cloudStoreId ?? 1;
     return await cloudDb.updateStoreConfig(
@@ -77,8 +79,10 @@ class PostgresSyncService {
   /// Pull latest Store Configuration (TPIN, DigiTax Key, etc.) from Cloud DB into local Isar DB
   Future<bool> pullStoreConfigFromCloud() async {
     final config = await isar.storeConfigs.where().findFirst();
-    final cloudUrl = config?.cloudApiUrl ?? (config?.serverIp != null ? 'http://${config!.serverIp}:8003' : null);
-    if (cloudUrl == null || cloudUrl.isEmpty || config == null) return false;
+    if (config == null) return false;
+    final cloudUrl = config.cloudApiUrl?.isNotEmpty == true 
+        ? config.cloudApiUrl! 
+        : (config.serverIp?.isNotEmpty == true ? 'http://${config.serverIp}:8003' : 'http://23.139.36.20:8003');
 
     try {
       final stores = await cloudDb.getStores(cloudUrl);

@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:beleka_pos/models/models.dart';
 import 'package:beleka_pos/services/database_service.dart';
 import 'package:beleka_pos/services/digitax_inventory_service.dart';
+import 'package:beleka_pos/providers/store_provider.dart';
 
 class AddStockModal extends ConsumerStatefulWidget {
   final Product product;
@@ -176,29 +177,30 @@ class _AddStockModalState extends ConsumerState<AddStockModal> {
   Future<void> _save() async {
     if (_formKey.currentState?.validate() ?? false) {
       final quantityToAdd = int.parse(_quantityController.text);
-      final newStockLevel = widget.product.stockLevel + quantityToAdd;
+      final previousStock = widget.product.stockLevel;
+      final newStockLevel = previousStock + quantityToAdd;
       
       final db = ref.read(databaseServiceProvider);
-      // We need to create a proper copy or fetch the latest from DB if we are using Isar properly
-      // but creating a new object with the same ID works for an update.
-      final updatedProduct = Product(
-        sku: widget.product.sku,
-        name: widget.product.name,
-        price: widget.product.price,
-        unitCost: widget.product.unitCost,
-        stockLevel: newStockLevel,
-        categoryId: widget.product.categoryId,
-        sizes: widget.product.sizes,
-        colors: widget.product.colors,
-        imagePath: widget.product.imagePath,
-        isArchived: widget.product.isArchived,
-      )..id = widget.product.id;
+      
+      widget.product.stockLevel = newStockLevel;
+      await db.saveProduct(widget.product);
 
-      await db.saveProduct(updatedProduct);
-      ref.read(digitaxInventoryServiceProvider).syncSingleProductToDigitax(
-        updatedProduct,
-        previousStock: widget.product.stockLevel,
-      );
+      final storeConfig = ref.read(storeConfigProvider).value;
+      final branchCode = (storeConfig != null && storeConfig.bhfId.isNotEmpty)
+          ? storeConfig.bhfId
+          : widget.product.branchCode;
+
+      // Push stock update directly to DigiTax
+      try {
+        await ref.read(digitaxInventoryServiceProvider).syncSingleProductToDigitax(
+          widget.product,
+          previousStock: previousStock,
+          branchCode: branchCode,
+        );
+      } catch (e) {
+        debugPrint('DigiTax stock push notice: $e');
+      }
+
       if (mounted) Navigator.pop(context, true);
     }
   }

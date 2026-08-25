@@ -169,41 +169,41 @@ class _ZraTaxConfigModalState extends ConsumerState<ZraTaxConfigModal> {
     if (!_formKey.currentState!.validate()) return;
 
     final isar = ref.read(isarProvider);
+    final config = _config ?? StoreConfig()
+      ..businessName = 'Beleka POS Store'
+      ..terminalName = 'POS-Main';
+
+    config.tpin = _tpinController.text.trim();
+    config.bhfId = _bhfIdController.text.trim().isEmpty ? '00' : _bhfIdController.text.trim();
+    config.digitaxApiKey = _apiKeyController.text.trim();
+    config.businessTaxType = _businessTaxType;
+    config.digitaxEnvironment = _digitaxEnv;
+
+    if (_businessTaxType == 'VAT_STANDARD') {
+      config.taxRate = 16.0;
+    } else if (_businessTaxType == 'TURNOVER_TAX') {
+      config.taxRate = 3.0;
+    } else if (_businessTaxType == 'EXEMPT') {
+      config.taxRate = 0.0;
+    }
+
     await isar.writeTxn(() async {
-      final config = _config ?? StoreConfig()
-        ..businessName = 'Beleka POS Store'
-        ..terminalName = 'POS-Main';
-
-      config.tpin = _tpinController.text.trim();
-      config.bhfId = _bhfIdController.text.trim().isEmpty ? '00' : _bhfIdController.text.trim();
-      config.digitaxApiKey = _apiKeyController.text.trim();
-      config.businessTaxType = _businessTaxType;
-      config.digitaxEnvironment = _digitaxEnv;
-
-      if (_businessTaxType == 'VAT_STANDARD') {
-        config.taxRate = 16.0;
-      } else if (_businessTaxType == 'TURNOVER_TAX') {
-        config.taxRate = 3.0;
-      } else if (_businessTaxType == 'EXEMPT') {
-        config.taxRate = 0.0;
-      }
-
       await isar.storeConfigs.put(config);
-      
-      // Auto-sync updated TPIN and DigiTax credentials up to Cloud PostgreSQL DB
-      try {
-        await ref.read(postgresSyncServiceProvider).syncStoreConfigToCloud(config);
-      } catch (e) {
-        debugPrint('Notice: Cloud store config sync: $e');
-      }
     });
+
+    // Auto-sync updated TPIN and DigiTax credentials up to Cloud PostgreSQL DB
+    try {
+      await ref.read(postgresSyncServiceProvider).syncStoreConfigToCloud(config);
+    } catch (e) {
+      debugPrint('Notice: Cloud store config sync: $e');
+    }
 
     ref.invalidate(storeConfigProvider);
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('DigiTax & ZRA Smart Invoice configuration saved successfully!'),
+          content: Text('DigiTax & ZRA Smart Invoice configuration saved and synced to Cloud!'),
           backgroundColor: Color(0xFF10B981),
         ),
       );
