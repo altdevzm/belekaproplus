@@ -95,17 +95,19 @@ class DigiTaxInventoryService {
   // 1. DE-DUPLICATION ENGINE
   // --------------------------------------------------------------------------
 
-  /// Purge all duplicate products in the local database, keeping only one unique entry per name/SKU
-  Future<int> deduplicateLocalProducts() async {
+  /// Purge all duplicate products in the local database, keeping only one unique entry per name/SKU per branch
+  Future<int> deduplicateLocalProducts({String? branchCode}) async {
     final db = ref.read(databaseServiceProvider);
-    final allProducts = await db.isar.products.where().findAll();
+    final allProducts = branchCode != null 
+        ? await db.getAllProducts(branchCode: branchCode)
+        : await db.isar.products.where().findAll();
     
     final Map<String, Product> uniqueMap = {};
     final List<Id> duplicateIdsToDelete = [];
 
     for (final p in allProducts) {
-      final nameKey = p.name.trim().toLowerCase();
-      if (nameKey.isEmpty) continue;
+      final nameKey = '${p.branchCode}_${p.name.trim().toLowerCase()}';
+      if (p.name.trim().isEmpty) continue;
 
       if (uniqueMap.containsKey(nameKey)) {
         final existing = uniqueMap[nameKey]!;
@@ -322,7 +324,7 @@ class DigiTaxInventoryService {
         }
       }
 
-      // 3. Pull remote items down to POS (Update existing, never duplicate)
+      // 3. Pull remote items down to POS (Update existing, never duplicate, isolate per branch)
       for (final r in remoteList) {
         if (r is Map) {
           final rId = (r['id'] ?? '').toString();
@@ -335,21 +337,21 @@ class DigiTaxInventoryService {
 
           if (rName.isEmpty) continue;
 
+          // Strictly match product belonging to THIS branch
           final existing = await db.isar.products
               .filter()
-              .nameEqualTo(rName, caseSensitive: false)
-              .or()
-              .skuEqualTo(rBarcode.isNotEmpty ? rBarcode : (rItemCode.isNotEmpty ? rItemCode : rId))
+              .branchCodeEqualTo(bhfId)
+              .and()
+              .group((q) => q
+                  .nameEqualTo(rName, caseSensitive: false)
+                  .or()
+                  .skuEqualTo(rBarcode.isNotEmpty ? rBarcode : (rItemCode.isNotEmpty ? rItemCode : rId)))
               .findFirst();
 
           if (existing != null) {
             bool modified = false;
             if (existing.price == 0 && rPrice > 0) {
               existing.price = rPrice;
-              modified = true;
-            }
-            if (rQty > 0 && existing.stockLevel != rQty) {
-              existing.stockLevel = rQty;
               modified = true;
             }
             if (rId.isNotEmpty && existing.itemClsCd != rId) {
@@ -367,7 +369,9 @@ class DigiTaxInventoryService {
                 await db.isar.products.put(existing);
               });
             }
-          } else {
+          } else if (bhfId == '00') {
+            // ONLY Headquarters ('00') can auto-create products from DigiTax catalog.
+            // Branches NEVER import HQ items into their isolated branch inventory!
             final finalSku = rBarcode.isNotEmpty 
                 ? rBarcode 
                 : (rItemCode.isNotEmpty ? rItemCode : (rId.isNotEmpty ? rId : 'SKU-${DateTime.now().millisecondsSinceEpoch}'));
@@ -382,7 +386,7 @@ class DigiTaxInventoryService {
               zraTaxCode: ['A', 'B', 'C', 'E', 'TOT'].contains(rTaxCode) ? rTaxCode : 'A',
               taxRate: rTaxCode == 'A' ? 16.0 : (rTaxCode == 'TOT' ? 3.0 : 0.0),
               isTaxInclusive: true,
-              branchCode: bhfId,
+              branchCode: '00',
               isSyncedWithDigitax: true,
               lastDigitaxSyncDate: DateTime.now(),
             );
@@ -392,8 +396,8 @@ class DigiTaxInventoryService {
         }
       }
 
-      // 4. Push local products & quantity changes UP to DigiTax (Only if Tax Inclusive!)
-      final localProducts = await db.isar.products.where().findAll();
+      // 4. Push local products & quantity changes UP to DigiTax (Only for products belonging to this branch!)
+      final localProducts = await db.getAllProducts(branchCode: bhfId);
 
       for (final p in localProducts) {
         // Tax Exclusive items are local-only stock: do not push to DigiTax
