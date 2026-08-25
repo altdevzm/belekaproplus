@@ -232,6 +232,16 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
           ..role = 'manager'
           ..branchName = storeName;
         await db.saveUser(activeUser);
+
+        // Also push manager user to Cloud DB for future terminal syncs
+        try {
+          await cloudService.syncUser(
+            baseUrl: baseUrl,
+            storeId: storeId,
+            user: activeUser,
+            plainPin: pin,
+          );
+        } catch (_) {}
       }
 
       setState(() => _statusMessage = 'Syncing cloud catalog & products...');
