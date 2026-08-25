@@ -1642,9 +1642,14 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         isTaxInclusiveAtSale: item.product.isTaxInclusive,
       )).toList();
 
+      final currentUser = ref.read(authProvider);
+
       final transaction = SaleTransaction(
         totalAmount: total,
         paymentMethod: _selectedPaymentMethod,
+        cashierName: currentUser?.name ?? 'Cashier',
+        cashierId: currentUser?.id.toString(),
+        terminalName: config?.terminalName ?? 'TILL-01',
         subtotal: cartNotifier.subtotal,
         taxAmount: cartNotifier.tax,
         discountAmount: cartState.discountAmount,
@@ -1653,6 +1658,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         customerTpin: cartState.customerTpin,
         customerBusinessName: cartState.customerBusinessName,
         customerAddress: cartState.customerAddress,
+        zraSdcId: config?.sdcId,
       );
 
       await db.saveTransaction(transaction, saleItems);
