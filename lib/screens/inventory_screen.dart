@@ -22,7 +22,25 @@ final inventoryBranchFilterProvider = StateProvider<String?>((ref) => null);
 final inventoryProductsProvider = StreamProvider<List<Product>>((ref) {
   final db = ref.watch(databaseServiceProvider);
   final showArchived = ref.watch(showArchivedProvider);
-  return db.watchAllProducts(includeArchived: showArchived);
+  final isOwner = ref.watch(isOwnerProvider);
+  final currentUser = ref.watch(authProvider);
+  final storeConfig = ref.watch(storeConfigProvider).value;
+  final activeBranchFilter = ref.watch(inventoryBranchFilterProvider);
+
+  // If Branch Manager/Cashier: strictly isolate to their specific branch bhfId
+  final String? effectiveBranchCode;
+  if (!isOwner) {
+    effectiveBranchCode = (storeConfig != null && storeConfig.bhfId.isNotEmpty)
+        ? storeConfig.bhfId
+        : (currentUser?.branchCode ?? '00');
+  } else {
+    effectiveBranchCode = activeBranchFilter; // Owner can view all or filter by branch
+  }
+
+  return db.watchAllProducts(
+    includeArchived: showArchived,
+    branchCode: effectiveBranchCode,
+  );
 });
 
 class InventoryScreen extends ConsumerStatefulWidget {

@@ -86,18 +86,28 @@ class DatabaseService {
   }
 
   // Product methods
-  Future<List<Product>> getAllProducts({bool includeArchived = false}) async {
-    if (includeArchived) {
+  Future<List<Product>> getAllProducts({bool includeArchived = false, String? branchCode}) async {
+    if (!includeArchived && branchCode != null && branchCode.isNotEmpty) {
+      return await isar.products.filter().isArchivedEqualTo(false).and().branchCodeEqualTo(branchCode).findAll();
+    } else if (!includeArchived) {
+      return await isar.products.filter().isArchivedEqualTo(false).findAll();
+    } else if (branchCode != null && branchCode.isNotEmpty) {
+      return await isar.products.filter().branchCodeEqualTo(branchCode).findAll();
+    } else {
       return await isar.products.where().findAll();
     }
-    return await isar.products.filter().isArchivedEqualTo(false).findAll();
   }
 
-  Stream<List<Product>> watchAllProducts({bool includeArchived = false}) {
-    if (includeArchived) {
+  Stream<List<Product>> watchAllProducts({bool includeArchived = false, String? branchCode}) {
+    if (!includeArchived && branchCode != null && branchCode.isNotEmpty) {
+      return isar.products.filter().isArchivedEqualTo(false).and().branchCodeEqualTo(branchCode).build().watch(fireImmediately: true);
+    } else if (!includeArchived) {
+      return isar.products.filter().isArchivedEqualTo(false).build().watch(fireImmediately: true);
+    } else if (branchCode != null && branchCode.isNotEmpty) {
+      return isar.products.filter().branchCodeEqualTo(branchCode).build().watch(fireImmediately: true);
+    } else {
       return isar.products.where().build().watch(fireImmediately: true);
     }
-    return isar.products.filter().isArchivedEqualTo(false).build().watch(fireImmediately: true);
   }
 
   Future<Product?> getProductBySku(String sku) async {

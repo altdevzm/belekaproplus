@@ -16,7 +16,20 @@ import 'package:beleka_pos/providers/auth_provider.dart';
 
 final productsProvider = StreamProvider<List<Product>>((ref) {
   final db = ref.watch(databaseServiceProvider);
-  return db.watchAllProducts();
+  final isOwner = ref.watch(isOwnerProvider);
+  final currentUser = ref.watch(authProvider);
+  final storeConfig = ref.watch(storeConfigProvider).value;
+
+  final String? effectiveBranchCode;
+  if (!isOwner) {
+    effectiveBranchCode = (storeConfig != null && storeConfig.bhfId.isNotEmpty)
+        ? storeConfig.bhfId
+        : (currentUser?.branchCode ?? '00');
+  } else {
+    effectiveBranchCode = null; // Owner/HQ can sell all or default branch products
+  }
+
+  return db.watchAllProducts(branchCode: effectiveBranchCode);
 });
 
 class SalesScreen extends ConsumerStatefulWidget {
