@@ -5,6 +5,7 @@ import 'package:isar/isar.dart';
 import 'package:beleka_pos/models/models.dart';
 import 'package:beleka_pos/services/database_service.dart';
 import 'package:beleka_pos/providers/store_provider.dart';
+import 'package:beleka_pos/providers/auth_provider.dart';
 import 'package:beleka_pos/services/digitax_inventory_service.dart';
 
 class ZraTaxConfigModal extends ConsumerStatefulWidget {
@@ -204,6 +205,8 @@ class _ZraTaxConfigModalState extends ConsumerState<ZraTaxConfigModal> {
 
   @override
   Widget build(BuildContext context) {
+    final isBranchManager = ref.watch(isBranchManagerProvider);
+
     return Dialog(
       backgroundColor: const Color(0xFF16161A),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -257,6 +260,29 @@ class _ZraTaxConfigModalState extends ConsumerState<ZraTaxConfigModal> {
               const Divider(color: Colors.white12, height: 1),
               const SizedBox(height: 16),
 
+              if (isBranchManager)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.lock_rounded, color: Colors.amber, size: 20),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Centrally Configured at Headquarters: DigiTax API credentials, live ZRA environment, and company TPIN are managed by the Corporate Owner at Headquarters. These settings are read-only for this branch.',
+                          style: GoogleFonts.inter(color: Colors.amber, fontSize: 12, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
               Expanded(
                 child: SingleChildScrollView(
                   child: Column(
@@ -309,9 +335,11 @@ class _ZraTaxConfigModalState extends ConsumerState<ZraTaxConfigModal> {
                             child: Text('Composite / Mixed Tax (Per-Product Categorization)'),
                           ),
                         ],
-                        onChanged: (val) {
-                          if (val != null) setState(() => _businessTaxType = val);
-                        },
+                        onChanged: isBranchManager
+                            ? null
+                            : (val) {
+                                if (val != null) setState(() => _businessTaxType = val);
+                              },
                       ),
                       const SizedBox(height: 20),
 
@@ -333,6 +361,7 @@ class _ZraTaxConfigModalState extends ConsumerState<ZraTaxConfigModal> {
                             flex: 3,
                             child: TextFormField(
                               controller: _tpinController,
+                              readOnly: isBranchManager,
                               style: const TextStyle(color: Colors.white),
                               keyboardType: TextInputType.number,
                               decoration: InputDecoration(
@@ -358,6 +387,7 @@ class _ZraTaxConfigModalState extends ConsumerState<ZraTaxConfigModal> {
                             flex: 2,
                             child: TextFormField(
                               controller: _bhfIdController,
+                              readOnly: isBranchManager,
                               style: const TextStyle(color: Colors.white),
                               decoration: InputDecoration(
                                 labelText: 'Branch Code (bhfId)',
@@ -392,9 +422,11 @@ class _ZraTaxConfigModalState extends ConsumerState<ZraTaxConfigModal> {
                                 DropdownMenuItem(value: 'sandbox', child: Text('Sandbox (Test Mode)')),
                                 DropdownMenuItem(value: 'production', child: Text('Production (Live ZRA)')),
                               ],
-                              onChanged: (val) {
-                                if (val != null) setState(() => _digitaxEnv = val);
-                              },
+                              onChanged: isBranchManager
+                                  ? null
+                                  : (val) {
+                                      if (val != null) setState(() => _digitaxEnv = val);
+                                    },
                             ),
                           ),
                         ],
@@ -404,6 +436,7 @@ class _ZraTaxConfigModalState extends ConsumerState<ZraTaxConfigModal> {
                       TextFormField(
                         controller: _apiKeyController,
                         obscureText: _obscureApiKey,
+                        readOnly: isBranchManager,
                         style: const TextStyle(color: Colors.white),
                         decoration: InputDecoration(
                           labelText: 'DigiTax Secret API Key',
@@ -671,20 +704,22 @@ class _ZraTaxConfigModalState extends ConsumerState<ZraTaxConfigModal> {
                       foregroundColor: Colors.white70,
                       side: const BorderSide(color: Colors.white24),
                     ),
-                    child: const Text('Cancel'),
+                    child: Text(isBranchManager ? 'Close' : 'Cancel'),
                   ),
-                  const SizedBox(width: 12),
-                  ElevatedButton.icon(
-                    onPressed: _saveConfig,
-                    icon: const Icon(Icons.check_circle_rounded, size: 18),
-                    label: const Text('Save ZRA Settings'),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                      backgroundColor: const Color(0xFF10B981),
-                      foregroundColor: Colors.black,
-                      textStyle: GoogleFonts.inter(fontWeight: FontWeight.bold),
+                  if (!isBranchManager) ...[
+                    const SizedBox(width: 12),
+                    ElevatedButton.icon(
+                      onPressed: _saveConfig,
+                      icon: const Icon(Icons.check_circle_rounded, size: 18),
+                      label: const Text('Save ZRA Settings'),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        backgroundColor: const Color(0xFF10B981),
+                        foregroundColor: Colors.black,
+                        textStyle: GoogleFonts.inter(fontWeight: FontWeight.bold),
+                      ),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ],

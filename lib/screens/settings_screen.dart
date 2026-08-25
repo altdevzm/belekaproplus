@@ -150,18 +150,20 @@ class SettingsScreen extends ConsumerWidget {
                     builder: (context) => const BackupSettingsModal(),
                   ),
                 ),
-                if (!isBranchManager)
-                  _buildSettingsCard(
-                    context,
-                    'DigiTax & ZRA Smart Invoice',
-                    'Configure DigiTax API Key, Environment & Live Tax Rates',
-                    Icons.receipt_long_rounded,
-                    const Color(0xFF10B981),
-                    onPressed: () => showDialog(
-                      context: context,
-                      builder: (context) => const ZraTaxConfigModal(),
-                    ),
+                _buildSettingsCard(
+                  context,
+                  'DigiTax & ZRA Smart Invoice',
+                  isBranchManager
+                      ? 'Centrally configured at Headquarters • Read-Only for Branch'
+                      : 'Configure DigiTax API Key, Environment & Live Tax Rates',
+                  Icons.receipt_long_rounded,
+                  isBranchManager ? Colors.white38 : const Color(0xFF10B981),
+                  buttonLabel: isBranchManager ? 'View (Locked)' : 'Configure',
+                  onPressed: () => showDialog(
+                    context: context,
+                    builder: (context) => const ZraTaxConfigModal(),
                   ),
+                ),
                 _buildSettingsCard(
                   context,
                   'Network & Multi-Till Sync',

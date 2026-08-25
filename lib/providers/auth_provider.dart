@@ -33,22 +33,22 @@ class AuthNotifier extends Notifier<User?> {
 /// Provider to track the currently logged-in User.
 final authProvider = NotifierProvider<AuthNotifier, User?>(AuthNotifier.new);
 
-/// Convenient provider to check if an Admin is logged in.
+/// Convenient provider to check if a Headquarters Super Admin is logged in.
 final isAdminProvider = Provider<bool>((ref) {
   final user = ref.watch(authProvider);
-  return user?.role == 'admin' || user?.role == 'owner' || user?.role == 'manager';
+  return user?.role == 'admin' || user?.role == 'owner';
 });
 
-/// Convenient provider to check if an Owner / Corporate Admin is logged in.
+/// Convenient provider to check if Corporate Owner / HQ Admin is logged in.
 final isOwnerProvider = Provider<bool>((ref) {
   final user = ref.watch(authProvider);
-  return user?.role == 'owner' || user?.role == 'admin' || user?.role == 'manager';
+  return user?.role == 'owner' || user?.role == 'admin';
 });
 
 /// Convenient provider to check if a Branch Manager is logged in.
 final isBranchManagerProvider = Provider<bool>((ref) {
   final user = ref.watch(authProvider);
-  return user?.role == 'branch_manager';
+  return user?.role == 'branch_manager' || user?.role == 'manager';
 });
 
 /// Convenient provider to check if any Manager or Owner is logged in.

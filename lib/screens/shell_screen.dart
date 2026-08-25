@@ -139,23 +139,25 @@ class ShellScreen extends ConsumerWidget {
   }
 
   List<_NavDestination> _getNavigationDestinations(User? user) {
-    if (user?.role == 'branch_manager') {
-      return const [
-        _NavDestination(ScreenType.dashboard, Icons.dashboard_rounded, 'Overview'),
-        _NavDestination(ScreenType.inventory, Icons.inventory_2_rounded, 'Stock'),
-        _NavDestination(ScreenType.purchases, Icons.shopping_bag_rounded, 'Purchases'),
-        _NavDestination(ScreenType.accounts, Icons.account_balance_wallet_rounded, 'Accounts'),
-        _NavDestination(ScreenType.terminals, Icons.monitor_rounded, 'Terminals'),
-        _NavDestination(ScreenType.reports, Icons.assessment_rounded, 'Reports'),
-        _NavDestination(ScreenType.settings, Icons.settings_rounded, 'Settings'),
-      ];
-    } else if (user?.role == 'owner' || user?.role == 'admin' || user?.role == 'manager') {
+    if (user?.role == 'owner' || user?.role == 'admin') {
+      // Headquarters / Corporate Owner (Can manage branches & multi-stores)
       return const [
         _NavDestination(ScreenType.dashboard, Icons.dashboard_rounded, 'Overview'),
         _NavDestination(ScreenType.inventory, Icons.inventory_2_rounded, 'Stock'),
         _NavDestination(ScreenType.purchases, Icons.shopping_bag_rounded, 'Purchases'),
         _NavDestination(ScreenType.accounts, Icons.account_balance_wallet_rounded, 'Accounts'),
         _NavDestination(ScreenType.branches, Icons.store_rounded, 'Branches'),
+        _NavDestination(ScreenType.terminals, Icons.monitor_rounded, 'Terminals'),
+        _NavDestination(ScreenType.reports, Icons.assessment_rounded, 'Reports'),
+        _NavDestination(ScreenType.settings, Icons.settings_rounded, 'Settings'),
+      ];
+    } else if (user?.role == 'branch_manager' || user?.role == 'manager') {
+      // Branch Manager (No access to create/manage other corporate branches)
+      return const [
+        _NavDestination(ScreenType.dashboard, Icons.dashboard_rounded, 'Overview'),
+        _NavDestination(ScreenType.inventory, Icons.inventory_2_rounded, 'Stock'),
+        _NavDestination(ScreenType.purchases, Icons.shopping_bag_rounded, 'Purchases'),
+        _NavDestination(ScreenType.accounts, Icons.account_balance_wallet_rounded, 'Accounts'),
         _NavDestination(ScreenType.terminals, Icons.monitor_rounded, 'Terminals'),
         _NavDestination(ScreenType.reports, Icons.assessment_rounded, 'Reports'),
         _NavDestination(ScreenType.settings, Icons.settings_rounded, 'Settings'),

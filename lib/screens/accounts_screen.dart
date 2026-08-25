@@ -9,6 +9,7 @@ import 'package:beleka_pos/providers/store_provider.dart';
 import 'package:beleka_pos/providers/auth_provider.dart';
 import 'package:beleka_pos/services/database_service.dart';
 import 'package:beleka_pos/services/export_service.dart';
+import 'package:beleka_pos/services/postgres_sync_service.dart';
 
 // --- DATA PROVIDERS ---
 
@@ -1376,6 +1377,14 @@ class _CloseShiftModalState extends ConsumerState<_CloseShiftModal> {
 
     ref.invalidate(activeShiftProvider);
     ref.invalidate(cashShiftsProvider);
+
+    // Automatically push end-of-day branch sales to Headquarters Cloud DB
+    try {
+      ref.read(postgresSyncServiceProvider).syncPendingTransactions();
+    } catch (e) {
+      debugPrint('Cloud sync on shift close notice: $e');
+    }
+
     if (mounted) Navigator.pop(context);
   }
 

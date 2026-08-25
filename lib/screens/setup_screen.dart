@@ -170,9 +170,15 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
 
       final storeId = targetStore != null ? (targetStore['id'] as int? ?? 1) : 1;
       final storeName = targetStore != null ? (targetStore['name'] as String? ?? 'Beleka Branch') : 'Branch Store';
+      final branchName = targetStore != null ? (targetStore['branch_name'] as String? ?? 'Main Branch') : 'Branch 01';
       final bhfId = targetStore != null ? (targetStore['bhf_id'] as String? ?? '00') : '00';
-      final tpin = targetStore != null ? (targetStore['tpin'] as String? ?? '') : '';
+      final rawTpin = targetStore != null ? (targetStore['tpin'] as String?) : null;
+      final tpin = (rawTpin != null && rawTpin.trim().isNotEmpty) ? rawTpin.trim() : '1234567890';
       final finalStoreCode = targetStore != null ? (targetStore['store_code'] as String? ?? storeCode) : storeCode;
+      final businessTaxType = targetStore != null ? (targetStore['business_tax_type'] as String? ?? 'VAT_STANDARD') : 'VAT_STANDARD';
+      final digitaxApiKey = targetStore != null ? (targetStore['digitax_api_key'] as String? ?? '') : '';
+      final digitaxEnv = targetStore != null ? (targetStore['digitax_environment'] as String? ?? 'sandbox') : 'sandbox';
+      final currency = targetStore != null ? (targetStore['currency_symbol'] as String? ?? 'ZK') : 'ZK';
 
       setState(() => _statusMessage = 'Authenticating staff user on Cloud DB...');
 
@@ -187,12 +193,13 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
         }
       }
 
-      // 4. Save Store Config
+      // 4. Save Store Config with full headquarters data
       final recoveryCode = _generateRecoveryCode();
       final config = StoreConfig()
         ..businessName = storeName
+        ..branchName = branchName
         ..terminalName = 'BRANCH-TERMINAL'
-        ..currencySymbol = 'ZK'
+        ..currencySymbol = currency
         ..isManagerMode = true
         ..isCloudSyncEnabled = true
         ..cloudApiUrl = baseUrl
@@ -200,6 +207,10 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
         ..cloudStoreCode = finalStoreCode
         ..bhfId = bhfId
         ..tpin = tpin
+        ..businessTaxType = businessTaxType
+        ..digitaxApiKey = digitaxApiKey
+        ..digitaxEnvironment = digitaxEnv
+        ..taxRate = businessTaxType == 'TURNOVER_TAX' ? 3.0 : (businessTaxType == 'EXEMPT' ? 0.0 : 16.0)
         ..recoveryCodeHash = hashPin(recoveryCode);
 
       await db.saveStoreConfig(config);

@@ -8,6 +8,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:beleka_pos/services/database_service.dart';
 import 'package:beleka_pos/models/models.dart';
 import 'package:beleka_pos/providers/store_provider.dart';
+import 'package:beleka_pos/providers/auth_provider.dart';
 import 'package:beleka_pos/services/network_client.dart';
 
 class StoreConfigModal extends ConsumerStatefulWidget {
@@ -204,29 +205,22 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
   @override
   Widget build(BuildContext context) {
     final activeBrandColor = _parseHexColor(_selectedBrandColorHex);
+    final isBranchManager = ref.watch(isBranchManagerProvider);
 
     return Dialog(
-      backgroundColor: Colors.transparent,
+      backgroundColor: const Color(0xFF141418),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+      ),
       child: Container(
-        width: 580,
-        constraints: const BoxConstraints(maxHeight: 780),
-        decoration: BoxDecoration(
-          color: const Color(0xFF141418),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.5),
-              blurRadius: 40,
-              offset: const Offset(0, 10),
-            ),
-          ],
-        ),
-        padding: const EdgeInsets.all(32),
+        width: 800,
+        height: 850,
+        padding: const EdgeInsets.all(28),
         child: Form(
           key: _formKey,
           child: Column(
-            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Header
@@ -274,6 +268,28 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
                 ],
               ),
               const SizedBox(height: 24),
+              if (isBranchManager)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.lock_rounded, color: Colors.amber, size: 20),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Branch Mode Active: Company Name, TPIN, and ZRA Compliance settings are managed by Headquarters and are locked in read-only mode.',
+                          style: GoogleFonts.inter(color: Colors.amber, fontSize: 12, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               if (_isLoading)
                 Center(child: CircularProgressIndicator(color: activeBrandColor))
               else ...[
@@ -295,6 +311,7 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
                                 label: 'STORE / COMPANY NAME', 
                                 hint: 'e.g. Beleka Retail Ltd',
                                 controller: _nameController,
+                                readOnly: isBranchManager,
                               ),
                             ),
                             const SizedBox(width: 16),
@@ -369,9 +386,10 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
                             Expanded(
                               child: _buildTextField(
                                 label: 'ZRA TPIN / TAX PIN', 
-                                hint: '1001646043',
+                                hint: '1234567890',
                                 controller: _tpinController,
                                 isOptional: true,
+                                readOnly: isBranchManager,
                               ),
                             ),
                             const SizedBox(width: 16),
@@ -381,6 +399,7 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
                                 hint: '1234567890',
                                 controller: _taxIdController,
                                 isOptional: true,
+                                readOnly: isBranchManager,
                               ),
                             ),
                           ],
@@ -394,6 +413,7 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
                                 hint: '16.0',
                                 controller: _taxController,
                                 keyboardType: TextInputType.number,
+                                readOnly: isBranchManager,
                               ),
                             ),
                             const SizedBox(width: 16),
@@ -415,6 +435,7 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
                                 hint: 'SDC00300000014',
                                 controller: _sdcIdController,
                                 isOptional: true,
+                                readOnly: isBranchManager,
                               ),
                             ),
                             const SizedBox(width: 16),
@@ -424,6 +445,7 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
                                 hint: 'WIS00013845',
                                 controller: _mrcNoController,
                                 isOptional: true,
+                                readOnly: isBranchManager,
                               ),
                             ),
                           ],
@@ -1049,6 +1071,7 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
     TextEditingController? controller,
     TextInputType? keyboardType,
     bool isOptional = false,
+    bool readOnly = false,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1071,19 +1094,30 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
                 style: GoogleFonts.inter(fontSize: 8.5, color: Colors.white24),
               ),
             ],
+            if (readOnly) ...[
+              const SizedBox(width: 6),
+              Text(
+                '(LOCKED / HQ)',
+                style: GoogleFonts.inter(fontSize: 8.5, color: Colors.amberAccent, fontWeight: FontWeight.bold),
+              ),
+            ],
           ],
         ),
         const SizedBox(height: 8),
         Container(
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.03),
+            color: readOnly ? Colors.white.withValues(alpha: 0.01) : Colors.white.withValues(alpha: 0.03),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+            border: Border.all(color: readOnly ? Colors.white.withValues(alpha: 0.02) : Colors.white.withValues(alpha: 0.05)),
           ),
           child: TextFormField(
             controller: controller,
             keyboardType: keyboardType,
-            style: GoogleFonts.inter(color: Colors.white, fontSize: 13),
+            readOnly: readOnly,
+            style: GoogleFonts.inter(
+              color: readOnly ? Colors.white60 : Colors.white,
+              fontSize: 13,
+            ),
             decoration: InputDecoration(
               hintText: hint,
               hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.15)),
