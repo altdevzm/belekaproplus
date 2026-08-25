@@ -30,9 +30,9 @@ final inventoryProductsProvider = StreamProvider<List<Product>>((ref) {
   // If Branch Manager/Cashier: strictly isolate to their specific branch bhfId
   final String? effectiveBranchCode;
   if (!isOwner) {
-    effectiveBranchCode = (storeConfig != null && storeConfig.bhfId.isNotEmpty)
-        ? storeConfig.bhfId
-        : (currentUser?.branchCode ?? '00');
+    effectiveBranchCode = (currentUser?.branchCode != null && currentUser!.branchCode!.isNotEmpty && currentUser.branchCode != '00')
+        ? currentUser.branchCode!
+        : ((storeConfig != null && storeConfig.bhfId.isNotEmpty) ? storeConfig.bhfId : '00');
   } else {
     effectiveBranchCode = activeBranchFilter; // Owner can view all or filter by branch
   }

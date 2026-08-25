@@ -653,9 +653,9 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
       final durationDays = _hasDiscount ? int.tryParse(_discountDurationController.text) : null;
       
       final storeConfig = ref.read(storeConfigProvider).value;
-      final branchBhfId = (storeConfig != null && storeConfig.bhfId.isNotEmpty) 
-          ? storeConfig.bhfId 
-          : (currentUser?.branchCode ?? '00');
+      final branchBhfId = (currentUser?.branchCode != null && currentUser!.branchCode!.isNotEmpty && currentUser.branchCode != '00')
+          ? currentUser.branchCode!
+          : ((storeConfig != null && storeConfig.bhfId.isNotEmpty) ? storeConfig.bhfId : '00');
       final branchName = (storeConfig != null && storeConfig.branchName != null && storeConfig.branchName!.isNotEmpty)
           ? storeConfig.branchName!
           : (currentUser?.branchName ?? 'Main Branch');

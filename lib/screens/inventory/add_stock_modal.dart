@@ -5,6 +5,7 @@ import 'package:beleka_pos/models/models.dart';
 import 'package:beleka_pos/services/database_service.dart';
 import 'package:beleka_pos/services/digitax_inventory_service.dart';
 import 'package:beleka_pos/providers/store_provider.dart';
+import 'package:beleka_pos/providers/auth_provider.dart';
 
 class AddStockModal extends ConsumerStatefulWidget {
   final Product product;
@@ -185,10 +186,13 @@ class _AddStockModalState extends ConsumerState<AddStockModal> {
       widget.product.stockLevel = newStockLevel;
       await db.saveProduct(widget.product);
 
+      final currentUser = ref.read(authProvider);
       final storeConfig = ref.read(storeConfigProvider).value;
-      final branchCode = (storeConfig != null && storeConfig.bhfId.isNotEmpty)
-          ? storeConfig.bhfId
-          : widget.product.branchCode;
+      final branchCode = (currentUser?.branchCode != null && currentUser!.branchCode!.isNotEmpty && currentUser.branchCode != '00')
+          ? currentUser.branchCode!
+          : ((storeConfig != null && storeConfig.bhfId.isNotEmpty)
+              ? storeConfig.bhfId
+              : widget.product.branchCode);
 
       // Push stock update directly to DigiTax
       bool digitaxSynced = false;

@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:beleka_pos/models/models.dart';
 import 'package:beleka_pos/providers/users_provider.dart';
+import 'package:beleka_pos/providers/store_provider.dart';
+import 'package:beleka_pos/providers/auth_provider.dart';
 import 'package:beleka_pos/services/database_service.dart';
 import 'package:beleka_pos/services/postgres_sync_service.dart';
 
@@ -337,12 +339,17 @@ class _AddUserModalState extends ConsumerState<AddUserModal> {
         }
       }
 
+      final storeConfig = ref.read(storeConfigProvider).value;
+      final currentUser = ref.read(authProvider);
+
       final user = widget.userToEdit ?? User();
       user.name = _nameController.text;
       user.numericId = _numericIdController.text;
       user.role = _role;
+      user.branchCode ??= (storeConfig?.bhfId.isNotEmpty == true) ? storeConfig!.bhfId : (currentUser?.branchCode ?? '00');
+      user.branchName ??= (storeConfig?.branchName?.isNotEmpty == true) ? storeConfig!.branchName : (currentUser?.branchName ?? 'Main Branch');
 
-      final rawPassword = _passwordController.text;
+      final rawPassword = _passwordController.text.trim();
       if (rawPassword.isNotEmpty) {
         user.passwordHash = hashPin(rawPassword);
       }
@@ -350,7 +357,10 @@ class _AddUserModalState extends ConsumerState<AddUserModal> {
 
       await ref.read(usersProvider.notifier).saveUser(user);
       try {
-        ref.read(postgresSyncServiceProvider).syncUser(user);
+        ref.read(postgresSyncServiceProvider).syncUser(
+          user,
+          plainPin: rawPassword.isNotEmpty ? rawPassword : null,
+        );
       } catch (_) {}
       if (mounted) Navigator.pop(context);
     }

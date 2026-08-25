@@ -784,7 +784,13 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
                             // Sync to Cloud PostgreSQL Database
                             try {
                               ref.read(postgresSyncServiceProvider).syncBranch(targetBranch);
-                              if (selectedUserId != null) {
+                              if (isCreateNewUser && finalMgrId != null) {
+                                final db = ref.read(databaseServiceProvider);
+                                final newMgr = await db.getUserByNumericId(finalMgrId);
+                                if (newMgr != null) {
+                                  ref.read(postgresSyncServiceProvider).syncUser(newMgr, plainPin: newMgrPinCtrl.text.trim());
+                                }
+                              } else if (selectedUserId != null) {
                                 final matchedUser = users.firstWhere((u) => u.numericId == selectedUserId);
                                 ref.read(postgresSyncServiceProvider).syncUser(matchedUser);
                               }

@@ -153,11 +153,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
           if (cloudAuth != null && cloudAuth['user'] is Map) {
             final uData = cloudAuth['user'] as Map;
+            final sData = (cloudAuth['store'] is Map) ? cloudAuth['store'] as Map : null;
+            final branchBhfId = sData?['bhf_id']?.toString() ?? uData['branch_code']?.toString() ?? '00';
+            final branchName = sData?['branch_name']?.toString() ?? sData?['name']?.toString() ?? uData['branch_name']?.toString() ?? 'Main Branch';
+
             final remoteUser = User()
               ..numericId = uData['numeric_id']?.toString() ?? _idController.text.trim()
               ..name = uData['name']?.toString() ?? 'Branch Manager'
               ..role = uData['role']?.toString() ?? 'branch_manager'
-              ..branchName = uData['branch_name']?.toString()
+              ..branchCode = branchBhfId
+              ..branchName = branchName
               ..phone = uData['phone']?.toString()
               ..passwordHash = hashPin(_pin.trim())
               ..isActive = true;
@@ -169,12 +174,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               }
               await db.isar.users.put(remoteUser);
 
-              // If store branch info was returned, update local branch profile
-              if (cloudAuth['store'] is Map && config != null) {
-                final sData = cloudAuth['store'] as Map;
-                if (sData['name'] != null) config.businessName = sData['name'].toString();
-                if (sData['bhf_id'] != null) config.bhfId = sData['bhf_id'].toString();
-                if (sData['branch_name'] != null) config.branchName = sData['branch_name'].toString();
+              // Update local store profile with cloud branch credentials
+              if (config != null) {
+                config.bhfId = branchBhfId;
+                if (sData != null) {
+                  if (sData['name'] != null) config.businessName = sData['name'].toString();
+                  if (sData['branch_name'] != null) config.branchName = sData['branch_name'].toString();
+                  if (sData['tpin'] != null && (sData['tpin'] as String).isNotEmpty) config.tpin = sData['tpin'].toString();
+                  if (sData['digitax_api_key'] != null && (sData['digitax_api_key'] as String).isNotEmpty) {
+                    config.digitaxApiKey = sData['digitax_api_key'].toString();
+                  }
+                  if (sData['digitax_environment'] != null) config.digitaxEnvironment = sData['digitax_environment'].toString();
+                  if (sData['business_tax_type'] != null) config.businessTaxType = sData['business_tax_type'].toString();
+                }
                 await db.isar.storeConfigs.put(config);
               }
             });

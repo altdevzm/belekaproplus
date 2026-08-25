@@ -18,7 +18,22 @@ def create_store(store_in: schemas.StoreCreate, db: Session = Depends(get_db)):
     if existing:
         raise HTTPException(status_code=400, detail="Store code already registered")
 
-    store = models.Store(**store_in.model_dump())
+    store_data = store_in.model_dump()
+    
+    # Auto-inherit corporate tax & DigiTax credentials from HQ (Store 1) if not provided
+    if not store_data.get("tpin") or not store_data.get("digitax_api_key"):
+        hq_store = db.query(models.Store).filter(models.Store.id == 1).first()
+        if hq_store:
+            if not store_data.get("tpin"):
+                store_data["tpin"] = hq_store.tpin
+            if not store_data.get("digitax_api_key"):
+                store_data["digitax_api_key"] = hq_store.digitax_api_key
+            if not store_data.get("digitax_environment"):
+                store_data["digitax_environment"] = hq_store.digitax_environment
+            if not store_data.get("business_tax_type"):
+                store_data["business_tax_type"] = hq_store.business_tax_type
+
+    store = models.Store(**store_data)
     db.add(store)
     db.commit()
     db.refresh(store)

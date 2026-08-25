@@ -88,6 +88,11 @@ class CloudDatabaseService {
   Future<bool> syncBranch({
     required String baseUrl,
     required StoreBranch branch,
+    String? tpin,
+    String? digitaxApiKey,
+    String? digitaxEnvironment,
+    String? businessTaxType,
+    String? currencySymbol,
   }) async {
     try {
       final sanitizedUrl = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
@@ -104,6 +109,11 @@ class CloudDatabaseService {
           'manager_name': branch.managerName,
           'manager_id': branch.managerId,
           'manager_phone': branch.managerPhone,
+          if (tpin != null && tpin.isNotEmpty) 'tpin': tpin,
+          if (digitaxApiKey != null && digitaxApiKey.isNotEmpty) 'digitax_api_key': digitaxApiKey,
+          'digitax_environment': ?digitaxEnvironment,
+          'business_tax_type': ?businessTaxType,
+          'currency_symbol': ?currencySymbol,
         },
       );
       return response.statusCode == 200 || response.statusCode == 201;

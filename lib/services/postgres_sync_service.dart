@@ -46,6 +46,11 @@ class PostgresSyncService {
     return await cloudDb.syncBranch(
       baseUrl: cloudUrl,
       branch: branch,
+      tpin: config?.tpin,
+      digitaxApiKey: config?.digitaxApiKey,
+      digitaxEnvironment: config?.digitaxEnvironment,
+      businessTaxType: config?.businessTaxType,
+      currencySymbol: config?.currencySymbol,
     );
   }
 

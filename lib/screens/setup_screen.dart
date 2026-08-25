@@ -156,10 +156,13 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       Map<String, dynamic>? targetStore;
       if (stores.isNotEmpty) {
         if (storeCode.isNotEmpty) {
+          final query = storeCode.trim().toUpperCase();
           for (final s in stores) {
             final sCode = (s['store_code'] ?? '').toString().toUpperCase();
             final sName = (s['name'] ?? '').toString().toUpperCase();
-            if (sCode == storeCode.toUpperCase() || sName == storeCode.toUpperCase()) {
+            final sBranch = (s['branch_name'] ?? '').toString().toUpperCase();
+            final sBhf = (s['bhf_id'] ?? '').toString().toUpperCase();
+            if (sCode == query || sName == query || sBranch == query || sBhf == query) {
               targetStore = s;
               break;
             }
@@ -226,6 +229,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
             ..role = (u['role'] ?? 'cashier').toString()
             ..passwordHash = (uNumId == userId) ? hashPin(pin) : (u['password_hash'] ?? hashPin('1234'))
             ..branchName = (u['branch_name'] ?? storeName).toString()
+            ..branchCode = bhfId
             ..phone = u['phone']?.toString();
           
           await db.saveUser(userObj);
@@ -241,7 +245,8 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
           ..passwordHash = hashPin(pin)
           ..name = matchedUser != null ? (matchedUser['name'] ?? 'Branch Manager') : 'Branch Manager'
           ..role = 'manager'
-          ..branchName = storeName;
+          ..branchName = storeName
+          ..branchCode = bhfId;
         await db.saveUser(activeUser);
 
         // Also push manager user to Cloud DB for future terminal syncs
@@ -255,45 +260,49 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
         } catch (_) {}
       }
 
-      setState(() => _statusMessage = 'Syncing cloud catalog & products...');
+      // 6. Pull products & categories from Cloud DB ONLY IF HEADQUARTERS ('00')
+      // Branch terminals ('01', '02', etc.) maintain their own isolated local stock.
+      if (bhfId == '00') {
+        setState(() => _statusMessage = 'Syncing master catalog & products...');
+        try {
+          final cloudProducts = await cloudService.getProducts(baseUrl, storeId: storeId);
+          if (cloudProducts.isNotEmpty) {
+            final Set<String> catNames = {};
+            for (final p in cloudProducts) {
+              final catName = (p['category'] as String?) ?? 'General';
+              catNames.add(catName);
+            }
+            if (catNames.isNotEmpty) {
+              final catList = catNames.map((name) => Category(name: name)).toList();
+              await db.saveCategories(catList);
+            }
 
-      // 6. Pull products & categories from Cloud DB
-      try {
-        final cloudProducts = await cloudService.getProducts(baseUrl, storeId: storeId);
-        if (cloudProducts.isNotEmpty) {
-          final Set<String> catNames = {};
-          for (final p in cloudProducts) {
-            final catName = (p['category'] as String?) ?? 'General';
-            catNames.add(catName);
-          }
-          if (catNames.isNotEmpty) {
-            final catList = catNames.map((name) => Category(name: name)).toList();
-            await db.saveCategories(catList);
-          }
+            final savedCategories = await db.getAllCategories();
+            final Map<String, int> catMap = {
+              for (final c in savedCategories) c.name: c.id,
+            };
 
-          final savedCategories = await db.getAllCategories();
-          final Map<String, int> catMap = {
-            for (final c in savedCategories) c.name: c.id,
-          };
-
-          for (final p in cloudProducts) {
-            final catName = (p['category'] as String?) ?? 'General';
-            final catId = catMap[catName] ?? 1;
-            final prod = Product(
-              name: (p['name'] as String?) ?? 'Product',
-              sku: (p['sku'] as String?) ?? (p['barcode'] as String?) ?? 'SKU-${DateTime.now().millisecondsSinceEpoch}',
-              price: (p['price'] as num?)?.toDouble() ?? 0.0,
-              unitCost: (p['cost_price'] as num?)?.toDouble() ?? 0.0,
-              stockLevel: (p['stock_quantity'] as num?)?.toInt() ?? 0,
-              categoryId: catId,
-              branchCode: bhfId,
-              branchName: storeName,
-            );
-            await db.saveProduct(prod);
+            for (final p in cloudProducts) {
+              final catName = (p['category'] as String?) ?? 'General';
+              final catId = catMap[catName] ?? 1;
+              final prod = Product(
+                name: (p['name'] as String?) ?? 'Product',
+                sku: (p['sku'] as String?) ?? (p['barcode'] as String?) ?? 'SKU-${DateTime.now().millisecondsSinceEpoch}',
+                price: (p['price'] as num?)?.toDouble() ?? 0.0,
+                unitCost: (p['cost_price'] as num?)?.toDouble() ?? 0.0,
+                stockLevel: (p['stock_quantity'] as num?)?.toInt() ?? 0,
+                categoryId: catId,
+                branchCode: '00',
+                branchName: storeName,
+              );
+              await db.saveProduct(prod);
+            }
           }
+        } catch (e) {
+          debugPrint('Cloud product pull warning: $e');
         }
-      } catch (e) {
-        debugPrint('Cloud product pull warning: $e');
+      } else {
+        debugPrint('Branch setup initialized with isolated stock (bhfId: $bhfId). HQ products skipped.');
       }
 
       // 7. Auto-login & Navigate to POS
