@@ -556,12 +556,6 @@ class DigiTaxInventoryService {
     int? previousStock,
     String? branchCode,
   }) async {
-    // If product is tax exclusive, it remains local stock only
-    if (!product.isTaxInclusive) {
-      debugPrint('DIGITAX_SINGLE_PUSH: Skipped "${product.name}" because it is marked Tax Exclusive (Local Stock Only).');
-      return true;
-    }
-
     final db = ref.read(databaseServiceProvider);
     final config = ref.read(storeConfigProvider).value;
 

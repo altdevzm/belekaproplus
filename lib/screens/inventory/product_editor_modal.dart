@@ -652,6 +652,14 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
       final discountPrice = _hasDiscount ? double.tryParse(_discountPriceController.text) : null;
       final durationDays = _hasDiscount ? int.tryParse(_discountDurationController.text) : null;
       
+      final storeConfig = ref.read(storeConfigProvider).value;
+      final branchBhfId = (storeConfig != null && storeConfig.bhfId.isNotEmpty) 
+          ? storeConfig.bhfId 
+          : (currentUser?.branchCode ?? '00');
+      final branchName = (storeConfig != null && storeConfig.branchName != null && storeConfig.branchName!.isNotEmpty)
+          ? storeConfig.branchName!
+          : (currentUser?.branchName ?? 'Main Branch');
+
       final product = widget.product ?? Product(
         name: _nameController.text,
         sku: _skuController.text,
@@ -666,8 +674,8 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
         isTaxInclusive: _isTaxInclusive,
         taxRate: _isTaxInclusive ? 16.0 : 0.0,
         zraTaxCode: 'A',
-        branchCode: currentUser?.branchCode ?? '00',
-        branchName: currentUser?.branchName ?? 'Lusaka Main HQ',
+        branchCode: branchBhfId,
+        branchName: branchName,
         isSyncedWithDigitax: false,
         lastDigitaxSyncDate: null,
       );
@@ -688,16 +696,21 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
         product.isTaxInclusive = _isTaxInclusive;
         product.taxRate = _isTaxInclusive ? 16.0 : 0.0;
         product.zraTaxCode = 'A';
+        product.branchCode = branchBhfId;
+        product.branchName = branchName;
       }
 
       await db.saveProduct(product);
 
-      // If product is tax inclusive, push to DigiTax VSDC Cloud. If tax exclusive, keep as local stock only!
-      if (_isTaxInclusive) {
+      // Always push product to DigiTax VSDC Cloud for live ZRA compliance
+      try {
         ref.read(digitaxInventoryServiceProvider).syncSingleProductToDigitax(
           product,
           previousStock: previousStock,
+          branchCode: branchBhfId,
         );
+      } catch (e) {
+        debugPrint('DigiTax product push notice: $e');
       }
 
       if (mounted) Navigator.pop(context, true);
