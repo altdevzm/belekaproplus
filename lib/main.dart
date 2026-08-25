@@ -23,18 +23,17 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   GoogleFonts.config.allowRuntimeFetching = true;
   
-  LocalSqlService? localSqlService;
   try {
-    // Initialize Local SQLite SQL Database
-    localSqlService = await LocalSqlService.init();
-  } catch (e) {
-    debugPrint('LocalSqlService init notice: $e');
-  }
+    LocalSqlService? localSqlService;
+    try {
+      // Initialize Local SQLite SQL Database
+      localSqlService = await LocalSqlService.init();
+    } catch (e) {
+      debugPrint('LocalSqlService init notice: $e');
+    }
 
-  late final Isar isar;
-  try {
     final dir = await getApplicationDocumentsDirectory();
-    isar = await Isar.open(
+    final isar = Isar.getInstance() ?? await Isar.open(
       [
         UserSchema,
         CategorySchema,
@@ -97,47 +96,72 @@ void main() async {
     } catch (e) {
       debugPrint('Isar cleanups notice: $e');
     }
-  } catch (e) {
-    debugPrint('Isar initialization error: $e');
-    final dir = await getApplicationDocumentsDirectory();
-    isar = Isar.getInstance() ?? await Isar.open(
-      [
-        UserSchema,
-        CategorySchema,
-        ProductSchema,
-        SaleTransactionSchema,
-        SaleItemSchema,
-        AttendanceLogSchema,
-        StoreConfigSchema,
-        CustomerSchema,
-        SupplierSchema,
-        PurchaseOrderSchema,
-        PurchaseOrderItemSchema,
-        GoodsReceivedNoteSchema,
-        PurchaseInvoiceSchema,
-        PurchaseReturnSchema,
-        PaymentAccountSchema,
-        ExpenseSchema,
-        AccountTransferSchema,
-        CashShiftSchema,
-        RefundTransactionSchema,
-        StoreBranchSchema,
-        PosTerminalSchema,
-      ],
-      directory: dir.path,
+
+    runApp(
+      ProviderScope(
+        overrides: [
+          isarProvider.overrideWithValue(isar),
+          if (localSqlService != null)
+            localSqlServiceProvider.overrideWithValue(localSqlService),
+        ],
+        child: const BelekaApp(),
+      ),
+    );
+  } catch (e, stack) {
+    debugPrint('Fatal initialization error: $e\n$stack');
+    runApp(
+      MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.darkTheme,
+        home: Scaffold(
+          backgroundColor: const Color(0xFF141418),
+          body: Center(
+            child: Container(
+              width: 520,
+              padding: const EdgeInsets.all(32),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A1A1E),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.redAccent.withValues(alpha: 0.3)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 48),
+                  const SizedBox(height: 16),
+                  Text(
+                    'SYSTEM INITIALIZATION ERROR',
+                    style: GoogleFonts.manrope(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 16,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    e.toString(),
+                    style: GoogleFonts.inter(color: Colors.white70, fontSize: 13),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
+                  ElevatedButton(
+                    onPressed: () => main(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFC1F11D),
+                      foregroundColor: Colors.black,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    child: Text('RETRY STARTUP', style: GoogleFonts.manrope(fontWeight: FontWeight.w900)),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
-
-  runApp(
-    ProviderScope(
-      overrides: [
-        isarProvider.overrideWithValue(isar),
-        if (localSqlService != null)
-          localSqlServiceProvider.overrideWithValue(localSqlService),
-      ],
-      child: const BelekaApp(),
-    ),
-  );
 }
 
 final hasUsersProvider = FutureProvider<bool>((ref) async {
