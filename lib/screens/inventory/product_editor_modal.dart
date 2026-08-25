@@ -703,17 +703,37 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
       await db.saveProduct(product);
 
       // Always push product to DigiTax VSDC Cloud for live ZRA compliance
+      bool digitaxSynced = false;
+      String? syncErr;
       try {
-        ref.read(digitaxInventoryServiceProvider).syncSingleProductToDigitax(
+        digitaxSynced = await ref.read(digitaxInventoryServiceProvider).syncSingleProductToDigitax(
           product,
           previousStock: previousStock,
           branchCode: branchBhfId,
         );
       } catch (e) {
+        syncErr = e.toString();
         debugPrint('DigiTax product push notice: $e');
       }
 
-      if (mounted) Navigator.pop(context, true);
+      if (mounted) {
+        if (digitaxSynced) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('✅ ${product.name} saved & registered with DigiTax!'),
+              backgroundColor: const Color(0xFF10B981),
+            ),
+          );
+        } else if (syncErr != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('⚠️ Product saved locally. DigiTax: $syncErr'),
+              backgroundColor: const Color(0xFFF59E0B),
+            ),
+          );
+        }
+        Navigator.pop(context, true);
+      }
     }
   }
 }

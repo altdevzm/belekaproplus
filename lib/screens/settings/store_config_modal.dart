@@ -8,7 +8,6 @@ import 'package:file_picker/file_picker.dart';
 import 'package:beleka_pos/services/database_service.dart';
 import 'package:beleka_pos/models/models.dart';
 import 'package:beleka_pos/providers/store_provider.dart';
-import 'package:beleka_pos/providers/auth_provider.dart';
 import 'package:beleka_pos/services/network_client.dart';
 import 'package:beleka_pos/services/postgres_sync_service.dart';
 
@@ -213,7 +212,6 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
   @override
   Widget build(BuildContext context) {
     final activeBrandColor = _parseHexColor(_selectedBrandColorHex);
-    final isBranchManager = ref.watch(isBranchManagerProvider);
 
     return Dialog(
       backgroundColor: const Color(0xFF141418),
@@ -276,28 +274,6 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
                 ],
               ),
               const SizedBox(height: 24),
-              if (isBranchManager)
-                Container(
-                  margin: const EdgeInsets.only(bottom: 16),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.amber.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.lock_rounded, color: Colors.amber, size: 20),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          'Branch Mode Active: Company Name, TPIN, and ZRA Compliance settings are managed by Headquarters and are locked in read-only mode.',
-                          style: GoogleFonts.inter(color: Colors.amber, fontSize: 12, fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
               if (_isLoading)
                 Center(child: CircularProgressIndicator(color: activeBrandColor))
               else ...[
@@ -319,7 +295,6 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
                                 label: 'STORE / COMPANY NAME', 
                                 hint: 'e.g. Beleka Retail Ltd',
                                 controller: _nameController,
-                                readOnly: isBranchManager,
                               ),
                             ),
                             const SizedBox(width: 16),
@@ -329,49 +304,34 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
                                 label: 'BRANCH / OUTLET', 
                                 hint: 'e.g. Main Mall Branch',
                                 controller: _branchController,
-                                isOptional: true,
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 20),
-                        _buildSectorDropdown(),
-
-                        const SizedBox(height: 32),
-                        // Section 2: Document Export & Branding Color
-                        _buildSectionHeader('DOCUMENT EXPORT BRANDING COLOR', activeBrandColor),
-                        const SizedBox(height: 16),
-                        _buildColorPickerSection(activeBrandColor),
-                        const SizedBox(height: 16),
-                        _buildDocumentPreviewCard(activeBrandColor),
-
-                        const SizedBox(height: 32),
-                        // Section 3: Contact & Location Info
-                        _buildSectionHeader('CONTACT & LOCATION DETAILS', activeBrandColor),
                         const SizedBox(height: 16),
                         _buildTextField(
-                          label: 'PHYSICAL ADDRESS', 
-                          hint: 'Plot 104, Cairo Road, Lusaka',
+                          label: 'PHYSICAL STORE ADDRESS', 
+                          hint: 'e.g. Plot 1024, Cairo Road, Lusaka',
                           controller: _addressController,
-                          isOptional: true,
                         ),
                         const SizedBox(height: 16),
                         Row(
                           children: [
                             Expanded(
                               child: _buildTextField(
-                                label: 'CONTACT PHONE', 
-                                hint: '+260 977 123456',
+                                label: 'CONTACT PHONE NUMBER', 
+                                hint: 'e.g. +260 977 123456',
                                 controller: _contactController,
-                                isOptional: true,
+                                keyboardType: TextInputType.phone,
                               ),
                             ),
                             const SizedBox(width: 16),
                             Expanded(
                               child: _buildTextField(
-                                label: 'OFFICIAL EMAIL', 
-                                hint: 'sales@belekagroup.com',
+                                label: 'EMAIL ADDRESS', 
+                                hint: 'e.g. info@belekaretail.com',
                                 controller: _emailController,
+                                keyboardType: TextInputType.emailAddress,
                                 isOptional: true,
                               ),
                             ),
@@ -380,13 +340,27 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
                         const SizedBox(height: 16),
                         _buildTextField(
                           label: 'WEBSITE URL', 
-                          hint: 'www.belekagroup.com',
+                          hint: 'e.g. https://belekaretail.com',
                           controller: _websiteController,
                           isOptional: true,
                         ),
 
                         const SizedBox(height: 32),
-                        // Section 4: Tax, Fiscal & Compliance
+                        // Section 2: Industry Sector & POS Workflow Specialization
+                        _buildSectionHeader('INDUSTRY SECTOR & WORKFLOW', activeBrandColor),
+                        const SizedBox(height: 16),
+                        _buildSectorDropdown(),
+
+                        const SizedBox(height: 32),
+                        // Section 3: Document Export & Branding Color
+                        _buildSectionHeader('DOCUMENT EXPORT BRANDING COLOR', activeBrandColor),
+                        const SizedBox(height: 16),
+                        _buildColorPickerSection(activeBrandColor),
+                        const SizedBox(height: 16),
+                        _buildDocumentPreviewCard(activeBrandColor),
+
+                        const SizedBox(height: 32),
+                        // Section 4: Tax & Fiscal Compliance
                         _buildSectionHeader('TAX & FISCAL COMPLIANCE', activeBrandColor),
                         const SizedBox(height: 16),
                         Row(
@@ -397,7 +371,6 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
                                 hint: '1234567890',
                                 controller: _tpinController,
                                 isOptional: true,
-                                readOnly: isBranchManager,
                               ),
                             ),
                             const SizedBox(width: 16),
@@ -407,7 +380,6 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
                                 hint: '1234567890',
                                 controller: _taxIdController,
                                 isOptional: true,
-                                readOnly: isBranchManager,
                               ),
                             ),
                           ],
@@ -421,7 +393,6 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
                                 hint: '16.0',
                                 controller: _taxController,
                                 keyboardType: TextInputType.number,
-                                readOnly: isBranchManager,
                               ),
                             ),
                             const SizedBox(width: 16),
@@ -443,7 +414,6 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
                                 hint: 'SDC00300000014',
                                 controller: _sdcIdController,
                                 isOptional: true,
-                                readOnly: isBranchManager,
                               ),
                             ),
                             const SizedBox(width: 16),
@@ -453,7 +423,6 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
                                 hint: 'WIS00013845',
                                 controller: _mrcNoController,
                                 isOptional: true,
-                                readOnly: isBranchManager,
                               ),
                             ),
                           ],

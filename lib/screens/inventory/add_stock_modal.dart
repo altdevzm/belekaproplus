@@ -191,17 +191,37 @@ class _AddStockModalState extends ConsumerState<AddStockModal> {
           : widget.product.branchCode;
 
       // Push stock update directly to DigiTax
+      bool digitaxSynced = false;
+      String? syncErr;
       try {
-        await ref.read(digitaxInventoryServiceProvider).syncSingleProductToDigitax(
+        digitaxSynced = await ref.read(digitaxInventoryServiceProvider).syncSingleProductToDigitax(
           widget.product,
           previousStock: previousStock,
           branchCode: branchCode,
         );
       } catch (e) {
+        syncErr = e.toString();
         debugPrint('DigiTax stock push notice: $e');
       }
 
-      if (mounted) Navigator.pop(context, true);
+      if (mounted) {
+        if (digitaxSynced) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('✅ Stock updated & synced with DigiTax (${widget.product.name}: $newStockLevel)'),
+              backgroundColor: const Color(0xFF10B981),
+            ),
+          );
+        } else if (syncErr != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('⚠️ Stock updated locally. DigiTax: $syncErr'),
+              backgroundColor: const Color(0xFFF59E0B),
+            ),
+          );
+        }
+        Navigator.pop(context, true);
+      }
     }
   }
 }
