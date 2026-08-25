@@ -99,6 +99,7 @@ flutter_launcher_icons:
 dependency_overrides:
   image: ^4.3.0
   network_info_plus: ^4.0.2
+  sqflite_android: 2.4.1
   flutter_star_prnt:
     path: third_party/flutter_star_prnt
   esc_pos_utils_plus:
