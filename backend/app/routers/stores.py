@@ -23,3 +23,18 @@ def create_store(store_in: schemas.StoreCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(store)
     return store
+
+@router.put("/{store_id}", response_model=schemas.StoreResponse)
+def update_store(store_id: int, store_in: schemas.StoreUpdate, db: Session = Depends(get_db)):
+    """Update store details, TPIN, or DigiTax credentials on Cloud PostgreSQL DB."""
+    store = db.query(models.Store).filter(models.Store.id == store_id).first()
+    if not store:
+        raise HTTPException(status_code=404, detail="Store branch not found")
+    
+    update_data = store_in.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(store, field, value)
+    
+    db.commit()
+    db.refresh(store)
+    return store

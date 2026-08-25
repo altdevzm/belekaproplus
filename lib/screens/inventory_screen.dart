@@ -11,6 +11,7 @@ import 'package:beleka_pos/providers/store_provider.dart';
 import 'package:beleka_pos/providers/theme_provider.dart';
 import 'package:beleka_pos/services/barcode_service.dart';
 import 'package:beleka_pos/services/digitax_inventory_service.dart';
+import 'package:beleka_pos/services/postgres_sync_service.dart';
 import 'package:beleka_pos/providers/auth_provider.dart';
 
 final showArchivedProvider = StateProvider<bool>((ref) => false);
@@ -48,8 +49,16 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     if (_isSyncingDigitax) return;
     if (!silent) setState(() => _isSyncingDigitax = true);
     try {
+      // 1. Ensure latest credentials are fresh from Cloud HQ
+      try {
+        await ref.read(postgresSyncServiceProvider).pullStoreConfigFromCloud();
+      } catch (_) {}
+
       final currentUser = ref.read(authProvider);
-      final currentBranch = currentUser?.branchCode ?? '00';
+      final storeConfig = ref.read(storeConfigProvider).value;
+      final currentBranch = (storeConfig != null && storeConfig.bhfId.isNotEmpty)
+          ? storeConfig.bhfId
+          : (currentUser?.branchCode ?? '00');
       final syncService = ref.read(digitaxInventoryServiceProvider);
 
       final result = await syncService.syncAllInventoryWithDigitax(

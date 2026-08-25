@@ -113,6 +113,25 @@ class CloudDatabaseService {
     }
   }
 
+  /// Push/Update store configuration (TPIN, DigiTax Key, Environment, etc.) on Cloud DB
+  Future<bool> updateStoreConfig({
+    required String baseUrl,
+    required int storeId,
+    required Map<String, dynamic> data,
+  }) async {
+    try {
+      final sanitizedUrl = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+      final response = await _dio.put(
+        '$sanitizedUrl/api/v1/stores/$storeId',
+        data: data,
+      );
+      return response.statusCode == 200 || response.statusCode == 201;
+    } catch (e) {
+      debugPrint('Cloud PostgreSQL Store Config Update Failed: $e');
+      return false;
+    }
+  }
+
   /// Fetch list of available store branches from Cloud PostgreSQL DB.
   Future<List<Map<String, dynamic>>> getStores(String baseUrl) async {
     try {

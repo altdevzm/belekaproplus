@@ -25,6 +25,24 @@ class StoreBase(BaseModel):
 class StoreCreate(StoreBase):
     pass
 
+class StoreUpdate(BaseModel):
+    name: Optional[str] = None
+    address: Optional[str] = None
+    contact_number: Optional[str] = None
+    email: Optional[str] = None
+    tax_id: Optional[str] = None
+    tpin: Optional[str] = None
+    sdc_id: Optional[str] = None
+    mrc_no: Optional[str] = None
+    currency_symbol: Optional[str] = None
+    branch_name: Optional[str] = None
+    manager_name: Optional[str] = None
+    manager_id: Optional[str] = None
+    manager_phone: Optional[str] = None
+    business_tax_type: Optional[str] = None
+    digitax_api_key: Optional[str] = None
+    digitax_environment: Optional[str] = None
+
 class StoreResponse(StoreBase):
     id: int
     is_active: Optional[bool] = True

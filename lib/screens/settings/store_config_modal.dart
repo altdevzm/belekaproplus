@@ -10,6 +10,7 @@ import 'package:beleka_pos/models/models.dart';
 import 'package:beleka_pos/providers/store_provider.dart';
 import 'package:beleka_pos/providers/auth_provider.dart';
 import 'package:beleka_pos/services/network_client.dart';
+import 'package:beleka_pos/services/postgres_sync_service.dart';
 
 class StoreConfigModal extends ConsumerStatefulWidget {
   const StoreConfigModal({super.key});
@@ -189,6 +190,13 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
 
     await db.saveStoreConfig(config);
     ref.invalidate(storeConfigProvider);
+    
+    // Auto-sync store profile up to Cloud PostgreSQL DB
+    try {
+      await ref.read(postgresSyncServiceProvider).syncStoreConfigToCloud(config);
+    } catch (e) {
+      debugPrint('Cloud store config push notice: $e');
+    }
     
     if (mounted) {
       Navigator.pop(context);

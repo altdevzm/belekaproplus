@@ -7,6 +7,7 @@ import 'package:beleka_pos/services/database_service.dart';
 import 'package:beleka_pos/providers/store_provider.dart';
 import 'package:beleka_pos/providers/auth_provider.dart';
 import 'package:beleka_pos/services/digitax_inventory_service.dart';
+import 'package:beleka_pos/services/postgres_sync_service.dart';
 
 class ZraTaxConfigModal extends ConsumerStatefulWidget {
   const ZraTaxConfigModal({super.key});
@@ -188,6 +189,13 @@ class _ZraTaxConfigModalState extends ConsumerState<ZraTaxConfigModal> {
       }
 
       await isar.storeConfigs.put(config);
+      
+      // Auto-sync updated TPIN and DigiTax credentials up to Cloud PostgreSQL DB
+      try {
+        await ref.read(postgresSyncServiceProvider).syncStoreConfigToCloud(config);
+      } catch (e) {
+        debugPrint('Notice: Cloud store config sync: $e');
+      }
     });
 
     ref.invalidate(storeConfigProvider);

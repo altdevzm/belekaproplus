@@ -39,13 +39,74 @@ class PostgresSyncService {
   /// Push/Sync a Store Branch to Cloud PostgreSQL DB.
   Future<bool> syncBranch(StoreBranch branch) async {
     final config = await isar.storeConfigs.where().findFirst();
-    final cloudUrl = config?.cloudApiUrl ?? (config?.serverIp != null ? 'http://${config!.serverIp}:8000' : null);
+    final cloudUrl = config?.cloudApiUrl ?? (config?.serverIp != null ? 'http://${config!.serverIp}:8003' : null);
     if (cloudUrl == null || cloudUrl.isEmpty) return false;
 
     return await cloudDb.syncBranch(
       baseUrl: cloudUrl,
       branch: branch,
     );
+  }
+
+  /// Push/Sync Store Configuration (TPIN, DigiTax Key, Tax Settings) to Cloud DB.
+  Future<bool> syncStoreConfigToCloud(StoreConfig config) async {
+    final cloudUrl = config.cloudApiUrl ?? (config.serverIp != null ? 'http://${config.serverIp}:8003' : null);
+    if (cloudUrl == null || cloudUrl.isEmpty) return false;
+
+    final storeId = config.cloudStoreId ?? 1;
+    return await cloudDb.updateStoreConfig(
+      baseUrl: cloudUrl,
+      storeId: storeId,
+      data: {
+        'name': config.businessName,
+        'tpin': config.tpin,
+        'tax_id': config.taxId,
+        'currency_symbol': config.currencySymbol,
+        'business_tax_type': config.businessTaxType,
+        'digitax_api_key': config.digitaxApiKey,
+        'digitax_environment': config.digitaxEnvironment,
+        'sdc_id': config.sdcId,
+        'mrc_no': config.mrcNo,
+        'address': config.address,
+        'contact_number': config.contactNumber,
+        'email': config.email,
+      },
+    );
+  }
+
+  /// Pull latest Store Configuration (TPIN, DigiTax Key, etc.) from Cloud DB into local Isar DB
+  Future<bool> pullStoreConfigFromCloud() async {
+    final config = await isar.storeConfigs.where().findFirst();
+    final cloudUrl = config?.cloudApiUrl ?? (config?.serverIp != null ? 'http://${config!.serverIp}:8003' : null);
+    if (cloudUrl == null || cloudUrl.isEmpty || config == null) return false;
+
+    try {
+      final stores = await cloudDb.getStores(cloudUrl);
+      if (stores.isEmpty) return false;
+
+      final storeId = config.cloudStoreId ?? 1;
+      final targetStore = stores.where((s) => s['id'] == storeId).firstOrNull ?? stores.first;
+
+      await isar.writeTxn(() async {
+        if (targetStore['tpin'] != null && (targetStore['tpin'] as String).isNotEmpty) {
+          config.tpin = targetStore['tpin'];
+        }
+        if (targetStore['digitax_api_key'] != null && (targetStore['digitax_api_key'] as String).isNotEmpty) {
+          config.digitaxApiKey = targetStore['digitax_api_key'];
+        }
+        if (targetStore['digitax_environment'] != null) {
+          config.digitaxEnvironment = targetStore['digitax_environment'];
+        }
+        if (targetStore['business_tax_type'] != null) {
+          config.businessTaxType = targetStore['business_tax_type'];
+        }
+        await isar.storeConfigs.put(config);
+      });
+      return true;
+    } catch (e) {
+      debugPrint('Error pulling store config from cloud: $e');
+      return false;
+    }
   }
 
   /// Sync all local users up to Cloud PostgreSQL DB.
