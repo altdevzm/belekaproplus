@@ -23,8 +23,20 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> {
   @override
   Widget build(BuildContext context) {
     final accentColor = ref.watch(accentColorProvider);
-    final currency = ref.watch(storeConfigProvider).value?.currencySymbol ?? 'K';
-    final terminals = ref.watch(posTerminalsProvider).value ?? [];
+    final isOwner = ref.watch(isOwnerProvider);
+    final currentUser = ref.watch(authProvider);
+    final storeConfig = ref.watch(storeConfigProvider).value;
+    final currency = storeConfig?.currencySymbol ?? 'K';
+    final allTerminals = ref.watch(posTerminalsProvider).value ?? [];
+
+    final String? effectiveBranchCode = !isOwner
+        ? (storeConfig?.bhfId.isNotEmpty == true ? storeConfig!.bhfId : (currentUser?.branchCode ?? '00'))
+        : null;
+
+    final terminals = effectiveBranchCode != null
+        ? allTerminals.where((t) => t.branchCode == effectiveBranchCode || t.digitaxBhfId == effectiveBranchCode).toList()
+        : allTerminals;
+
     final branches = ref.watch(storeBranchesProvider).value ?? [];
     final users = ref.watch(allUsersProvider).value ?? [];
     final activeShifts = ref.watch(activeShiftsListProvider).value ?? [];
