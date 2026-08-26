@@ -108,22 +108,23 @@ endforeach(bundled_library)
 
 # Copy the native assets provided by the build.dart from all packages.
 set(NATIVE_ASSETS_DIR "${PROJECT_BUILD_DIR}native_assets/linux/")
-if(EXISTS "${NATIVE_ASSETS_DIR}")
-  install(DIRECTORY "${NATIVE_ASSETS_DIR}"
-     DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
-     COMPONENT Runtime)
-endif()
+install(CODE "
+  if(EXISTS \"${NATIVE_ASSETS_DIR}\")
+    file(INSTALL \"${NATIVE_ASSETS_DIR}\"
+         DESTINATION \"${INSTALL_BUNDLE_LIB_DIR}\")
+  endif()
+  " COMPONENT Runtime)
 
 # Fully re-copy the assets directory on each build to avoid having stale files
 # from a previous install.
 set(FLUTTER_ASSET_DIR_NAME "flutter_assets")
 install(CODE "
   file(REMOVE_RECURSE \"${INSTALL_BUNDLE_DATA_DIR}/${FLUTTER_ASSET_DIR_NAME}\")
+  if(EXISTS \"${PROJECT_BUILD_DIR}/${FLUTTER_ASSET_DIR_NAME}\")
+    file(INSTALL \"${PROJECT_BUILD_DIR}/${FLUTTER_ASSET_DIR_NAME}\"
+         DESTINATION \"${INSTALL_BUNDLE_DATA_DIR}\")
+  endif()
   " COMPONENT Runtime)
-if(EXISTS "${PROJECT_BUILD_DIR}/${FLUTTER_ASSET_DIR_NAME}")
-  install(DIRECTORY "${PROJECT_BUILD_DIR}/${FLUTTER_ASSET_DIR_NAME}"
-    DESTINATION "${INSTALL_BUNDLE_DATA_DIR}" COMPONENT Runtime)
-endif()
 
 # Install the AOT library on non-Debug builds only.
 if(NOT CMAKE_BUILD_TYPE MATCHES "Debug")
