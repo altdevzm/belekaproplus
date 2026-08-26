@@ -10,6 +10,7 @@ import 'package:beleka_pos/services/database_service.dart';
 import 'package:beleka_pos/services/local_sql_service.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:beleka_pos/screens/accounts_screen.dart';
+import 'package:beleka_pos/services/printer_service.dart';
 import 'package:beleka_pos/utils/formatters.dart';
 
 class TerminalsScreen extends ConsumerStatefulWidget {
@@ -868,6 +869,11 @@ class _AssignShiftModalState extends ConsumerState<_AssignShiftModal> {
     ref.invalidate(activeShiftsListProvider);
     ref.invalidate(cashShiftsProvider);
     ref.invalidate(paymentAccountsProvider);
+
+    // Pop open cash drawer for float deposit
+    try {
+      ref.read(printerServiceProvider).openCashDrawer();
+    } catch (_) {}
 
     if (mounted) {
       Navigator.pop(context);

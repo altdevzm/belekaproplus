@@ -10,6 +10,7 @@ import 'package:beleka_pos/providers/auth_provider.dart';
 import 'package:beleka_pos/services/database_service.dart';
 import 'package:beleka_pos/services/export_service.dart';
 import 'package:beleka_pos/services/postgres_sync_service.dart';
+import 'package:beleka_pos/services/printer_service.dart';
 
 // --- DATA PROVIDERS ---
 
@@ -1201,6 +1202,12 @@ class _OpenShiftModalState extends ConsumerState<_OpenShiftModal> {
     ref.invalidate(activeShiftsListProvider);
     ref.invalidate(cashShiftsProvider);
     ref.invalidate(paymentAccountsProvider);
+
+    // Pop open cash drawer for float deposit
+    try {
+      ref.read(printerServiceProvider).openCashDrawer();
+    } catch (_) {}
+
     if (mounted) {
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(

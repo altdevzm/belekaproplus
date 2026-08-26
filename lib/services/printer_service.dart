@@ -435,32 +435,90 @@ class PrinterService {
     _activeSystemPrinter = null;
   }
 
-  Future<void> openCashDrawer() async {
-    if (!_isConnected) return;
+  /// Returns complete universal ESC/POS and Star drawer kick pulse sequences
+  List<int> getCashDrawerBytes({
+    int pin = 2,
+    int pulseOnMs = 50,
+    int pulseOffMs = 250,
+  }) {
+    final int pinByte = (pin == 5) ? 0x01 : 0x00;
+    final int onTime = (pulseOnMs / 2).clamp(1, 255).toInt();
+    final int offTime = (pulseOffMs / 2).clamp(1, 255).toInt();
 
-    if (_activeModel == PrinterModel.star) {
+    return [
+      // 1. Standard ESC/POS kick command: ESC p m t1 t2
+      0x1B, 0x70, pinByte, onTime, offTime,
+      // 2. Real-Time DLE DC4 drawer kick command
+      0x10, 0x14, 0x01, 0x00, 0x01,
+      // 3. Alternative standard kick pulse for Xprinter / Rongta / Epson / Sunmi
+      0x1B, 0x70, (pinByte == 0 ? 1 : 0), onTime, offTime,
+      // 4. Star Line Mode BEL pulse (for Star printers operating in line mode)
+      0x07,
+    ];
+  }
+
+  /// Master method to trigger cash drawer kick pulse across all POS hardware connection types
+  Future<bool> openCashDrawer({
+    StoreConfig? config,
+    int? pin,
+    int? pulseOnMs,
+    int? pulseOffMs,
+  }) async {
+    final targetPin = pin ?? config?.cashDrawerPin ?? 2;
+    final onMs = pulseOnMs ?? config?.cashDrawerPulseOnMs ?? 50;
+    final offMs = pulseOffMs ?? config?.cashDrawerPulseOffMs ?? 250;
+
+    debugPrint('CashDrawerDriver: Triggering kick pulse (Pin $targetPin, ON: ${onMs}ms, OFF: ${offMs}ms)...');
+
+    // 1. Star Micronics Driver
+    if (_activeModel == PrinterModel.star && _activeDevice?.address != null) {
       try {
         star.PrintCommands commands = star.PrintCommands();
-        commands.openCashDrawer(1);
+        commands.openCashDrawer(targetPin == 5 ? 2 : 1);
         await star.StarPrnt.sendCommands(
           portName: _activeDevice!.address!,
           emulation: _starEmulation.text,
           printCommands: commands,
         );
+        debugPrint('CashDrawerDriver: Star drawer kick command transmitted.');
+        return true;
       } catch (e) {
-        debugPrint('Star cash drawer error: $e');
+        debugPrint('CashDrawerDriver: Star cash drawer error: $e');
       }
-      return;
     }
 
-    try {
-      final profile = await CapabilityProfile.load();
-      final generator = Generator(_paperWidthMm == 58 ? PaperSize.mm58 : PaperSize.mm80, profile);
-      List<int> bytes = generator.drawer();
-      await _sendBytes(bytes);
-    } catch (e) {
-      debugPrint('Cash drawer kick error: $e');
+    final bytes = getCashDrawerBytes(pin: targetPin, pulseOnMs: onMs, pulseOffMs: offMs);
+
+    // 2. Active Driver Connection (USB / Bluetooth / Direct Socket / Network / Linux Raw lp*)
+    if (_isConnected) {
+      try {
+        final ok = await _sendBytes(bytes);
+        if (ok) {
+          debugPrint('CashDrawerDriver: Kick pulse transmitted via active printer driver.');
+          return true;
+        }
+      } catch (e) {
+        debugPrint('CashDrawerDriver: Active connection kick error: $e');
+      }
     }
+
+    // 3. Auto-fallback: Connect & transmit if disconnected
+    if (!_isConnected) {
+      try {
+        final connected = await autoConnect(config: config);
+        if (connected) {
+          final ok = await _sendBytes(bytes);
+          if (ok) {
+            debugPrint('CashDrawerDriver: Kick pulse transmitted via auto-connected driver.');
+            return true;
+          }
+        }
+      } catch (e) {
+        debugPrint('CashDrawerDriver: Auto-connect fallback error: $e');
+      }
+    }
+
+    return false;
   }
 
   /// Master Method to Print High-Fidelity Designed Thermal Receipt
@@ -496,6 +554,19 @@ class PrinterService {
 
       // 0. Hardware Reset Init Command (ESC @)
       bytes += generator.reset();
+
+      // Hardware Drawer Kick Pulse (if auto-kick is enabled in config)
+      if (config?.autoOpenCashDrawer != false) {
+        final isCashOrSplit = transaction.paymentMethod.toLowerCase() == 'cash' || 
+                             transaction.paymentMethod.toLowerCase() == 'split';
+        if (config?.openDrawerCashOnly != true || isCashOrSplit) {
+          bytes += getCashDrawerBytes(
+            pin: config?.cashDrawerPin ?? 2,
+            pulseOnMs: config?.cashDrawerPulseOnMs ?? 50,
+            pulseOffMs: config?.cashDrawerPulseOffMs ?? 250,
+          );
+        }
+      }
 
       final currency = config?.currencySymbol ?? 'K';
 
@@ -1015,6 +1086,16 @@ class PrinterService {
     var commands = star.PrintCommands();
 
     final preset = activePreset;
+
+    // Hardware Drawer Kick Pulse (if auto-kick is enabled in config)
+    if (config?.autoOpenCashDrawer != false) {
+      final isCashOrSplit = transaction.paymentMethod.toLowerCase() == 'cash' || 
+                           transaction.paymentMethod.toLowerCase() == 'split';
+      if (config?.openDrawerCashOnly != true || isCashOrSplit) {
+        commands.openCashDrawer(config?.cashDrawerPin == 5 ? 2 : 1);
+      }
+    }
+
     commands.appendAlignment(star.StarAlignmentPosition.Center);
     try {
       img.Image? baseImage;

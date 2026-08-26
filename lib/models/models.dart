@@ -308,6 +308,13 @@ class StoreConfig {
   String? defaultPrinterModel; // 'generic', 'star', 'system'
   int paperWidthMm = 80;
   bool autoPrintReceipt = true;
+
+  // Cash Drawer Hardware & Driver Settings
+  bool autoOpenCashDrawer = true; // Auto-kick drawer on payment completion
+  bool openDrawerCashOnly = false; // true = cash/split only, false = all payment methods
+  int cashDrawerPin = 2; // 2 = Standard Pin 2 (0x00), 5 = Pin 5 (0x01)
+  int cashDrawerPulseOnMs = 50; // Pulse ON duration in ms
+  int cashDrawerPulseOffMs = 250; // Pulse OFF duration in ms
 }
 
 @collection

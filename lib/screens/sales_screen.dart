@@ -171,31 +171,88 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                         'PRODUCT CATALOG',
                         const Color(0xFFC1F11D),
                       ),
-                      // Grid / List View Toggle
-                      Container(
-                        height: 34,
-                        padding: const EdgeInsets.all(2),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.05),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            _buildViewModeBtn(
-                              icon: Icons.grid_view_rounded,
-                              tooltip: 'Grid View',
-                              isSelected: _isGridView,
-                              onTap: () => setState(() => _isGridView = true),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Cash Drawer Quick Kick Button
+                          Tooltip(
+                            message: 'Open Cash Drawer',
+                            child: InkWell(
+                              onTap: () async {
+                                final config = ref.read(storeConfigProvider).value;
+                                final ok = await ref.read(printerServiceProvider).openCashDrawer(config: config);
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Row(
+                                        children: [
+                                          Icon(
+                                            ok ? Icons.check_circle_rounded : Icons.warning_amber_rounded,
+                                            color: ok ? const Color(0xFFC1F11D) : Colors.orangeAccent,
+                                            size: 18,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text(ok ? '✓ Cash drawer opened' : '⚠️ Kick command sent (check printer connection)'),
+                                        ],
+                                      ),
+                                      duration: const Duration(seconds: 2),
+                                      behavior: SnackBarBehavior.floating,
+                                      backgroundColor: const Color(0xFF1E1E24),
+                                    ),
+                                  );
+                                }
+                              },
+                              borderRadius: BorderRadius.circular(10),
+                              child: Container(
+                                height: 34,
+                                padding: const EdgeInsets.symmetric(horizontal: 10),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.05),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.point_of_sale_rounded, size: 16, color: Color(0xFFC1F11D)),
+                                    SizedBox(width: 6),
+                                    Text(
+                                      'DRAWER',
+                                      style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.5),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
-                            _buildViewModeBtn(
-                              icon: Icons.view_list_rounded,
-                              tooltip: 'List View',
-                              isSelected: !_isGridView,
-                              onTap: () => setState(() => _isGridView = false),
+                          ),
+                          const SizedBox(width: 8),
+                          // Grid / List View Toggle
+                          Container(
+                            height: 34,
+                            padding: const EdgeInsets.all(2),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.05),
+                              borderRadius: BorderRadius.circular(10),
                             ),
-                          ],
-                        ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _buildViewModeBtn(
+                                  icon: Icons.grid_view_rounded,
+                                  tooltip: 'Grid View',
+                                  isSelected: _isGridView,
+                                  onTap: () => setState(() => _isGridView = true),
+                                ),
+                                _buildViewModeBtn(
+                                  icon: Icons.view_list_rounded,
+                                  tooltip: 'List View',
+                                  isSelected: !_isGridView,
+                                  onTap: () => setState(() => _isGridView = false),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -1669,7 +1726,22 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       // Attempt local real-time sync (or queue for offline)
       ref.read(syncServiceProvider).trySyncTransaction(transaction, saleItems);
       
-      await printer.printReceipt(transaction, saleItems, config: config);
+      // Auto-kick Cash Drawer Hardware Driver on payment completion
+      if (config?.autoOpenCashDrawer != false) {
+        final isCashOrSplit = transaction.paymentMethod.toLowerCase() == 'cash' || 
+                             transaction.paymentMethod.toLowerCase() == 'split';
+        if (config?.openDrawerCashOnly != true || isCashOrSplit) {
+          try {
+            await printer.openCashDrawer(config: config);
+          } catch (e) {
+            debugPrint('Cash drawer payment kick notice: $e');
+          }
+        }
+      }
+
+      if (config?.autoPrintReceipt != false) {
+        await printer.printReceipt(transaction, saleItems, config: config);
+      }
 
       if (mounted) {
         showDialog(

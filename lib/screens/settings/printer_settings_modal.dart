@@ -6,6 +6,7 @@ import 'package:flutter_star_prnt/flutter_star_prnt.dart' as star;
 import 'package:beleka_pos/services/printer_service.dart';
 import 'package:beleka_pos/services/barcode_service.dart';
 import 'package:beleka_pos/services/database_service.dart';
+import 'package:beleka_pos/providers/store_provider.dart';
 import 'package:beleka_pos/models/models.dart';
 
 class PrinterSettingsModal extends ConsumerStatefulWidget {
@@ -26,6 +27,12 @@ class _PrinterSettingsModalState extends ConsumerState<PrinterSettingsModal> {
   final TextEditingController _ipController = TextEditingController(text: '192.168.1.100:9100');
   final TextEditingController _searchController = TextEditingController();
   String _filterQuery = '';
+
+  // Cash Drawer Driver State
+  bool _autoOpenCashDrawer = true;
+  bool _openDrawerCashOnly = false;
+  int _cashDrawerPin = 2;
+  int _cashDrawerPulseOnMs = 50;
 
   @override
   void initState() {
@@ -49,6 +56,10 @@ class _PrinterSettingsModalState extends ConsumerState<PrinterSettingsModal> {
     if (config != null && mounted) {
       setState(() {
         _paperWidthMm = config.paperWidthMm;
+        _autoOpenCashDrawer = config.autoOpenCashDrawer;
+        _openDrawerCashOnly = config.openDrawerCashOnly;
+        _cashDrawerPin = config.cashDrawerPin;
+        _cashDrawerPulseOnMs = config.cashDrawerPulseOnMs;
         if (config.defaultPrinterAddress != null) {
           _ipController.text = config.defaultPrinterAddress!;
         }
@@ -59,6 +70,19 @@ class _PrinterSettingsModalState extends ConsumerState<PrinterSettingsModal> {
           _selectedModel = _parsePrinterModel(config.defaultPrinterModel);
         }
       });
+    }
+  }
+
+  Future<void> _saveCashDrawerSettings() async {
+    final db = ref.read(databaseServiceProvider);
+    final config = await db.getStoreConfig();
+    if (config != null) {
+      config.autoOpenCashDrawer = _autoOpenCashDrawer;
+      config.openDrawerCashOnly = _openDrawerCashOnly;
+      config.cashDrawerPin = _cashDrawerPin;
+      config.cashDrawerPulseOnMs = _cashDrawerPulseOnMs;
+      await db.saveStoreConfig(config);
+      ref.invalidate(storeConfigProvider);
     }
   }
 
@@ -618,6 +642,170 @@ class _PrinterSettingsModalState extends ConsumerState<PrinterSettingsModal> {
                       icon: const Icon(Icons.refresh, size: 16, color: Colors.white38),
                       onPressed: () => setState(() => _lastScanned = 'Waiting for scan...'),
                     ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 18),
+            
+            // CASH DRAWER DRIVER & HARDWARE KICK SECTION
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.02),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.point_of_sale_rounded, color: Color(0xFFC1F11D), size: 18),
+                          const SizedBox(width: 8),
+                          Text(
+                            'CASH DRAWER HARDWARE DRIVER (RJ11 / RJ12)',
+                            style: GoogleFonts.ibmPlexMono(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: const Color(0xFFC1F11D),
+                              letterSpacing: 1,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Switch(
+                        value: _autoOpenCashDrawer,
+                        onChanged: (v) {
+                          setState(() => _autoOpenCashDrawer = v);
+                          _saveCashDrawerSettings();
+                        },
+                        activeThumbColor: const Color(0xFFC1F11D),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Automatically trigger the electric kick pulse to pop open the cash drawer when a transaction is completed.',
+                    style: GoogleFonts.inter(fontSize: 11, color: Colors.white54),
+                  ),
+                  if (_autoOpenCashDrawer) ...[
+                    const SizedBox(height: 14),
+                    const Divider(color: Colors.white10, height: 1),
+                    const SizedBox(height: 14),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Only Kick for Cash / Split Payments',
+                              style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white),
+                            ),
+                            Text(
+                              'Do not kick drawer on pure card/digital payments',
+                              style: GoogleFonts.inter(fontSize: 10, color: Colors.white38),
+                            ),
+                          ],
+                        ),
+                        Switch(
+                          value: _openDrawerCashOnly,
+                          onChanged: (v) {
+                            setState(() => _openDrawerCashOnly = v);
+                            _saveCashDrawerSettings();
+                          },
+                          activeThumbColor: const Color(0xFFC1F11D),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Text(
+                          'Connector Pin: ',
+                          style: GoogleFonts.inter(fontSize: 11, color: Colors.white70),
+                        ),
+                        const SizedBox(width: 8),
+                        ChoiceChip(
+                          label: Text('Pin 2 (Standard ESC/POS)', style: GoogleFonts.ibmPlexMono(fontSize: 10)),
+                          selected: _cashDrawerPin == 2,
+                          onSelected: (_) {
+                            setState(() => _cashDrawerPin = 2);
+                            _saveCashDrawerSettings();
+                          },
+                          selectedColor: const Color(0xFFC1F11D).withValues(alpha: 0.2),
+                        ),
+                        const SizedBox(width: 8),
+                        ChoiceChip(
+                          label: Text('Pin 5 (Alternative)', style: GoogleFonts.ibmPlexMono(fontSize: 10)),
+                          selected: _cashDrawerPin == 5,
+                          onSelected: (_) {
+                            setState(() => _cashDrawerPin = 5);
+                            _saveCashDrawerSettings();
+                          },
+                          selectedColor: const Color(0xFFC1F11D).withValues(alpha: 0.2),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    // Test Drawer Kick Button
+                    SizedBox(
+                      height: 42,
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () async {
+                          final printerService = ref.read(printerServiceProvider);
+                          final db = ref.read(databaseServiceProvider);
+                          final config = await db.getStoreConfig();
+                          
+                          final ok = await printerService.openCashDrawer(
+                            config: config,
+                            pin: _cashDrawerPin,
+                            pulseOnMs: _cashDrawerPulseOnMs,
+                          );
+
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Row(
+                                  children: [
+                                    Icon(
+                                      ok ? Icons.check_circle_rounded : Icons.warning_amber_rounded,
+                                      color: ok ? const Color(0xFFC1F11D) : Colors.orangeAccent,
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        ok 
+                                          ? '✓ Kick pulse sent! Cash drawer should open.'
+                                          : '⚠️ Kick pulse sent to hardware driver. Ensure printer cable is connected to cash drawer.',
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                backgroundColor: const Color(0xFF1A1A1F),
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                          }
+                        },
+                        icon: const Icon(Icons.bolt_rounded, color: Color(0xFFC1F11D), size: 18),
+                        label: Text(
+                          '⚡ TEST CASH DRAWER (KICK NOW)',
+                          style: GoogleFonts.manrope(fontWeight: FontWeight.w900, fontSize: 11, letterSpacing: 0.5, color: const Color(0xFFC1F11D)),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(color: const Color(0xFFC1F11D).withValues(alpha: 0.4)),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
