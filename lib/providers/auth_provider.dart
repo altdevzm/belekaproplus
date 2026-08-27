@@ -38,18 +38,7 @@ final isOwnerProvider = Provider<bool>((ref) {
   final user = ref.watch(authProvider);
   if (user == null) return false;
   final role = user.role.toLowerCase().trim();
-  final branch = user.branchCode?.trim();
-  
-  // 1. Explicit owner/admin/super_admin role
-  if (role == 'owner' || role == 'admin' || role == 'super_admin') return true;
-  
-  // 2. Name is Owner or Admin
-  if (user.name.toLowerCase().trim() == 'owner' || user.name.toLowerCase().trim() == 'admin') return true;
-  
-  // 3. User with role 'manager' situated at Headquarters (branchCode == '00' or empty or null)
-  if (role == 'manager' && (branch == null || branch.isEmpty || branch == '00')) return true;
-
-  return false;
+  return role == 'owner' || role == 'admin' || role == 'super_admin';
 });
 
 /// Convenient provider to check if a Headquarters Super Admin is logged in.
@@ -59,9 +48,6 @@ final isAdminProvider = Provider<bool>((ref) {
 
 /// Convenient provider to check if a restricted Branch Manager is logged in.
 final isBranchManagerProvider = Provider<bool>((ref) {
-  final isOwner = ref.watch(isOwnerProvider);
-  if (isOwner) return false; // Corporate owner is NEVER restricted as a branch manager!
-  
   final user = ref.watch(authProvider);
   if (user == null) return false;
   final role = user.role.toLowerCase().trim();

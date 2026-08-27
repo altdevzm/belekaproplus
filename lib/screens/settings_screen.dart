@@ -20,7 +20,7 @@ class SettingsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isBranchManager = ref.watch(isBranchManagerProvider);
+    final isOwner = ref.watch(isOwnerProvider);
 
     return Padding(
       padding: const EdgeInsets.all(20),
@@ -65,105 +65,105 @@ class SettingsScreen extends ConsumerWidget {
                       Icons.verified_user_rounded,
                       const Color(0xFFC1F11D),
                       onPressed: () => showDialog(
-                    context: context,
-                    builder: (context) => const LicenseInfoModal(),
-                  ),
-                  buttonLabel: 'View License',
-                ),
-                if (!isBranchManager)
-                  _buildSettingsCard(
-                    context,
-                    'Tax & Compliance',
-                    'Configure VAT, GST and tax regulations',
-                    Icons.account_balance_rounded,
-                    const Color(0xFFC6B4FF),
-                    onPressed: () => showDialog(
-                      context: context,
-                      builder: (context) => const StoreConfigModal(),
+                        context: context,
+                        builder: (context) => const LicenseInfoModal(),
+                      ),
+                      buttonLabel: 'View License',
                     ),
-                  ),
-                _buildSettingsCard(
-                  context,
-                  'Printers & Hardware',
-                  'Manage thermal printers and scanners',
-                  Icons.print_rounded,
-                  const Color(0xFF4ADE80),
-                  onPressed: () => showDialog(
-                    context: context,
-                    builder: (context) => const PrinterSettingsModal(),
-                  ),
-                ),
-                _buildSettingsCard(
-                  context,
-                  'User Management',
-                  'Add or edit staff accounts and permissions',
-                  Icons.people_rounded,
-                  const Color(0xFF5BBEEA),
-                  onPressed: () => showDialog(
-                    context: context,
-                    builder: (context) => const UserManagementModal(),
-                  ),
-                ),
-                _buildSettingsCard(
-                  context,
-                  'Store Information',
-                  'Update company name, address and details',
-                  Icons.storefront_rounded,
-                  const Color(0xFFFFB3B5),
-                  onPressed: () => showDialog(
-                    context: context,
-                    builder: (context) => const StoreConfigModal(),
-                  ),
-                ),
-                _buildSettingsCard(
-                  context,
-                  'Export Data',
-                  'Export transactions to CSV for accounting',
-                  Icons.download_rounded,
-                  const Color(0xFF7DD3A8),
-                  onPressed: () async {
-                    final db = ref.read(databaseServiceProvider);
-                    final transactions = await db.getRecentTransactions(limit: 10000);
-                    await ref.read(exportServiceProvider).exportTransactionsToCsv(transactions);
-                  },
-                  buttonLabel: 'Export CSV',
-                ),
-                _buildSettingsCard(
-                  context,
-                  'Loyalty Programs',
-                  'Setup customer rewards and discount points',
-                  Icons.card_giftcard_rounded,
-                  Colors.amber,
-                  onPressed: () => showDialog(
-                    context: context,
-                    builder: (context) => const LoyaltySettingsModal(),
-                  ),
-                ),
-                _buildSettingsCard(
-                  context,
-                  'Backup & Security',
-                  'Configure automated database backups and storage',
-                  Icons.security_rounded,
-                  Colors.orangeAccent,
-                  onPressed: () => showDialog(
-                    context: context,
-                    builder: (context) => const BackupSettingsModal(),
-                  ),
-                ),
-                _buildSettingsCard(
-                  context,
-                  'DigiTax & ZRA Smart Invoice',
-                  isBranchManager
-                      ? 'Centrally configured at Headquarters • Read-Only for Branch'
-                      : 'Configure DigiTax API Key, Environment & Live Tax Rates',
-                  Icons.receipt_long_rounded,
-                  isBranchManager ? Colors.white38 : const Color(0xFF10B981),
-                  buttonLabel: isBranchManager ? 'View (Locked)' : 'Configure',
-                  onPressed: () => showDialog(
-                    context: context,
-                    builder: (context) => const ZraTaxConfigModal(),
-                  ),
-                ),
+                    if (isOwner)
+                      _buildSettingsCard(
+                        context,
+                        'Tax & Compliance',
+                        'Configure VAT, GST and tax regulations',
+                        Icons.account_balance_rounded,
+                        const Color(0xFFC6B4FF),
+                        onPressed: () => showDialog(
+                          context: context,
+                          builder: (context) => const StoreConfigModal(),
+                        ),
+                      ),
+                    _buildSettingsCard(
+                      context,
+                      'Printers & Hardware',
+                      'Manage thermal printers and scanners',
+                      Icons.print_rounded,
+                      const Color(0xFF4ADE80),
+                      onPressed: () => showDialog(
+                        context: context,
+                        builder: (context) => const PrinterSettingsModal(),
+                      ),
+                    ),
+                    _buildSettingsCard(
+                      context,
+                      'User Management',
+                      'Add or edit staff accounts and permissions',
+                      Icons.people_rounded,
+                      const Color(0xFF5BBEEA),
+                      onPressed: () => showDialog(
+                        context: context,
+                        builder: (context) => const UserManagementModal(),
+                      ),
+                    ),
+                    if (isOwner)
+                      _buildSettingsCard(
+                        context,
+                        'Store Information',
+                        'Update company name, address and details',
+                        Icons.storefront_rounded,
+                        const Color(0xFFFFB3B5),
+                        onPressed: () => showDialog(
+                          context: context,
+                          builder: (context) => const StoreConfigModal(),
+                        ),
+                      ),
+                    _buildSettingsCard(
+                      context,
+                      'Export Data',
+                      'Export transactions to CSV for accounting',
+                      Icons.download_rounded,
+                      const Color(0xFF7DD3A8),
+                      onPressed: () async {
+                        final db = ref.read(databaseServiceProvider);
+                        final transactions = await db.getRecentTransactions(limit: 10000);
+                        await ref.read(exportServiceProvider).exportTransactionsToCsv(transactions);
+                      },
+                      buttonLabel: 'Export CSV',
+                    ),
+                    _buildSettingsCard(
+                      context,
+                      'Loyalty Programs',
+                      'Setup customer rewards and discount points',
+                      Icons.card_giftcard_rounded,
+                      Colors.amber,
+                      onPressed: () => showDialog(
+                        context: context,
+                        builder: (context) => const LoyaltySettingsModal(),
+                      ),
+                    ),
+                    _buildSettingsCard(
+                      context,
+                      'Backup & Security',
+                      'Configure automated database backups and storage',
+                      Icons.security_rounded,
+                      Colors.orangeAccent,
+                      onPressed: () => showDialog(
+                        context: context,
+                        builder: (context) => const BackupSettingsModal(),
+                      ),
+                    ),
+                    if (isOwner)
+                      _buildSettingsCard(
+                        context,
+                        'DigiTax & ZRA Smart Invoice',
+                        'Configure DigiTax API Key, Environment & Live Tax Rates',
+                        Icons.receipt_long_rounded,
+                        const Color(0xFF10B981),
+                        buttonLabel: 'Configure',
+                        onPressed: () => showDialog(
+                          context: context,
+                          builder: (context) => const ZraTaxConfigModal(),
+                        ),
+                      ),
                 _buildSettingsCard(
                   context,
                   'Network & Multi-Till Sync',

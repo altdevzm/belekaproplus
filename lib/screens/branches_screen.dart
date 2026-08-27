@@ -8,6 +8,7 @@ import 'package:beleka_pos/models/models.dart';
 import 'package:beleka_pos/services/database_service.dart';
 import 'package:beleka_pos/services/export_service.dart';
 import 'package:beleka_pos/services/postgres_sync_service.dart';
+import 'package:beleka_pos/providers/auth_provider.dart';
 
 class BranchesScreen extends ConsumerStatefulWidget {
   const BranchesScreen({super.key});
@@ -19,6 +20,33 @@ class BranchesScreen extends ConsumerStatefulWidget {
 class _BranchesScreenState extends ConsumerState<BranchesScreen> {
   @override
   Widget build(BuildContext context) {
+    final isOwner = ref.watch(isOwnerProvider);
+    if (!isOwner) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.lock_rounded, size: 64, color: Colors.white24),
+            const SizedBox(height: 16),
+            Text(
+              'ACCESS RESTRICTED',
+              style: GoogleFonts.manrope(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: Colors.white,
+                letterSpacing: 1.2,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Multi-Branch Management is restricted to Corporate Owners and Super Admins.',
+              style: GoogleFonts.inter(fontSize: 14, color: Colors.white54),
+            ),
+          ],
+        ),
+      );
+    }
+
     final accentColor = ref.watch(accentColorProvider);
     final currentConfig = ref.watch(storeConfigProvider).value;
     final branches = ref.watch(storeBranchesProvider).value ?? [];
