@@ -139,7 +139,18 @@ class ShellScreen extends ConsumerWidget {
   }
 
   List<_NavDestination> _getNavigationDestinations(User? user) {
-    if (user?.role == 'owner' || user?.role == 'admin') {
+    if (user == null) return const [];
+    
+    final role = user.role.toLowerCase().trim();
+    final branch = user.branchCode?.trim();
+    final isOwner = role == 'owner' || 
+                    role == 'admin' || 
+                    role == 'super_admin' || 
+                    user.name.toLowerCase().trim() == 'owner' ||
+                    user.name.toLowerCase().trim() == 'admin' ||
+                    (role == 'manager' && (branch == null || branch.isEmpty || branch == '00'));
+
+    if (isOwner) {
       // Headquarters / Corporate Owner (Can manage branches & multi-stores)
       return const [
         _NavDestination(ScreenType.dashboard, Icons.dashboard_rounded, 'Overview'),
@@ -151,7 +162,7 @@ class ShellScreen extends ConsumerWidget {
         _NavDestination(ScreenType.reports, Icons.assessment_rounded, 'Reports'),
         _NavDestination(ScreenType.settings, Icons.settings_rounded, 'Settings'),
       ];
-    } else if (user?.role == 'branch_manager' || user?.role == 'manager') {
+    } else if (role == 'branch_manager' || role == 'manager') {
       // Branch Manager (No access to create/manage other corporate branches)
       return const [
         _NavDestination(ScreenType.dashboard, Icons.dashboard_rounded, 'Overview'),

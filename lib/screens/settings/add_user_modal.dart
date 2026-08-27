@@ -304,10 +304,10 @@ class _AddUserModalState extends ConsumerState<AddUserModal> {
               isExpanded: true,
               style: GoogleFonts.inter(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
               borderRadius: BorderRadius.circular(12),
-              items: ['manager', 'cashier'].map((String value) {
+              items: ['owner', 'manager', 'cashier'].map((String value) {
                 return DropdownMenuItem<String>(
                   value: value,
-                  child: Text(value.toUpperCase()),
+                  child: Text(value == 'owner' ? 'OWNER / CORPORATE ADMIN' : value.toUpperCase()),
                 );
               }).toList(),
               onChanged: (v) {

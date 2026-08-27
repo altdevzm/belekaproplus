@@ -33,28 +33,47 @@ class AuthNotifier extends Notifier<User?> {
 /// Provider to track the currently logged-in User.
 final authProvider = NotifierProvider<AuthNotifier, User?>(AuthNotifier.new);
 
-/// Convenient provider to check if a Headquarters Super Admin is logged in.
-final isAdminProvider = Provider<bool>((ref) {
-  final user = ref.watch(authProvider);
-  return user?.role == 'admin' || user?.role == 'owner';
-});
-
 /// Convenient provider to check if Corporate Owner / HQ Admin is logged in.
 final isOwnerProvider = Provider<bool>((ref) {
   final user = ref.watch(authProvider);
-  return user?.role == 'owner' || user?.role == 'admin';
+  if (user == null) return false;
+  final role = user.role.toLowerCase().trim();
+  final branch = user.branchCode?.trim();
+  
+  // 1. Explicit owner/admin/super_admin role
+  if (role == 'owner' || role == 'admin' || role == 'super_admin') return true;
+  
+  // 2. Name is Owner or Admin
+  if (user.name.toLowerCase().trim() == 'owner' || user.name.toLowerCase().trim() == 'admin') return true;
+  
+  // 3. User with role 'manager' situated at Headquarters (branchCode == '00' or empty or null)
+  if (role == 'manager' && (branch == null || branch.isEmpty || branch == '00')) return true;
+
+  return false;
 });
 
-/// Convenient provider to check if a Branch Manager is logged in.
+/// Convenient provider to check if a Headquarters Super Admin is logged in.
+final isAdminProvider = Provider<bool>((ref) {
+  return ref.watch(isOwnerProvider);
+});
+
+/// Convenient provider to check if a restricted Branch Manager is logged in.
 final isBranchManagerProvider = Provider<bool>((ref) {
+  final isOwner = ref.watch(isOwnerProvider);
+  if (isOwner) return false; // Corporate owner is NEVER restricted as a branch manager!
+  
   final user = ref.watch(authProvider);
-  return user?.role == 'branch_manager' || user?.role == 'manager';
+  if (user == null) return false;
+  final role = user.role.toLowerCase().trim();
+  return role == 'branch_manager' || role == 'manager';
 });
 
 /// Convenient provider to check if any Manager or Owner is logged in.
 final isManagerProvider = Provider<bool>((ref) {
   final user = ref.watch(authProvider);
-  return user?.role == 'owner' || user?.role == 'admin' || user?.role == 'manager' || user?.role == 'branch_manager';
+  if (user == null) return false;
+  final role = user.role.toLowerCase().trim();
+  return role == 'owner' || role == 'admin' || role == 'super_admin' || role == 'manager' || role == 'branch_manager';
 });
 
 /// Convenient provider to check if a Cashier is logged in.

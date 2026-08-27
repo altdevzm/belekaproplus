@@ -111,6 +111,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         _pin.trim(),
       );
 
+      if (user != null) {
+        final role = user.role.toLowerCase().trim();
+        final branch = user.branchCode?.trim();
+        // Automatically promote existing HQ managers / owners to 'owner' role
+        if ((role == 'manager' && (branch == null || branch.isEmpty || branch == '00')) ||
+            user.name.toLowerCase().trim() == 'owner' ||
+            user.name.toLowerCase().trim() == 'admin') {
+          user.role = 'owner';
+          await db.isar.writeTxn(() async {
+            await db.isar.users.put(user!);
+          });
+        }
+      }
+
       // 2. If local fails and we have a network connection to manager, try remote login
       if (user == null && networkClient != null) {
         final userData = await networkClient.login(
@@ -120,12 +134,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         );
 
         if (userData != null) {
-          // Successfully logged in via network.
-          // Create/Update user in local database for future offline access.
+          final rawRole = (userData['role']?.toString() ?? 'cashier').toLowerCase().trim();
           final remoteUser = User()
             ..numericId = userData['numericId']
             ..name = userData['name']
-            ..role = userData['role']
+            ..role = (rawRole == 'admin' || rawRole == 'owner') ? 'owner' : rawRole
             ..passwordHash = hashPin(_pin.trim()); 
           
           await db.isar.writeTxn(() async {
@@ -156,11 +169,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             final sData = (cloudAuth['store'] is Map) ? cloudAuth['store'] as Map : null;
             final branchBhfId = sData?['bhf_id']?.toString() ?? uData['branch_code']?.toString() ?? '00';
             final branchName = sData?['branch_name']?.toString() ?? sData?['name']?.toString() ?? uData['branch_name']?.toString() ?? 'Main Branch';
+            final rawRole = uData['role']?.toString().toLowerCase().trim() ?? 'cashier';
+
+            final normalizedRole = (rawRole == 'owner' || rawRole == 'admin' || rawRole == 'super_admin' || uData['name']?.toString().toLowerCase().trim() == 'owner')
+                ? 'owner'
+                : (rawRole == 'manager' && (branchBhfId == '00' || branchBhfId.isEmpty))
+                    ? 'owner'
+                    : (rawRole == 'manager' || rawRole == 'branch_manager')
+                        ? 'branch_manager'
+                        : rawRole;
 
             final remoteUser = User()
               ..numericId = uData['numeric_id']?.toString() ?? _idController.text.trim()
-              ..name = uData['name']?.toString() ?? 'Branch Manager'
-              ..role = uData['role']?.toString() ?? 'branch_manager'
+              ..name = uData['name']?.toString() ?? (normalizedRole == 'owner' ? 'Owner' : 'Branch Manager')
+              ..role = normalizedRole
               ..branchCode = branchBhfId
               ..branchName = branchName
               ..phone = uData['phone']?.toString()

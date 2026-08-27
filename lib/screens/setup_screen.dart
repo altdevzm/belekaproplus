@@ -88,8 +88,10 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       final admin = User()
         ..numericId = _adminIdController.text.trim()
         ..passwordHash = hashPin(_pinController.text.trim())
-        ..role = 'manager'
-        ..name = 'Owner';
+        ..role = 'owner'
+        ..name = 'Owner'
+        ..branchCode = '00'
+        ..branchName = 'Headquarters (HQ)';
       
       await db.saveUser(admin);
 
