@@ -1040,16 +1040,22 @@ class DigiTaxInventoryService {
           _ => saleData['kind'] != null ? saleData['kind'].toString().replaceAll('_', ' ').toUpperCase() : 'Normal Sale',
         };
 
-        // Server-Side Tax Calculations from DigiTax
+        // Server-Side Tax Calculations from DigiTax (VAT, TOT, IPL, TL, Excise)
         final taxSummary = saleData['sales_tax_summary'];
         if (taxSummary is Map) {
           final vatTaxable = double.tryParse((taxSummary['taxable_amount_vat'] ?? '0').toString()) ?? 0.0;
           final vatTax = double.tryParse((taxSummary['tax_amount_vat'] ?? '0').toString()) ?? 0.0;
           final totTaxable = double.tryParse((taxSummary['taxable_amount_tot'] ?? '0').toString()) ?? 0.0;
           final totTax = double.tryParse((taxSummary['tax_amount_tot'] ?? '0').toString()) ?? 0.0;
+          final iplTaxable = double.tryParse((taxSummary['taxable_amount_ipl'] ?? '0').toString()) ?? 0.0;
+          final iplTax = double.tryParse((taxSummary['tax_amount_ipl'] ?? '0').toString()) ?? 0.0;
+          final tlTaxable = double.tryParse((taxSummary['taxable_amount_tl'] ?? '0').toString()) ?? 0.0;
+          final tlTax = double.tryParse((taxSummary['tax_amount_tl'] ?? '0').toString()) ?? 0.0;
+          final exciseTaxable = double.tryParse((taxSummary['taxable_amount_excise'] ?? '0').toString()) ?? 0.0;
+          final exciseTax = double.tryParse((taxSummary['tax_amount_excise'] ?? '0').toString()) ?? 0.0;
 
-          final serverTax = vatTax + totTax;
-          final serverSubtotal = vatTaxable + totTaxable;
+          final serverTax = vatTax + totTax + iplTax + tlTax + exciseTax;
+          final serverSubtotal = vatTaxable + totTaxable + iplTaxable + tlTaxable + exciseTaxable;
 
           if (serverSubtotal > 0) {
             transaction.subtotal = serverSubtotal;
@@ -1415,6 +1421,31 @@ class DigiTaxInventoryService {
           if (parsedSdcId != null) transaction.zraSdcId = parsedSdcId;
           if (parsedQrUrl != null) transaction.zraQrCode = parsedQrUrl;
           if (parsedInvoiceType != null) transaction.zraInvoiceType = parsedInvoiceType;
+
+          // Pull server-calculated taxes from DigiTax
+          final taxSummary = matchData['sales_tax_summary'];
+          if (taxSummary is Map) {
+            final vatTaxable = double.tryParse((taxSummary['taxable_amount_vat'] ?? '0').toString()) ?? 0.0;
+            final vatTax = double.tryParse((taxSummary['tax_amount_vat'] ?? '0').toString()) ?? 0.0;
+            final totTaxable = double.tryParse((taxSummary['taxable_amount_tot'] ?? '0').toString()) ?? 0.0;
+            final totTax = double.tryParse((taxSummary['tax_amount_tot'] ?? '0').toString()) ?? 0.0;
+            final iplTaxable = double.tryParse((taxSummary['taxable_amount_ipl'] ?? '0').toString()) ?? 0.0;
+            final iplTax = double.tryParse((taxSummary['tax_amount_ipl'] ?? '0').toString()) ?? 0.0;
+            final tlTaxable = double.tryParse((taxSummary['taxable_amount_tl'] ?? '0').toString()) ?? 0.0;
+            final tlTax = double.tryParse((taxSummary['tax_amount_tl'] ?? '0').toString()) ?? 0.0;
+            final exciseTaxable = double.tryParse((taxSummary['taxable_amount_excise'] ?? '0').toString()) ?? 0.0;
+            final exciseTax = double.tryParse((taxSummary['tax_amount_excise'] ?? '0').toString()) ?? 0.0;
+
+            final serverTax = vatTax + totTax + iplTax + tlTax + exciseTax;
+            final serverSubtotal = vatTaxable + totTaxable + iplTaxable + tlTaxable + exciseTaxable;
+
+            if (serverSubtotal > 0) {
+              transaction.subtotal = serverSubtotal;
+              transaction.taxAmount = serverTax;
+              transaction.totalAmount = serverSubtotal + serverTax;
+            }
+          }
+
           transaction.zraStatus = 'APPROVED';
 
           await db.isar.writeTxn(() async {
