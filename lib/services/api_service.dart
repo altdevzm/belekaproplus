@@ -16,8 +16,8 @@ import 'package:beleka_pos/services/database_service.dart';
 /// Tracks connected terminals on the Manager's server.
 class TerminalInfo {
   final String terminalName;
-  final String cashierId;
-  final String cashierName;
+  String cashierId;
+  String cashierName;
   final DateTime connectedAt;
   DateTime lastHeartbeat;
   double salesToday;
@@ -89,14 +89,28 @@ class ApiService {
     final handler =
         const Pipeline().addMiddleware(logRequests()).addHandler(router.call);
 
-    // Detect the device's LAN IP
+    // Detect the device's LAN IP (supports Wi-Fi, Ethernet, and multi-adapter)
     try {
-      final info = NetworkInfo();
-      _hostIp = await info.getWifiIP();
+      final interfaces = await NetworkInterface.list(
+        type: InternetAddressType.IPv4,
+        includeLinkLocal: false,
+      );
+      for (final interface in interfaces) {
+        for (final addr in interface.addresses) {
+          if (!addr.isLoopback && addr.type == InternetAddressType.IPv4) {
+            _hostIp = addr.address;
+            break;
+          }
+        }
+        if (_hostIp != null && _hostIp != '0.0.0.0' && _hostIp != '127.0.0.1') break;
+      }
     } catch (_) {
-      _hostIp = null;
+      try {
+        final info = NetworkInfo();
+        _hostIp = await info.getWifiIP();
+      } catch (_) {}
     }
-    _hostIp ??= '0.0.0.0';
+    _hostIp ??= '127.0.0.1';
 
     _server = await shelf_io.serve(handler, '0.0.0.0', _port);
     debugPrint('SERVER_STARTED: Beleka POS API running on $_hostIp:$_port');
@@ -121,6 +135,8 @@ class ApiService {
     router.post('/transactions', _handlePostTransaction);
     router.post('/transactions/batch', _handleBatchTransactions);
     router.get('/terminals', _handleGetTerminals);
+    router.post('/terminals/register', _handleRegisterTerminal);
+    router.post('/terminals/handshake', _handleRegisterTerminal);
     router.post('/terminals/heartbeat', _handleHeartbeat);
 
     // User management (Manager only)
@@ -349,13 +365,124 @@ class ApiService {
     return Response.ok(jsonEncode(list), headers: _jsonHeaders);
   }
 
+  Future<Response> _handleRegisterTerminal(Request request) async {
+    try {
+      final body = jsonDecode(await request.readAsString()) as Map<String, dynamic>;
+      final terminalCode = (body['terminalCode'] ?? body['terminalName'] ?? 'TILL-01').toString().trim().toUpperCase();
+      final name = (body['name'] ?? 'Counter Till ($terminalCode)').toString().trim();
+      final deviceIp = (body['deviceIp'] ?? '').toString().trim();
+      final hardwareId = (body['hardwareId'] ?? '').toString().trim();
+      final branchCode = (body['branchCode'] ?? '').toString().trim();
+
+      final config = await _db.getStoreConfig();
+      final effectiveBranchCode = branchCode.isNotEmpty ? branchCode : (config?.bhfId.isNotEmpty == true ? config!.bhfId : '00');
+      final effectiveBranchName = config?.branchName ?? 'Main Branch';
+
+      // 1. Update or create PosTerminal entry in Isar database
+      PosTerminal? existing = await _db.isar.posTerminals.filter().terminalCodeEqualTo(terminalCode).findFirst();
+      final PosTerminal savedTerminal;
+
+      if (existing != null) {
+        if (deviceIp.isNotEmpty) existing.deviceIp = deviceIp;
+        if (hardwareId.isNotEmpty) existing.serialNumber = hardwareId;
+        existing.status = 'ACTIVE';
+        existing.lastActive = DateTime.now();
+        savedTerminal = existing;
+      } else {
+        savedTerminal = PosTerminal()
+          ..terminalCode = terminalCode
+          ..name = name
+          ..deviceIp = deviceIp
+          ..serialNumber = hardwareId
+          ..branchCode = effectiveBranchCode
+          ..branchName = effectiveBranchName
+          ..digitaxBhfId = effectiveBranchCode
+          ..status = 'ACTIVE'
+          ..salesToday = 0.0
+          ..lastActive = DateTime.now()
+          ..createdAt = DateTime.now();
+      }
+
+      await _db.isar.writeTxn(() async {
+        await _db.isar.posTerminals.put(savedTerminal);
+      });
+
+      // 2. Track in active terminals map for live UI updates
+      _activeTerminals[terminalCode] = TerminalInfo(
+        terminalName: terminalCode,
+        cashierId: savedTerminal.assignedCashierId ?? '',
+        cashierName: savedTerminal.assignedCashierName ?? 'Waiting for Cashier...',
+        connectedAt: DateTime.now(),
+      );
+      _notifyTerminals();
+
+      debugPrint('TERMINAL_HANDSHAKE_SUCCESS: Till [$terminalCode] registered from IP [$deviceIp]');
+
+      return Response.ok(
+        jsonEncode({
+          'success': true,
+          'message': 'Terminal $terminalCode linked and authorized on Master POS',
+          'terminal': {
+            'id': savedTerminal.id,
+            'terminalCode': savedTerminal.terminalCode,
+            'name': savedTerminal.name,
+            'status': savedTerminal.status,
+            'branchCode': savedTerminal.branchCode,
+            'branchName': savedTerminal.branchName,
+          },
+          'storeConfig': {
+            'businessName': config?.businessName ?? 'Beleka POS',
+            'branchName': config?.branchName ?? 'Main Branch',
+            'bhfId': config?.bhfId ?? '00',
+            'currencySymbol': config?.currencySymbol ?? 'ZK',
+            'tpin': config?.tpin ?? '',
+            'businessTaxType': config?.businessTaxType ?? 'TURNOVER_TAX',
+          },
+        }),
+        headers: _jsonHeaders,
+      );
+    } catch (e) {
+      debugPrint('REGISTER_TERMINAL_API_ERROR: $e');
+      return Response.internalServerError(body: jsonEncode({'error': '$e'}), headers: _jsonHeaders);
+    }
+  }
+
   Future<Response> _handleHeartbeat(Request request) async {
     try {
-      final body = jsonDecode(await request.readAsString());
-      final terminalName = body['terminalName'] as String?;
+      final body = jsonDecode(await request.readAsString()) as Map<String, dynamic>;
+      final terminalName = (body['terminalCode'] ?? body['terminalName']) as String?;
+      final cashierId = body['cashierId'] as String?;
+      final cashierName = body['cashierName'] as String?;
 
-      if (terminalName != null && _activeTerminals.containsKey(terminalName)) {
-        _activeTerminals[terminalName]!.lastHeartbeat = DateTime.now();
+      if (terminalName != null && terminalName.isNotEmpty) {
+        if (_activeTerminals.containsKey(terminalName)) {
+          final t = _activeTerminals[terminalName]!;
+          t.lastHeartbeat = DateTime.now();
+          if (cashierId != null && cashierId.isNotEmpty) t.cashierId = cashierId;
+          if (cashierName != null && cashierName.isNotEmpty) t.cashierName = cashierName;
+        } else {
+          _activeTerminals[terminalName] = TerminalInfo(
+            terminalName: terminalName,
+            cashierId: cashierId ?? '',
+            cashierName: cashierName ?? 'Cashier',
+            connectedAt: DateTime.now(),
+          );
+        }
+
+        // Keep PosTerminal record fresh in Isar
+        try {
+          final existing = await _db.isar.posTerminals.filter().terminalCodeEqualTo(terminalName).findFirst();
+          if (existing != null) {
+            existing.lastActive = DateTime.now();
+            existing.status = 'ACTIVE';
+            if (cashierId != null && cashierId.isNotEmpty) existing.assignedCashierId = cashierId;
+            if (cashierName != null && cashierName.isNotEmpty) existing.assignedCashierName = cashierName;
+            await _db.isar.writeTxn(() async {
+              await _db.isar.posTerminals.put(existing);
+            });
+          }
+        } catch (_) {}
+
         _notifyTerminals();
       }
 

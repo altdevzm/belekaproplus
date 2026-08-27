@@ -11,6 +11,7 @@ import 'package:beleka_pos/screens/auth/backup_restore_modal.dart';
 import 'package:beleka_pos/services/network_client.dart';
 import 'package:beleka_pos/providers/store_provider.dart';
 import 'package:isar/isar.dart';
+import 'package:beleka_pos/services/hwid_service.dart';
 import 'package:beleka_pos/main.dart';
 
 class SetupScreen extends ConsumerStatefulWidget {
@@ -647,6 +648,20 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
         ..isCloudSyncEnabled = false;
 
       await db.saveStoreConfig(config);
+
+      // Perform handshake registration on Master POS server so it immediately shows up on Master dashboard
+      setState(() => _statusMessage = 'Registering till with Master POS server...');
+      try {
+        final hwid = await HwidService().getHardwareId();
+        await client.registerTerminal(
+          terminalCode: tillName,
+          name: 'Cashier Till ($tillName)',
+          hardwareId: hwid,
+          branchCode: bhfId,
+        );
+      } catch (e) {
+        debugPrint('Till registration handshake notice: $e');
+      }
 
       setState(() => _statusMessage = 'Downloading catalog & categories from Master POS...');
       try {

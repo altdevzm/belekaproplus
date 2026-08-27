@@ -99,6 +99,40 @@ class NetworkClient {
     }
   }
 
+  /// Handshake & register this client till terminal with the Master POS Server.
+  Future<Map<String, dynamic>?> registerTerminal({
+    required String terminalCode,
+    required String name,
+    String? deviceIp,
+    String? hardwareId,
+    String? deviceModel,
+    String? branchCode,
+  }) async {
+    try {
+      final response = await _dio.post('/terminals/register', data: {
+        'terminalCode': terminalCode,
+        'terminalName': terminalCode,
+        'name': name,
+        'deviceIp': deviceIp,
+        'hardwareId': hardwareId,
+        'deviceModel': deviceModel,
+        'branchCode': branchCode,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+
+      if (response.statusCode == 200 && response.data != null) {
+        _isConnected = true;
+        final data = response.data is String ? jsonDecode(response.data as String) : response.data;
+        return data is Map<String, dynamic> ? data : {'success': true};
+      }
+      return null;
+    } catch (e) {
+      _isConnected = false;
+      debugPrint('REGISTER_TERMINAL_ERROR: $e');
+      return null;
+    }
+  }
+
   // ─── Authentication ───────────────────────────────────────────
 
   /// Authenticate a cashier against the Manager's user database.

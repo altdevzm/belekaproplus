@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:isar/isar.dart';
@@ -8,6 +9,7 @@ import 'package:beleka_pos/providers/store_provider.dart';
 import 'package:beleka_pos/providers/auth_provider.dart';
 import 'package:beleka_pos/services/database_service.dart';
 import 'package:beleka_pos/services/local_sql_service.dart';
+import 'package:beleka_pos/services/api_service.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:beleka_pos/screens/accounts_screen.dart';
 import 'package:beleka_pos/services/printer_service.dart';
@@ -31,6 +33,7 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> {
     final storeConfig = ref.watch(storeConfigProvider).value;
     final currency = storeConfig?.currencySymbol ?? 'K';
     final allTerminals = ref.watch(posTerminalsProvider).value ?? [];
+    final apiService = ref.watch(apiServiceProvider);
 
     final String? effectiveBranchCode = !isOwner
         ? (storeConfig?.bhfId.isNotEmpty == true ? storeConfig!.bhfId : (currentUser?.branchCode ?? '00'))
@@ -49,6 +52,9 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> {
 
     final activeLicense = ref.watch(licenseServiceProvider).activeLicense;
     final maxAllowedTills = activeLicense?.maxTills ?? 3;
+
+    final hostIp = apiService.hostIp ?? '127.0.0.1';
+    final hostPort = apiService.port;
 
     return Padding(
       padding: const EdgeInsets.all(24.0),
@@ -73,7 +79,7 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Register POS till registers, link with store branches (bhfId), and assign cashiers to specific tills.',
+                    'Monitor connected cashier registers, auto-handshake over Wi-Fi/LAN, link branch bhfId, and assign shifts.',
                     style: GoogleFonts.inter(fontSize: 13, color: Colors.white54),
                   ),
                 ],
@@ -83,7 +89,7 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> {
                   ElevatedButton.icon(
                     onPressed: () => _showAddEditTerminalDialog(context, accentColor, branches, users),
                     icon: const Icon(Icons.add_to_queue_rounded, size: 18),
-                    label: Text('+ Register New Till', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13)),
+                    label: Text('+ Pre-Authorize Till', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13)),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: accentColor,
                       foregroundColor: Colors.black,
@@ -96,14 +102,18 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
+
+          // Master POS Host Hub Status Card
+          _buildMasterHubBanner(context, storeConfig, hostIp, hostPort, accentColor),
+          const SizedBox(height: 20),
 
           // KPI Stats Overview Bar
           Row(
             children: [
               Expanded(
                 child: _buildMetricCard(
-                  title: 'REGISTERED TILLS',
+                  title: 'CONNECTED TILLS',
                   value: '${terminals.length} / $maxAllowedTills',
                   subtitle: '$activeTerminalsCount Active (Max $maxAllowedTills on License)',
                   icon: Icons.point_of_sale_rounded,
@@ -147,38 +157,19 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> {
           // Terminals Grid / List
           Expanded(
             child: terminals.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.point_of_sale_outlined, size: 64, color: Colors.white.withAlpha(40)),
-                        const SizedBox(height: 16),
-                        Text('No POS Tills Registered Yet', style: GoogleFonts.manrope(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white70)),
-                        const SizedBox(height: 8),
-                        Text('Click "+ Register New Till" above to create and configure your checkout registers.', style: GoogleFonts.inter(fontSize: 13, color: Colors.white38)),
-                        const SizedBox(height: 20),
-                        ElevatedButton.icon(
-                          onPressed: () => _showAddEditTerminalDialog(context, accentColor, branches, users),
-                          icon: const Icon(Icons.add, size: 16),
-                          label: const Text('Register First Till'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: accentColor,
-                            foregroundColor: Colors.black,
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
+                ? _buildEmptyTillsState(context, hostIp, hostPort, accentColor, branches, users)
                 : GridView.builder(
                     gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
                       maxCrossAxisExtent: 440,
-                      mainAxisExtent: 290,
+                      mainAxisExtent: 295,
                       crossAxisSpacing: 16,
                       mainAxisSpacing: 16,
                     ),
                     itemCount: terminals.length,
                     itemBuilder: (context, index) {
                       final t = terminals[index];
+                      final isLiveConnected = apiService.activeTerminals.containsKey(t.terminalCode) ||
+                          DateTime.now().difference(t.lastActive).inMinutes < 5;
                       final matchingShift = activeShifts.where((s) => s.terminalId == '${t.terminalCode} - ${t.name}' || s.terminalId == t.terminalCode || s.terminalId == t.name).firstOrNull;
                       final isShiftOpen = matchingShift != null;
                       final isActive = t.status == 'ACTIVE';
@@ -233,9 +224,20 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> {
                                             color: Colors.white,
                                           ),
                                         ),
-                                        Text(
-                                          t.name,
-                                          style: GoogleFonts.inter(fontSize: 12, color: Colors.white70),
+                                        Row(
+                                          children: [
+                                            Text(
+                                              t.name,
+                                              style: GoogleFonts.inter(fontSize: 12, color: Colors.white70),
+                                            ),
+                                            if (t.deviceIp != null && t.deviceIp!.isNotEmpty) ...[
+                                              const SizedBox(width: 6),
+                                              Text(
+                                                '• ${t.deviceIp}',
+                                                style: GoogleFonts.ibmPlexMono(fontSize: 10, color: Colors.white38),
+                                              ),
+                                            ],
+                                          ],
                                         ),
                                       ],
                                     ),
@@ -248,29 +250,55 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> {
                                       decoration: BoxDecoration(
                                         color: isShiftOpen
                                             ? Colors.green.withAlpha(30)
-                                            : isActive
-                                                ? Colors.blue.withAlpha(30)
-                                                : Colors.orange.withAlpha(30),
+                                            : isLiveConnected
+                                                ? const Color(0xFF10B981).withAlpha(30)
+                                                : isActive
+                                                    ? Colors.blue.withAlpha(30)
+                                                    : Colors.orange.withAlpha(30),
                                         borderRadius: BorderRadius.circular(6),
                                         border: Border.all(
                                           color: isShiftOpen
                                               ? Colors.green.withAlpha(80)
-                                              : isActive
-                                                  ? Colors.blue.withAlpha(80)
-                                                  : Colors.orange.withAlpha(80),
+                                              : isLiveConnected
+                                                  ? const Color(0xFF10B981).withAlpha(80)
+                                                  : isActive
+                                                      ? Colors.blue.withAlpha(80)
+                                                      : Colors.orange.withAlpha(80),
                                         ),
                                       ),
-                                      child: Text(
-                                        isShiftOpen ? 'LIVE SHIFT' : t.status,
-                                        style: GoogleFonts.jetBrainsMono(
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.bold,
-                                          color: isShiftOpen
-                                              ? Colors.green
-                                              : isActive
-                                                  ? Colors.blue
-                                                  : Colors.orange,
-                                        ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          if (isLiveConnected) ...[
+                                            Container(
+                                              width: 6,
+                                              height: 6,
+                                              margin: const EdgeInsets.only(right: 5),
+                                              decoration: const BoxDecoration(
+                                                color: Color(0xFF10B981),
+                                                shape: BoxShape.circle,
+                                              ),
+                                            ),
+                                          ],
+                                          Text(
+                                            isShiftOpen 
+                                                ? 'LIVE SHIFT' 
+                                                : isLiveConnected 
+                                                    ? 'CONNECTED' 
+                                                    : t.status,
+                                            style: GoogleFonts.jetBrainsMono(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.bold,
+                                              color: isShiftOpen
+                                                  ? Colors.green
+                                                  : isLiveConnected
+                                                      ? const Color(0xFF10B981)
+                                                      : isActive
+                                                          ? Colors.blue
+                                                          : Colors.orange,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                     PopupMenuButton<String>(
@@ -360,7 +388,7 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> {
                                               ? 'Shift #: ${matchingShift.shiftNumber}'
                                               : (t.assignedCashierId != null && t.assignedCashierId!.isNotEmpty)
                                                   ? 'Assigned ID: ${t.assignedCashierId}'
-                                                  : 'Click "Assign Shift" to launch till',
+                                                  : 'Cashier can log in directly',
                                           style: GoogleFonts.inter(fontSize: 10, color: Colors.white38),
                                         ),
                                       ],
@@ -394,7 +422,7 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> {
                                         }
                                       : () => _openShiftForTerminal(context, t, users, accentColor),
                                   icon: Icon(isShiftOpen ? Icons.check_circle_outline : Icons.login_rounded, size: 14),
-                                  label: Text(isShiftOpen ? 'Shift Active' : 'Assign & Open Shift', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                  label: Text(isShiftOpen ? 'Shift Active' : 'Assign Shift', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: isShiftOpen ? Colors.white.withAlpha(15) : accentColor,
                                     foregroundColor: isShiftOpen ? Colors.white70 : Colors.black,
@@ -413,6 +441,252 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildMasterHubBanner(
+    BuildContext context,
+    StoreConfig? config,
+    String hostIp,
+    int hostPort,
+    Color accentColor,
+  ) {
+    final businessName = config?.businessName ?? 'Beleka Master Store';
+    final branchName = config?.branchName ?? 'Headquarters (HQ)';
+    final bhfId = config?.bhfId ?? '00';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF141418),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: accentColor.withAlpha(60)),
+        boxShadow: [
+          BoxShadow(
+            color: accentColor.withAlpha(15),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: accentColor.withAlpha(30),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(Icons.hub_rounded, color: accentColor, size: 28),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF10B981),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'MASTER POS SERVER (HOST HUB)',
+                      style: GoogleFonts.ibmPlexMono(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.5,
+                        color: accentColor,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF10B981).withAlpha(30),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: const Color(0xFF10B981).withAlpha(80)),
+                      ),
+                      child: Text(
+                        'HOST RUNNING',
+                        style: GoogleFonts.jetBrainsMono(
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                          color: const Color(0xFF10B981),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '$businessName • $branchName (bhfId: $bhfId)',
+                  style: GoogleFonts.manrope(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Secondary Cashier Tills connect using Master IP: $hostIp on Port $hostPort',
+                  style: GoogleFonts.inter(fontSize: 11.5, color: Colors.white60),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 16),
+          ElevatedButton.icon(
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: hostIp));
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Master POS IP "$hostIp" copied to clipboard!'),
+                  backgroundColor: accentColor,
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            },
+            icon: const Icon(Icons.copy_rounded, size: 14),
+            label: Text(
+              'IP: $hostIp:$hostPort',
+              style: GoogleFonts.ibmPlexMono(fontSize: 11, fontWeight: FontWeight.bold),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.white10,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyTillsState(
+    BuildContext context,
+    String hostIp,
+    int hostPort,
+    Color accentColor,
+    List<StoreBranch> branches,
+    List<User> users,
+  ) {
+    return Center(
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 620),
+        padding: const EdgeInsets.all(32),
+        decoration: BoxDecoration(
+          color: const Color(0xFF141418),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white.withAlpha(15)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: accentColor.withAlpha(20),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.point_of_sale_rounded, size: 40, color: accentColor),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Waiting for Secondary Cashier Tills to Connect',
+              style: GoogleFonts.manrope(
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
+                color: Colors.white,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'You do not need to register a till under the Owner. When you install Beleka POS on cashier machines in your shop, they will automatically handshake and appear here.',
+              style: GoogleFonts.inter(fontSize: 12.5, color: Colors.white60, height: 1.4),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white.withAlpha(6),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white.withAlpha(12)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'QUICK CLIENT TILL LINKING INSTRUCTIONS:',
+                    style: GoogleFonts.ibmPlexMono(fontSize: 10, fontWeight: FontWeight.bold, color: accentColor, letterSpacing: 1),
+                  ),
+                  const SizedBox(height: 8),
+                  _buildStepRow('1', 'Launch Beleka POS on another PC or tablet in your shop.'),
+                  const SizedBox(height: 6),
+                  _buildStepRow('2', 'On the setup screen, select "Link LAN Client Till".'),
+                  const SizedBox(height: 6),
+                  _buildStepRow('3', 'Enter Master Host IP "$hostIp", test connection, and connect.'),
+                  const SizedBox(height: 6),
+                  _buildStepRow('4', 'The till will automatically register and appear on this dashboard!'),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () => _showAddEditTerminalDialog(context, accentColor, branches, users),
+                  icon: const Icon(Icons.add, size: 16),
+                  label: const Text('+ Pre-Authorize Till Manually'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white70,
+                    side: const BorderSide(color: Colors.white24),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStepRow(String number, String text) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 18,
+          height: 18,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: Colors.white12,
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Text(
+            number,
+            style: GoogleFonts.ibmPlexMono(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            text,
+            style: GoogleFonts.inter(fontSize: 12, color: Colors.white70, height: 1.3),
+          ),
+        ),
+      ],
     );
   }
 

@@ -27,7 +27,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   String _pin = '';
   String? _errorMessage;
   bool _isLoading = false;
-  bool _isAdmin = false;
   String? _recognizedName;
 
   @override
@@ -67,7 +66,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         if (_recognizedName != user.name) {
           setState(() {
             _recognizedName = user.name;
-            _isAdmin = user.role == 'manager';
           });
         }
       } else {
@@ -713,10 +711,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
-
-                // Role Toggle
-                _buildRoleToggle(),
+                // Terminal & Network Mode Status Indicator
+                _buildTerminalBadge(),
                 const SizedBox(height: 14),
 
                 // Staff ID Field
@@ -838,42 +834,66 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 
-  Widget _buildRoleToggle() {
+  Widget _buildTerminalBadge() {
+    final config = ref.watch(storeConfigProvider).value;
+    final isManager = config?.isManagerMode ?? true;
+    final tillCode = config?.terminalName ?? 'TILL-01';
+    final serverIp = config?.serverIp ?? '127.0.0.1';
+
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.04),
+        color: isManager ? const Color(0xFFC1F11D).withValues(alpha: 0.08) : Colors.blueAccent.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+        border: Border.all(
+          color: isManager ? const Color(0xFFC1F11D).withValues(alpha: 0.25) : Colors.blueAccent.withValues(alpha: 0.25),
+        ),
       ),
-      padding: const EdgeInsets.all(3),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: Row(
         children: [
-          Expanded(child: _buildRoleButton('Cashier', !_isAdmin)),
-          Expanded(child: _buildRoleButton('Admin & Manager', _isAdmin)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRoleButton(String label, bool isSelected) {
-    return GestureDetector(
-      onTap: () => setState(() => _isAdmin = label.startsWith('Admin')),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? Colors.white.withValues(alpha: 0.1) : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
-          border: isSelected ? Border.all(color: Colors.white.withValues(alpha: 0.12)) : null,
-        ),
-        child: Text(
-          label,
-          textAlign: TextAlign.center,
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 11,
-            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-            color: isSelected ? Colors.white : Colors.white.withValues(alpha: 0.4),
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: isManager ? const Color(0xFFC1F11D) : Colors.blueAccent,
+              shape: BoxShape.circle,
+            ),
           ),
-        ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isManager ? 'STORE HUB • MASTER POS SERVER' : 'CASHIER TILL • $tillCode',
+                  style: GoogleFonts.ibmPlexMono(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1,
+                    color: isManager ? const Color(0xFFC1F11D) : Colors.blueAccent,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  isManager 
+                      ? '${config?.businessName ?? 'Main Store'} (bhfId: ${config?.bhfId ?? '00'})' 
+                      : 'Connected to Master POS Host ($serverIp:8080)',
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    color: Colors.white70,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          Icon(
+            isManager ? Icons.hub_rounded : Icons.point_of_sale_rounded,
+            size: 16,
+            color: isManager ? const Color(0xFFC1F11D) : Colors.blueAccent,
+          ),
+        ],
       ),
     );
   }
