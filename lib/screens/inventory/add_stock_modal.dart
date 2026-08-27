@@ -187,12 +187,13 @@ class _AddStockModalState extends ConsumerState<AddStockModal> {
       await db.saveProduct(widget.product);
 
       final currentUser = ref.read(authProvider);
+      final isOwner = ref.read(isOwnerProvider);
       final storeConfig = ref.read(storeConfigProvider).value;
       final branchCode = (currentUser?.branchCode != null && currentUser!.branchCode!.isNotEmpty && currentUser.branchCode != '00')
           ? currentUser.branchCode!
-          : ((storeConfig != null && storeConfig.bhfId.isNotEmpty)
+          : ((storeConfig != null && storeConfig.bhfId.isNotEmpty && storeConfig.bhfId != '00')
               ? storeConfig.bhfId
-              : widget.product.branchCode);
+              : (widget.product.branchCode.isNotEmpty ? widget.product.branchCode : (isOwner ? '00' : '01')));
 
       // Push stock update directly to DigiTax
       bool digitaxSynced = false;

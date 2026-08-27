@@ -653,12 +653,15 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
       final durationDays = _hasDiscount ? int.tryParse(_discountDurationController.text) : null;
       
       final storeConfig = ref.read(storeConfigProvider).value;
+      final isOwner = ref.read(isOwnerProvider);
       final branchBhfId = (currentUser?.branchCode != null && currentUser!.branchCode!.isNotEmpty && currentUser.branchCode != '00')
           ? currentUser.branchCode!
-          : ((storeConfig != null && storeConfig.bhfId.isNotEmpty) ? storeConfig.bhfId : '00');
+          : ((storeConfig != null && storeConfig.bhfId.isNotEmpty && storeConfig.bhfId != '00')
+              ? storeConfig.bhfId
+              : (isOwner ? '00' : '01'));
       final branchName = (storeConfig != null && storeConfig.branchName != null && storeConfig.branchName!.isNotEmpty)
           ? storeConfig.branchName!
-          : (currentUser?.branchName ?? 'Main Branch');
+          : (currentUser?.branchName ?? (isOwner ? 'Headquarters (HQ)' : 'Main Branch'));
 
       final product = widget.product ?? Product(
         name: _nameController.text,

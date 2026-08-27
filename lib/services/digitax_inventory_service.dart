@@ -7,6 +7,7 @@ import 'package:beleka_pos/models/models.dart';
 import 'package:beleka_pos/services/database_service.dart';
 import 'package:beleka_pos/services/local_sql_service.dart';
 import 'package:beleka_pos/providers/store_provider.dart';
+import 'package:beleka_pos/providers/auth_provider.dart';
 
 class DigiTaxSyncResult {
   final bool success;
@@ -275,9 +276,22 @@ class DigiTaxInventoryService {
       }
 
       // 1. Purge any duplicate records first
-      final cleanedDups = await deduplicateLocalProducts();
+      final cleanedDups = await deduplicateLocalProducts(branchCode: branchCode);
 
-      final bhfId = branchCode ?? config?.bhfId ?? '00';
+      final isOwner = ref.read(isOwnerProvider);
+      final currentUser = ref.read(authProvider);
+
+      final String bhfId;
+      if (branchCode != null && branchCode.isNotEmpty) {
+        bhfId = branchCode;
+      } else if (!isOwner && currentUser?.branchCode != null && currentUser!.branchCode!.isNotEmpty && currentUser.branchCode != '00') {
+        bhfId = currentUser.branchCode!;
+      } else if (config?.bhfId != null && config!.bhfId.isNotEmpty && config.bhfId != '00') {
+        bhfId = config.bhfId;
+      } else {
+        bhfId = isOwner ? '00' : '01';
+      }
+
       final headers = {
         'Authorization': 'Bearer $apiKey',
         'X-API-Key': apiKey,
@@ -324,7 +338,7 @@ class DigiTaxInventoryService {
         }
       }
 
-      // 3. Pull remote items down to POS (Update existing, never duplicate, isolate per branch)
+      // 3. Pull remote items down to POS (Update existing, never duplicate, strictly isolate per branch)
       for (final r in remoteList) {
         if (r is Map) {
           final rId = (r['id'] ?? '').toString();
@@ -369,8 +383,8 @@ class DigiTaxInventoryService {
                 await db.isar.products.put(existing);
               });
             }
-          } else if (bhfId == '00') {
-            // ONLY Headquarters ('00') can auto-create products from DigiTax catalog.
+          } else if (bhfId == '00' && isOwner) {
+            // ONLY Headquarters ('00') when executed by Corporate Owner can auto-create products from DigiTax catalog.
             // Branches NEVER import HQ items into their isolated branch inventory!
             final finalSku = rBarcode.isNotEmpty 
                 ? rBarcode 

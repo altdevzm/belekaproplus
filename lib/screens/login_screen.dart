@@ -111,6 +111,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         _pin.trim(),
       );
 
+      if (user != null) {
+        if (user.branchCode != null && user.branchCode!.isNotEmpty && config != null) {
+          config.bhfId = user.branchCode!;
+          if (user.branchName != null && user.branchName!.isNotEmpty) {
+            config.branchName = user.branchName;
+          }
+          await db.isar.writeTxn(() async {
+            await db.isar.storeConfigs.put(config);
+          });
+        }
+      }
+
       // 2. If local fails and we have a network connection to manager, try remote login
       if (user == null && networkClient != null) {
         final userData = await networkClient.login(

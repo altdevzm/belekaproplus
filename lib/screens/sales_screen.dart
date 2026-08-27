@@ -22,9 +22,14 @@ final productsProvider = StreamProvider<List<Product>>((ref) {
 
   final String? effectiveBranchCode;
   if (!isOwner) {
-    effectiveBranchCode = (storeConfig != null && storeConfig.bhfId.isNotEmpty)
-        ? storeConfig.bhfId
-        : (currentUser?.branchCode ?? '00');
+    final userBranch = currentUser?.branchCode?.trim();
+    if (userBranch != null && userBranch.isNotEmpty && userBranch != '00') {
+      effectiveBranchCode = userBranch;
+    } else if (storeConfig != null && storeConfig.bhfId.isNotEmpty && storeConfig.bhfId != '00') {
+      effectiveBranchCode = storeConfig.bhfId;
+    } else {
+      effectiveBranchCode = '01';
+    }
   } else {
     effectiveBranchCode = null; // Owner/HQ can sell all or default branch products
   }

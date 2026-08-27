@@ -30,9 +30,14 @@ final inventoryProductsProvider = StreamProvider<List<Product>>((ref) {
   // If Branch Manager/Cashier: strictly isolate to their specific branch bhfId
   final String? effectiveBranchCode;
   if (!isOwner) {
-    effectiveBranchCode = (currentUser?.branchCode != null && currentUser!.branchCode!.isNotEmpty && currentUser.branchCode != '00')
-        ? currentUser.branchCode!
-        : ((storeConfig != null && storeConfig.bhfId.isNotEmpty) ? storeConfig.bhfId : '00');
+    final userBranch = currentUser?.branchCode?.trim();
+    if (userBranch != null && userBranch.isNotEmpty && userBranch != '00') {
+      effectiveBranchCode = userBranch;
+    } else if (storeConfig != null && storeConfig.bhfId.isNotEmpty && storeConfig.bhfId != '00') {
+      effectiveBranchCode = storeConfig.bhfId;
+    } else {
+      effectiveBranchCode = '01';
+    }
   } else {
     effectiveBranchCode = activeBranchFilter; // Owner can view all or filter by branch
   }
@@ -73,10 +78,23 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
       } catch (_) {}
 
       final currentUser = ref.read(authProvider);
+      final isOwner = ref.read(isOwnerProvider);
       final storeConfig = ref.read(storeConfigProvider).value;
-      final currentBranch = (storeConfig != null && storeConfig.bhfId.isNotEmpty)
-          ? storeConfig.bhfId
-          : (currentUser?.branchCode ?? '00');
+
+      final String currentBranch;
+      if (isOwner) {
+        currentBranch = ref.read(inventoryBranchFilterProvider) ?? '00';
+      } else {
+        final userBranch = currentUser?.branchCode?.trim();
+        if (userBranch != null && userBranch.isNotEmpty && userBranch != '00') {
+          currentBranch = userBranch;
+        } else if (storeConfig != null && storeConfig.bhfId.isNotEmpty && storeConfig.bhfId != '00') {
+          currentBranch = storeConfig.bhfId;
+        } else {
+          currentBranch = '01';
+        }
+      }
+
       final syncService = ref.read(digitaxInventoryServiceProvider);
 
       final result = await syncService.syncAllInventoryWithDigitax(
