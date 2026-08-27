@@ -9,8 +9,10 @@ import 'package:beleka_pos/providers/store_provider.dart';
 import 'package:beleka_pos/services/database_service.dart';
 import 'package:beleka_pos/services/printer_service.dart';
 import 'package:beleka_pos/services/barcode_service.dart';
+import 'package:beleka_pos/services/scale_service.dart';
 import 'package:beleka_pos/services/sync_service.dart';
 import 'package:beleka_pos/services/digitax_inventory_service.dart';
+import 'package:beleka_pos/screens/sales/weight_scale_modal.dart';
 import 'package:beleka_pos/utils/formatters.dart';
 import 'package:beleka_pos/providers/auth_provider.dart';
 
@@ -111,6 +113,31 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
 
   Future<void> _handleProductSelection(Product product) async {
     final cartNotifier = ref.read(cartProvider.notifier);
+    final config = ref.read(storeConfigProvider).value;
+    final currency = config?.currencySymbol ?? 'ZK';
+
+    if (product.isWeighted) {
+      final double? weight = await showDialog<double>(
+        context: context,
+        builder: (context) => WeightScaleModal(
+          product: product,
+          currency: currency,
+        ),
+      );
+
+      if (weight != null && weight > 0) {
+        final success = cartNotifier.addWeightedProduct(
+          product,
+          weight: weight,
+          tareWeight: product.tareWeight,
+        );
+        if (mounted && success) {
+          HapticFeedback.mediumImpact();
+        }
+      }
+      return;
+    }
+
     final success = cartNotifier.addProduct(product, quantity: 1);
 
     if (mounted) {
@@ -128,9 +155,41 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     }
   }
 
-  Future<void> _lookupProduct(String sku) async {
+  Future<void> _lookupProduct(String barcode) async {
+    final scaleService = ref.read(scaleServiceProvider);
+    final scaleBarcodeResult = scaleService.parseScaleBarcode(barcode);
     final db = ref.read(databaseServiceProvider);
-    final product = await db.getProductBySku(sku);
+    
+    if (scaleBarcodeResult != null) {
+      // Find product matching the PLU code or SKU prefix
+      final products = await db.getAllProducts();
+      final matchedProduct = products.where((p) => 
+        p.isWeighted && (p.scalePlu == scaleBarcodeResult.pluCode || p.sku == scaleBarcodeResult.pluCode || p.sku == barcode)
+      ).firstOrNull;
+
+      if (matchedProduct != null) {
+        final cartNotifier = ref.read(cartProvider.notifier);
+        cartNotifier.addWeightedProduct(
+          matchedProduct,
+          weight: scaleBarcodeResult.weightInKg,
+          tareWeight: matchedProduct.tareWeight,
+        );
+        if (mounted) {
+          HapticFeedback.mediumImpact();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('⚖️ Added ${matchedProduct.name} (${scaleBarcodeResult.weightInKg.toStringAsFixed(3)} kg)'),
+              backgroundColor: const Color(0xFF10B981),
+              duration: const Duration(milliseconds: 1500),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+        return;
+      }
+    }
+
+    final product = await db.getProductBySku(barcode);
     if (product != null) {
       _handleProductSelection(product);
     }
@@ -626,6 +685,30 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                         ),
                       ),
                     )
+                  else if (product.isWeighted)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFC1F11D).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.scale_rounded, color: Color(0xFFC1F11D), size: 10),
+                          const SizedBox(width: 3),
+                          Text(
+                            '/${product.unitOfMeasure.toUpperCase()}',
+                            style: GoogleFonts.manrope(
+                              fontSize: 8.5,
+                              fontWeight: FontWeight.w900,
+                              color: const Color(0xFFC1F11D),
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
                   else if (hasDiscount)
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
@@ -695,7 +778,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                           ),
                         ),
                         Text(
-                          CurrencyFormatter.format(product.discountPrice!, currency),
+                          '${CurrencyFormatter.format(product.discountPrice!, currency)}${product.isWeighted ? "/${product.unitOfMeasure}" : ""}',
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 14,
                             fontWeight: FontWeight.w900,
@@ -704,7 +787,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                         ),
                       ] else ...[
                         Text(
-                          CurrencyFormatter.format(product.price, currency),
+                          '${CurrencyFormatter.format(product.price, currency)}${product.isWeighted ? "/${product.unitOfMeasure}" : ""}',
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 14,
                             fontWeight: FontWeight.w900,
@@ -722,7 +805,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
-                      isOutOfStock ? Icons.block_rounded : Icons.add, 
+                      isOutOfStock ? Icons.block_rounded : (product.isWeighted ? Icons.scale_rounded : Icons.add), 
                       color: isOutOfStock ? Colors.white24 : const Color(0xFFC1F11D), 
                       size: 16,
                     ),
@@ -1375,6 +1458,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
   }
 
   Widget _buildCartRow(CartItem item, CartNotifier cartNotifier, String currency) {
+    final unit = item.product.unitOfMeasure.toLowerCase().trim();
+    final unitLabel = unit.isEmpty ? 'kg' : unit;
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
       padding: const EdgeInsets.all(10),
@@ -1389,14 +1475,40 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  item.product.name,
-                  style: GoogleFonts.manrope(fontWeight: FontWeight.w700, color: Colors.white, fontSize: 12.5),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+                Row(
+                  children: [
+                    if (item.isWeighted)
+                      Container(
+                        margin: const EdgeInsets.only(right: 6),
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFC1F11D).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          'SCALE',
+                          style: GoogleFonts.manrope(
+                            fontSize: 8.5,
+                            fontWeight: FontWeight.w900,
+                            color: const Color(0xFFC1F11D),
+                          ),
+                        ),
+                      ),
+                    Expanded(
+                      child: Text(
+                        item.product.name,
+                        style: GoogleFonts.manrope(fontWeight: FontWeight.w700, color: Colors.white, fontSize: 12.5),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
                 ),
+                const SizedBox(height: 2),
                 Text(
-                  '${CurrencyFormatter.format(item.unitPrice, currency)} / unit',
+                  item.isWeighted
+                      ? '${item.weight.toStringAsFixed(3)} $unitLabel @ ${CurrencyFormatter.format(item.unitPrice, currency)}/$unitLabel'
+                      : '${CurrencyFormatter.format(item.unitPrice, currency)} / unit',
                   style: GoogleFonts.jetBrainsMono(fontSize: 9.5, color: Colors.white38),
                 ),
               ],
@@ -1412,19 +1524,38 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _buildQtyActionBtn(Icons.remove_rounded, () => cartNotifier.updateQuantity(item.product.id, -1)),
+                _buildQtyActionBtn(
+                  Icons.remove_rounded,
+                  () => item.isWeighted
+                      ? _handleProductSelection(item.product)
+                      : cartNotifier.updateQuantity(item.product.id, -1),
+                ),
                 InkWell(
-                  onTap: () => _showQuantityDialog(item, cartNotifier),
+                  onTap: () => item.isWeighted
+                      ? _handleProductSelection(item.product)
+                      : _showQuantityDialog(item, cartNotifier),
                   child: Container(
-                    width: 44,
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    constraints: const BoxConstraints(minWidth: 44),
                     alignment: Alignment.center,
                     child: Text(
-                      '${item.quantity}',
-                      style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w900, color: const Color(0xFFC1F11D)),
+                      item.isWeighted
+                          ? '${item.weight.toStringAsFixed(2)} $unitLabel'
+                          : '${item.quantity}',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: item.isWeighted ? 12.5 : 16,
+                        fontWeight: FontWeight.w900,
+                        color: const Color(0xFFC1F11D),
+                      ),
                     ),
                   ),
                 ),
-                _buildQtyActionBtn(Icons.add_rounded, () => cartNotifier.updateQuantity(item.product.id, 1)),
+                _buildQtyActionBtn(
+                  Icons.add_rounded,
+                  () => item.isWeighted
+                      ? _handleProductSelection(item.product)
+                      : cartNotifier.updateQuantity(item.product.id, 1),
+                ),
               ],
             ),
           ),
@@ -1442,6 +1573,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
   }
 
   void _showQuantityDialog(CartItem item, CartNotifier cartNotifier) {
+    if (item.isWeighted) {
+      _handleProductSelection(item.product);
+      return;
+    }
     final controller = TextEditingController(text: item.quantity.toString());
     showDialog(
       context: context,
@@ -1702,9 +1837,12 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         productName: item.product.name,
         priceAtSale: item.unitPrice,
         unitCostAtSale: item.product.unitCost,
-        quantity: item.quantity,
+        quantity: item.isWeighted ? 1 : item.quantity,
         taxRateAtSale: item.product.taxRate,
         isTaxInclusiveAtSale: item.product.isTaxInclusive,
+        weight: item.isWeighted ? item.weight : 0.0,
+        isWeighted: item.isWeighted,
+        unitOfMeasure: item.product.unitOfMeasure,
       )).toList();
 
       final currentUser = ref.read(authProvider);

@@ -919,16 +919,20 @@ class DigiTaxInventoryService {
         } catch (_) {}
       }
 
+      final effectiveQty = (item.isWeighted && item.weight > 0)
+          ? item.weight
+          : item.quantity.toDouble();
+
       digitaxItemsPayload.add({
         if (digitaxItemId != null && digitaxItemId.isNotEmpty) "item_id": digitaxItemId,
         "item_name": item.productName,
         "item_code": "SKU-${item.productId}",
-        "quantity": item.quantity,
+        "quantity": effectiveQty,
         "unit_price": double.parse(item.priceAtSale.toStringAsFixed(4)),
         "package_unit_quantity": 1,
         "discount_rate": 0.0000,
         "discount_amount": 0.0000,
-        "total_amount": double.parse((item.quantity * item.priceAtSale).toStringAsFixed(4)),
+        "total_amount": double.parse((effectiveQty * item.priceAtSale).toStringAsFixed(4)),
         "vat_category_code": isTot ? "D" : "A",
         if (isTot) "tot_category_code": "TOT",
       });

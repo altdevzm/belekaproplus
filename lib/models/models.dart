@@ -88,6 +88,12 @@ class Product {
   DateTime? discountStartDate;
   DateTime? discountEndDate;
 
+  // Electronic Scale & Unit of Measure
+  bool isWeighted = false; // true = Sold by weight / requires scale
+  String unitOfMeasure = 'kg'; // 'kg', 'g', 'pcs', 'unit', 'ltr', 'lb'
+  double tareWeight = 0.0; // Default container / tray tare weight in kg
+  String? scalePlu; // In-store PLU code for embedded weight barcodes
+
   Product({
     required this.name,
     required this.sku,
@@ -110,6 +116,10 @@ class Product {
     this.discountPrice,
     this.discountStartDate,
     this.discountEndDate,
+    this.isWeighted = false,
+    this.unitOfMeasure = 'kg',
+    this.tareWeight = 0.0,
+    this.scalePlu,
   });
 }
 
@@ -214,6 +224,9 @@ class SaleItem {
   late double priceAtSale;
   double unitCostAtSale = 0.0;
   int quantity = 1;
+  double weight = 0.0; // In kg/g
+  bool isWeighted = false;
+  String unitOfMeasure = 'kg'; // 'kg', 'g', 'pcs', 'unit', 'ltr', 'lb'
   bool isRefunded = false;
 
   SaleItem({
@@ -222,6 +235,9 @@ class SaleItem {
     required this.priceAtSale,
     this.unitCostAtSale = 0.0,
     this.quantity = 1,
+    this.weight = 0.0,
+    this.isWeighted = false,
+    this.unitOfMeasure = 'kg',
     this.isRefunded = false,
     this.taxRateAtSale = 0.0,
     this.isTaxInclusiveAtSale = true,
@@ -315,6 +331,13 @@ class StoreConfig {
   int cashDrawerPin = 2; // 2 = Standard Pin 2 (0x00), 5 = Pin 5 (0x01)
   int cashDrawerPulseOnMs = 50; // Pulse ON duration in ms
   int cashDrawerPulseOffMs = 250; // Pulse OFF duration in ms
+
+  // Electronic Weight Scale Hardware & Driver Settings
+  bool scaleEnabled = true;
+  String scalePort = 'COM1'; // e.g. 'COM1', 'COM3', '/dev/ttyUSB0', '127.0.0.1:9001'
+  int scaleBaudRate = 9600; // 9600, 4800, 19200, 115200
+  String scaleProtocol = 'generic'; // 'generic', 'toledo', 'cas', 'avery', 'bridge'
+  double defaultTareWeight = 0.0;
 }
 
 @collection

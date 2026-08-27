@@ -34,8 +34,12 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
   late TextEditingController _stockController;
   late TextEditingController _discountPriceController;
   late TextEditingController _discountDurationController;
+  late TextEditingController _tareWeightController;
+  late TextEditingController _scalePluController;
   bool _hasDiscount = false;
   bool _isTaxInclusive = true;
+  bool _isWeighted = false;
+  String _unitOfMeasure = 'kg';
   int? _selectedCategoryId;
   String? _imagePath;
 
@@ -49,6 +53,14 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
     _stockController = TextEditingController(text: widget.product?.stockLevel.toString() ?? '');
     _discountPriceController = TextEditingController(text: widget.product?.discountPrice?.toString() ?? '');
     
+    // Scale properties
+    _isWeighted = widget.product?.isWeighted ?? false;
+    _unitOfMeasure = widget.product?.unitOfMeasure ?? 'kg';
+    _tareWeightController = TextEditingController(
+      text: (widget.product?.tareWeight ?? 0.0) > 0 ? widget.product!.tareWeight.toString() : '',
+    );
+    _scalePluController = TextEditingController(text: widget.product?.scalePlu ?? '');
+
     // Calculate remaining days if editing
     int durationDays = 0;
     if (widget.product?.discountEndDate != null) {
@@ -73,6 +85,8 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
     _stockController.dispose();
     _discountPriceController.dispose();
     _discountDurationController.dispose();
+    _tareWeightController.dispose();
+    _scalePluController.dispose();
     super.dispose();
   }
 
@@ -159,7 +173,7 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                     Expanded(
                       child: _buildTextField(
                         controller: _unitCostController,
-                        label: 'COST PRICE',
+                        label: _isWeighted ? 'COST (PER ${_unitOfMeasure.toUpperCase()})' : 'COST PRICE',
                         hint: '0.00',
                         keyboardType: TextInputType.number,
                         prefix: currencySymbol,
@@ -171,7 +185,7 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                     Expanded(
                       child: _buildTextField(
                         controller: _priceController,
-                        label: 'SELLING PRICE',
+                        label: _isWeighted ? 'PRICE (PER ${_unitOfMeasure.toUpperCase()})' : 'SELLING PRICE',
                         hint: '0.00',
                         keyboardType: TextInputType.number,
                         prefix: currencySymbol,
@@ -184,12 +198,14 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                 const SizedBox(height: 20),
                 _buildTextField(
                   controller: _stockController,
-                  label: 'INITIAL STOCK',
+                  label: _isWeighted ? 'INITIAL STOCK (${_unitOfMeasure.toUpperCase()})' : 'INITIAL STOCK (UNITS)',
                   hint: '0',
                   keyboardType: TextInputType.number,
                   accentColor: accentColor,
                   validator: (v) => int.tryParse(v ?? '') == null ? 'Invalid' : null,
                 ),
+                const SizedBox(height: 20),
+                _buildScaleSection(accentColor),
                 const SizedBox(height: 20),
                 _buildTaxSection(accentColor),
                 const SizedBox(height: 32),
@@ -514,6 +530,147 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
       case CategorySector.other: return const Color(0xFFC1F11D);
     }
   }
+  Widget _buildScaleSection(Color accentColor) {
+    final units = [
+      {'id': 'kg', 'name': 'kg (Kilograms)'},
+      {'id': 'g', 'name': 'g (Grams)'},
+      {'id': 'lb', 'name': 'lb (Pounds)'},
+      {'id': 'pcs', 'name': 'pcs (Pieces)'},
+      {'id': 'ltr', 'name': 'ltr (Litres)'},
+      {'id': 'unit', 'name': 'unit (Units)'},
+    ];
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: _isWeighted ? const Color(0xFFC1F11D).withValues(alpha: 0.05) : Colors.white.withValues(alpha: 0.02),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _isWeighted ? const Color(0xFFC1F11D).withValues(alpha: 0.25) : Colors.white.withValues(alpha: 0.05)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.scale_rounded,
+                    color: _isWeighted ? const Color(0xFFC1F11D) : Colors.white38,
+                    size: 22,
+                  ),
+                  const SizedBox(width: 14),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'SOLD BY WEIGHT (SCALE ITEM)',
+                        style: GoogleFonts.manrope(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1,
+                          color: _isWeighted ? Colors.white : Colors.white70,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _isWeighted
+                            ? 'Requires weighing scale at checkout (Price per ${_unitOfMeasure.toUpperCase()})'
+                            : 'Standard fixed-quantity product',
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          color: _isWeighted ? const Color(0xFFC1F11D) : Colors.white38,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              Switch(
+                value: _isWeighted,
+                onChanged: (v) => setState(() => _isWeighted = v),
+                activeThumbColor: const Color(0xFFC1F11D),
+              ),
+            ],
+          ),
+          if (_isWeighted) ...[
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'UNIT OF MEASURE',
+                        style: GoogleFonts.manrope(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1,
+                          color: Colors.white.withValues(alpha: 0.4),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        height: 52,
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.04),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            value: _unitOfMeasure,
+                            isExpanded: true,
+                            dropdownColor: const Color(0xFF1A1A20),
+                            items: units.map((u) {
+                              return DropdownMenuItem<String>(
+                                value: u['id'],
+                                child: Text(
+                                  u['name']!,
+                                  style: GoogleFonts.inter(fontSize: 13, color: Colors.white),
+                                ),
+                              );
+                            }).toList(),
+                            onChanged: (val) {
+                              if (val != null) setState(() => _unitOfMeasure = val);
+                            },
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  flex: 2,
+                  child: _buildTextField(
+                    controller: _tareWeightController,
+                    label: 'TARE WEIGHT (${_unitOfMeasure.toUpperCase()})',
+                    hint: '0.000',
+                    keyboardType: TextInputType.number,
+                    accentColor: accentColor,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            _buildTextField(
+              controller: _scalePluController,
+              label: 'SCALE PLU / BARCODE CODE (OPTIONAL)',
+              hint: 'e.g. 00123 (for embedded barcode scales)',
+              accentColor: accentColor,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _buildTaxSection(Color accentColor) {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -651,6 +808,8 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
       final currentUser = ref.read(authProvider);
       final discountPrice = _hasDiscount ? double.tryParse(_discountPriceController.text) : null;
       final durationDays = _hasDiscount ? int.tryParse(_discountDurationController.text) : null;
+      final tareWeight = double.tryParse(_tareWeightController.text.trim()) ?? 0.0;
+      final scalePlu = _scalePluController.text.trim().isNotEmpty ? _scalePluController.text.trim() : null;
       
       final storeConfig = ref.read(storeConfigProvider).value;
       final isOwner = ref.read(isOwnerProvider);
@@ -681,6 +840,10 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
         branchName: branchName,
         isSyncedWithDigitax: false,
         lastDigitaxSyncDate: null,
+        isWeighted: _isWeighted,
+        unitOfMeasure: _unitOfMeasure,
+        tareWeight: tareWeight,
+        scalePlu: scalePlu,
       );
       
       final previousStock = widget.product?.stockLevel;
@@ -701,6 +864,10 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
         product.zraTaxCode = 'A';
         product.branchCode = branchBhfId;
         product.branchName = branchName;
+        product.isWeighted = _isWeighted;
+        product.unitOfMeasure = _unitOfMeasure;
+        product.tareWeight = tareWeight;
+        product.scalePlu = scalePlu;
       }
 
       await db.saveProduct(product);

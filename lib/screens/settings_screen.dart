@@ -11,6 +11,7 @@ import 'package:beleka_pos/screens/settings/backup_settings_modal.dart';
 import 'package:beleka_pos/screens/settings/license_info_modal.dart';
 import 'package:beleka_pos/screens/settings/network_sync_modal.dart';
 import 'package:beleka_pos/widgets/zra_tax_config_modal.dart';
+import 'package:beleka_pos/screens/settings/scale_settings_modal.dart';
 import 'package:beleka_pos/providers/auth_provider.dart';
 
 import 'package:beleka_pos/core/core.dart';
@@ -92,6 +93,18 @@ class SettingsScreen extends ConsumerWidget {
                         context: context,
                         builder: (context) => const PrinterSettingsModal(),
                       ),
+                    ),
+                    _buildSettingsCard(
+                      context,
+                      'Electronic Scale',
+                      'Configure RS232, USB and TCP POS weight scales',
+                      Icons.scale_rounded,
+                      const Color(0xFFC1F11D),
+                      onPressed: () => showDialog(
+                        context: context,
+                        builder: (context) => const ScaleSettingsModal(),
+                      ),
+                      buttonLabel: 'Configure Scale',
                     ),
                     _buildSettingsCard(
                       context,

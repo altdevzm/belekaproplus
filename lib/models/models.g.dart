@@ -2553,53 +2553,73 @@ const ProductSchema = CollectionSchema(
       name: r'isTaxInclusive',
       type: IsarType.bool,
     ),
-    r'itemClsCd': PropertySchema(
+    r'isWeighted': PropertySchema(
       id: 11,
+      name: r'isWeighted',
+      type: IsarType.bool,
+    ),
+    r'itemClsCd': PropertySchema(
+      id: 12,
       name: r'itemClsCd',
       type: IsarType.string,
     ),
     r'lastDigitaxSyncDate': PropertySchema(
-      id: 12,
+      id: 13,
       name: r'lastDigitaxSyncDate',
       type: IsarType.dateTime,
     ),
     r'name': PropertySchema(
-      id: 13,
+      id: 14,
       name: r'name',
       type: IsarType.string,
     ),
     r'price': PropertySchema(
-      id: 14,
+      id: 15,
       name: r'price',
       type: IsarType.double,
     ),
+    r'scalePlu': PropertySchema(
+      id: 16,
+      name: r'scalePlu',
+      type: IsarType.string,
+    ),
     r'sizes': PropertySchema(
-      id: 15,
+      id: 17,
       name: r'sizes',
       type: IsarType.stringList,
     ),
     r'sku': PropertySchema(
-      id: 16,
+      id: 18,
       name: r'sku',
       type: IsarType.string,
     ),
     r'stockLevel': PropertySchema(
-      id: 17,
+      id: 19,
       name: r'stockLevel',
       type: IsarType.long,
     ),
+    r'tareWeight': PropertySchema(
+      id: 20,
+      name: r'tareWeight',
+      type: IsarType.double,
+    ),
     r'taxRate': PropertySchema(
-      id: 18,
+      id: 21,
       name: r'taxRate',
       type: IsarType.double,
     ),
     r'unitCost': PropertySchema(
-      id: 19,
+      id: 22,
       name: r'unitCost',
       type: IsarType.double,
     ),
+    r'unitOfMeasure': PropertySchema(
+      id: 23,
+      name: r'unitOfMeasure',
+      type: IsarType.string,
+    ),
     r'zraTaxCode': PropertySchema(
-      id: 20,
+      id: 24,
       name: r'zraTaxCode',
       type: IsarType.string,
     )
@@ -2692,6 +2712,12 @@ int _productEstimateSize(
   bytesCount += 3 + object.itemClsCd.length * 3;
   bytesCount += 3 + object.name.length * 3;
   {
+    final value = object.scalePlu;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
+  {
     final list = object.sizes;
     if (list != null) {
       bytesCount += 3 + list.length * 3;
@@ -2704,6 +2730,7 @@ int _productEstimateSize(
     }
   }
   bytesCount += 3 + object.sku.length * 3;
+  bytesCount += 3 + object.unitOfMeasure.length * 3;
   bytesCount += 3 + object.zraTaxCode.length * 3;
   return bytesCount;
 }
@@ -2725,16 +2752,20 @@ void _productSerialize(
   writer.writeBool(offsets[8], object.isArchived);
   writer.writeBool(offsets[9], object.isSyncedWithDigitax);
   writer.writeBool(offsets[10], object.isTaxInclusive);
-  writer.writeString(offsets[11], object.itemClsCd);
-  writer.writeDateTime(offsets[12], object.lastDigitaxSyncDate);
-  writer.writeString(offsets[13], object.name);
-  writer.writeDouble(offsets[14], object.price);
-  writer.writeStringList(offsets[15], object.sizes);
-  writer.writeString(offsets[16], object.sku);
-  writer.writeLong(offsets[17], object.stockLevel);
-  writer.writeDouble(offsets[18], object.taxRate);
-  writer.writeDouble(offsets[19], object.unitCost);
-  writer.writeString(offsets[20], object.zraTaxCode);
+  writer.writeBool(offsets[11], object.isWeighted);
+  writer.writeString(offsets[12], object.itemClsCd);
+  writer.writeDateTime(offsets[13], object.lastDigitaxSyncDate);
+  writer.writeString(offsets[14], object.name);
+  writer.writeDouble(offsets[15], object.price);
+  writer.writeString(offsets[16], object.scalePlu);
+  writer.writeStringList(offsets[17], object.sizes);
+  writer.writeString(offsets[18], object.sku);
+  writer.writeLong(offsets[19], object.stockLevel);
+  writer.writeDouble(offsets[20], object.tareWeight);
+  writer.writeDouble(offsets[21], object.taxRate);
+  writer.writeDouble(offsets[22], object.unitCost);
+  writer.writeString(offsets[23], object.unitOfMeasure);
+  writer.writeString(offsets[24], object.zraTaxCode);
 }
 
 Product _productDeserialize(
@@ -2755,16 +2786,20 @@ Product _productDeserialize(
     isArchived: reader.readBoolOrNull(offsets[8]) ?? false,
     isSyncedWithDigitax: reader.readBoolOrNull(offsets[9]) ?? false,
     isTaxInclusive: reader.readBoolOrNull(offsets[10]) ?? true,
-    itemClsCd: reader.readStringOrNull(offsets[11]) ?? '10101501',
-    lastDigitaxSyncDate: reader.readDateTimeOrNull(offsets[12]),
-    name: reader.readString(offsets[13]),
-    price: reader.readDouble(offsets[14]),
-    sizes: reader.readStringList(offsets[15]),
-    sku: reader.readString(offsets[16]),
-    stockLevel: reader.readLong(offsets[17]),
-    taxRate: reader.readDoubleOrNull(offsets[18]) ?? 16.0,
-    unitCost: reader.readDoubleOrNull(offsets[19]) ?? 0.0,
-    zraTaxCode: reader.readStringOrNull(offsets[20]) ?? 'A',
+    isWeighted: reader.readBoolOrNull(offsets[11]) ?? false,
+    itemClsCd: reader.readStringOrNull(offsets[12]) ?? '10101501',
+    lastDigitaxSyncDate: reader.readDateTimeOrNull(offsets[13]),
+    name: reader.readString(offsets[14]),
+    price: reader.readDouble(offsets[15]),
+    scalePlu: reader.readStringOrNull(offsets[16]),
+    sizes: reader.readStringList(offsets[17]),
+    sku: reader.readString(offsets[18]),
+    stockLevel: reader.readLong(offsets[19]),
+    tareWeight: reader.readDoubleOrNull(offsets[20]) ?? 0.0,
+    taxRate: reader.readDoubleOrNull(offsets[21]) ?? 16.0,
+    unitCost: reader.readDoubleOrNull(offsets[22]) ?? 0.0,
+    unitOfMeasure: reader.readStringOrNull(offsets[23]) ?? 'kg',
+    zraTaxCode: reader.readStringOrNull(offsets[24]) ?? 'A',
   );
   object.id = id;
   return object;
@@ -2800,24 +2835,32 @@ P _productDeserializeProp<P>(
     case 10:
       return (reader.readBoolOrNull(offset) ?? true) as P;
     case 11:
-      return (reader.readStringOrNull(offset) ?? '10101501') as P;
+      return (reader.readBoolOrNull(offset) ?? false) as P;
     case 12:
-      return (reader.readDateTimeOrNull(offset)) as P;
+      return (reader.readStringOrNull(offset) ?? '10101501') as P;
     case 13:
-      return (reader.readString(offset)) as P;
+      return (reader.readDateTimeOrNull(offset)) as P;
     case 14:
-      return (reader.readDouble(offset)) as P;
-    case 15:
-      return (reader.readStringList(offset)) as P;
-    case 16:
       return (reader.readString(offset)) as P;
+    case 15:
+      return (reader.readDouble(offset)) as P;
+    case 16:
+      return (reader.readStringOrNull(offset)) as P;
     case 17:
-      return (reader.readLong(offset)) as P;
+      return (reader.readStringList(offset)) as P;
     case 18:
-      return (reader.readDoubleOrNull(offset) ?? 16.0) as P;
+      return (reader.readString(offset)) as P;
     case 19:
-      return (reader.readDoubleOrNull(offset) ?? 0.0) as P;
+      return (reader.readLong(offset)) as P;
     case 20:
+      return (reader.readDoubleOrNull(offset) ?? 0.0) as P;
+    case 21:
+      return (reader.readDoubleOrNull(offset) ?? 16.0) as P;
+    case 22:
+      return (reader.readDoubleOrNull(offset) ?? 0.0) as P;
+    case 23:
+      return (reader.readStringOrNull(offset) ?? 'kg') as P;
+    case 24:
       return (reader.readStringOrNull(offset) ?? 'A') as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -4069,6 +4112,16 @@ extension ProductQueryFilter
     });
   }
 
+  QueryBuilder<Product, Product, QAfterFilterCondition> isWeightedEqualTo(
+      bool value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'isWeighted',
+        value: value,
+      ));
+    });
+  }
+
   QueryBuilder<Product, Product, QAfterFilterCondition> itemClsCdEqualTo(
     String value, {
     bool caseSensitive = true,
@@ -4461,6 +4514,152 @@ extension ProductQueryFilter
         upper: upper,
         includeUpper: includeUpper,
         epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<Product, Product, QAfterFilterCondition> scalePluIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'scalePlu',
+      ));
+    });
+  }
+
+  QueryBuilder<Product, Product, QAfterFilterCondition> scalePluIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'scalePlu',
+      ));
+    });
+  }
+
+  QueryBuilder<Product, Product, QAfterFilterCondition> scalePluEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'scalePlu',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Product, Product, QAfterFilterCondition> scalePluGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'scalePlu',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Product, Product, QAfterFilterCondition> scalePluLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'scalePlu',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Product, Product, QAfterFilterCondition> scalePluBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'scalePlu',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Product, Product, QAfterFilterCondition> scalePluStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'scalePlu',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Product, Product, QAfterFilterCondition> scalePluEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'scalePlu',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Product, Product, QAfterFilterCondition> scalePluContains(
+      String value,
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'scalePlu',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Product, Product, QAfterFilterCondition> scalePluMatches(
+      String pattern,
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'scalePlu',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Product, Product, QAfterFilterCondition> scalePluIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'scalePlu',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<Product, Product, QAfterFilterCondition> scalePluIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'scalePlu',
+        value: '',
       ));
     });
   }
@@ -4879,6 +5078,68 @@ extension ProductQueryFilter
     });
   }
 
+  QueryBuilder<Product, Product, QAfterFilterCondition> tareWeightEqualTo(
+    double value, {
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'tareWeight',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<Product, Product, QAfterFilterCondition> tareWeightGreaterThan(
+    double value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'tareWeight',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<Product, Product, QAfterFilterCondition> tareWeightLessThan(
+    double value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'tareWeight',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<Product, Product, QAfterFilterCondition> tareWeightBetween(
+    double lower,
+    double upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'tareWeight',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
   QueryBuilder<Product, Product, QAfterFilterCondition> taxRateEqualTo(
     double value, {
     double epsilon = Query.epsilon,
@@ -4999,6 +5260,138 @@ extension ProductQueryFilter
         upper: upper,
         includeUpper: includeUpper,
         epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<Product, Product, QAfterFilterCondition> unitOfMeasureEqualTo(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'unitOfMeasure',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Product, Product, QAfterFilterCondition>
+      unitOfMeasureGreaterThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'unitOfMeasure',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Product, Product, QAfterFilterCondition> unitOfMeasureLessThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'unitOfMeasure',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Product, Product, QAfterFilterCondition> unitOfMeasureBetween(
+    String lower,
+    String upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'unitOfMeasure',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Product, Product, QAfterFilterCondition> unitOfMeasureStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'unitOfMeasure',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Product, Product, QAfterFilterCondition> unitOfMeasureEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'unitOfMeasure',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Product, Product, QAfterFilterCondition> unitOfMeasureContains(
+      String value,
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'unitOfMeasure',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Product, Product, QAfterFilterCondition> unitOfMeasureMatches(
+      String pattern,
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'unitOfMeasure',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Product, Product, QAfterFilterCondition> unitOfMeasureIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'unitOfMeasure',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<Product, Product, QAfterFilterCondition>
+      unitOfMeasureIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'unitOfMeasure',
+        value: '',
       ));
     });
   }
@@ -5261,6 +5654,18 @@ extension ProductQuerySortBy on QueryBuilder<Product, Product, QSortBy> {
     });
   }
 
+  QueryBuilder<Product, Product, QAfterSortBy> sortByIsWeighted() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isWeighted', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Product, Product, QAfterSortBy> sortByIsWeightedDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isWeighted', Sort.desc);
+    });
+  }
+
   QueryBuilder<Product, Product, QAfterSortBy> sortByItemClsCd() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'itemClsCd', Sort.asc);
@@ -5309,6 +5714,18 @@ extension ProductQuerySortBy on QueryBuilder<Product, Product, QSortBy> {
     });
   }
 
+  QueryBuilder<Product, Product, QAfterSortBy> sortByScalePlu() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'scalePlu', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Product, Product, QAfterSortBy> sortByScalePluDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'scalePlu', Sort.desc);
+    });
+  }
+
   QueryBuilder<Product, Product, QAfterSortBy> sortBySku() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'sku', Sort.asc);
@@ -5333,6 +5750,18 @@ extension ProductQuerySortBy on QueryBuilder<Product, Product, QSortBy> {
     });
   }
 
+  QueryBuilder<Product, Product, QAfterSortBy> sortByTareWeight() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'tareWeight', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Product, Product, QAfterSortBy> sortByTareWeightDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'tareWeight', Sort.desc);
+    });
+  }
+
   QueryBuilder<Product, Product, QAfterSortBy> sortByTaxRate() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'taxRate', Sort.asc);
@@ -5354,6 +5783,18 @@ extension ProductQuerySortBy on QueryBuilder<Product, Product, QSortBy> {
   QueryBuilder<Product, Product, QAfterSortBy> sortByUnitCostDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'unitCost', Sort.desc);
+    });
+  }
+
+  QueryBuilder<Product, Product, QAfterSortBy> sortByUnitOfMeasure() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'unitOfMeasure', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Product, Product, QAfterSortBy> sortByUnitOfMeasureDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'unitOfMeasure', Sort.desc);
     });
   }
 
@@ -5504,6 +5945,18 @@ extension ProductQuerySortThenBy
     });
   }
 
+  QueryBuilder<Product, Product, QAfterSortBy> thenByIsWeighted() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isWeighted', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Product, Product, QAfterSortBy> thenByIsWeightedDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isWeighted', Sort.desc);
+    });
+  }
+
   QueryBuilder<Product, Product, QAfterSortBy> thenByItemClsCd() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'itemClsCd', Sort.asc);
@@ -5552,6 +6005,18 @@ extension ProductQuerySortThenBy
     });
   }
 
+  QueryBuilder<Product, Product, QAfterSortBy> thenByScalePlu() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'scalePlu', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Product, Product, QAfterSortBy> thenByScalePluDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'scalePlu', Sort.desc);
+    });
+  }
+
   QueryBuilder<Product, Product, QAfterSortBy> thenBySku() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'sku', Sort.asc);
@@ -5576,6 +6041,18 @@ extension ProductQuerySortThenBy
     });
   }
 
+  QueryBuilder<Product, Product, QAfterSortBy> thenByTareWeight() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'tareWeight', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Product, Product, QAfterSortBy> thenByTareWeightDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'tareWeight', Sort.desc);
+    });
+  }
+
   QueryBuilder<Product, Product, QAfterSortBy> thenByTaxRate() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'taxRate', Sort.asc);
@@ -5597,6 +6074,18 @@ extension ProductQuerySortThenBy
   QueryBuilder<Product, Product, QAfterSortBy> thenByUnitCostDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'unitCost', Sort.desc);
+    });
+  }
+
+  QueryBuilder<Product, Product, QAfterSortBy> thenByUnitOfMeasure() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'unitOfMeasure', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Product, Product, QAfterSortBy> thenByUnitOfMeasureDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'unitOfMeasure', Sort.desc);
     });
   }
 
@@ -5684,6 +6173,12 @@ extension ProductQueryWhereDistinct
     });
   }
 
+  QueryBuilder<Product, Product, QDistinct> distinctByIsWeighted() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'isWeighted');
+    });
+  }
+
   QueryBuilder<Product, Product, QDistinct> distinctByItemClsCd(
       {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
@@ -5710,6 +6205,13 @@ extension ProductQueryWhereDistinct
     });
   }
 
+  QueryBuilder<Product, Product, QDistinct> distinctByScalePlu(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'scalePlu', caseSensitive: caseSensitive);
+    });
+  }
+
   QueryBuilder<Product, Product, QDistinct> distinctBySizes() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'sizes');
@@ -5729,6 +6231,12 @@ extension ProductQueryWhereDistinct
     });
   }
 
+  QueryBuilder<Product, Product, QDistinct> distinctByTareWeight() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'tareWeight');
+    });
+  }
+
   QueryBuilder<Product, Product, QDistinct> distinctByTaxRate() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'taxRate');
@@ -5738,6 +6246,14 @@ extension ProductQueryWhereDistinct
   QueryBuilder<Product, Product, QDistinct> distinctByUnitCost() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'unitCost');
+    });
+  }
+
+  QueryBuilder<Product, Product, QDistinct> distinctByUnitOfMeasure(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'unitOfMeasure',
+          caseSensitive: caseSensitive);
     });
   }
 
@@ -5824,6 +6340,12 @@ extension ProductQueryProperty
     });
   }
 
+  QueryBuilder<Product, bool, QQueryOperations> isWeightedProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'isWeighted');
+    });
+  }
+
   QueryBuilder<Product, String, QQueryOperations> itemClsCdProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'itemClsCd');
@@ -5849,6 +6371,12 @@ extension ProductQueryProperty
     });
   }
 
+  QueryBuilder<Product, String?, QQueryOperations> scalePluProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'scalePlu');
+    });
+  }
+
   QueryBuilder<Product, List<String>?, QQueryOperations> sizesProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'sizes');
@@ -5867,6 +6395,12 @@ extension ProductQueryProperty
     });
   }
 
+  QueryBuilder<Product, double, QQueryOperations> tareWeightProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'tareWeight');
+    });
+  }
+
   QueryBuilder<Product, double, QQueryOperations> taxRateProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'taxRate');
@@ -5876,6 +6410,12 @@ extension ProductQueryProperty
   QueryBuilder<Product, double, QQueryOperations> unitCostProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'unitCost');
+    });
+  }
+
+  QueryBuilder<Product, String, QQueryOperations> unitOfMeasureProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'unitOfMeasure');
     });
   }
 
@@ -11686,34 +12226,49 @@ const SaleItemSchema = CollectionSchema(
       name: r'isTaxInclusiveAtSale',
       type: IsarType.bool,
     ),
-    r'priceAtSale': PropertySchema(
+    r'isWeighted': PropertySchema(
       id: 2,
+      name: r'isWeighted',
+      type: IsarType.bool,
+    ),
+    r'priceAtSale': PropertySchema(
+      id: 3,
       name: r'priceAtSale',
       type: IsarType.double,
     ),
     r'productId': PropertySchema(
-      id: 3,
+      id: 4,
       name: r'productId',
       type: IsarType.long,
     ),
     r'productName': PropertySchema(
-      id: 4,
+      id: 5,
       name: r'productName',
       type: IsarType.string,
     ),
     r'quantity': PropertySchema(
-      id: 5,
+      id: 6,
       name: r'quantity',
       type: IsarType.long,
     ),
     r'taxRateAtSale': PropertySchema(
-      id: 6,
+      id: 7,
       name: r'taxRateAtSale',
       type: IsarType.double,
     ),
     r'unitCostAtSale': PropertySchema(
-      id: 7,
+      id: 8,
       name: r'unitCostAtSale',
+      type: IsarType.double,
+    ),
+    r'unitOfMeasure': PropertySchema(
+      id: 9,
+      name: r'unitOfMeasure',
+      type: IsarType.string,
+    ),
+    r'weight': PropertySchema(
+      id: 10,
+      name: r'weight',
       type: IsarType.double,
     )
   },
@@ -11738,6 +12293,7 @@ int _saleItemEstimateSize(
 ) {
   var bytesCount = offsets.last;
   bytesCount += 3 + object.productName.length * 3;
+  bytesCount += 3 + object.unitOfMeasure.length * 3;
   return bytesCount;
 }
 
@@ -11749,12 +12305,15 @@ void _saleItemSerialize(
 ) {
   writer.writeBool(offsets[0], object.isRefunded);
   writer.writeBool(offsets[1], object.isTaxInclusiveAtSale);
-  writer.writeDouble(offsets[2], object.priceAtSale);
-  writer.writeLong(offsets[3], object.productId);
-  writer.writeString(offsets[4], object.productName);
-  writer.writeLong(offsets[5], object.quantity);
-  writer.writeDouble(offsets[6], object.taxRateAtSale);
-  writer.writeDouble(offsets[7], object.unitCostAtSale);
+  writer.writeBool(offsets[2], object.isWeighted);
+  writer.writeDouble(offsets[3], object.priceAtSale);
+  writer.writeLong(offsets[4], object.productId);
+  writer.writeString(offsets[5], object.productName);
+  writer.writeLong(offsets[6], object.quantity);
+  writer.writeDouble(offsets[7], object.taxRateAtSale);
+  writer.writeDouble(offsets[8], object.unitCostAtSale);
+  writer.writeString(offsets[9], object.unitOfMeasure);
+  writer.writeDouble(offsets[10], object.weight);
 }
 
 SaleItem _saleItemDeserialize(
@@ -11766,12 +12325,15 @@ SaleItem _saleItemDeserialize(
   final object = SaleItem(
     isRefunded: reader.readBoolOrNull(offsets[0]) ?? false,
     isTaxInclusiveAtSale: reader.readBoolOrNull(offsets[1]) ?? true,
-    priceAtSale: reader.readDouble(offsets[2]),
-    productId: reader.readLong(offsets[3]),
-    productName: reader.readString(offsets[4]),
-    quantity: reader.readLongOrNull(offsets[5]) ?? 1,
-    taxRateAtSale: reader.readDoubleOrNull(offsets[6]) ?? 0.0,
-    unitCostAtSale: reader.readDoubleOrNull(offsets[7]) ?? 0.0,
+    isWeighted: reader.readBoolOrNull(offsets[2]) ?? false,
+    priceAtSale: reader.readDouble(offsets[3]),
+    productId: reader.readLong(offsets[4]),
+    productName: reader.readString(offsets[5]),
+    quantity: reader.readLongOrNull(offsets[6]) ?? 1,
+    taxRateAtSale: reader.readDoubleOrNull(offsets[7]) ?? 0.0,
+    unitCostAtSale: reader.readDoubleOrNull(offsets[8]) ?? 0.0,
+    unitOfMeasure: reader.readStringOrNull(offsets[9]) ?? 'kg',
+    weight: reader.readDoubleOrNull(offsets[10]) ?? 0.0,
   );
   object.id = id;
   return object;
@@ -11789,16 +12351,22 @@ P _saleItemDeserializeProp<P>(
     case 1:
       return (reader.readBoolOrNull(offset) ?? true) as P;
     case 2:
-      return (reader.readDouble(offset)) as P;
+      return (reader.readBoolOrNull(offset) ?? false) as P;
     case 3:
-      return (reader.readLong(offset)) as P;
+      return (reader.readDouble(offset)) as P;
     case 4:
-      return (reader.readString(offset)) as P;
+      return (reader.readLong(offset)) as P;
     case 5:
-      return (reader.readLongOrNull(offset) ?? 1) as P;
+      return (reader.readString(offset)) as P;
     case 6:
-      return (reader.readDoubleOrNull(offset) ?? 0.0) as P;
+      return (reader.readLongOrNull(offset) ?? 1) as P;
     case 7:
+      return (reader.readDoubleOrNull(offset) ?? 0.0) as P;
+    case 8:
+      return (reader.readDoubleOrNull(offset) ?? 0.0) as P;
+    case 9:
+      return (reader.readStringOrNull(offset) ?? 'kg') as P;
+    case 10:
       return (reader.readDoubleOrNull(offset) ?? 0.0) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -11961,6 +12529,16 @@ extension SaleItemQueryFilter
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.equalTo(
         property: r'isTaxInclusiveAtSale',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<SaleItem, SaleItem, QAfterFilterCondition> isWeightedEqualTo(
+      bool value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'isWeighted',
         value: value,
       ));
     });
@@ -12393,6 +12971,202 @@ extension SaleItemQueryFilter
       ));
     });
   }
+
+  QueryBuilder<SaleItem, SaleItem, QAfterFilterCondition> unitOfMeasureEqualTo(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'unitOfMeasure',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SaleItem, SaleItem, QAfterFilterCondition>
+      unitOfMeasureGreaterThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'unitOfMeasure',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SaleItem, SaleItem, QAfterFilterCondition> unitOfMeasureLessThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'unitOfMeasure',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SaleItem, SaleItem, QAfterFilterCondition> unitOfMeasureBetween(
+    String lower,
+    String upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'unitOfMeasure',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SaleItem, SaleItem, QAfterFilterCondition>
+      unitOfMeasureStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'unitOfMeasure',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SaleItem, SaleItem, QAfterFilterCondition> unitOfMeasureEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'unitOfMeasure',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SaleItem, SaleItem, QAfterFilterCondition> unitOfMeasureContains(
+      String value,
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'unitOfMeasure',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SaleItem, SaleItem, QAfterFilterCondition> unitOfMeasureMatches(
+      String pattern,
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'unitOfMeasure',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SaleItem, SaleItem, QAfterFilterCondition>
+      unitOfMeasureIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'unitOfMeasure',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<SaleItem, SaleItem, QAfterFilterCondition>
+      unitOfMeasureIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'unitOfMeasure',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<SaleItem, SaleItem, QAfterFilterCondition> weightEqualTo(
+    double value, {
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'weight',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<SaleItem, SaleItem, QAfterFilterCondition> weightGreaterThan(
+    double value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'weight',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<SaleItem, SaleItem, QAfterFilterCondition> weightLessThan(
+    double value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'weight',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<SaleItem, SaleItem, QAfterFilterCondition> weightBetween(
+    double lower,
+    double upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'weight',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        epsilon: epsilon,
+      ));
+    });
+  }
 }
 
 extension SaleItemQueryObject
@@ -12424,6 +13198,18 @@ extension SaleItemQuerySortBy on QueryBuilder<SaleItem, SaleItem, QSortBy> {
       sortByIsTaxInclusiveAtSaleDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'isTaxInclusiveAtSale', Sort.desc);
+    });
+  }
+
+  QueryBuilder<SaleItem, SaleItem, QAfterSortBy> sortByIsWeighted() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isWeighted', Sort.asc);
+    });
+  }
+
+  QueryBuilder<SaleItem, SaleItem, QAfterSortBy> sortByIsWeightedDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isWeighted', Sort.desc);
     });
   }
 
@@ -12498,6 +13284,30 @@ extension SaleItemQuerySortBy on QueryBuilder<SaleItem, SaleItem, QSortBy> {
       return query.addSortBy(r'unitCostAtSale', Sort.desc);
     });
   }
+
+  QueryBuilder<SaleItem, SaleItem, QAfterSortBy> sortByUnitOfMeasure() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'unitOfMeasure', Sort.asc);
+    });
+  }
+
+  QueryBuilder<SaleItem, SaleItem, QAfterSortBy> sortByUnitOfMeasureDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'unitOfMeasure', Sort.desc);
+    });
+  }
+
+  QueryBuilder<SaleItem, SaleItem, QAfterSortBy> sortByWeight() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'weight', Sort.asc);
+    });
+  }
+
+  QueryBuilder<SaleItem, SaleItem, QAfterSortBy> sortByWeightDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'weight', Sort.desc);
+    });
+  }
 }
 
 extension SaleItemQuerySortThenBy
@@ -12536,6 +13346,18 @@ extension SaleItemQuerySortThenBy
       thenByIsTaxInclusiveAtSaleDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'isTaxInclusiveAtSale', Sort.desc);
+    });
+  }
+
+  QueryBuilder<SaleItem, SaleItem, QAfterSortBy> thenByIsWeighted() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isWeighted', Sort.asc);
+    });
+  }
+
+  QueryBuilder<SaleItem, SaleItem, QAfterSortBy> thenByIsWeightedDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isWeighted', Sort.desc);
     });
   }
 
@@ -12610,6 +13432,30 @@ extension SaleItemQuerySortThenBy
       return query.addSortBy(r'unitCostAtSale', Sort.desc);
     });
   }
+
+  QueryBuilder<SaleItem, SaleItem, QAfterSortBy> thenByUnitOfMeasure() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'unitOfMeasure', Sort.asc);
+    });
+  }
+
+  QueryBuilder<SaleItem, SaleItem, QAfterSortBy> thenByUnitOfMeasureDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'unitOfMeasure', Sort.desc);
+    });
+  }
+
+  QueryBuilder<SaleItem, SaleItem, QAfterSortBy> thenByWeight() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'weight', Sort.asc);
+    });
+  }
+
+  QueryBuilder<SaleItem, SaleItem, QAfterSortBy> thenByWeightDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'weight', Sort.desc);
+    });
+  }
 }
 
 extension SaleItemQueryWhereDistinct
@@ -12623,6 +13469,12 @@ extension SaleItemQueryWhereDistinct
   QueryBuilder<SaleItem, SaleItem, QDistinct> distinctByIsTaxInclusiveAtSale() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'isTaxInclusiveAtSale');
+    });
+  }
+
+  QueryBuilder<SaleItem, SaleItem, QDistinct> distinctByIsWeighted() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'isWeighted');
     });
   }
 
@@ -12662,6 +13514,20 @@ extension SaleItemQueryWhereDistinct
       return query.addDistinctBy(r'unitCostAtSale');
     });
   }
+
+  QueryBuilder<SaleItem, SaleItem, QDistinct> distinctByUnitOfMeasure(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'unitOfMeasure',
+          caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<SaleItem, SaleItem, QDistinct> distinctByWeight() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'weight');
+    });
+  }
 }
 
 extension SaleItemQueryProperty
@@ -12682,6 +13548,12 @@ extension SaleItemQueryProperty
       isTaxInclusiveAtSaleProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'isTaxInclusiveAtSale');
+    });
+  }
+
+  QueryBuilder<SaleItem, bool, QQueryOperations> isWeightedProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'isWeighted');
     });
   }
 
@@ -12718,6 +13590,18 @@ extension SaleItemQueryProperty
   QueryBuilder<SaleItem, double, QQueryOperations> unitCostAtSaleProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'unitCostAtSale');
+    });
+  }
+
+  QueryBuilder<SaleItem, String, QQueryOperations> unitOfMeasureProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'unitOfMeasure');
+    });
+  }
+
+  QueryBuilder<SaleItem, double, QQueryOperations> weightProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'weight');
     });
   }
 }
@@ -13677,199 +14561,249 @@ const StoreConfigSchema = CollectionSchema(
       name: r'address',
       type: IsarType.string,
     ),
-    r'autoPrintReceipt': PropertySchema(
+    r'autoOpenCashDrawer': PropertySchema(
       id: 1,
+      name: r'autoOpenCashDrawer',
+      type: IsarType.bool,
+    ),
+    r'autoPrintReceipt': PropertySchema(
+      id: 2,
       name: r'autoPrintReceipt',
       type: IsarType.bool,
     ),
     r'backupPath': PropertySchema(
-      id: 2,
+      id: 3,
       name: r'backupPath',
       type: IsarType.string,
     ),
     r'bhfId': PropertySchema(
-      id: 3,
+      id: 4,
       name: r'bhfId',
       type: IsarType.string,
     ),
     r'branchName': PropertySchema(
-      id: 4,
+      id: 5,
       name: r'branchName',
       type: IsarType.string,
     ),
     r'brandColorHex': PropertySchema(
-      id: 5,
+      id: 6,
       name: r'brandColorHex',
       type: IsarType.string,
     ),
     r'businessName': PropertySchema(
-      id: 6,
+      id: 7,
       name: r'businessName',
       type: IsarType.string,
     ),
     r'businessTaxType': PropertySchema(
-      id: 7,
+      id: 8,
       name: r'businessTaxType',
       type: IsarType.string,
     ),
+    r'cashDrawerPin': PropertySchema(
+      id: 9,
+      name: r'cashDrawerPin',
+      type: IsarType.long,
+    ),
+    r'cashDrawerPulseOffMs': PropertySchema(
+      id: 10,
+      name: r'cashDrawerPulseOffMs',
+      type: IsarType.long,
+    ),
+    r'cashDrawerPulseOnMs': PropertySchema(
+      id: 11,
+      name: r'cashDrawerPulseOnMs',
+      type: IsarType.long,
+    ),
     r'cloudApiUrl': PropertySchema(
-      id: 8,
+      id: 12,
       name: r'cloudApiUrl',
       type: IsarType.string,
     ),
     r'cloudStoreCode': PropertySchema(
-      id: 9,
+      id: 13,
       name: r'cloudStoreCode',
       type: IsarType.string,
     ),
     r'cloudStoreId': PropertySchema(
-      id: 10,
+      id: 14,
       name: r'cloudStoreId',
       type: IsarType.long,
     ),
     r'contactNumber': PropertySchema(
-      id: 11,
+      id: 15,
       name: r'contactNumber',
       type: IsarType.string,
     ),
     r'currencySymbol': PropertySchema(
-      id: 12,
+      id: 16,
       name: r'currencySymbol',
       type: IsarType.string,
     ),
     r'defaultPrinterAddress': PropertySchema(
-      id: 13,
+      id: 17,
       name: r'defaultPrinterAddress',
       type: IsarType.string,
     ),
     r'defaultPrinterModel': PropertySchema(
-      id: 14,
+      id: 18,
       name: r'defaultPrinterModel',
       type: IsarType.string,
     ),
     r'defaultPrinterName': PropertySchema(
-      id: 15,
+      id: 19,
       name: r'defaultPrinterName',
       type: IsarType.string,
     ),
     r'defaultPrinterType': PropertySchema(
-      id: 16,
+      id: 20,
       name: r'defaultPrinterType',
       type: IsarType.string,
     ),
+    r'defaultTareWeight': PropertySchema(
+      id: 21,
+      name: r'defaultTareWeight',
+      type: IsarType.double,
+    ),
     r'digitaxApiKey': PropertySchema(
-      id: 17,
+      id: 22,
       name: r'digitaxApiKey',
       type: IsarType.string,
     ),
     r'digitaxEnvironment': PropertySchema(
-      id: 18,
+      id: 23,
       name: r'digitaxEnvironment',
       type: IsarType.string,
     ),
     r'email': PropertySchema(
-      id: 19,
+      id: 24,
       name: r'email',
       type: IsarType.string,
     ),
     r'isCloudSyncEnabled': PropertySchema(
-      id: 20,
+      id: 25,
       name: r'isCloudSyncEnabled',
       type: IsarType.bool,
     ),
     r'isManagerMode': PropertySchema(
-      id: 21,
+      id: 26,
       name: r'isManagerMode',
       type: IsarType.bool,
     ),
     r'lastBackupDate': PropertySchema(
-      id: 22,
+      id: 27,
       name: r'lastBackupDate',
       type: IsarType.dateTime,
     ),
     r'lastCloudSyncDate': PropertySchema(
-      id: 23,
+      id: 28,
       name: r'lastCloudSyncDate',
       type: IsarType.dateTime,
     ),
     r'logoPath': PropertySchema(
-      id: 24,
+      id: 29,
       name: r'logoPath',
       type: IsarType.string,
     ),
     r'loyaltyEarnRate': PropertySchema(
-      id: 25,
+      id: 30,
       name: r'loyaltyEarnRate',
       type: IsarType.double,
     ),
     r'loyaltyEnabled': PropertySchema(
-      id: 26,
+      id: 31,
       name: r'loyaltyEnabled',
       type: IsarType.bool,
     ),
     r'loyaltyRedemptionValue': PropertySchema(
-      id: 27,
+      id: 32,
       name: r'loyaltyRedemptionValue',
       type: IsarType.double,
     ),
     r'mrcNo': PropertySchema(
-      id: 28,
+      id: 33,
       name: r'mrcNo',
       type: IsarType.string,
     ),
+    r'openDrawerCashOnly': PropertySchema(
+      id: 34,
+      name: r'openDrawerCashOnly',
+      type: IsarType.bool,
+    ),
     r'paperWidthMm': PropertySchema(
-      id: 29,
+      id: 35,
       name: r'paperWidthMm',
       type: IsarType.long,
     ),
     r'port': PropertySchema(
-      id: 30,
+      id: 36,
       name: r'port',
       type: IsarType.long,
     ),
     r'primarySector': PropertySchema(
-      id: 31,
+      id: 37,
       name: r'primarySector',
       type: IsarType.byte,
       enumMap: _StoreConfigprimarySectorEnumValueMap,
     ),
     r'recoveryCodeHash': PropertySchema(
-      id: 32,
+      id: 38,
       name: r'recoveryCodeHash',
       type: IsarType.string,
     ),
+    r'scaleBaudRate': PropertySchema(
+      id: 39,
+      name: r'scaleBaudRate',
+      type: IsarType.long,
+    ),
+    r'scaleEnabled': PropertySchema(
+      id: 40,
+      name: r'scaleEnabled',
+      type: IsarType.bool,
+    ),
+    r'scalePort': PropertySchema(
+      id: 41,
+      name: r'scalePort',
+      type: IsarType.string,
+    ),
+    r'scaleProtocol': PropertySchema(
+      id: 42,
+      name: r'scaleProtocol',
+      type: IsarType.string,
+    ),
     r'sdcId': PropertySchema(
-      id: 33,
+      id: 43,
       name: r'sdcId',
       type: IsarType.string,
     ),
     r'serverIp': PropertySchema(
-      id: 34,
+      id: 44,
       name: r'serverIp',
       type: IsarType.string,
     ),
     r'taxId': PropertySchema(
-      id: 35,
+      id: 45,
       name: r'taxId',
       type: IsarType.string,
     ),
     r'taxRate': PropertySchema(
-      id: 36,
+      id: 46,
       name: r'taxRate',
       type: IsarType.double,
     ),
     r'terminalName': PropertySchema(
-      id: 37,
+      id: 47,
       name: r'terminalName',
       type: IsarType.string,
     ),
     r'tpin': PropertySchema(
-      id: 38,
+      id: 48,
       name: r'tpin',
       type: IsarType.string,
     ),
     r'website': PropertySchema(
-      id: 39,
+      id: 49,
       name: r'website',
       type: IsarType.string,
     )
@@ -14000,6 +14934,8 @@ int _storeConfigEstimateSize(
       bytesCount += 3 + value.length * 3;
     }
   }
+  bytesCount += 3 + object.scalePort.length * 3;
+  bytesCount += 3 + object.scaleProtocol.length * 3;
   {
     final value = object.sdcId;
     if (value != null) {
@@ -14041,45 +14977,55 @@ void _storeConfigSerialize(
   Map<Type, List<int>> allOffsets,
 ) {
   writer.writeString(offsets[0], object.address);
-  writer.writeBool(offsets[1], object.autoPrintReceipt);
-  writer.writeString(offsets[2], object.backupPath);
-  writer.writeString(offsets[3], object.bhfId);
-  writer.writeString(offsets[4], object.branchName);
-  writer.writeString(offsets[5], object.brandColorHex);
-  writer.writeString(offsets[6], object.businessName);
-  writer.writeString(offsets[7], object.businessTaxType);
-  writer.writeString(offsets[8], object.cloudApiUrl);
-  writer.writeString(offsets[9], object.cloudStoreCode);
-  writer.writeLong(offsets[10], object.cloudStoreId);
-  writer.writeString(offsets[11], object.contactNumber);
-  writer.writeString(offsets[12], object.currencySymbol);
-  writer.writeString(offsets[13], object.defaultPrinterAddress);
-  writer.writeString(offsets[14], object.defaultPrinterModel);
-  writer.writeString(offsets[15], object.defaultPrinterName);
-  writer.writeString(offsets[16], object.defaultPrinterType);
-  writer.writeString(offsets[17], object.digitaxApiKey);
-  writer.writeString(offsets[18], object.digitaxEnvironment);
-  writer.writeString(offsets[19], object.email);
-  writer.writeBool(offsets[20], object.isCloudSyncEnabled);
-  writer.writeBool(offsets[21], object.isManagerMode);
-  writer.writeDateTime(offsets[22], object.lastBackupDate);
-  writer.writeDateTime(offsets[23], object.lastCloudSyncDate);
-  writer.writeString(offsets[24], object.logoPath);
-  writer.writeDouble(offsets[25], object.loyaltyEarnRate);
-  writer.writeBool(offsets[26], object.loyaltyEnabled);
-  writer.writeDouble(offsets[27], object.loyaltyRedemptionValue);
-  writer.writeString(offsets[28], object.mrcNo);
-  writer.writeLong(offsets[29], object.paperWidthMm);
-  writer.writeLong(offsets[30], object.port);
-  writer.writeByte(offsets[31], object.primarySector.index);
-  writer.writeString(offsets[32], object.recoveryCodeHash);
-  writer.writeString(offsets[33], object.sdcId);
-  writer.writeString(offsets[34], object.serverIp);
-  writer.writeString(offsets[35], object.taxId);
-  writer.writeDouble(offsets[36], object.taxRate);
-  writer.writeString(offsets[37], object.terminalName);
-  writer.writeString(offsets[38], object.tpin);
-  writer.writeString(offsets[39], object.website);
+  writer.writeBool(offsets[1], object.autoOpenCashDrawer);
+  writer.writeBool(offsets[2], object.autoPrintReceipt);
+  writer.writeString(offsets[3], object.backupPath);
+  writer.writeString(offsets[4], object.bhfId);
+  writer.writeString(offsets[5], object.branchName);
+  writer.writeString(offsets[6], object.brandColorHex);
+  writer.writeString(offsets[7], object.businessName);
+  writer.writeString(offsets[8], object.businessTaxType);
+  writer.writeLong(offsets[9], object.cashDrawerPin);
+  writer.writeLong(offsets[10], object.cashDrawerPulseOffMs);
+  writer.writeLong(offsets[11], object.cashDrawerPulseOnMs);
+  writer.writeString(offsets[12], object.cloudApiUrl);
+  writer.writeString(offsets[13], object.cloudStoreCode);
+  writer.writeLong(offsets[14], object.cloudStoreId);
+  writer.writeString(offsets[15], object.contactNumber);
+  writer.writeString(offsets[16], object.currencySymbol);
+  writer.writeString(offsets[17], object.defaultPrinterAddress);
+  writer.writeString(offsets[18], object.defaultPrinterModel);
+  writer.writeString(offsets[19], object.defaultPrinterName);
+  writer.writeString(offsets[20], object.defaultPrinterType);
+  writer.writeDouble(offsets[21], object.defaultTareWeight);
+  writer.writeString(offsets[22], object.digitaxApiKey);
+  writer.writeString(offsets[23], object.digitaxEnvironment);
+  writer.writeString(offsets[24], object.email);
+  writer.writeBool(offsets[25], object.isCloudSyncEnabled);
+  writer.writeBool(offsets[26], object.isManagerMode);
+  writer.writeDateTime(offsets[27], object.lastBackupDate);
+  writer.writeDateTime(offsets[28], object.lastCloudSyncDate);
+  writer.writeString(offsets[29], object.logoPath);
+  writer.writeDouble(offsets[30], object.loyaltyEarnRate);
+  writer.writeBool(offsets[31], object.loyaltyEnabled);
+  writer.writeDouble(offsets[32], object.loyaltyRedemptionValue);
+  writer.writeString(offsets[33], object.mrcNo);
+  writer.writeBool(offsets[34], object.openDrawerCashOnly);
+  writer.writeLong(offsets[35], object.paperWidthMm);
+  writer.writeLong(offsets[36], object.port);
+  writer.writeByte(offsets[37], object.primarySector.index);
+  writer.writeString(offsets[38], object.recoveryCodeHash);
+  writer.writeLong(offsets[39], object.scaleBaudRate);
+  writer.writeBool(offsets[40], object.scaleEnabled);
+  writer.writeString(offsets[41], object.scalePort);
+  writer.writeString(offsets[42], object.scaleProtocol);
+  writer.writeString(offsets[43], object.sdcId);
+  writer.writeString(offsets[44], object.serverIp);
+  writer.writeString(offsets[45], object.taxId);
+  writer.writeDouble(offsets[46], object.taxRate);
+  writer.writeString(offsets[47], object.terminalName);
+  writer.writeString(offsets[48], object.tpin);
+  writer.writeString(offsets[49], object.website);
 }
 
 StoreConfig _storeConfigDeserialize(
@@ -14090,48 +15036,58 @@ StoreConfig _storeConfigDeserialize(
 ) {
   final object = StoreConfig();
   object.address = reader.readStringOrNull(offsets[0]);
-  object.autoPrintReceipt = reader.readBool(offsets[1]);
-  object.backupPath = reader.readStringOrNull(offsets[2]);
-  object.bhfId = reader.readString(offsets[3]);
-  object.branchName = reader.readStringOrNull(offsets[4]);
-  object.brandColorHex = reader.readStringOrNull(offsets[5]);
-  object.businessName = reader.readString(offsets[6]);
-  object.businessTaxType = reader.readString(offsets[7]);
-  object.cloudApiUrl = reader.readStringOrNull(offsets[8]);
-  object.cloudStoreCode = reader.readStringOrNull(offsets[9]);
-  object.cloudStoreId = reader.readLongOrNull(offsets[10]);
-  object.contactNumber = reader.readStringOrNull(offsets[11]);
-  object.currencySymbol = reader.readStringOrNull(offsets[12]);
-  object.defaultPrinterAddress = reader.readStringOrNull(offsets[13]);
-  object.defaultPrinterModel = reader.readStringOrNull(offsets[14]);
-  object.defaultPrinterName = reader.readStringOrNull(offsets[15]);
-  object.defaultPrinterType = reader.readStringOrNull(offsets[16]);
-  object.digitaxApiKey = reader.readStringOrNull(offsets[17]);
-  object.digitaxEnvironment = reader.readString(offsets[18]);
-  object.email = reader.readStringOrNull(offsets[19]);
+  object.autoOpenCashDrawer = reader.readBool(offsets[1]);
+  object.autoPrintReceipt = reader.readBool(offsets[2]);
+  object.backupPath = reader.readStringOrNull(offsets[3]);
+  object.bhfId = reader.readString(offsets[4]);
+  object.branchName = reader.readStringOrNull(offsets[5]);
+  object.brandColorHex = reader.readStringOrNull(offsets[6]);
+  object.businessName = reader.readString(offsets[7]);
+  object.businessTaxType = reader.readString(offsets[8]);
+  object.cashDrawerPin = reader.readLong(offsets[9]);
+  object.cashDrawerPulseOffMs = reader.readLong(offsets[10]);
+  object.cashDrawerPulseOnMs = reader.readLong(offsets[11]);
+  object.cloudApiUrl = reader.readStringOrNull(offsets[12]);
+  object.cloudStoreCode = reader.readStringOrNull(offsets[13]);
+  object.cloudStoreId = reader.readLongOrNull(offsets[14]);
+  object.contactNumber = reader.readStringOrNull(offsets[15]);
+  object.currencySymbol = reader.readStringOrNull(offsets[16]);
+  object.defaultPrinterAddress = reader.readStringOrNull(offsets[17]);
+  object.defaultPrinterModel = reader.readStringOrNull(offsets[18]);
+  object.defaultPrinterName = reader.readStringOrNull(offsets[19]);
+  object.defaultPrinterType = reader.readStringOrNull(offsets[20]);
+  object.defaultTareWeight = reader.readDouble(offsets[21]);
+  object.digitaxApiKey = reader.readStringOrNull(offsets[22]);
+  object.digitaxEnvironment = reader.readString(offsets[23]);
+  object.email = reader.readStringOrNull(offsets[24]);
   object.id = id;
-  object.isCloudSyncEnabled = reader.readBool(offsets[20]);
-  object.isManagerMode = reader.readBool(offsets[21]);
-  object.lastBackupDate = reader.readDateTimeOrNull(offsets[22]);
-  object.lastCloudSyncDate = reader.readDateTimeOrNull(offsets[23]);
-  object.logoPath = reader.readStringOrNull(offsets[24]);
-  object.loyaltyEarnRate = reader.readDouble(offsets[25]);
-  object.loyaltyEnabled = reader.readBool(offsets[26]);
-  object.loyaltyRedemptionValue = reader.readDouble(offsets[27]);
-  object.mrcNo = reader.readStringOrNull(offsets[28]);
-  object.paperWidthMm = reader.readLong(offsets[29]);
-  object.port = reader.readLong(offsets[30]);
+  object.isCloudSyncEnabled = reader.readBool(offsets[25]);
+  object.isManagerMode = reader.readBool(offsets[26]);
+  object.lastBackupDate = reader.readDateTimeOrNull(offsets[27]);
+  object.lastCloudSyncDate = reader.readDateTimeOrNull(offsets[28]);
+  object.logoPath = reader.readStringOrNull(offsets[29]);
+  object.loyaltyEarnRate = reader.readDouble(offsets[30]);
+  object.loyaltyEnabled = reader.readBool(offsets[31]);
+  object.loyaltyRedemptionValue = reader.readDouble(offsets[32]);
+  object.mrcNo = reader.readStringOrNull(offsets[33]);
+  object.openDrawerCashOnly = reader.readBool(offsets[34]);
+  object.paperWidthMm = reader.readLong(offsets[35]);
+  object.port = reader.readLong(offsets[36]);
   object.primarySector = _StoreConfigprimarySectorValueEnumMap[
-          reader.readByteOrNull(offsets[31])] ??
+          reader.readByteOrNull(offsets[37])] ??
       CategorySector.pharmacy;
-  object.recoveryCodeHash = reader.readStringOrNull(offsets[32]);
-  object.sdcId = reader.readStringOrNull(offsets[33]);
-  object.serverIp = reader.readStringOrNull(offsets[34]);
-  object.taxId = reader.readStringOrNull(offsets[35]);
-  object.taxRate = reader.readDouble(offsets[36]);
-  object.terminalName = reader.readString(offsets[37]);
-  object.tpin = reader.readStringOrNull(offsets[38]);
-  object.website = reader.readStringOrNull(offsets[39]);
+  object.recoveryCodeHash = reader.readStringOrNull(offsets[38]);
+  object.scaleBaudRate = reader.readLong(offsets[39]);
+  object.scaleEnabled = reader.readBool(offsets[40]);
+  object.scalePort = reader.readString(offsets[41]);
+  object.scaleProtocol = reader.readString(offsets[42]);
+  object.sdcId = reader.readStringOrNull(offsets[43]);
+  object.serverIp = reader.readStringOrNull(offsets[44]);
+  object.taxId = reader.readStringOrNull(offsets[45]);
+  object.taxRate = reader.readDouble(offsets[46]);
+  object.terminalName = reader.readString(offsets[47]);
+  object.tpin = reader.readStringOrNull(offsets[48]);
+  object.website = reader.readStringOrNull(offsets[49]);
   return object;
 }
 
@@ -14147,31 +15103,31 @@ P _storeConfigDeserializeProp<P>(
     case 1:
       return (reader.readBool(offset)) as P;
     case 2:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readBool(offset)) as P;
     case 3:
-      return (reader.readString(offset)) as P;
-    case 4:
       return (reader.readStringOrNull(offset)) as P;
+    case 4:
+      return (reader.readString(offset)) as P;
     case 5:
       return (reader.readStringOrNull(offset)) as P;
     case 6:
-      return (reader.readString(offset)) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 7:
       return (reader.readString(offset)) as P;
     case 8:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readString(offset)) as P;
     case 9:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readLong(offset)) as P;
     case 10:
-      return (reader.readLongOrNull(offset)) as P;
+      return (reader.readLong(offset)) as P;
     case 11:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readLong(offset)) as P;
     case 12:
       return (reader.readStringOrNull(offset)) as P;
     case 13:
       return (reader.readStringOrNull(offset)) as P;
     case 14:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readLongOrNull(offset)) as P;
     case 15:
       return (reader.readStringOrNull(offset)) as P;
     case 16:
@@ -14179,50 +15135,70 @@ P _storeConfigDeserializeProp<P>(
     case 17:
       return (reader.readStringOrNull(offset)) as P;
     case 18:
-      return (reader.readString(offset)) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 19:
       return (reader.readStringOrNull(offset)) as P;
     case 20:
-      return (reader.readBool(offset)) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 21:
-      return (reader.readBool(offset)) as P;
+      return (reader.readDouble(offset)) as P;
     case 22:
-      return (reader.readDateTimeOrNull(offset)) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 23:
-      return (reader.readDateTimeOrNull(offset)) as P;
+      return (reader.readString(offset)) as P;
     case 24:
       return (reader.readStringOrNull(offset)) as P;
     case 25:
-      return (reader.readDouble(offset)) as P;
+      return (reader.readBool(offset)) as P;
     case 26:
       return (reader.readBool(offset)) as P;
     case 27:
-      return (reader.readDouble(offset)) as P;
+      return (reader.readDateTimeOrNull(offset)) as P;
     case 28:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readDateTimeOrNull(offset)) as P;
     case 29:
-      return (reader.readLong(offset)) as P;
-    case 30:
-      return (reader.readLong(offset)) as P;
-    case 31:
-      return (_StoreConfigprimarySectorValueEnumMap[
-              reader.readByteOrNull(offset)] ??
-          CategorySector.pharmacy) as P;
-    case 32:
       return (reader.readStringOrNull(offset)) as P;
+    case 30:
+      return (reader.readDouble(offset)) as P;
+    case 31:
+      return (reader.readBool(offset)) as P;
+    case 32:
+      return (reader.readDouble(offset)) as P;
     case 33:
       return (reader.readStringOrNull(offset)) as P;
     case 34:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readBool(offset)) as P;
     case 35:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readLong(offset)) as P;
     case 36:
-      return (reader.readDouble(offset)) as P;
+      return (reader.readLong(offset)) as P;
     case 37:
-      return (reader.readString(offset)) as P;
+      return (_StoreConfigprimarySectorValueEnumMap[
+              reader.readByteOrNull(offset)] ??
+          CategorySector.pharmacy) as P;
     case 38:
       return (reader.readStringOrNull(offset)) as P;
     case 39:
+      return (reader.readLong(offset)) as P;
+    case 40:
+      return (reader.readBool(offset)) as P;
+    case 41:
+      return (reader.readString(offset)) as P;
+    case 42:
+      return (reader.readString(offset)) as P;
+    case 43:
+      return (reader.readStringOrNull(offset)) as P;
+    case 44:
+      return (reader.readStringOrNull(offset)) as P;
+    case 45:
+      return (reader.readStringOrNull(offset)) as P;
+    case 46:
+      return (reader.readDouble(offset)) as P;
+    case 47:
+      return (reader.readString(offset)) as P;
+    case 48:
+      return (reader.readStringOrNull(offset)) as P;
+    case 49:
       return (reader.readStringOrNull(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -14487,6 +15463,16 @@ extension StoreConfigQueryFilter
       return query.addFilterCondition(FilterCondition.greaterThan(
         property: r'address',
         value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      autoOpenCashDrawerEqualTo(bool value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'autoOpenCashDrawer',
+        value: value,
       ));
     });
   }
@@ -15363,6 +16349,174 @@ extension StoreConfigQueryFilter
       return query.addFilterCondition(FilterCondition.greaterThan(
         property: r'businessTaxType',
         value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      cashDrawerPinEqualTo(int value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'cashDrawerPin',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      cashDrawerPinGreaterThan(
+    int value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'cashDrawerPin',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      cashDrawerPinLessThan(
+    int value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'cashDrawerPin',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      cashDrawerPinBetween(
+    int lower,
+    int upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'cashDrawerPin',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      cashDrawerPulseOffMsEqualTo(int value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'cashDrawerPulseOffMs',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      cashDrawerPulseOffMsGreaterThan(
+    int value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'cashDrawerPulseOffMs',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      cashDrawerPulseOffMsLessThan(
+    int value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'cashDrawerPulseOffMs',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      cashDrawerPulseOffMsBetween(
+    int lower,
+    int upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'cashDrawerPulseOffMs',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      cashDrawerPulseOnMsEqualTo(int value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'cashDrawerPulseOnMs',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      cashDrawerPulseOnMsGreaterThan(
+    int value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'cashDrawerPulseOnMs',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      cashDrawerPulseOnMsLessThan(
+    int value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'cashDrawerPulseOnMs',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      cashDrawerPulseOnMsBetween(
+    int lower,
+    int upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'cashDrawerPulseOnMs',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
       ));
     });
   }
@@ -16675,6 +17829,72 @@ extension StoreConfigQueryFilter
   }
 
   QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      defaultTareWeightEqualTo(
+    double value, {
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'defaultTareWeight',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      defaultTareWeightGreaterThan(
+    double value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'defaultTareWeight',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      defaultTareWeightLessThan(
+    double value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'defaultTareWeight',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      defaultTareWeightBetween(
+    double lower,
+    double upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'defaultTareWeight',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
       digitaxApiKeyIsNull() {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(const FilterCondition.isNull(
@@ -17779,6 +18999,16 @@ extension StoreConfigQueryFilter
   }
 
   QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      openDrawerCashOnlyEqualTo(bool value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'openDrawerCashOnly',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
       paperWidthMmEqualTo(int value) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.equalTo(
@@ -18092,6 +19322,344 @@ extension StoreConfigQueryFilter
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.greaterThan(
         property: r'recoveryCodeHash',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      scaleBaudRateEqualTo(int value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'scaleBaudRate',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      scaleBaudRateGreaterThan(
+    int value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'scaleBaudRate',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      scaleBaudRateLessThan(
+    int value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'scaleBaudRate',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      scaleBaudRateBetween(
+    int lower,
+    int upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'scaleBaudRate',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      scaleEnabledEqualTo(bool value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'scaleEnabled',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      scalePortEqualTo(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'scalePort',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      scalePortGreaterThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'scalePort',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      scalePortLessThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'scalePort',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      scalePortBetween(
+    String lower,
+    String upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'scalePort',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      scalePortStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'scalePort',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      scalePortEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'scalePort',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      scalePortContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'scalePort',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      scalePortMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'scalePort',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      scalePortIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'scalePort',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      scalePortIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'scalePort',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      scaleProtocolEqualTo(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'scaleProtocol',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      scaleProtocolGreaterThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'scaleProtocol',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      scaleProtocolLessThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'scaleProtocol',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      scaleProtocolBetween(
+    String lower,
+    String upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'scaleProtocol',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      scaleProtocolStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'scaleProtocol',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      scaleProtocolEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'scaleProtocol',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      scaleProtocolContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'scaleProtocol',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      scaleProtocolMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'scaleProtocol',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      scaleProtocolIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'scaleProtocol',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      scaleProtocolIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'scaleProtocol',
         value: '',
       ));
     });
@@ -19069,6 +20637,20 @@ extension StoreConfigQuerySortBy
   }
 
   QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy>
+      sortByAutoOpenCashDrawer() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'autoOpenCashDrawer', Sort.asc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy>
+      sortByAutoOpenCashDrawerDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'autoOpenCashDrawer', Sort.desc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy>
       sortByAutoPrintReceipt() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'autoPrintReceipt', Sort.asc);
@@ -19154,6 +20736,47 @@ extension StoreConfigQuerySortBy
       sortByBusinessTaxTypeDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'businessTaxType', Sort.desc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy> sortByCashDrawerPin() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'cashDrawerPin', Sort.asc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy>
+      sortByCashDrawerPinDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'cashDrawerPin', Sort.desc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy>
+      sortByCashDrawerPulseOffMs() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'cashDrawerPulseOffMs', Sort.asc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy>
+      sortByCashDrawerPulseOffMsDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'cashDrawerPulseOffMs', Sort.desc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy>
+      sortByCashDrawerPulseOnMs() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'cashDrawerPulseOnMs', Sort.asc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy>
+      sortByCashDrawerPulseOnMsDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'cashDrawerPulseOnMs', Sort.desc);
     });
   }
 
@@ -19274,6 +20897,20 @@ extension StoreConfigQuerySortBy
       sortByDefaultPrinterTypeDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'defaultPrinterType', Sort.desc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy>
+      sortByDefaultTareWeight() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'defaultTareWeight', Sort.asc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy>
+      sortByDefaultTareWeightDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'defaultTareWeight', Sort.desc);
     });
   }
 
@@ -19434,6 +21071,20 @@ extension StoreConfigQuerySortBy
     });
   }
 
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy>
+      sortByOpenDrawerCashOnly() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'openDrawerCashOnly', Sort.asc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy>
+      sortByOpenDrawerCashOnlyDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'openDrawerCashOnly', Sort.desc);
+    });
+  }
+
   QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy> sortByPaperWidthMm() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'paperWidthMm', Sort.asc);
@@ -19483,6 +21134,57 @@ extension StoreConfigQuerySortBy
       sortByRecoveryCodeHashDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'recoveryCodeHash', Sort.desc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy> sortByScaleBaudRate() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'scaleBaudRate', Sort.asc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy>
+      sortByScaleBaudRateDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'scaleBaudRate', Sort.desc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy> sortByScaleEnabled() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'scaleEnabled', Sort.asc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy>
+      sortByScaleEnabledDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'scaleEnabled', Sort.desc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy> sortByScalePort() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'scalePort', Sort.asc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy> sortByScalePortDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'scalePort', Sort.desc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy> sortByScaleProtocol() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'scaleProtocol', Sort.asc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy>
+      sortByScaleProtocolDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'scaleProtocol', Sort.desc);
     });
   }
 
@@ -19587,6 +21289,20 @@ extension StoreConfigQuerySortThenBy
   }
 
   QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy>
+      thenByAutoOpenCashDrawer() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'autoOpenCashDrawer', Sort.asc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy>
+      thenByAutoOpenCashDrawerDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'autoOpenCashDrawer', Sort.desc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy>
       thenByAutoPrintReceipt() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'autoPrintReceipt', Sort.asc);
@@ -19672,6 +21388,47 @@ extension StoreConfigQuerySortThenBy
       thenByBusinessTaxTypeDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'businessTaxType', Sort.desc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy> thenByCashDrawerPin() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'cashDrawerPin', Sort.asc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy>
+      thenByCashDrawerPinDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'cashDrawerPin', Sort.desc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy>
+      thenByCashDrawerPulseOffMs() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'cashDrawerPulseOffMs', Sort.asc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy>
+      thenByCashDrawerPulseOffMsDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'cashDrawerPulseOffMs', Sort.desc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy>
+      thenByCashDrawerPulseOnMs() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'cashDrawerPulseOnMs', Sort.asc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy>
+      thenByCashDrawerPulseOnMsDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'cashDrawerPulseOnMs', Sort.desc);
     });
   }
 
@@ -19792,6 +21549,20 @@ extension StoreConfigQuerySortThenBy
       thenByDefaultPrinterTypeDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'defaultPrinterType', Sort.desc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy>
+      thenByDefaultTareWeight() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'defaultTareWeight', Sort.asc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy>
+      thenByDefaultTareWeightDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'defaultTareWeight', Sort.desc);
     });
   }
 
@@ -19964,6 +21735,20 @@ extension StoreConfigQuerySortThenBy
     });
   }
 
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy>
+      thenByOpenDrawerCashOnly() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'openDrawerCashOnly', Sort.asc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy>
+      thenByOpenDrawerCashOnlyDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'openDrawerCashOnly', Sort.desc);
+    });
+  }
+
   QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy> thenByPaperWidthMm() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'paperWidthMm', Sort.asc);
@@ -20013,6 +21798,57 @@ extension StoreConfigQuerySortThenBy
       thenByRecoveryCodeHashDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'recoveryCodeHash', Sort.desc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy> thenByScaleBaudRate() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'scaleBaudRate', Sort.asc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy>
+      thenByScaleBaudRateDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'scaleBaudRate', Sort.desc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy> thenByScaleEnabled() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'scaleEnabled', Sort.asc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy>
+      thenByScaleEnabledDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'scaleEnabled', Sort.desc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy> thenByScalePort() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'scalePort', Sort.asc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy> thenByScalePortDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'scalePort', Sort.desc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy> thenByScaleProtocol() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'scaleProtocol', Sort.asc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy>
+      thenByScaleProtocolDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'scaleProtocol', Sort.desc);
     });
   }
 
@@ -20112,6 +21948,13 @@ extension StoreConfigQueryWhereDistinct
   }
 
   QueryBuilder<StoreConfig, StoreConfig, QDistinct>
+      distinctByAutoOpenCashDrawer() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'autoOpenCashDrawer');
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QDistinct>
       distinctByAutoPrintReceipt() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'autoPrintReceipt');
@@ -20159,6 +22002,26 @@ extension StoreConfigQueryWhereDistinct
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'businessTaxType',
           caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QDistinct> distinctByCashDrawerPin() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'cashDrawerPin');
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QDistinct>
+      distinctByCashDrawerPulseOffMs() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'cashDrawerPulseOffMs');
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QDistinct>
+      distinctByCashDrawerPulseOnMs() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'cashDrawerPulseOnMs');
     });
   }
 
@@ -20228,6 +22091,13 @@ extension StoreConfigQueryWhereDistinct
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'defaultPrinterType',
           caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QDistinct>
+      distinctByDefaultTareWeight() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'defaultTareWeight');
     });
   }
 
@@ -20314,6 +22184,13 @@ extension StoreConfigQueryWhereDistinct
     });
   }
 
+  QueryBuilder<StoreConfig, StoreConfig, QDistinct>
+      distinctByOpenDrawerCashOnly() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'openDrawerCashOnly');
+    });
+  }
+
   QueryBuilder<StoreConfig, StoreConfig, QDistinct> distinctByPaperWidthMm() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'paperWidthMm');
@@ -20336,6 +22213,33 @@ extension StoreConfigQueryWhereDistinct
       {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'recoveryCodeHash',
+          caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QDistinct> distinctByScaleBaudRate() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'scaleBaudRate');
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QDistinct> distinctByScaleEnabled() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'scaleEnabled');
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QDistinct> distinctByScalePort(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'scalePort', caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QDistinct> distinctByScaleProtocol(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'scaleProtocol',
           caseSensitive: caseSensitive);
     });
   }
@@ -20403,6 +22307,13 @@ extension StoreConfigQueryProperty
     });
   }
 
+  QueryBuilder<StoreConfig, bool, QQueryOperations>
+      autoOpenCashDrawerProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'autoOpenCashDrawer');
+    });
+  }
+
   QueryBuilder<StoreConfig, bool, QQueryOperations> autoPrintReceiptProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'autoPrintReceipt');
@@ -20443,6 +22354,26 @@ extension StoreConfigQueryProperty
       businessTaxTypeProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'businessTaxType');
+    });
+  }
+
+  QueryBuilder<StoreConfig, int, QQueryOperations> cashDrawerPinProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'cashDrawerPin');
+    });
+  }
+
+  QueryBuilder<StoreConfig, int, QQueryOperations>
+      cashDrawerPulseOffMsProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'cashDrawerPulseOffMs');
+    });
+  }
+
+  QueryBuilder<StoreConfig, int, QQueryOperations>
+      cashDrawerPulseOnMsProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'cashDrawerPulseOnMs');
     });
   }
 
@@ -20503,6 +22434,13 @@ extension StoreConfigQueryProperty
       defaultPrinterTypeProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'defaultPrinterType');
+    });
+  }
+
+  QueryBuilder<StoreConfig, double, QQueryOperations>
+      defaultTareWeightProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'defaultTareWeight');
     });
   }
 
@@ -20584,6 +22522,13 @@ extension StoreConfigQueryProperty
     });
   }
 
+  QueryBuilder<StoreConfig, bool, QQueryOperations>
+      openDrawerCashOnlyProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'openDrawerCashOnly');
+    });
+  }
+
   QueryBuilder<StoreConfig, int, QQueryOperations> paperWidthMmProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'paperWidthMm');
@@ -20607,6 +22552,30 @@ extension StoreConfigQueryProperty
       recoveryCodeHashProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'recoveryCodeHash');
+    });
+  }
+
+  QueryBuilder<StoreConfig, int, QQueryOperations> scaleBaudRateProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'scaleBaudRate');
+    });
+  }
+
+  QueryBuilder<StoreConfig, bool, QQueryOperations> scaleEnabledProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'scaleEnabled');
+    });
+  }
+
+  QueryBuilder<StoreConfig, String, QQueryOperations> scalePortProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'scalePort');
+    });
+  }
+
+  QueryBuilder<StoreConfig, String, QQueryOperations> scaleProtocolProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'scaleProtocol');
     });
   }
 

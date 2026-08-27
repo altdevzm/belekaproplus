@@ -4,8 +4,22 @@ import 'package:beleka_pos/models/models.dart';
 class CartItem {
   final Product product;
   final int quantity;
+  final double weight; // in kg or g
+  final bool isWeighted;
 
-  CartItem({required this.product, required this.quantity});
+  CartItem({
+    required this.product,
+    this.quantity = 1,
+    this.weight = 0.0,
+    bool? isWeighted,
+  }) : isWeighted = isWeighted ?? product.isWeighted;
+
+  double get effectiveQuantity {
+    if (isWeighted) {
+      return weight > 0 ? weight : 1.0;
+    }
+    return quantity.toDouble();
+  }
 
   double get unitPrice {
     final now = DateTime.now();
@@ -33,14 +47,16 @@ class CartItem {
     return unitPrice * (product.taxRate / 100);
   }
 
-  double get subtotal => baseUnitPrice * quantity;
-  double get totalTax => taxAmountPerUnit * quantity;
-  double get total => (baseUnitPrice + taxAmountPerUnit) * quantity;
+  double get subtotal => baseUnitPrice * effectiveQuantity;
+  double get totalTax => taxAmountPerUnit * effectiveQuantity;
+  double get total => (baseUnitPrice + taxAmountPerUnit) * effectiveQuantity;
 
-  CartItem copyWith({int? quantity}) {
+  CartItem copyWith({int? quantity, double? weight, bool? isWeighted}) {
     return CartItem(
       product: product,
       quantity: quantity ?? this.quantity,
+      weight: weight ?? this.weight,
+      isWeighted: isWeighted ?? this.isWeighted,
     );
   }
 }
@@ -94,7 +110,7 @@ class CartNotifier extends StateNotifier<CartState> {
   double get taxRate => 0.0; // Global tax rate is no longer used
 
   bool addProduct(Product product, {int quantity = 1}) {
-    final existingIndex = state.items.indexWhere((item) => item.product.id == product.id);
+    final existingIndex = state.items.indexWhere((item) => item.product.id == product.id && !item.isWeighted);
     
     if (existingIndex != -1) {
       final currentQty = state.items[existingIndex].quantity;
@@ -109,9 +125,45 @@ class CartNotifier extends StateNotifier<CartState> {
       state = state.copyWith(items: newItems);
     } else {
       if (product.stockLevel < quantity) return false;
-      state = state.copyWith(items: [...state.items, CartItem(product: product, quantity: quantity)]);
+      state = state.copyWith(items: [
+        ...state.items,
+        CartItem(product: product, quantity: quantity, isWeighted: false),
+      ]);
     }
     return true;
+  }
+
+  bool addWeightedProduct(Product product, {required double weight, double tareWeight = 0.0}) {
+    final netWeight = weight - tareWeight > 0 ? (weight - tareWeight) : weight;
+    if (netWeight <= 0) return false;
+
+    final existingIndex = state.items.indexWhere((item) => item.product.id == product.id && item.isWeighted);
+    
+    if (existingIndex != -1) {
+      final newItems = List<CartItem>.from(state.items);
+      final currentWeight = newItems[existingIndex].weight;
+      newItems[existingIndex] = newItems[existingIndex].copyWith(
+        weight: currentWeight + netWeight,
+      );
+      state = state.copyWith(items: newItems);
+    } else {
+      state = state.copyWith(items: [
+        ...state.items,
+        CartItem(product: product, quantity: 1, weight: netWeight, isWeighted: true),
+      ]);
+    }
+    return true;
+  }
+
+  void setWeight(int productId, double weight) {
+    state = state.copyWith(
+      items: state.items.map((item) {
+        if (item.product.id == productId && item.isWeighted) {
+          return item.copyWith(weight: weight > 0 ? weight : 0.001);
+        }
+        return item;
+      }).toList(),
+    );
   }
 
   void removeProduct(int productId) {
@@ -124,6 +176,11 @@ class CartNotifier extends StateNotifier<CartState> {
     bool success = true;
     final newItems = state.items.map((item) {
       if (item.product.id == productId) {
+        if (item.isWeighted) {
+          // Adjust by 0.1 kg or 0.25 kg for weighted items
+          final newWeight = (item.weight + (delta * 0.25)).clamp(0.01, 999.0);
+          return item.copyWith(weight: newWeight);
+        }
         final newQty = item.quantity + delta;
         if (newQty > item.product.stockLevel) {
           success = false;
@@ -143,10 +200,8 @@ class CartNotifier extends StateNotifier<CartState> {
   void setQuantity(int productId, int quantity) {
     state = state.copyWith(
       items: state.items.map((item) {
-        if (item.product.id == productId) {
+        if (item.product.id == productId && !item.isWeighted) {
           final finalQty = quantity.clamp(1, 999);
-          // Only sync with stock if needed, or assume caller handled it.
-          // The current updateQuantity checks stockLevel, so we should too.
           final stockAdjustedQty = finalQty.clamp(1, item.product.stockLevel);
           return item.copyWith(quantity: stockAdjustedQty);
         }

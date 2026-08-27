@@ -687,21 +687,27 @@ class PrinterService {
       // 5. Line Items Rows
       for (var item in items) {
         final taxLetter = _getTaxLetter(item.taxRateAtSale);
-        final itemTotal = item.priceAtSale * item.quantity;
+        final effectiveQty = (item.isWeighted && item.weight > 0)
+            ? item.weight
+            : item.quantity.toDouble();
+        final qtyStr = (item.isWeighted && item.weight > 0)
+            ? '${item.weight.toStringAsFixed(3)}${item.unitOfMeasure.isNotEmpty ? item.unitOfMeasure : "kg"}'
+            : '${item.quantity}';
+        final itemTotal = item.priceAtSale * effectiveQty;
         final totalFormatted = CurrencyFormatter.format(itemTotal, currency);
 
         if (is58) {
           bytes += generator.text(item.productName.toUpperCase(), styles: const PosStyles(bold: true));
           bytes += generator.text(_formatRow3(
             '  @ ${CurrencyFormatter.format(item.priceAtSale, currency)}',
-            '${item.quantity}x',
+            (item.isWeighted ? qtyStr : '${item.quantity}x'),
             '$totalFormatted $taxLetter',
             colCount,
           ));
         } else {
           bytes += generator.text(_formatRow4(
             item.productName.toUpperCase(),
-            '${item.quantity}',
+            qtyStr,
             CurrencyFormatter.format(item.priceAtSale, currency),
             '$totalFormatted $taxLetter',
             colCount,
@@ -1289,9 +1295,12 @@ class PrinterService {
     
     for (var item in items) {
       final letter = _getTaxLetter(item.taxRateAtSale);
+      final effectiveQty = (item.isWeighted && item.weight > 0)
+          ? item.weight
+          : item.quantity.toDouble();
       String name = item.productName.toUpperCase();
       if (name.length > 18) name = '${name.substring(0, 15)}...';
-      String price = CurrencyFormatter.format(item.priceAtSale * item.quantity, currency);
+      String price = CurrencyFormatter.format(item.priceAtSale * effectiveQty, currency);
       commands.append('${name.padRight(19)} ${price.padLeft(10)} $letter\n');
     }
 
@@ -1515,13 +1524,20 @@ class PrinterService {
 
                 ...items.map((item) {
                   final letter = _getTaxLetter(item.taxRateAtSale);
+                  final effectiveQty = (item.isWeighted && item.weight > 0)
+                      ? item.weight
+                      : item.quantity.toDouble();
+                  final qtyStr = (item.isWeighted && item.weight > 0)
+                      ? '${item.weight.toStringAsFixed(3)} ${item.unitOfMeasure.isNotEmpty ? item.unitOfMeasure : "kg"}'
+                      : '${item.quantity.toStringAsFixed(0)}x';
+                  final itemTotal = item.priceAtSale * effectiveQty;
                   return pw.Padding(
                     padding: const pw.EdgeInsets.symmetric(vertical: 1),
                     child: pw.Row(
                       children: [
                         pw.Expanded(flex: 6, child: pw.Text(item.productName.toUpperCase(), style: const pw.TextStyle(fontSize: 8))),
-                        pw.Expanded(flex: 2, child: pw.Text('${item.quantity.toStringAsFixed(0)}x', style: const pw.TextStyle(fontSize: 8), textAlign: pw.TextAlign.center)),
-                        pw.Expanded(flex: 4, child: pw.Text('${CurrencyFormatter.format(item.priceAtSale * item.quantity, currency)} $letter', style: const pw.TextStyle(fontSize: 8), textAlign: pw.TextAlign.right)),
+                        pw.Expanded(flex: 2, child: pw.Text(qtyStr, style: const pw.TextStyle(fontSize: 8), textAlign: pw.TextAlign.center)),
+                        pw.Expanded(flex: 4, child: pw.Text('${CurrencyFormatter.format(itemTotal, currency)} $letter', style: const pw.TextStyle(fontSize: 8), textAlign: pw.TextAlign.right)),
                       ],
                     ),
                   );
@@ -1986,7 +2002,10 @@ class PrinterService {
     
     for (var item in items) {
       final rate = item.taxRateAtSale;
-      final total = item.priceAtSale * item.quantity;
+      final effectiveQty = (item.isWeighted && item.weight > 0)
+          ? item.weight
+          : item.quantity.toDouble();
+      final total = item.priceAtSale * effectiveQty;
       
       double vat = 0;
       if (item.isTaxInclusiveAtSale) {
