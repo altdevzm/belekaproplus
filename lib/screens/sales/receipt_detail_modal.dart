@@ -362,16 +362,16 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
     final timeFormatted = DateFormat('HH:mm:ss').format(widget.transaction.timestamp);
     final sdcIdStr = (widget.transaction.zraSdcId != null && widget.transaction.zraSdcId!.isNotEmpty)
         ? widget.transaction.zraSdcId!
-        : (config?.sdcId ?? 'SDC00300000014');
+        : (config?.sdcId?.isNotEmpty == true ? config!.sdcId! : 'PENDING');
     final sdcInvNoStr = (widget.transaction.zraReceiptNumber != null && widget.transaction.zraReceiptNumber!.isNotEmpty)
         ? widget.transaction.zraReceiptNumber!
         : 'INV-${widget.transaction.id.toString().padLeft(8, '0')}';
     final signatureStr = (widget.transaction.zraMarkId != null && widget.transaction.zraMarkId!.isNotEmpty)
         ? widget.transaction.zraMarkId!
-        : 'MARK-${widget.transaction.id.hashCode.toRadixString(16).toUpperCase()}';
+        : 'PENDING';
     final internalDataStr = (widget.transaction.zraInternalData != null && widget.transaction.zraInternalData!.isNotEmpty)
         ? widget.transaction.zraInternalData!
-        : (config?.mrcNo ?? 'WIS00013845');
+        : (config?.mrcNo?.isNotEmpty == true ? config!.mrcNo! : 'PENDING');
 
     return Container(
       padding: const EdgeInsets.all(16),

@@ -951,82 +951,72 @@ class DigiTaxInventoryService {
         final data = resp.data;
         debugPrint('DIGITAX_SALES_SUCCESS: Raw Response from DigiTax: $data');
 
-        // Extract SDC Invoice Number (e.g. INV1/9510)
-        final parsedSdcRcptNo = _extractFiscalField(data, [
-          'sdc_invoice_number', 'sdc_invoice_no', 'sdcinvoicenumber', 'sdcinvoiceno',
-          'invoice_number', 'invoicenumber', 'sale_number', 'salenumber',
-          'receipt_number', 'receiptnumber', 'rcpt_no', 'rcptno', 'sdc_receipt_number', 'vsdc_rcpt_no'
-        ]);
+        if (data is! Map) return false;
 
-        // Extract ZRA SDC Signature (e.g. 7CC4MAJL2O4VNR23)
-        final parsedSignature = _extractFiscalField(data, [
-          'signature', 'receipt_signature', 'receiptsignature', 'rcpt_sign',
-          'rcptsign', 'mark_id', 'markid', 'sdc_signature', 'sdcsignature', 'vsdc_signature'
-        ]);
+        // ── Use EXACT field names from DigiTax OpenAPI specification ──────────
+        //
+        // receipt_number  → ZRA SDC sequential invoice counter (integer, e.g. 38)
+        //                   This is what ZRA registers as the official invoice number.
+        //                   NOT sale_number (which is DigiTax's own internal ref).
+        //
+        // receipt_signature → 16-char ZRA fiscal signature
+        // internal_data     → ZRA VSDC internal data string
+        // sdc_id            → Virtual SDC device ID assigned by DigiTax per branch
+        //                     NOT the PC hardware serial number
+        // receipt_url       → Live ZRA portal verification URL (use as QR source)
+        // receipt_type_code → 'S'=Normal, 'R'=Credit Note
+        // ──────────────────────────────────────────────────────────────────────
 
-        // Extract ZRA Internal Data (e.g. PVO2JSD5ZGLD2RR2NZKK6U4TYY)
-        final parsedInternalData = _extractFiscalField(data, [
-          'internal_data', 'internaldata', 'intrl_data', 'intrldata',
-          'internal_code', 'internalcode', 'sdc_internal_data', 'intrl_cntrl_data'
-        ]);
-
-        // Extract SDC Device ID
-        final parsedSdcId = _extractFiscalField(data, [
-          'sdc_id', 'sdcid', 'vsdc_id', 'vsdcid', 'device_id', 'deviceid', 'terminal_id'
-        ]);
-
-        // Extract Live ZRA QR Code verification URL
-        final parsedQrUrl = _extractFiscalField(data, [
-          'receipt_url', 'receipturl', 'qr_code', 'qrcode', 'qr_url', 'qrurl',
-          'verification_url', 'verificationurl', 'url', 'zra_url', 'smart_invoice_url',
-          'receipt_qr', 'receiptqr', 'vsdc_qr', 'sdc_qr', 'qr_image_url', 'receipt_link', 'link', 'qr'
-        ]);
-
-        // Extract Invoice Type (e.g. Normal Sale)
-        final parsedInvoiceType = _extractFiscalField(data, [
-          'invoice_type', 'invoicetype', 'sale_type', 'saletype', 'kind'
-        ]);
-
-        final sdcRcptNo = (parsedSdcRcptNo != null && parsedSdcRcptNo.isNotEmpty)
-            ? parsedSdcRcptNo
+        // SDC Invoice Number — receipt_number is an integer, convert to string
+        final rcptNumberRaw = data['receipt_number'];
+        final sdcRcptNo = (rcptNumberRaw != null && rcptNumberRaw.toString().isNotEmpty)
+            ? rcptNumberRaw.toString()
             : 'INV-${transaction.id.toString().padLeft(8, '0')}';
 
-        final markId = (parsedSignature != null && parsedSignature.isNotEmpty)
-            ? parsedSignature
+        // ZRA Fiscal Signature
+        final markId = (data['receipt_signature']?.toString().isNotEmpty == true)
+            ? data['receipt_signature'].toString()
             : 'MARK-${transaction.id.hashCode.toRadixString(16).toUpperCase()}';
 
-        final internalData = (parsedInternalData != null && parsedInternalData.isNotEmpty)
-            ? parsedInternalData
-            : (config?.mrcNo ?? 'WIS00013845');
+        // ZRA VSDC Internal Data
+        final internalData = (data['internal_data']?.toString().isNotEmpty == true)
+            ? data['internal_data'].toString()
+            : (config?.mrcNo ?? '');
 
-        final sdcId = (parsedSdcId != null && parsedSdcId.isNotEmpty)
-            ? parsedSdcId
-            : ((config?.sdcId != null && config!.sdcId!.isNotEmpty) ? config.sdcId! : 'SDC00300000014');
+        // Virtual SDC Device ID (DigiTax-assigned, NOT hardware serial)
+        final sdcId = (data['sdc_id']?.toString().isNotEmpty == true)
+            ? data['sdc_id'].toString()
+            : (config?.sdcId?.isNotEmpty == true ? config!.sdcId! : '');
 
-        final qrData = (parsedQrUrl != null && parsedQrUrl.isNotEmpty)
-            ? parsedQrUrl
-            : 'https://smartinvoice.zra.org.zm/verify?tpin=${config?.tpin ?? "1000000000"}&sdc=$sdcId&rcpt=$sdcRcptNo';
+        // ZRA Verification QR URL
+        final qrData = (data['receipt_url']?.toString().isNotEmpty == true)
+            ? data['receipt_url'].toString()
+            : (sdcId.isNotEmpty
+                ? 'https://smartinvoice.zra.org.zm/verify?tpin=${config?.tpin ?? "1000000000"}&sdc=$sdcId&rcpt=$sdcRcptNo'
+                : '');
+
+        final invoiceType = switch (data['receipt_type_code']?.toString()) {
+          'S' => 'Normal Sale',
+          'R' => 'Credit Note',
+          'C' => 'Copy',
+          _ => data['kind'] != null ? data['kind'].toString().replaceAll('_', ' ').toUpperCase() : 'Normal Sale',
+        };
 
         // Step C: Pull Official Server-Side Tax Calculations from DigiTax if present
-        if (data is Map) {
-          final taxSummary = (data['sales_tax_summary'] is Map) 
-              ? data['sales_tax_summary'] 
-              : (data['tax_summary'] is Map ? data['tax_summary'] : null);
+        final taxSummary = data['sales_tax_summary'];
+        if (taxSummary is Map) {
+          final vatTaxable = double.tryParse((taxSummary['taxable_amount_vat'] ?? '0').toString()) ?? 0.0;
+          final vatTax = double.tryParse((taxSummary['tax_amount_vat'] ?? '0').toString()) ?? 0.0;
+          final totTaxable = double.tryParse((taxSummary['taxable_amount_tot'] ?? '0').toString()) ?? 0.0;
+          final totTax = double.tryParse((taxSummary['tax_amount_tot'] ?? '0').toString()) ?? 0.0;
 
-          if (taxSummary is Map) {
-            final vatTaxable = double.tryParse((taxSummary['taxable_amount_vat'] ?? '0').toString()) ?? 0.0;
-            final vatTax = double.tryParse((taxSummary['tax_amount_vat'] ?? '0').toString()) ?? 0.0;
-            final totTaxable = double.tryParse((taxSummary['taxable_amount_tot'] ?? '0').toString()) ?? 0.0;
-            final totTax = double.tryParse((taxSummary['tax_amount_tot'] ?? '0').toString()) ?? 0.0;
+          final serverTax = vatTax + totTax;
+          final serverSubtotal = vatTaxable + totTaxable;
 
-            final serverTax = vatTax + totTax;
-            final serverSubtotal = vatTaxable + totTaxable;
-
-            if (serverSubtotal > 0) {
-              transaction.subtotal = serverSubtotal;
-              transaction.taxAmount = serverTax;
-              transaction.totalAmount = serverSubtotal + serverTax;
-            }
+          if (serverSubtotal > 0) {
+            transaction.subtotal = serverSubtotal;
+            transaction.taxAmount = serverTax;
+            transaction.totalAmount = serverSubtotal + serverTax;
           }
         }
 
@@ -1035,14 +1025,22 @@ class DigiTaxInventoryService {
         transaction.zraMarkId = markId;
         transaction.zraInternalData = internalData;
         transaction.zraQrCode = qrData;
-        transaction.zraInvoiceType = parsedInvoiceType ?? 'Normal Sale';
+        transaction.zraInvoiceType = invoiceType;
         transaction.zraStatus = 'APPROVED';
 
         await db.isar.writeTxn(() async {
           await db.isar.saleTransactions.put(transaction);
         });
 
-        debugPrint('DIGITAX_FISCALIZED_LIVE: SDC ID: $sdcId | SDC Inv: $sdcRcptNo | Signature: $markId | Internal Data: $internalData | Type: ${transaction.zraInvoiceType}');
+        // Cache the DigiTax virtual SDC ID back to StoreConfig so all receipts
+        // (including reprints and past transactions) show the correct SDC ID.
+        if (sdcId.isNotEmpty && config != null && config.sdcId != sdcId) {
+          config.sdcId = sdcId;
+          try { await db.saveStoreConfig(config); } catch (_) {}
+          debugPrint('DIGITAX_SDC_CACHED: Virtual SDC ID "$sdcId" cached to StoreConfig');
+        }
+
+        debugPrint('DIGITAX_FISCALIZED_LIVE: SDC ID: $sdcId | SDC Inv No: $sdcRcptNo | Signature: $markId | Internal: $internalData | Type: $invoiceType');
         return true;
       }
     } on DioException catch (dioErr) {
@@ -1112,26 +1110,39 @@ class DigiTaxInventoryService {
 
       if (resp.statusCode == 200 || resp.statusCode == 201) {
         final data = resp.data;
-        final parsedSdcRcptNo = _extractFiscalField(data, [
-          'sdc_invoice_number', 'sdc_invoice_no', 'invoice_number', 'receipt_number', 'rcpt_no'
-        ]);
-        final parsedSignature = _extractFiscalField(data, [
-          'signature', 'receipt_signature', 'mark_id', 'sdc_signature'
-        ]);
-        final parsedInternalData = _extractFiscalField(data, [
-          'internal_data', 'sdc_internal_data'
-        ]);
-        final parsedQrUrl = _extractFiscalField(data, [
-          'receipt_url', 'qr_code', 'verification_url', 'url'
-        ]);
+        if (data is! Map) return false;
 
-        refundTx.zraSdcId = config?.sdcId ?? 'SDC00300000014';
-        refundTx.zraReceiptNumber = parsedSdcRcptNo ?? 'CN-${refundTx.id}';
-        refundTx.zraMarkId = parsedSignature ?? 'MARK-CN-${refundTx.id}';
-        refundTx.zraInternalData = parsedInternalData ?? (config?.mrcNo ?? 'WIS00013845');
-        refundTx.zraQrCode = parsedQrUrl ?? 'https://smartinvoice.zra.org.zm/verify?tpin=${config?.tpin}&sdc=${refundTx.zraSdcId}&rcpt=${refundTx.zraReceiptNumber}';
-        refundTx.zraInvoiceType = 'CREDIT_NOTE';
+        // Exact DigiTax OpenAPI field names for credit note response
+        final rcptNumberRaw = data['receipt_number'];
+        final sdcRcptNo = (rcptNumberRaw != null && rcptNumberRaw.toString().isNotEmpty)
+            ? rcptNumberRaw.toString()
+            : 'CN-${refundTx.id}';
+        final markId = (data['receipt_signature']?.toString().isNotEmpty == true)
+            ? data['receipt_signature'].toString()
+            : 'MARK-CN-${refundTx.id}';
+        final internalData = (data['internal_data']?.toString().isNotEmpty == true)
+            ? data['internal_data'].toString()
+            : (config?.mrcNo ?? '');
+        final sdcId = (data['sdc_id']?.toString().isNotEmpty == true)
+            ? data['sdc_id'].toString()
+            : (config?.sdcId ?? '');
+        final qrUrl = (data['receipt_url']?.toString().isNotEmpty == true)
+            ? data['receipt_url'].toString()
+            : (sdcId.isNotEmpty ? 'https://smartinvoice.zra.org.zm/verify?tpin=${config?.tpin}&sdc=$sdcId&rcpt=$sdcRcptNo' : '');
+
+        refundTx.zraSdcId = sdcId;
+        refundTx.zraReceiptNumber = sdcRcptNo;
+        refundTx.zraMarkId = markId;
+        refundTx.zraInternalData = internalData;
+        refundTx.zraQrCode = qrUrl;
+        refundTx.zraInvoiceType = 'Credit Note';
         refundTx.zraStatus = 'APPROVED';
+
+        // Cache SDC ID if updated
+        if (sdcId.isNotEmpty && config != null && config.sdcId != sdcId) {
+          config.sdcId = sdcId;
+          try { await db.isar.writeTxn(() async { await db.isar.storeConfigs.put(config); }); } catch (_) {}
+        }
         refundTx.isCreditNote = true;
         refundTx.orgInvoiceNo = originalSdcInvoiceNo;
         refundTx.creditNoteReason = reason;
@@ -1305,58 +1316,49 @@ class DigiTaxInventoryService {
           }
         }
 
-        final parsedSdcRcptNo = _extractFiscalField(matchData, [
-          'sdc_invoice_number', 'sdc_invoice_no', 'sdcinvoicenumber', 'sdcinvoiceno',
-          'invoice_number', 'invoicenumber', 'sale_number', 'salenumber',
-          'receipt_number', 'receiptnumber', 'rcpt_no', 'rcptno', 'sdc_receipt_number', 'vsdc_rcpt_no'
-        ]);
+        if (matchData is! Map) return false;
 
-        final parsedSignature = _extractFiscalField(matchData, [
-          'signature', 'receipt_signature', 'receiptsignature', 'rcpt_sign',
-          'rcptsign', 'mark_id', 'markid', 'sdc_signature', 'sdcsignature', 'vsdc_signature'
-        ]);
-
-        final parsedInternalData = _extractFiscalField(matchData, [
-          'internal_data', 'internaldata', 'intrl_data', 'intrldata',
-          'internal_code', 'internalcode', 'sdc_internal_data', 'intrl_cntrl_data'
-        ]);
-
-        final parsedSdcId = _extractFiscalField(matchData, [
-          'sdc_id', 'sdcid', 'vsdc_id', 'vsdcid', 'device_id', 'deviceid', 'terminal_id'
-        ]);
-
-        final parsedQrUrl = _extractFiscalField(matchData, [
-          'receipt_url', 'receipturl', 'qr_code', 'qrcode', 'qr_url', 'qrurl',
-          'verification_url', 'verificationurl', 'url', 'zra_url', 'smart_invoice_url',
-          'receipt_qr', 'receiptqr', 'vsdc_qr', 'sdc_qr', 'qr_image_url', 'receipt_link', 'link', 'qr'
-        ]);
-
-        final parsedInvoiceType = _extractFiscalField(matchData, [
-          'invoice_type', 'invoicetype', 'sale_type', 'saletype', 'kind'
-        ]);
+        // Exact DigiTax OpenAPI field names — refresh from GET /sales response
+        final rcptNumberRaw = matchData['receipt_number'];
+        final parsedSdcRcptNo = (rcptNumberRaw != null && rcptNumberRaw.toString().isNotEmpty)
+            ? rcptNumberRaw.toString() : null;
+        final parsedSignature = matchData['receipt_signature']?.toString().isNotEmpty == true
+            ? matchData['receipt_signature'].toString() : null;
+        final parsedInternalData = matchData['internal_data']?.toString().isNotEmpty == true
+            ? matchData['internal_data'].toString() : null;
+        final parsedSdcId = matchData['sdc_id']?.toString().isNotEmpty == true
+            ? matchData['sdc_id'].toString() : null;
+        final parsedQrUrl = matchData['receipt_url']?.toString().isNotEmpty == true
+            ? matchData['receipt_url'].toString() : null;
+        final parsedInvoiceType = switch (matchData['receipt_type_code']?.toString()) {
+          'S' => 'Normal Sale',
+          'R' => 'Credit Note',
+          'C' => 'Copy',
+          _ => matchData['kind']?.toString().replaceAll('_', ' ').toUpperCase(),
+        };
 
         bool updated = false;
-        if (parsedSdcRcptNo != null && parsedSdcRcptNo.isNotEmpty && transaction.zraReceiptNumber != parsedSdcRcptNo) {
+        if (parsedSdcRcptNo != null && transaction.zraReceiptNumber != parsedSdcRcptNo) {
           transaction.zraReceiptNumber = parsedSdcRcptNo;
           updated = true;
         }
-        if (parsedSignature != null && parsedSignature.isNotEmpty && transaction.zraMarkId != parsedSignature) {
+        if (parsedSignature != null && transaction.zraMarkId != parsedSignature) {
           transaction.zraMarkId = parsedSignature;
           updated = true;
         }
-        if (parsedInternalData != null && parsedInternalData.isNotEmpty && transaction.zraInternalData != parsedInternalData) {
+        if (parsedInternalData != null && transaction.zraInternalData != parsedInternalData) {
           transaction.zraInternalData = parsedInternalData;
           updated = true;
         }
-        if (parsedSdcId != null && parsedSdcId.isNotEmpty && transaction.zraSdcId != parsedSdcId) {
+        if (parsedSdcId != null && transaction.zraSdcId != parsedSdcId) {
           transaction.zraSdcId = parsedSdcId;
           updated = true;
         }
-        if (parsedQrUrl != null && parsedQrUrl.isNotEmpty && transaction.zraQrCode != parsedQrUrl) {
+        if (parsedQrUrl != null && transaction.zraQrCode != parsedQrUrl) {
           transaction.zraQrCode = parsedQrUrl;
           updated = true;
         }
-        if (parsedInvoiceType != null && parsedInvoiceType.isNotEmpty && transaction.zraInvoiceType != parsedInvoiceType) {
+        if (parsedInvoiceType != null && transaction.zraInvoiceType != parsedInvoiceType) {
           transaction.zraInvoiceType = parsedInvoiceType;
           updated = true;
         }
@@ -1508,41 +1510,5 @@ class DigiTaxInventoryService {
     }
 
     return purchaseInvoiceSuccess;
-  }
-
-  /// Deep recursive extractor for fiscal fields from any level of DigiTax response Map
-  String? _extractFiscalField(dynamic source, List<String> possibleKeys) {
-    if (source == null) return null;
-    if (source is Map) {
-      // 1. Direct match on normalized keys
-      for (final entry in source.entries) {
-        final rawKey = entry.key.toString();
-        final normalizedKey = rawKey.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
-        for (final target in possibleKeys) {
-          final normalizedTarget = target.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
-          if (normalizedKey == normalizedTarget) {
-            final val = entry.value;
-            if (val != null && val.toString().trim().isNotEmpty && val.toString() != 'null') {
-              return val.toString().trim();
-            }
-          }
-        }
-      }
-      // 2. Recursively search nested maps or list of maps
-      for (final val in source.values) {
-        if (val is Map) {
-          final found = _extractFiscalField(val, possibleKeys);
-          if (found != null && found.isNotEmpty) return found;
-        } else if (val is List) {
-          for (final item in val) {
-            if (item is Map) {
-              final found = _extractFiscalField(item, possibleKeys);
-              if (found != null && found.isNotEmpty) return found;
-            }
-          }
-        }
-      }
-    }
-    return null;
   }
 }

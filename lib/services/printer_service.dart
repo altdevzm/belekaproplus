@@ -754,16 +754,16 @@ class PrinterService {
       final timeFormatted = DateFormat('HH:mm:ss').format(transaction.timestamp);
       final sdcIdStr = (transaction.zraSdcId != null && transaction.zraSdcId!.isNotEmpty)
           ? transaction.zraSdcId!
-          : (config?.sdcId ?? 'SDC00300000014');
+          : (config?.sdcId?.isNotEmpty == true ? config!.sdcId! : 'PENDING');
       final sdcInvNoStr = (transaction.zraReceiptNumber != null && transaction.zraReceiptNumber!.isNotEmpty)
           ? transaction.zraReceiptNumber!
           : 'INV-${transaction.id.toString().padLeft(8, '0')}';
       final signatureStr = (transaction.zraMarkId != null && transaction.zraMarkId!.isNotEmpty)
           ? transaction.zraMarkId!
-          : 'MARK-${transaction.id.hashCode.toRadixString(16).toUpperCase()}';
+          : 'PENDING';
       final internalDataStr = (transaction.zraInternalData != null && transaction.zraInternalData!.isNotEmpty)
           ? transaction.zraInternalData!
-          : (config?.mrcNo ?? 'WIS00013845');
+          : (config?.mrcNo?.isNotEmpty == true ? config!.mrcNo! : 'PENDING');
 
       bytes += generator.feed(1);
       bytes += generator.text(preset.singleDivider);
@@ -1182,16 +1182,16 @@ class PrinterService {
     // ZRA Fiscal Control Block for Star
     final sdcIdStr = (transaction.zraSdcId != null && transaction.zraSdcId!.isNotEmpty)
         ? transaction.zraSdcId!
-        : (config?.sdcId ?? 'SDC00300000014');
+        : (config?.sdcId?.isNotEmpty == true ? config!.sdcId! : 'PENDING');
     final sdcInvNoStr = (transaction.zraReceiptNumber != null && transaction.zraReceiptNumber!.isNotEmpty)
         ? transaction.zraReceiptNumber!
         : 'INV-${transaction.id.toString().padLeft(8, '0')}';
     final signatureStr = (transaction.zraMarkId != null && transaction.zraMarkId!.isNotEmpty)
         ? transaction.zraMarkId!
-        : 'MARK-${transaction.id.hashCode.toRadixString(16).toUpperCase()}';
+        : 'PENDING';
     final internalDataStr = (transaction.zraInternalData != null && transaction.zraInternalData!.isNotEmpty)
         ? transaction.zraInternalData!
-        : (config?.mrcNo ?? 'WIS00013845');
+        : (config?.mrcNo?.isNotEmpty == true ? config!.mrcNo! : 'PENDING');
 
     commands.append('\n${preset.singleDivider}\n');
     commands.appendEmphasis(true);
@@ -1286,16 +1286,16 @@ class PrinterService {
       final timeFormatted = DateFormat('HH:mm:ss').format(transaction.timestamp);
       final sdcIdStr = (transaction.zraSdcId != null && transaction.zraSdcId!.isNotEmpty)
           ? transaction.zraSdcId!
-          : (config?.sdcId ?? 'SDC00300000014');
+          : (config?.sdcId?.isNotEmpty == true ? config!.sdcId! : 'PENDING');
       final sdcInvNoStr = (transaction.zraReceiptNumber != null && transaction.zraReceiptNumber!.isNotEmpty)
           ? transaction.zraReceiptNumber!
           : 'INV-${transaction.id.toString().padLeft(8, '0')}';
       final signatureStr = (transaction.zraMarkId != null && transaction.zraMarkId!.isNotEmpty)
           ? transaction.zraMarkId!
-          : 'MARK-${transaction.id.hashCode.toRadixString(16).toUpperCase()}';
+          : 'PENDING';
       final internalDataStr = (transaction.zraInternalData != null && transaction.zraInternalData!.isNotEmpty)
           ? transaction.zraInternalData!
-          : (config?.mrcNo ?? 'WIS00013845');
+          : (config?.mrcNo?.isNotEmpty == true ? config!.mrcNo! : 'PENDING');
       final zraQrData = (transaction.zraQrCode != null && transaction.zraQrCode!.isNotEmpty)
           ? transaction.zraQrCode!
           : 'https://smartinvoice.zra.org.zm/verify?tpin=${config?.tpin ?? "1000000000"}&sdc=$sdcIdStr&rcpt=$sdcInvNoStr';

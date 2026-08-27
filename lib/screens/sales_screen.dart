@@ -1726,7 +1726,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       await db.saveTransaction(transaction, saleItems);
       
       // Fiscalize with DigiTax VSDC Cloud (Live ZRA Smart Invoice & Server-Side Tax Calculations)
-      await ref.read(digitaxInventoryServiceProvider).fiscalizeSaleTransaction(transaction, saleItems);
+      final fiscalized = await ref.read(digitaxInventoryServiceProvider).fiscalizeSaleTransaction(transaction, saleItems);
 
       // Attempt local real-time sync (or queue for offline)
       ref.read(syncServiceProvider).trySyncTransaction(transaction, saleItems);
@@ -1746,6 +1746,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
 
       if (config?.autoPrintReceipt != false) {
         await printer.printReceipt(transaction, saleItems, config: config);
+      }
+
+      if (!fiscalized) {
+        _scheduleDigitaxFiscalRefresh(transaction);
       }
 
       if (mounted) {
@@ -1787,5 +1791,16 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     } finally {
       if (mounted) setState(() => _isProcessingPayment = false);
     }
+  }
+
+  void _scheduleDigitaxFiscalRefresh(SaleTransaction tx) {
+    Future.delayed(const Duration(seconds: 4), () async {
+      try {
+        final dtService = ref.read(digitaxInventoryServiceProvider);
+        await dtService.refreshTransactionFiscalData(tx);
+      } catch (e) {
+        debugPrint('Delayed fiscal refresh notice: $e');
+      }
+    });
   }
 }
