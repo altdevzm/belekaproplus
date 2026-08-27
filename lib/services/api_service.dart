@@ -144,6 +144,7 @@ class ApiService {
         'currencySymbol': config?.currencySymbol ?? 'ZK',
         'tpin': config?.tpin ?? '',
         'businessTaxType': config?.businessTaxType ?? 'TURNOVER_TAX',
+        'maxTills': 3,
         'timestamp': DateTime.now().toIso8601String(),
         'activeTerminals': _activeTerminals.length,
       }),
@@ -177,8 +178,20 @@ class ApiService {
             headers: _jsonHeaders);
       }
 
-      // Register as active terminal
+      // Enforce Till Capacity Limit (Max 3 Tills default)
       if (terminalName != null && terminalName.isNotEmpty) {
+        final existingTerminals = await _db.isar.posTerminals.where().findAll();
+        final isKnownTerminal = existingTerminals.any((t) => t.terminalCode == terminalName || t.name == terminalName) ||
+            _activeTerminals.containsKey(terminalName);
+
+        if (!isKnownTerminal && (_activeTerminals.length >= 3 || existingTerminals.length >= 3)) {
+          return Response(403,
+              body: jsonEncode({
+                'error': 'Maximum till limit reached (Max 3 tills allowed on this license). Upgrade your license to connect additional tills.'
+              }),
+              headers: _jsonHeaders);
+        }
+
         _activeTerminals[terminalName] = TerminalInfo(
           terminalName: terminalName,
           cashierId: user.numericId,

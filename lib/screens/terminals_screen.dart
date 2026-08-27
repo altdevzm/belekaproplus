@@ -11,6 +11,8 @@ import 'package:beleka_pos/services/local_sql_service.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:beleka_pos/screens/accounts_screen.dart';
 import 'package:beleka_pos/services/printer_service.dart';
+import 'package:beleka_pos/services/license_service.dart';
+import 'package:beleka_pos/screens/settings/license_info_modal.dart';
 import 'package:beleka_pos/utils/formatters.dart';
 
 class TerminalsScreen extends ConsumerStatefulWidget {
@@ -44,6 +46,9 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> {
 
     final activeTerminalsCount = terminals.where((t) => t.status == 'ACTIVE').length;
     final totalSalesToday = terminals.fold(0.0, (sum, t) => sum + t.salesToday);
+
+    final activeLicense = ref.watch(licenseServiceProvider).activeLicense;
+    final maxAllowedTills = activeLicense?.maxTills ?? 3;
 
     return Padding(
       padding: const EdgeInsets.all(24.0),
@@ -99,8 +104,8 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> {
               Expanded(
                 child: _buildMetricCard(
                   title: 'REGISTERED TILLS',
-                  value: '${terminals.length}',
-                  subtitle: '$activeTerminalsCount Active in Network',
+                  value: '${terminals.length} / $maxAllowedTills',
+                  subtitle: '$activeTerminalsCount Active (Max $maxAllowedTills on License)',
                   icon: Icons.point_of_sale_rounded,
                   color: accentColor,
                 ),
@@ -512,6 +517,88 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> {
     PosTerminal? terminal,
   }) {
     final isEditing = terminal != null;
+    final allTills = ref.read(posTerminalsProvider).value ?? [];
+    final activeLicense = ref.read(licenseServiceProvider).activeLicense;
+    final maxAllowedTills = activeLicense?.maxTills ?? 3;
+
+    if (!isEditing && allTills.length >= maxAllowedTills) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(0xFF1A1A1E),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.amber.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.lock_rounded, color: Colors.amber, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'TILL CAPACITY LIMIT (MAX $maxAllowedTills TILLS)',
+                  style: GoogleFonts.manrope(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 15,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Your current installation is licensed for up to $maxAllowedTills checkout tills (Currently registered: ${allTills.length} tills).',
+                style: GoogleFonts.inter(color: Colors.white70, fontSize: 13, height: 1.4),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.amber.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.amber.withValues(alpha: 0.25)),
+                ),
+                child: Text(
+                  'To connect and register additional checkout terminals (Till #${allTills.length + 1} and beyond), please upgrade your system license or contact Beleka Support to activate more tills.',
+                  style: GoogleFonts.inter(color: Colors.amber.shade200, fontSize: 12, height: 1.4),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('Close', style: GoogleFonts.inter(color: Colors.white54)),
+            ),
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.pop(ctx);
+                showDialog(
+                  context: context,
+                  builder: (_) => const LicenseInfoModal(),
+                );
+              },
+              icon: const Icon(Icons.verified_user_rounded, size: 16),
+              label: Text('View License & Upgrade', style: GoogleFonts.manrope(fontWeight: FontWeight.bold, fontSize: 12)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: accentColor,
+                foregroundColor: Colors.black,
+              ),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
     final isOwner = ref.read(isOwnerProvider);
     final currentUser = ref.read(authProvider);
     final storeConfig = ref.read(storeConfigProvider).value;

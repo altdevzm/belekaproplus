@@ -27,6 +27,7 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
   BelekaLicense? _activatedLicense;
   bool _showDiagnostics = false;
   Map<String, String> _diagnostics = {};
+  int _selectedMonths = 12; // 1 to 12 months, or 0 for Lifetime
 
   @override
   void initState() {
@@ -281,7 +282,9 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
                           ),
                           ElevatedButton.icon(
                             onPressed: () {
-                              Clipboard.setData(ClipboardData(text: _currentHwid));
+                              final durationStr = _selectedMonths == 0 ? 'Permanent / Lifetime' : '$_selectedMonths Month${_selectedMonths > 1 ? 's' : ''}';
+                              final req = 'BELEKA POS ACTIVATION REQUEST\nHardware ID: $_currentHwid\nRequested Term: $durationStr\nMax Tills: 3 Tills (Standard)';
+                              Clipboard.setData(ClipboardData(text: req));
                               setState(() => _hasCopied = true);
                               Future.delayed(const Duration(seconds: 2), () {
                                 if (mounted) setState(() => _hasCopied = false);
@@ -295,8 +298,73 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
                             ),
                             icon: Icon(_hasCopied ? Icons.check_rounded : Icons.copy_rounded, size: 14),
                             label: Text(
-                              _hasCopied ? 'COPIED!' : 'COPY HWID',
+                              _hasCopied ? 'COPIED REQUEST!' : 'COPY REQUEST',
                               style: GoogleFonts.inter(fontWeight: FontWeight.w900, fontSize: 11),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Subscription Duration Selector (1 to 12 Months)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'SELECT DESIRED DURATION',
+                          style: GoogleFonts.manrope(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1,
+                            color: Colors.white38,
+                          ),
+                        ),
+                        Text(
+                          'MAX 3 TILLS INCLUDED',
+                          style: GoogleFonts.ibmPlexMono(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: const Color(0xFFC1F11D),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.03),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.calendar_month_rounded, color: Color(0xFFC1F11D), size: 18),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<int>(
+                                value: _selectedMonths,
+                                dropdownColor: const Color(0xFF1A1A22),
+                                isExpanded: true,
+                                icon: const Icon(Icons.arrow_drop_down, color: Color(0xFFC1F11D)),
+                                style: GoogleFonts.inter(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                                items: [
+                                  for (int m = 1; m <= 12; m++)
+                                    DropdownMenuItem<int>(
+                                      value: m,
+                                      child: Text('$m Month${m > 1 ? 's' : ''} License (Up to 3 Tills)'),
+                                    ),
+                                  const DropdownMenuItem<int>(
+                                    value: 0,
+                                    child: Text('Permanent / Lifetime (Enterprise)'),
+                                  ),
+                                ],
+                                onChanged: (val) {
+                                  if (val != null) setState(() => _selectedMonths = val);
+                                },
+                              ),
                             ),
                           ),
                         ],
@@ -353,7 +421,7 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
                                   if (_activatedLicense != null) ...[
                                     const SizedBox(height: 4),
                                     Text(
-                                      'Plan: ${_activatedLicense!.term} • Branches: ${_activatedLicense!.branches}',
+                                      'Plan: ${_activatedLicense!.term} • Tills Allowed: ${_activatedLicense!.maxTills} • Branches: ${_activatedLicense!.branches}',
                                       style: GoogleFonts.ibmPlexMono(color: const Color(0xFF4ADE80), fontSize: 11),
                                     ),
                                   ],

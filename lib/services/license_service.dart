@@ -28,6 +28,8 @@ class BelekaLicense {
   final String hardwareId;
   final int branches;
   final String term;
+  final int? months;
+  final int maxTills;
   final DateTime issuedAt;
   final DateTime? expiresAt;
   final List<String> features;
@@ -41,6 +43,8 @@ class BelekaLicense {
     required this.hardwareId,
     required this.branches,
     required this.term,
+    this.months,
+    this.maxTills = 3,
     required this.issuedAt,
     this.expiresAt,
     required this.features,
@@ -55,6 +59,18 @@ class BelekaLicense {
     return DateTime.now().toUtc().isAfter(expiresAt!);
   }
 
+  int get remainingDays {
+    if (expiresAt == null) return -1;
+    final diff = expiresAt!.difference(DateTime.now().toUtc()).inDays;
+    return diff >= 0 ? diff : 0;
+  }
+
+  int get remainingMonths {
+    if (expiresAt == null) return -1;
+    final days = remainingDays;
+    return (days / 30).ceil();
+  }
+
   factory BelekaLicense.fromJson(Map<String, dynamic> json, {required String rawJson}) {
     return BelekaLicense(
       product: json['product'] as String? ?? 'Beleka Pro POS',
@@ -63,6 +79,8 @@ class BelekaLicense {
       hardwareId: (json['hardwareId'] as String? ?? '').toUpperCase(),
       branches: (json['branches'] as num?)?.toInt() ?? 1,
       term: json['term'] as String? ?? 'Permanent',
+      months: (json['months'] as num?)?.toInt(),
+      maxTills: (json['maxTills'] as num?)?.toInt() ?? (json['max_tills'] as num?)?.toInt() ?? (json['tills'] as num?)?.toInt() ?? 3,
       issuedAt: DateTime.tryParse(json['issuedAt'] as String? ?? '') ?? DateTime.now(),
       expiresAt: json['expiresAt'] != null ? DateTime.tryParse(json['expiresAt'] as String) : null,
       features: (json['features'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],

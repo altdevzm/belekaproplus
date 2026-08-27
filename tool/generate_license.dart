@@ -71,9 +71,11 @@ Commands:
                 Options:
                   --customer <name>     (e.g. "ABC Supermarket")
                   --hwid <hwid>         (e.g. "BP-8F29-C4B2-9A1D-E703")
-                  --term <term>         (Default: "Permanent", or "365 Days")
+                  --months <1-12>       (Duration in months: 1 to 12 months)
+                  --max-tills <count>   (Default: 3 tills)
+                  --term <term>         (Default: "Permanent", or "X Months")
                   --branches <count>    (Default: 1)
-                  --days <count>        (e.g. 30 or 365 for expiring licenses)
+                  --days <count>        (e.g. 30, 60, 90, 365 for custom days)
                   --out <path>          (Default: "beleka_license.lic")
 
   verify        Verify a .lic file against the master public key
@@ -106,13 +108,19 @@ Future<void> _issueLicense(Ed25519 algorithm, List<String> args) async {
   int branches = 1;
   String outPath = 'beleka_license.lic';
   int? durationDays;
+  int? months;
+  int maxTills = 3;
 
   for (int i = 0; i < args.length; i++) {
     if (args[i] == '--customer' && i + 1 < args.length) customer = args[++i];
     if (args[i] == '--hwid' && i + 1 < args.length) hwid = args[++i];
     if (args[i] == '--term' && i + 1 < args.length) term = args[++i];
     if (args[i] == '--branches' && i + 1 < args.length) branches = int.tryParse(args[++i]) ?? 1;
+    if (args[i] == '--months' && i + 1 < args.length) months = int.tryParse(args[++i]);
     if (args[i] == '--days' && i + 1 < args.length) durationDays = int.tryParse(args[++i]);
+    if ((args[i] == '--max-tills' || args[i] == '--tills') && i + 1 < args.length) {
+      maxTills = int.tryParse(args[++i]) ?? 3;
+    }
     if (args[i] == '--out' && i + 1 < args.length) outPath = args[++i];
   }
 
@@ -121,8 +129,27 @@ Future<void> _issueLicense(Ed25519 algorithm, List<String> args) async {
     return;
   }
 
+  if (months != null && (months < 1 || months > 12)) {
+    print('Warning: --months should typically be between 1 and 12 months.');
+  }
+
   final now = DateTime.now().toUtc();
-  final expiresAt = durationDays != null ? now.add(Duration(days: durationDays)) : null;
+  DateTime? expiresAt;
+
+  if (months != null) {
+    // Add exact calendar months
+    int newYear = now.year;
+    int newMonth = now.month + months;
+    while (newMonth > 12) {
+      newYear += 1;
+      newMonth -= 12;
+    }
+    expiresAt = DateTime.utc(newYear, newMonth, now.day, now.hour, now.minute, now.second);
+    term = '$months Month${months > 1 ? 's' : ''} License';
+  } else if (durationDays != null) {
+    expiresAt = now.add(Duration(days: durationDays));
+  }
+
   final randomId = 'BP-${now.millisecondsSinceEpoch.toString().substring(7)}';
 
   final payloadMap = {
@@ -132,6 +159,8 @@ Future<void> _issueLicense(Ed25519 algorithm, List<String> args) async {
     'hardwareId': hwid.trim().toUpperCase(),
     'branches': branches,
     'term': term,
+    'months': months,
+    'maxTills': maxTills,
     'issuedAt': now.toIso8601String(),
     'expiresAt': expiresAt?.toIso8601String(),
     'features': [
@@ -141,7 +170,8 @@ Future<void> _issueLicense(Ed25519 algorithm, List<String> args) async {
       'thermal_receipt_printing',
       'escpos_drivers',
       'backup_and_restore',
-      'unlimited_transactions'
+      'unlimited_transactions',
+      'multi_till_lan'
     ],
   };
 
@@ -176,6 +206,8 @@ Product:         Beleka Pro POS
 Installation ID: $randomId
 Hardware ID:     ${payloadMap['hardwareId']}
 Branches:        $branches
+Max Tills:       $maxTills Tills
+Duration:        ${months != null ? "$months Months" : term}
 Term:            $term (${expiresAt != null ? "Expires: $expiresAt" : "Never Expires"})
 Status:          ACTIVE & CRYPTOGRAPHICALLY SIGNED
 

@@ -169,6 +169,19 @@ class _LicenseInfoModalState extends ConsumerState<LicenseInfoModal> {
                   _buildDetailRow('Product', license?.product ?? 'Beleka Pro POS'),
                   _buildDetailRow('Installation ID', license?.installationId ?? 'N/A'),
                   _buildDetailRow('License Term', license?.term ?? 'N/A'),
+                  _buildDetailRow(
+                    'Active Duration', 
+                    license?.months != null 
+                        ? '${license!.months} Month${license.months! > 1 ? 's' : ''}'
+                        : (license?.isPermanent == true ? 'Permanent Lifetime' : 'Custom Period'),
+                  ),
+                  _buildDetailRow(
+                    'Expiry Date',
+                    license?.expiresAt != null
+                        ? '${license!.expiresAt!.toLocal().toString().substring(0, 10)} (${license.remainingDays} days left)'
+                        : 'Never Expires (Permanent)',
+                  ),
+                  _buildDetailRow('Max Tills Allowed', '${license?.maxTills ?? 3} Tills (Standard Limit: 3)'),
                   _buildDetailRow('Authorized Branches', '${license?.branches ?? 1} Branch'),
                   _buildDetailRow('Issued Date', license != null ? '${license.issuedAt.year}-${license.issuedAt.month.toString().padLeft(2, '0')}-${license.issuedAt.day.toString().padLeft(2, '0')}' : 'N/A'),
 
