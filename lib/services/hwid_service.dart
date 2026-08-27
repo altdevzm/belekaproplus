@@ -100,6 +100,23 @@ class HwidService {
         data['win_registered_owner'] = winInfo.registeredOwner;
         data['cpu_model'] = Platform.environment['PROCESSOR_IDENTIFIER'] ?? 'x86_64 Processor';
       } catch (_) {}
+    } else if (Platform.isAndroid) {
+      try {
+        final androidInfo = await deviceInfo.androidInfo;
+        data['model_name'] = '${androidInfo.brand.toUpperCase()} ${androidInfo.model}';
+        final uniqueId = androidInfo.id.isNotEmpty
+            ? androidInfo.id
+            : androidInfo.fingerprint;
+        data['serial_number'] = uniqueId;
+        data['android_id'] = androidInfo.id;
+        data['android_brand'] = androidInfo.brand;
+        data['android_model'] = androidInfo.model;
+        data['android_hardware'] = androidInfo.hardware;
+        data['android_device'] = androidInfo.device;
+        data['android_fingerprint'] = androidInfo.fingerprint;
+        data['android_board'] = androidInfo.board;
+        data['cpu_model'] = androidInfo.supportedAbis.isNotEmpty ? androidInfo.supportedAbis.join(', ') : 'ARM Architecture';
+      } catch (_) {}
     } else if (Platform.isMacOS) {
       try {
         final macInfo = await deviceInfo.macOsInfo;

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -62,22 +63,75 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
 
     try {
       final FilePickerResult? result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['lic', 'json', 'txt'],
+        type: Platform.isAndroid ? FileType.any : FileType.custom,
+        allowedExtensions: Platform.isAndroid ? null : ['lic', 'json', 'txt'],
+        withData: true, // Crucial for Android 10+ scoped storage in-memory reading
       );
 
-      if (result == null || result.files.single.path == null) {
+      if (result == null || result.files.isEmpty) {
         setState(() => _isLoading = false);
         return;
       }
 
-      final file = File(result.files.single.path!);
-      final content = await file.readAsString();
+      final picked = result.files.single;
+      String content = '';
+
+      if (picked.bytes != null && picked.bytes!.isNotEmpty) {
+        content = utf8.decode(picked.bytes!);
+      } else if (picked.path != null && picked.path!.isNotEmpty) {
+        final file = File(picked.path!);
+        if (file.existsSync()) {
+          content = await file.readAsString();
+        }
+      }
+
+      if (content.trim().isEmpty) {
+        throw Exception('Selected file is empty or could not be read on this device.');
+      }
+
       await _processActivation(content);
     } catch (e) {
       setState(() {
         _isLoading = false;
         _errorMessage = 'Failed to read license file: $e';
+      });
+    }
+  }
+
+  Future<void> _handleAutoScanStorage() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+      _successMessage = null;
+    });
+
+    try {
+      final licenseService = ref.read(licenseServiceProvider);
+      final res = await licenseService.verifyCurrentMachineLicense();
+      if (res.isValid && res.license != null) {
+        setState(() {
+          _isLoading = false;
+          _successMessage = 'Machine Activated! Verified license for ${res.license!.customer}.';
+          _activatedLicense = res.license;
+        });
+        await Future.delayed(const Duration(milliseconds: 1400));
+        if (mounted) {
+          if (widget.onActivated != null) {
+            widget.onActivated!();
+          } else {
+            Navigator.of(context).pushReplacementNamed('/login');
+          }
+        }
+      } else {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'No valid license file found in Downloads or device storage. Please select the file manually or paste the activation code.';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'Storage scan error: $e';
       });
     }
   }
@@ -458,6 +512,31 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
                         ),
                       ),
                     ),
+
+                    if (Platform.isAndroid) ...[
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        height: 46,
+                        child: OutlinedButton.icon(
+                          onPressed: _isLoading ? null : _handleAutoScanStorage,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFFC1F11D),
+                            side: const BorderSide(color: Color(0xFFC1F11D), width: 1.2),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          icon: const Icon(Icons.search_rounded, size: 18),
+                          label: Text(
+                            'SCAN ANDROID DOWNLOADS / STORAGE',
+                            style: GoogleFonts.manrope(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 12,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+
                     const SizedBox(height: 16),
 
                     // Divider "OR"
@@ -492,10 +571,27 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
                           hintStyle: GoogleFonts.ibmPlexMono(color: Colors.white12, fontSize: 12),
                           contentPadding: const EdgeInsets.all(14),
                           border: InputBorder.none,
-                          suffixIcon: IconButton(
-                            icon: const Icon(Icons.arrow_forward_rounded, color: Color(0xFFC1F11D)),
-                            onPressed: _isLoading ? null : _handleTokenSubmit,
-                            tooltip: 'Activate Code',
+                          suffixIcon: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.content_paste_rounded, color: Colors.white60, size: 18),
+                                onPressed: () async {
+                                  final data = await Clipboard.getData(Clipboard.kTextPlain);
+                                  if (data?.text != null && data!.text!.isNotEmpty) {
+                                    setState(() {
+                                      _tokenController.text = data.text!.trim();
+                                    });
+                                  }
+                                },
+                                tooltip: 'Paste from Clipboard',
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.arrow_forward_rounded, color: Color(0xFFC1F11D)),
+                                onPressed: _isLoading ? null : _handleTokenSubmit,
+                                tooltip: 'Activate Code',
+                              ),
+                            ],
                           ),
                         ),
                       ),

@@ -302,17 +302,61 @@ class LicenseService {
   Future<String?> _readLocalLicenseFile() async {
     try {
       // 1. Primary app docs dir
-      final file = await _getLicenseFile();
-      if (file.existsSync()) {
-        final content = await file.readAsString();
-        if (content.trim().isNotEmpty) return content;
+      final appDir = await getApplicationDocumentsDirectory();
+      final standardPaths = [
+        '${appDir.path}/$_licenseFileName',
+        '${appDir.path}/beleka_license.lic',
+        '${appDir.path}/beleka_universal_master.lic',
+        '${appDir.path}/universal.lic',
+      ];
+
+      for (final p in standardPaths) {
+        final f = File(p);
+        if (f.existsSync()) {
+          final content = await f.readAsString();
+          if (content.trim().isNotEmpty) return content;
+        }
       }
 
-      // 2. Working directory fallback
-      final localFile = File(_licenseFileName);
-      if (localFile.existsSync()) {
-        final content = await localFile.readAsString();
-        if (content.trim().isNotEmpty) return content;
+      // 2. Android Downloads and External Storage Paths
+      if (Platform.isAndroid) {
+        final androidSearchPaths = [
+          '/storage/emulated/0/Download/beleka_license.lic',
+          '/storage/emulated/0/Download/beleka_universal_master.lic',
+          '/storage/emulated/0/Download/universal.lic',
+          '/storage/emulated/0/Download/.beleka_license.lic',
+          '/storage/emulated/0/Documents/beleka_license.lic',
+          '/storage/emulated/0/Documents/beleka_universal_master.lic',
+          '/sdcard/Download/beleka_license.lic',
+          '/sdcard/Download/beleka_universal_master.lic',
+          '/sdcard/Download/universal.lic',
+        ];
+
+        for (final p in androidSearchPaths) {
+          try {
+            final f = File(p);
+            if (f.existsSync()) {
+              final content = await f.readAsString();
+              if (content.trim().isNotEmpty) return content;
+            }
+          } catch (_) {}
+        }
+      }
+
+      // 3. Current Working Directory fallback (Windows / Linux)
+      final localPaths = [
+        _licenseFileName,
+        'beleka_license.lic',
+        'beleka_universal_master.lic',
+        'universal.lic',
+      ];
+
+      for (final p in localPaths) {
+        final localFile = File(p);
+        if (localFile.existsSync()) {
+          final content = await localFile.readAsString();
+          if (content.trim().isNotEmpty) return content;
+        }
       }
     } catch (_) {}
     return null;
