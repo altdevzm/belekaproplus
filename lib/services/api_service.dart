@@ -477,6 +477,19 @@ class ApiService {
       cashierId: j['cashierId'] as String?,
       terminalName: j['terminalName'] as String?,
       transactionId: j['transactionId'] as String?,
+      customerTpin: j['customerTpin'] as String?,
+      customerBusinessName: j['customerBusinessName'] as String?,
+      customerAddress: j['customerAddress'] as String?,
+      zraSdcId: j['zraSdcId'] as String?,
+      zraReceiptNumber: j['zraReceiptNumber'] as String?,
+      zraMarkId: j['zraMarkId'] as String?,
+      zraInternalData: j['zraInternalData'] as String?,
+      zraQrCode: j['zraQrCode'] as String?,
+      zraInvoiceType: j['zraInvoiceType'] as String?,
+      zraStatus: j['zraStatus'] as String? ?? 'pending',
+      orgInvoiceNo: j['orgInvoiceNo'] as String?,
+      isCreditNote: j['isCreditNote'] as bool? ?? false,
+      creditNoteReason: j['creditNoteReason'] as String?,
     );
     return tx;
   }

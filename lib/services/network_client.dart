@@ -305,6 +305,20 @@ class NetworkClient {
         'changeAmount': tx.changeAmount,
         'cashierId': tx.cashierId,
         'terminalName': tx.terminalName,
+        'transactionId': tx.transactionId,
+        'customerTpin': tx.customerTpin,
+        'customerBusinessName': tx.customerBusinessName,
+        'customerAddress': tx.customerAddress,
+        'zraSdcId': tx.zraSdcId,
+        'zraReceiptNumber': tx.zraReceiptNumber,
+        'zraMarkId': tx.zraMarkId,
+        'zraInternalData': tx.zraInternalData,
+        'zraQrCode': tx.zraQrCode,
+        'zraInvoiceType': tx.zraInvoiceType,
+        'zraStatus': tx.zraStatus,
+        'orgInvoiceNo': tx.orgInvoiceNo,
+        'isCreditNote': tx.isCreditNote,
+        'creditNoteReason': tx.creditNoteReason,
       };
 
   static Map<String, dynamic> _saleItemToJson(SaleItem item) => {

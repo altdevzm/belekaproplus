@@ -809,7 +809,10 @@ class DigiTaxInventoryService {
       return false;
     }
 
-    final invoiceNo = transaction.transactionId ?? 'INV-${transaction.id}-${DateTime.now().millisecondsSinceEpoch % 100000}';
+    final invoiceNo = transaction.transactionId?.isNotEmpty == true
+        ? transaction.transactionId!
+        : 'INV-${transaction.id}-${DateTime.now().millisecondsSinceEpoch % 100000}';
+    transaction.transactionId = invoiceNo;
     final saleDate = DateTime.now().toIso8601String().substring(0, 10);
 
     final headers = {

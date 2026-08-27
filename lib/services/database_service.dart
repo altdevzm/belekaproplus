@@ -781,6 +781,9 @@ class DatabaseService {
         'tpin': config.tpin,
         'sdcId': config.sdcId,
         'mrcNo': config.mrcNo,
+        'digitaxApiKey': config.digitaxApiKey,
+        'bhfId': config.bhfId,
+        'businessTaxType': config.businessTaxType,
         'currencySymbol': config.currencySymbol,
         'terminalName': config.terminalName,
         'logoPath': config.logoPath,
@@ -862,6 +865,19 @@ class DatabaseService {
         'timestamp': t.timestamp.toIso8601String(),
         'isSynced': t.isSynced,
         'terminalName': t.terminalName,
+        'customerTpin': t.customerTpin,
+        'customerBusinessName': t.customerBusinessName,
+        'customerAddress': t.customerAddress,
+        'zraSdcId': t.zraSdcId,
+        'zraReceiptNumber': t.zraReceiptNumber,
+        'zraMarkId': t.zraMarkId,
+        'zraInternalData': t.zraInternalData,
+        'zraQrCode': t.zraQrCode,
+        'zraInvoiceType': t.zraInvoiceType,
+        'zraStatus': t.zraStatus,
+        'orgInvoiceNo': t.orgInvoiceNo,
+        'isCreditNote': t.isCreditNote,
+        'creditNoteReason': t.creditNoteReason,
       }).toList(),
       'saleItems': saleItems.map((si) => {
         'id': si.id,
@@ -941,6 +957,9 @@ class DatabaseService {
         config.tpin = cfg['tpin'];
         config.sdcId = cfg['sdcId'];
         config.mrcNo = cfg['mrcNo'];
+        config.digitaxApiKey = cfg['digitaxApiKey'];
+        config.bhfId = cfg['bhfId'] ?? '00';
+        config.businessTaxType = cfg['businessTaxType'] ?? 'TURNOVER_TAX';
         config.currencySymbol = cfg['currencySymbol'] ?? 'ZK';
         config.terminalName = cfg['terminalName'] ?? 'POS-01';
         config.logoPath = cfg['logoPath'];
@@ -1088,6 +1107,19 @@ class DatabaseService {
             isSynced: item['isSynced'] ?? false,
             terminalName: item['terminalName'],
             transactionId: item['transactionId'],
+            customerTpin: item['customerTpin'],
+            customerBusinessName: item['customerBusinessName'],
+            customerAddress: item['customerAddress'],
+            zraSdcId: item['zraSdcId'],
+            zraReceiptNumber: item['zraReceiptNumber'],
+            zraMarkId: item['zraMarkId'],
+            zraInternalData: item['zraInternalData'],
+            zraQrCode: item['zraQrCode'],
+            zraInvoiceType: item['zraInvoiceType'],
+            zraStatus: item['zraStatus'],
+            orgInvoiceNo: item['orgInvoiceNo'],
+            isCreditNote: item['isCreditNote'] ?? false,
+            creditNoteReason: item['creditNoteReason'],
           );
           if (item['id'] != null) tx.id = item['id'] as int;
           if (item['timestamp'] != null) {

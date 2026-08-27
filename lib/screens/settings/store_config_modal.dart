@@ -97,8 +97,8 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
       _taxController.text = _currentConfig!.taxRate.toString();
       _taxIdController.text = _currentConfig!.taxId ?? '';
       _tpinController.text = _currentConfig!.tpin ?? '';
-      _sdcIdController.text = _currentConfig!.sdcId ?? 'SDC00300000014';
-      _mrcNoController.text = _currentConfig!.mrcNo ?? 'WIS00013845';
+      _sdcIdController.text = _currentConfig!.sdcId ?? '';
+      _mrcNoController.text = _currentConfig!.mrcNo ?? '';
       _currencyController.text = _currentConfig!.currencySymbol ?? 'ZK';
       _terminalController.text = _currentConfig!.terminalName;
       _logoPath = _currentConfig!.logoPath;
