@@ -363,9 +363,9 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
     final sdcIdStr = (widget.transaction.zraSdcId != null && widget.transaction.zraSdcId!.isNotEmpty)
         ? widget.transaction.zraSdcId!
         : (config?.sdcId?.isNotEmpty == true ? config!.sdcId! : 'PENDING');
-    final sdcInvNoStr = (widget.transaction.zraReceiptNumber != null && widget.transaction.zraReceiptNumber!.isNotEmpty)
+    final sdcInvNoStr = (widget.transaction.zraReceiptNumber != null && widget.transaction.zraReceiptNumber!.isNotEmpty && !widget.transaction.zraReceiptNumber!.startsWith('INV-'))
         ? widget.transaction.zraReceiptNumber!
-        : 'INV-${widget.transaction.id.toString().padLeft(8, '0')}';
+        : 'PENDING';
     final signatureStr = (widget.transaction.zraMarkId != null && widget.transaction.zraMarkId!.isNotEmpty)
         ? widget.transaction.zraMarkId!
         : 'PENDING';

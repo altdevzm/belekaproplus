@@ -445,9 +445,9 @@ class ExportService {
     final sdcIdStr = (transaction.zraSdcId != null && transaction.zraSdcId!.isNotEmpty)
         ? transaction.zraSdcId!
         : (config?.sdcId?.isNotEmpty == true ? config!.sdcId! : 'PENDING');
-    final sdcInvNoStr = (transaction.zraReceiptNumber != null && transaction.zraReceiptNumber!.isNotEmpty)
+    final sdcInvNoStr = (transaction.zraReceiptNumber != null && transaction.zraReceiptNumber!.isNotEmpty && !transaction.zraReceiptNumber!.startsWith('INV-'))
         ? transaction.zraReceiptNumber!
-        : 'INV-${transaction.id.toString().padLeft(8, '0')}';
+        : 'PENDING';
     final signatureStr = (transaction.zraMarkId != null && transaction.zraMarkId!.isNotEmpty)
         ? transaction.zraMarkId!
         : 'PENDING';

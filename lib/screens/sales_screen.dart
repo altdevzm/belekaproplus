@@ -1819,19 +1819,23 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
   }
 
   void _scheduleDigitaxFiscalRefreshAndPrint(SaleTransaction tx, List<SaleItem> items) {
-    Future.delayed(const Duration(seconds: 3), () async {
-      try {
-        final dtService = ref.read(digitaxInventoryServiceProvider);
-        final refreshed = await dtService.refreshTransactionFiscalData(tx);
-        if (refreshed && mounted) {
-          final config = ref.read(storeConfigProvider).value;
-          if (config?.autoPrintReceipt != false) {
-            await ref.read(printerServiceProvider).printReceipt(tx, items, config: config);
-            debugPrint('DIGITAX_ASYNC_PRINT: Live receipt printed after background confirmation for Tx #${tx.id}');
+    Future(() async {
+      final dtService = ref.read(digitaxInventoryServiceProvider);
+      for (int attempt = 1; attempt <= 6; attempt++) {
+        await Future.delayed(Duration(seconds: attempt == 1 ? 2 : 3));
+        try {
+          final refreshed = await dtService.refreshTransactionFiscalData(tx);
+          if (refreshed) {
+            final config = ref.read(storeConfigProvider).value;
+            if (config?.autoPrintReceipt != false) {
+              await ref.read(printerServiceProvider).printReceipt(tx, items, config: config);
+              debugPrint('DIGITAX_ASYNC_PRINT: Live receipt printed after background confirmation for Tx #${tx.id}');
+            }
+            break;
           }
+        } catch (e) {
+          debugPrint('Delayed fiscal refresh attempt $attempt notice: $e');
         }
-      } catch (e) {
-        debugPrint('Delayed fiscal refresh and print notice: $e');
       }
     });
   }

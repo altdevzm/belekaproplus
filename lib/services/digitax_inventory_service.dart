@@ -1002,11 +1002,11 @@ class DigiTaxInventoryService {
           return false;
         }
 
-        // SDC Invoice Number (integer counter from DigiTax / ZRA)
-        final rcptNumberRaw = saleData['receipt_number'];
-        final sdcRcptNo = (rcptNumberRaw != null && rcptNumberRaw.toString().isNotEmpty)
-            ? rcptNumberRaw.toString()
-            : 'INV-${transaction.id.toString().padLeft(8, '0')}';
+        // SDC Invoice Number (from DigiTax / ZRA Smart Invoice)
+        final rawRcpt = saleData['receipt_number'] ?? saleData['invoice_number'] ?? saleData['sdc_invoice_number'] ?? saleData['sale_number'];
+        final sdcRcptNo = (rawRcpt != null && rawRcpt.toString().trim().isNotEmpty && rawRcpt.toString() != 'null')
+            ? rawRcpt.toString().trim()
+            : 'PENDING';
 
         // ZRA VSDC Internal Data
         final internalData = saleData['internal_data']?.toString() ?? (config?.mrcNo ?? '');
@@ -1372,9 +1372,9 @@ class DigiTaxInventoryService {
 
         if (matchData is! Map) return false;
 
-        final rcptNumberRaw = matchData['receipt_number'];
-        final parsedSdcRcptNo = (rcptNumberRaw != null && rcptNumberRaw.toString().isNotEmpty)
-            ? rcptNumberRaw.toString() : null;
+        final rawRcpt = matchData['receipt_number'] ?? matchData['invoice_number'] ?? matchData['sdc_invoice_number'] ?? matchData['sale_number'];
+        final parsedSdcRcptNo = (rawRcpt != null && rawRcpt.toString().trim().isNotEmpty && rawRcpt.toString() != 'null')
+            ? rawRcpt.toString().trim() : null;
         final parsedSignature = matchData['receipt_signature']?.toString().isNotEmpty == true
             ? matchData['receipt_signature'].toString() : null;
         final parsedInternalData = matchData['internal_data']?.toString().isNotEmpty == true
