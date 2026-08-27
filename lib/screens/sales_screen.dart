@@ -28,7 +28,7 @@ final productsProvider = StreamProvider<List<Product>>((ref) {
     } else if (storeConfig != null && storeConfig.bhfId.isNotEmpty && storeConfig.bhfId != '00') {
       effectiveBranchCode = storeConfig.bhfId;
     } else {
-      effectiveBranchCode = '01';
+      effectiveBranchCode = null; // In Headquarters or default store, show all local inventory!
     }
   } else {
     effectiveBranchCode = null; // Owner/HQ can sell all or default branch products
@@ -86,15 +86,18 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     final query = _searchController.text.trim().toLowerCase();
     final user = ref.watch(authProvider);
     final config = ref.watch(storeConfigProvider).value;
-    final activeBranch = user?.branchCode ?? config?.bhfId ?? '00';
+    final activeBranch = user?.branchCode?.trim() ?? config?.bhfId.trim() ?? '00';
 
     return allProducts.where((p) {
       if (p.isArchived) return false;
       
       // Multi-Branch Inventory Isolation:
       if (user?.role == 'cashier' || user?.role == 'branch_manager') {
-        if (p.branchCode != activeBranch && p.branchCode != '00') {
-          return false;
+        if (activeBranch.isNotEmpty && activeBranch != '00') {
+          // In a sub-branch: can sell sub-branch stock, HQ master stock ('00'), or unassigned stock ('')
+          if (p.branchCode != activeBranch && p.branchCode != '00' && p.branchCode.isNotEmpty) {
+            return false;
+          }
         }
       }
       

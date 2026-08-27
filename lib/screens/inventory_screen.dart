@@ -27,7 +27,7 @@ final inventoryProductsProvider = StreamProvider<List<Product>>((ref) {
   final storeConfig = ref.watch(storeConfigProvider).value;
   final activeBranchFilter = ref.watch(inventoryBranchFilterProvider);
 
-  // If Branch Manager/Cashier: strictly isolate to their specific branch bhfId
+  // If Branch Manager/Cashier: isolate to their specific branch if configured, else show local store inventory
   final String? effectiveBranchCode;
   if (!isOwner) {
     final userBranch = currentUser?.branchCode?.trim();
@@ -36,7 +36,7 @@ final inventoryProductsProvider = StreamProvider<List<Product>>((ref) {
     } else if (storeConfig != null && storeConfig.bhfId.isNotEmpty && storeConfig.bhfId != '00') {
       effectiveBranchCode = storeConfig.bhfId;
     } else {
-      effectiveBranchCode = '01';
+      effectiveBranchCode = null; // Show all products in local store / HQ
     }
   } else {
     effectiveBranchCode = activeBranchFilter; // Owner can view all or filter by branch
