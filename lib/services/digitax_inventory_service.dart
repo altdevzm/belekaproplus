@@ -1358,7 +1358,10 @@ class DigiTaxInventoryService {
       }
 
       for (final item in tx.items) {
-        final itemTotal = (item.quantity * item.priceAtSale);
+        final effectiveQty = (item.isWeighted && item.weight > 0)
+            ? item.weight
+            : item.quantity.toDouble();
+        final itemTotal = (effectiveQty * item.priceAtSale);
         if (item.taxRateAtSale == 16.0 || (item.taxRateAtSale == 0 && tx.taxAmount > 0)) {
           final vat = item.isTaxInclusiveAtSale ? (itemTotal * 16 / 116) : (itemTotal * 0.16);
           final taxable = item.isTaxInclusiveAtSale ? (itemTotal - vat) : itemTotal;

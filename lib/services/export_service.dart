@@ -1070,6 +1070,588 @@ class ExportService {
     await _saveFile(bytes, 'daily_summary_${DateTime.now().millisecondsSinceEpoch}.pdf', extensions: ['pdf']);
   }
 
+  // --- Financial Summary PDF Export (Full A4 Executive Document) ---
+  Future<void> exportFinancialSummaryToPdf({
+    required String periodTitle,
+    required String dateRangeLabel,
+    required Map<String, double> stats,
+    List<Map<String, dynamic>>? topProducts,
+    StoreConfig? config,
+  }) async {
+    final pdf = pw.Document();
+    final brandColor = _getBrandColor(config);
+    final logoImage = await _loadLogoImage(config);
+    final currency = config?.currencySymbol ?? 'ZK';
+
+    final revenue = stats['revenue'] ?? 0.0;
+    final profit = stats['profit'] ?? 0.0;
+    final tax = stats['tax'] ?? 0.0;
+    final count = (stats['count'] ?? 0.0).toInt();
+    final cash = stats['cash'] ?? 0.0;
+    final card = stats['card'] ?? 0.0;
+    final mobileMoney = stats['mobile_money'] ?? 0.0;
+    final profitMargin = revenue > 0 ? ((profit / revenue) * 100).toStringAsFixed(1) : '0.0';
+    final avgSale = count > 0 ? (revenue / count) : 0.0;
+
+    pdf.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(28),
+        build: (context) => pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            _buildDocumentHeader(
+              config,
+              title: periodTitle,
+              brandColor: brandColor,
+              logoImage: logoImage,
+            ),
+            pw.SizedBox(height: 8),
+
+            // Period Subtitle Bar
+            pw.Container(
+              padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: pw.BoxDecoration(
+                color: PdfColors.grey100,
+                borderRadius: const pw.BorderRadius.all(pw.Radius.circular(6)),
+                border: pw.Border.all(color: PdfColors.grey300),
+              ),
+              child: pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text('REPORTING PERIOD: $dateRangeLabel', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9.5)),
+                  pw.Text('GENERATED: ${DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now())}', style: const pw.TextStyle(fontSize: 8.5, color: PdfColors.grey700)),
+                ],
+              ),
+            ),
+            pw.SizedBox(height: 14),
+
+            // Financial KPI Overview Banner
+            pw.Text(
+              'EXECUTIVE FINANCIAL OVERVIEW',
+              style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: brandColor),
+            ),
+            pw.SizedBox(height: 6),
+            pw.Container(
+              padding: const pw.EdgeInsets.all(12),
+              decoration: pw.BoxDecoration(
+                color: PdfColors.white,
+                borderRadius: const pw.BorderRadius.all(pw.Radius.circular(6)),
+                border: pw.Border.all(color: PdfColors.grey300),
+              ),
+              child: pw.Column(
+                children: [
+                  _buildSummaryRow('Total Revenue (Gross Sales):', CurrencyFormatter.format(revenue, currency)),
+                  _buildSummaryRow('Cost of Goods Sold (COGS):', CurrencyFormatter.format(revenue - profit, currency)),
+                  _buildSummaryRow('Gross Profit:', CurrencyFormatter.format(profit, currency)),
+                  _buildSummaryRow('Profit Margin (%):', '$profitMargin%'),
+                  pw.Divider(thickness: 0.5, color: PdfColors.grey300),
+                  _buildSummaryRow('Total Tax / VAT Collected:', CurrencyFormatter.formatTaxPrecision(tax, currency)),
+                  _buildSummaryRow('Total Completed Transactions:', '$count sales'),
+                  _buildSummaryRow('Average Transaction Value:', CurrencyFormatter.format(avgSale, currency)),
+                ],
+              ),
+            ),
+            pw.SizedBox(height: 14),
+
+            // Payment Methods Breakdown Table
+            pw.Text(
+              'PAYMENT METHODS BREAKDOWN',
+              style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: brandColor),
+            ),
+            pw.SizedBox(height: 6),
+            pw.TableHelper.fromTextArray(
+              headers: ['Payment Method', 'Amount ($currency)', '% of Total'],
+              data: [
+                ['Cash Payments', CurrencyFormatter.format(cash, currency), revenue > 0 ? '${((cash / revenue) * 100).toStringAsFixed(1)}%' : '0%'],
+                ['Card / POS Payments', CurrencyFormatter.format(card, currency), revenue > 0 ? '${((card / revenue) * 100).toStringAsFixed(1)}%' : '0%'],
+                ['Mobile Money (Airtel / MTN / Zamtel)', CurrencyFormatter.format(mobileMoney, currency), revenue > 0 ? '${((mobileMoney / revenue) * 100).toStringAsFixed(1)}%' : '0%'],
+                ['TOTAL COLLECTED', CurrencyFormatter.format(revenue, currency), '100.0%'],
+              ],
+              headerStyle: pw.TextStyle(
+                fontWeight: pw.FontWeight.bold,
+                color: _isColorLight(brandColor) ? PdfColors.black : PdfColors.white,
+                fontSize: 8.5,
+              ),
+              headerDecoration: pw.BoxDecoration(
+                color: brandColor,
+                borderRadius: const pw.BorderRadius.all(pw.Radius.circular(3)),
+              ),
+              cellHeight: 22,
+              cellStyle: const pw.TextStyle(fontSize: 8),
+              cellAlignments: {
+                0: pw.Alignment.centerLeft,
+                1: pw.Alignment.centerRight,
+                2: pw.Alignment.centerRight,
+              },
+            ),
+            pw.SizedBox(height: 14),
+
+            // Top Products Table (if present)
+            if (topProducts != null && topProducts.isNotEmpty) ...[
+              pw.Text(
+                'TOP PERFORMING PRODUCTS',
+                style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: brandColor),
+              ),
+              pw.SizedBox(height: 6),
+              pw.TableHelper.fromTextArray(
+                headers: ['Rank', 'Product Name', 'Quantity Sold'],
+                data: topProducts.take(8).toList().asMap().entries.map((entry) {
+                  final idx = entry.key + 1;
+                  final p = entry.value;
+                  return [
+                    '#$idx',
+                    p['name']?.toString() ?? 'Product',
+                    p['quantity']?.toString() ?? '0',
+                  ];
+                }).toList(),
+                headerStyle: pw.TextStyle(
+                  fontWeight: pw.FontWeight.bold,
+                  color: _isColorLight(brandColor) ? PdfColors.black : PdfColors.white,
+                  fontSize: 8.5,
+                ),
+                headerDecoration: pw.BoxDecoration(
+                  color: brandColor,
+                  borderRadius: const pw.BorderRadius.all(pw.Radius.circular(3)),
+                ),
+                cellHeight: 20,
+                cellStyle: const pw.TextStyle(fontSize: 8),
+                cellAlignments: {
+                  0: pw.Alignment.center,
+                  1: pw.Alignment.centerLeft,
+                  2: pw.Alignment.centerRight,
+                },
+              ),
+            ],
+
+            pw.Spacer(),
+            _buildDocumentFooter(config),
+          ],
+        ),
+      ),
+    );
+
+    final cleanFileName = '${periodTitle.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_')}_${DateFormat('yyyyMMdd').format(DateTime.now())}.pdf';
+    final bytes = await pdf.save();
+    await _saveFile(bytes, cleanFileName, extensions: ['pdf']);
+  }
+
+  // --- Financial Summary 80mm Slip PDF ---
+  Future<void> exportFinancialSummarySlipToPdf({
+    required String periodTitle,
+    required String dateRangeLabel,
+    required Map<String, double> stats,
+    StoreConfig? config,
+  }) async {
+    final doc = pw.Document();
+    final currency = config?.currencySymbol ?? 'ZK';
+
+    final revenue = stats['revenue'] ?? 0.0;
+    final profit = stats['profit'] ?? 0.0;
+    final tax = stats['tax'] ?? 0.0;
+    final count = (stats['count'] ?? 0.0).toInt();
+    final cash = stats['cash'] ?? 0.0;
+    final card = stats['card'] ?? 0.0;
+    final mobileMoney = stats['mobile_money'] ?? 0.0;
+    final profitMargin = revenue > 0 ? ((profit / revenue) * 100).toStringAsFixed(1) : '0.0';
+
+    doc.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.roll80,
+        margin: const pw.EdgeInsets.all(5 * PdfPageFormat.mm),
+        build: (pw.Context context) {
+          return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.center,
+            children: [
+              pw.Text(periodTitle.toUpperCase(), style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11)),
+              pw.Text(config?.businessName ?? 'BELEKA POS', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
+              if (config?.address != null && config!.address!.isNotEmpty)
+                pw.Text(config.address!, style: const pw.TextStyle(fontSize: 7.5)),
+              if (config?.tpin != null && config!.tpin!.isNotEmpty)
+                pw.Text('TPIN: ${config.tpin}', style: const pw.TextStyle(fontSize: 7.5)),
+              pw.Text('Period: $dateRangeLabel', style: const pw.TextStyle(fontSize: 7.5)),
+              pw.Text('Generated: ${DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now())}', style: const pw.TextStyle(fontSize: 7)),
+              pw.SizedBox(height: 2 * PdfPageFormat.mm),
+              pw.Divider(thickness: 1),
+
+              pw.Align(alignment: pw.Alignment.centerLeft, child: pw.Text('FINANCIAL TOTALS', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8.5))),
+              pw.SizedBox(height: 1 * PdfPageFormat.mm),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [pw.Text('Transactions', style: const pw.TextStyle(fontSize: 7.5)), pw.Text('$count sales', style: const pw.TextStyle(fontSize: 7.5))],
+              ),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text('Total Revenue', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8)),
+                  pw.Text(CurrencyFormatter.format(revenue, currency), style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8)),
+                ],
+              ),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text('Gross Profit', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8)),
+                  pw.Text(CurrencyFormatter.format(profit, currency), style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8)),
+                ],
+              ),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [pw.Text('Profit Margin', style: const pw.TextStyle(fontSize: 7.5)), pw.Text('$profitMargin%', style: const pw.TextStyle(fontSize: 7.5))],
+              ),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [pw.Text('Total Tax / VAT', style: const pw.TextStyle(fontSize: 7.5)), pw.Text(CurrencyFormatter.formatTaxPrecision(tax, currency), style: const pw.TextStyle(fontSize: 7.5))],
+              ),
+
+              pw.SizedBox(height: 2 * PdfPageFormat.mm),
+              pw.Divider(thickness: 0.5),
+              pw.Align(alignment: pw.Alignment.centerLeft, child: pw.Text('PAYMENT BREAKDOWN', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8.5))),
+              pw.SizedBox(height: 1 * PdfPageFormat.mm),
+              if (cash > 0)
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [pw.Text('Cash', style: const pw.TextStyle(fontSize: 7.5)), pw.Text(CurrencyFormatter.format(cash, currency), style: const pw.TextStyle(fontSize: 7.5))],
+                ),
+              if (card > 0)
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [pw.Text('Card', style: const pw.TextStyle(fontSize: 7.5)), pw.Text(CurrencyFormatter.format(card, currency), style: const pw.TextStyle(fontSize: 7.5))],
+                ),
+              if (mobileMoney > 0)
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [pw.Text('Mobile Money', style: const pw.TextStyle(fontSize: 7.5)), pw.Text(CurrencyFormatter.format(mobileMoney, currency), style: const pw.TextStyle(fontSize: 7.5))],
+                ),
+              pw.Divider(thickness: 0.5),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text('TOTAL COLLECTED', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8)),
+                  pw.Text(CurrencyFormatter.format(revenue, currency), style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8)),
+                ],
+              ),
+              pw.SizedBox(height: 3 * PdfPageFormat.mm),
+              pw.Text('*** END OF SUMMARY SLIP ***', style: const pw.TextStyle(fontSize: 7)),
+            ],
+          );
+        },
+      ),
+    );
+
+    final cleanFileName = '${periodTitle.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_')}_Slip_${DateFormat('yyyyMMdd').format(DateTime.now())}.pdf';
+    final bytes = await doc.save();
+    await _saveFile(bytes, cleanFileName, extensions: ['pdf']);
+  }
+
+  // --- ZRA Fiscal Z-Report PDF Export (Full A4 Executive Document) ---
+  Future<void> exportZraFiscalZReportToPdf({
+    required Map<String, dynamic> reportData,
+    StoreConfig? config,
+  }) async {
+    final pdf = pw.Document();
+    final brandColor = _getBrandColor(config);
+    final logoImage = await _loadLogoImage(config);
+    final currency = config?.currencySymbol ?? 'ZK';
+
+    final date = (reportData['date'] is DateTime) ? reportData['date'] as DateTime : DateTime.now();
+    final dateStr = DateFormat('dd/MM/yyyy HH:mm:ss').format(date);
+    final dateFileStr = DateFormat('yyyyMMdd').format(date);
+
+    final taxATaxable = (reportData['taxA16Taxable'] as num?)?.toDouble() ?? 0.0;
+    final taxAVat = (reportData['taxA16Vat'] as num?)?.toDouble() ?? 0.0;
+    final taxBTaxable = (reportData['taxB0Taxable'] as num?)?.toDouble() ?? 0.0;
+    final taxCTaxable = (reportData['taxCExportTaxable'] as num?)?.toDouble() ?? 0.0;
+    final taxDTaxable = (reportData['taxDExemptTaxable'] as num?)?.toDouble() ?? 0.0;
+    
+    final grossSales = (reportData['grossSales'] as num?)?.toDouble() ?? 0.0;
+    final totalTax = (reportData['totalTax'] as num?)?.toDouble() ?? 0.0;
+    final netSales = (reportData['netSales'] as num?)?.toDouble() ?? 0.0;
+
+    pdf.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(28),
+        build: (context) => pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            _buildDocumentHeader(
+              config,
+              title: 'ZRA Fiscal Day Summary (Z-Report)',
+              brandColor: brandColor,
+              logoImage: logoImage,
+            ),
+            pw.SizedBox(height: 8),
+
+            // SDC & Fiscal Identification Banner
+            pw.Container(
+              padding: const pw.EdgeInsets.all(12),
+              decoration: pw.BoxDecoration(
+                color: PdfColors.grey100,
+                borderRadius: const pw.BorderRadius.all(pw.Radius.circular(6)),
+                border: pw.Border.all(color: PdfColors.grey300),
+              ),
+              child: pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text('REPORT DATE: ${DateFormat('dd MMMM yyyy').format(date).toUpperCase()}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
+                      pw.SizedBox(height: 3),
+                      pw.Text('GENERATION TIME: $dateStr', style: const pw.TextStyle(fontSize: 8.5, color: PdfColors.grey700)),
+                      pw.SizedBox(height: 3),
+                      pw.Text('BRANCH CODE (bhfId): ${config?.bhfId ?? "00"}', style: const pw.TextStyle(fontSize: 8.5, color: PdfColors.grey700)),
+                    ],
+                  ),
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.end,
+                    children: [
+                      pw.Text('SDC ID: ${config?.sdcId ?? "SDC00300000014"}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10, color: brandColor)),
+                      pw.SizedBox(height: 3),
+                      pw.Text('ZRA TPIN: ${config?.tpin ?? "N/A"}', style: const pw.TextStyle(fontSize: 8.5, color: PdfColors.grey700)),
+                      pw.SizedBox(height: 3),
+                      pw.Text('TERMINAL: ${config?.terminalName ?? "POS-01"}', style: const pw.TextStyle(fontSize: 8.5, color: PdfColors.grey700)),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            pw.SizedBox(height: 14),
+
+            // Invoices Range & Counters
+            pw.Text(
+              'SDC INVOICE COUNTERS & RANGE',
+              style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: brandColor),
+            ),
+            pw.SizedBox(height: 6),
+            pw.Container(
+              padding: const pw.EdgeInsets.all(10),
+              decoration: pw.BoxDecoration(
+                color: PdfColors.white,
+                borderRadius: const pw.BorderRadius.all(pw.Radius.circular(6)),
+                border: pw.Border.all(color: PdfColors.grey300),
+              ),
+              child: pw.Column(
+                children: [
+                  _buildSummaryRow('Total Transactions Processed:', '${reportData["totalTransactions"] ?? 0}'),
+                  _buildSummaryRow('Normal Sales Invoices:', '${reportData["normalInvoicesCount"] ?? 0}'),
+                  _buildSummaryRow('Credit Notes (Refunds):', '${reportData["creditNotesCount"] ?? 0}'),
+                  pw.Divider(thickness: 0.5, color: PdfColors.grey300),
+                  _buildSummaryRow('First SDC Receipt No:', '${reportData["firstSdcReceipt"] ?? "N/A"}'),
+                  _buildSummaryRow('Last SDC Receipt No:', '${reportData["lastSdcReceipt"] ?? "N/A"}'),
+                ],
+              ),
+            ),
+            pw.SizedBox(height: 14),
+
+            // ZRA Tax Categorization Breakdown Table
+            pw.Text(
+              'TAX CATEGORIZATION BREAKDOWN',
+              style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: brandColor),
+            ),
+            pw.SizedBox(height: 6),
+            pw.TableHelper.fromTextArray(
+              headers: ['Tax Category', 'Tax Rate', 'Taxable Amount ($currency)', 'Tax / VAT Amount ($currency)', 'Gross Total ($currency)'],
+              data: [
+                [
+                  'Tax A (Standard 16% VAT)',
+                  '16.0000%',
+                  CurrencyFormatter.format(taxATaxable, currency),
+                  CurrencyFormatter.formatTaxPrecision(taxAVat, currency),
+                  CurrencyFormatter.format(taxATaxable + taxAVat, currency),
+                ],
+                [
+                  'Tax B (Zero-Rated 0%)',
+                  '0.0000%',
+                  CurrencyFormatter.format(taxBTaxable, currency),
+                  CurrencyFormatter.formatTaxPrecision(0.0, currency),
+                  CurrencyFormatter.format(taxBTaxable, currency),
+                ],
+                if (taxCTaxable > 0)
+                  [
+                    'Tax C (Export 0%)',
+                    '0.0000%',
+                    CurrencyFormatter.format(taxCTaxable, currency),
+                    CurrencyFormatter.formatTaxPrecision(0.0, currency),
+                    CurrencyFormatter.format(taxCTaxable, currency),
+                  ],
+                if (taxDTaxable > 0)
+                  [
+                    'Tax D (Exempt 0%)',
+                    '0.0000%',
+                    CurrencyFormatter.format(taxDTaxable, currency),
+                    CurrencyFormatter.formatTaxPrecision(0.0, currency),
+                    CurrencyFormatter.format(taxDTaxable, currency),
+                  ],
+              ],
+              headerStyle: pw.TextStyle(
+                fontWeight: pw.FontWeight.bold,
+                color: _isColorLight(brandColor) ? PdfColors.black : PdfColors.white,
+                fontSize: 8.5,
+              ),
+              headerDecoration: pw.BoxDecoration(
+                color: brandColor,
+                borderRadius: const pw.BorderRadius.all(pw.Radius.circular(3)),
+              ),
+              cellHeight: 22,
+              cellStyle: const pw.TextStyle(fontSize: 8),
+              cellAlignments: {
+                0: pw.Alignment.centerLeft,
+                1: pw.Alignment.center,
+                2: pw.Alignment.centerRight,
+                3: pw.Alignment.centerRight,
+                4: pw.Alignment.centerRight,
+              },
+            ),
+            pw.SizedBox(height: 14),
+
+            // Financial Totals Box
+            pw.Container(
+              padding: const pw.EdgeInsets.all(12),
+              decoration: pw.BoxDecoration(
+                color: PdfColors.grey100,
+                borderRadius: const pw.BorderRadius.all(pw.Radius.circular(6)),
+                border: pw.Border.all(color: brandColor, width: 1.5),
+              ),
+              child: pw.Column(
+                children: [
+                  _buildSummaryRow('NET TAXABLE SALES:', CurrencyFormatter.format(netSales, currency)),
+                  _buildSummaryRow('TOTAL TAX COLLECTED:', CurrencyFormatter.formatTaxPrecision(totalTax, currency)),
+                  pw.Divider(thickness: 1, color: brandColor),
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text('GROSS SALES (TAX INCL):', style: pw.TextStyle(fontSize: 10.5, fontWeight: pw.FontWeight.bold)),
+                      pw.Text(CurrencyFormatter.format(grossSales, currency), style: pw.TextStyle(fontSize: 10.5, fontWeight: pw.FontWeight.bold, color: brandColor)),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            pw.Spacer(),
+            _buildDocumentFooter(config),
+          ],
+        ),
+      ),
+    );
+
+    final bytes = await pdf.save();
+    await _saveFile(bytes, 'ZRA_Fiscal_Z_Report_$dateFileStr.pdf', extensions: ['pdf']);
+  }
+
+  // --- ZRA Fiscal Z-Report 80mm Slip PDF ---
+  Future<void> exportZraFiscalZReportSlipToPdf({
+    required Map<String, dynamic> reportData,
+    StoreConfig? config,
+  }) async {
+    final pdfDoc = pw.Document();
+    final currency = config?.currencySymbol ?? 'ZK';
+    final date = (reportData['date'] is DateTime) ? reportData['date'] as DateTime : DateTime.now();
+    final dateStr = DateFormat('dd/MM/yyyy HH:mm:ss').format(date);
+    final dateFileStr = DateFormat('yyyyMMdd').format(date);
+
+    final taxATaxable = (reportData['taxA16Taxable'] as num?)?.toDouble() ?? 0.0;
+    final taxAVat = (reportData['taxA16Vat'] as num?)?.toDouble() ?? 0.0;
+    final taxBTaxable = (reportData['taxB0Taxable'] as num?)?.toDouble() ?? 0.0;
+    final taxCTaxable = (reportData['taxCExportTaxable'] as num?)?.toDouble() ?? 0.0;
+    final taxDTaxable = (reportData['taxDExemptTaxable'] as num?)?.toDouble() ?? 0.0;
+    
+    final grossSales = (reportData['grossSales'] as num?)?.toDouble() ?? 0.0;
+    final totalTax = (reportData['totalTax'] as num?)?.toDouble() ?? 0.0;
+    final netSales = (reportData['netSales'] as num?)?.toDouble() ?? 0.0;
+
+    pdfDoc.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.roll80,
+        margin: const pw.EdgeInsets.all(5 * PdfPageFormat.mm),
+        build: (pw.Context context) {
+          return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.center,
+            children: [
+              pw.Text(config?.businessName ?? 'BELEKA RETAIL STORE', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11)),
+              if (config?.tpin != null && config!.tpin!.isNotEmpty)
+                pw.Text('TPIN: ${config.tpin}', style: const pw.TextStyle(fontSize: 8)),
+              pw.Text('SDC ID: ${config?.sdcId ?? "SDC00300000014"}', style: const pw.TextStyle(fontSize: 8)),
+              pw.Text('BRANCH CODE (bhfId): ${config?.bhfId ?? "00"}', style: const pw.TextStyle(fontSize: 8)),
+              pw.SizedBox(height: 2 * PdfPageFormat.mm),
+              pw.Divider(thickness: 1),
+              pw.Text('ZRA FISCAL DAY SUMMARY (Z-REPORT)', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
+              pw.Text('REPORT DATE: $dateStr', style: const pw.TextStyle(fontSize: 7.5)),
+              pw.Divider(thickness: 1),
+
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [pw.Text('TOTAL TRANSACTIONS', style: const pw.TextStyle(fontSize: 8)), pw.Text('${reportData["totalTransactions"] ?? 0}', style: const pw.TextStyle(fontSize: 8))],
+              ),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [pw.Text('NORMAL INVOICES', style: const pw.TextStyle(fontSize: 8)), pw.Text('${reportData["normalInvoicesCount"] ?? 0}', style: const pw.TextStyle(fontSize: 8))],
+              ),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [pw.Text('CREDIT NOTES (REFUNDS)', style: const pw.TextStyle(fontSize: 8)), pw.Text('${reportData["creditNotesCount"] ?? 0}', style: const pw.TextStyle(fontSize: 8))],
+              ),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [pw.Text('FIRST SDC INVOICE', style: const pw.TextStyle(fontSize: 8)), pw.Text('${reportData["firstSdcReceipt"] ?? "N/A"}', style: const pw.TextStyle(fontSize: 8))],
+              ),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [pw.Text('LAST SDC INVOICE', style: const pw.TextStyle(fontSize: 8)), pw.Text('${reportData["lastSdcReceipt"] ?? "N/A"}', style: const pw.TextStyle(fontSize: 8))],
+              ),
+
+              pw.Divider(thickness: 0.5),
+              pw.Align(alignment: pw.Alignment.centerLeft, child: pw.Text('TAX CATEGORIZATION BREAKDOWN', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8))),
+              pw.SizedBox(height: 1 * PdfPageFormat.mm),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [pw.Text('TAX A (16.0%) TAXABLE', style: const pw.TextStyle(fontSize: 7.5)), pw.Text(CurrencyFormatter.format(taxATaxable, currency), style: const pw.TextStyle(fontSize: 7.5))],
+              ),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [pw.Text('TAX A (16.0%) TAX AMT', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7.5)), pw.Text(CurrencyFormatter.formatTaxPrecision(taxAVat, currency), style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7.5))],
+              ),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [pw.Text('TAX B (0.0% ZERO-RATED)', style: const pw.TextStyle(fontSize: 7.5)), pw.Text(CurrencyFormatter.format(taxBTaxable, currency), style: const pw.TextStyle(fontSize: 7.5))],
+              ),
+              if (taxCTaxable > 0)
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [pw.Text('TAX C (EXPORT)', style: const pw.TextStyle(fontSize: 7.5)), pw.Text(CurrencyFormatter.format(taxCTaxable, currency), style: const pw.TextStyle(fontSize: 7.5))],
+                ),
+              if (taxDTaxable > 0)
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [pw.Text('TAX D (EXEMPT)', style: const pw.TextStyle(fontSize: 7.5)), pw.Text(CurrencyFormatter.format(taxDTaxable, currency), style: const pw.TextStyle(fontSize: 7.5))],
+                ),
+
+              pw.Divider(thickness: 1),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [pw.Text('NET TAXABLE SALES', style: const pw.TextStyle(fontSize: 8)), pw.Text(CurrencyFormatter.format(netSales, currency), style: const pw.TextStyle(fontSize: 8))],
+              ),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [pw.Text('TOTAL TAX COLLECTED', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8)), pw.Text(CurrencyFormatter.formatTaxPrecision(totalTax, currency), style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8))],
+              ),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [pw.Text('GROSS SALES (INCL)', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8.5)), pw.Text(CurrencyFormatter.format(grossSales, currency), style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8.5))],
+              ),
+
+              pw.SizedBox(height: 3 * PdfPageFormat.mm),
+              pw.Text('*** END OF ZRA FISCAL Z-REPORT ***', style: const pw.TextStyle(fontSize: 7.5)),
+            ],
+          );
+        },
+      ),
+    );
+
+    final bytes = await pdfDoc.save();
+    await _saveFile(bytes, 'ZRA_Z_Report_Slip_$dateFileStr.pdf', extensions: ['pdf']);
+  }
+
   // --- Excel Exports ---
 
   Future<void> exportInventoryToExcel(List<Product> products, {StoreConfig? config}) async {

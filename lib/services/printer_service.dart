@@ -857,6 +857,14 @@ class PrinterService {
     required StoreConfig? config,
     ThermalPaperPreset? preset,
   }) async {
+    if (!_isConnected) {
+      await autoConnect(config: config);
+    }
+
+    if (_activeModel == PrinterModel.system) {
+      return await _printZraFiscalZReportWithSystem(reportData: reportData, config: config);
+    }
+
     final currentPreset = preset ?? activePreset;
     final currency = config?.currencySymbol ?? 'K';
     final paperSize = currentPreset.escPosSize;
@@ -945,6 +953,133 @@ class PrinterService {
       return await _sendBytes(bytes);
     } catch (e) {
       debugPrint('ZRA Fiscal Z-Report print error: $e');
+      return false;
+    }
+  }
+
+  Future<bool> _printZraFiscalZReportWithSystem({
+    required Map<String, dynamic> reportData,
+    required StoreConfig? config,
+  }) async {
+    try {
+      final doc = pw.Document();
+      final currency = config?.currencySymbol ?? 'ZK';
+      final date = (reportData['date'] is DateTime) ? reportData['date'] as DateTime : DateTime.now();
+      final dateStr = DateFormat('dd/MM/yyyy HH:mm:ss').format(date);
+
+      final taxATaxable = (reportData['taxA16Taxable'] as num?)?.toDouble() ?? 0.0;
+      final taxAVat = (reportData['taxA16Vat'] as num?)?.toDouble() ?? 0.0;
+      final taxBTaxable = (reportData['taxB0Taxable'] as num?)?.toDouble() ?? 0.0;
+      final taxCTaxable = (reportData['taxCExportTaxable'] as num?)?.toDouble() ?? 0.0;
+      final taxDTaxable = (reportData['taxDExemptTaxable'] as num?)?.toDouble() ?? 0.0;
+      
+      final grossSales = (reportData['grossSales'] as num?)?.toDouble() ?? 0.0;
+      final totalTax = (reportData['totalTax'] as num?)?.toDouble() ?? 0.0;
+      final netSales = (reportData['netSales'] as num?)?.toDouble() ?? 0.0;
+
+      doc.addPage(
+        pw.Page(
+          pageFormat: pdf.PdfPageFormat.roll80,
+          margin: const pw.EdgeInsets.all(5 * pdf.PdfPageFormat.mm),
+          build: (pw.Context context) {
+            return pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.center,
+              children: [
+                pw.Text(config?.businessName ?? 'BELEKA RETAIL STORE', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11)),
+                if (config?.tpin != null && config!.tpin!.isNotEmpty)
+                  pw.Text('TPIN: ${config.tpin}', style: const pw.TextStyle(fontSize: 8)),
+                pw.Text('SDC ID: ${config?.sdcId ?? "SDC00300000014"}', style: const pw.TextStyle(fontSize: 8)),
+                pw.Text('BRANCH CODE (bhfId): ${config?.bhfId ?? "00"}', style: const pw.TextStyle(fontSize: 8)),
+                pw.SizedBox(height: 2 * pdf.PdfPageFormat.mm),
+                pw.Divider(thickness: 1),
+                pw.Text('ZRA FISCAL DAY SUMMARY (Z-REPORT)', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
+                pw.Text('REPORT DATE: $dateStr', style: const pw.TextStyle(fontSize: 7.5)),
+                pw.Divider(thickness: 1),
+
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [pw.Text('TOTAL TRANSACTIONS', style: const pw.TextStyle(fontSize: 8)), pw.Text('${reportData["totalTransactions"] ?? 0}', style: const pw.TextStyle(fontSize: 8))],
+                ),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [pw.Text('NORMAL INVOICES', style: const pw.TextStyle(fontSize: 8)), pw.Text('${reportData["normalInvoicesCount"] ?? 0}', style: const pw.TextStyle(fontSize: 8))],
+                ),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [pw.Text('CREDIT NOTES (REFUNDS)', style: const pw.TextStyle(fontSize: 8)), pw.Text('${reportData["creditNotesCount"] ?? 0}', style: const pw.TextStyle(fontSize: 8))],
+                ),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [pw.Text('FIRST SDC INVOICE', style: const pw.TextStyle(fontSize: 8)), pw.Text('${reportData["firstSdcReceipt"] ?? "N/A"}', style: const pw.TextStyle(fontSize: 8))],
+                ),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [pw.Text('LAST SDC INVOICE', style: const pw.TextStyle(fontSize: 8)), pw.Text('${reportData["lastSdcReceipt"] ?? "N/A"}', style: const pw.TextStyle(fontSize: 8))],
+                ),
+
+                pw.Divider(thickness: 0.5),
+                pw.Align(alignment: pw.Alignment.centerLeft, child: pw.Text('TAX CATEGORIZATION BREAKDOWN', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8))),
+                pw.SizedBox(height: 1 * pdf.PdfPageFormat.mm),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [pw.Text('TAX A (16.0%) TAXABLE', style: const pw.TextStyle(fontSize: 7.5)), pw.Text(CurrencyFormatter.format(taxATaxable, currency), style: const pw.TextStyle(fontSize: 7.5))],
+                ),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [pw.Text('TAX A (16.0%) TAX AMT', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7.5)), pw.Text(CurrencyFormatter.formatTaxPrecision(taxAVat, currency), style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7.5))],
+                ),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [pw.Text('TAX B (0.0% ZERO-RATED)', style: const pw.TextStyle(fontSize: 7.5)), pw.Text(CurrencyFormatter.format(taxBTaxable, currency), style: const pw.TextStyle(fontSize: 7.5))],
+                ),
+                if (taxCTaxable > 0)
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [pw.Text('TAX C (EXPORT)', style: const pw.TextStyle(fontSize: 7.5)), pw.Text(CurrencyFormatter.format(taxCTaxable, currency), style: const pw.TextStyle(fontSize: 7.5))],
+                  ),
+                if (taxDTaxable > 0)
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [pw.Text('TAX D (EXEMPT)', style: const pw.TextStyle(fontSize: 7.5)), pw.Text(CurrencyFormatter.format(taxDTaxable, currency), style: const pw.TextStyle(fontSize: 7.5))],
+                  ),
+
+                pw.Divider(thickness: 1),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [pw.Text('NET TAXABLE SALES', style: const pw.TextStyle(fontSize: 8)), pw.Text(CurrencyFormatter.format(netSales, currency), style: const pw.TextStyle(fontSize: 8))],
+                ),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [pw.Text('TOTAL TAX COLLECTED', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8)), pw.Text(CurrencyFormatter.formatTaxPrecision(totalTax, currency), style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8))],
+                ),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [pw.Text('GROSS SALES (INCL)', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8.5)), pw.Text(CurrencyFormatter.format(grossSales, currency), style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8.5))],
+                ),
+
+                pw.SizedBox(height: 3 * pdf.PdfPageFormat.mm),
+                pw.Text('*** END OF ZRA FISCAL Z-REPORT ***', style: const pw.TextStyle(fontSize: 7.5)),
+              ],
+            );
+          },
+        ),
+      );
+
+      final slipName = 'ZRA_Fiscal_Z_Report_${DateFormat('yyyyMMdd').format(date)}';
+      if (_activeSystemPrinter != null) {
+        return await pnt.Printing.directPrintPdf(
+          printer: _activeSystemPrinter!,
+          onLayout: (pdf.PdfPageFormat format) async => doc.save(),
+          name: slipName,
+        );
+      } else {
+        return await pnt.Printing.layoutPdf(
+          onLayout: (pdf.PdfPageFormat format) async => doc.save(),
+          name: slipName,
+        );
+      }
+    } catch (e) {
+      debugPrint('ZRA Fiscal Z-Report system print error: $e');
       return false;
     }
   }

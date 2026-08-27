@@ -139,7 +139,7 @@ class ReportsScreen extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildHeader(context, ref, range, activePeriod, stats),
+          _buildHeader(context, ref, range, activePeriod, stats, topProducts),
           const SizedBox(height: 16),
           _buildPeriodSelector(context, ref, activePeriod, range),
           const SizedBox(height: 20),
@@ -263,6 +263,7 @@ class ReportsScreen extends ConsumerWidget {
     DateTimeRange range,
     ReportPeriod activePeriod,
     Map<String, double> stats,
+    List<Map<String, dynamic>> topProducts,
   ) {
     final dateFormat = DateFormat('MMM d, yyyy');
     
@@ -292,64 +293,9 @@ class ReportsScreen extends ConsumerWidget {
         ),
         Row(
           children: [
-            ActionButton(
-              icon: Icons.print_rounded,
-              label: 'Print Financial Slip',
-              isPrimary: true,
-              onPressed: () async {
-                final printer = ref.read(printerServiceProvider);
-                final config = ref.read(storeConfigProvider).value;
-                final df = DateFormat('dd MMM yyyy');
-                final dateSubtitle = (range.start.year == range.end.year && range.start.month == range.end.month && range.start.day == range.end.day)
-                    ? df.format(range.start)
-                    : '${df.format(range.start)} - ${df.format(range.end)}';
-
-                final title = _getPeriodTitle(activePeriod, range);
-
-                final printed = await printer.printFinancialSummarySlip(
-                  periodTitle: title,
-                  dateRangeLabel: dateSubtitle,
-                  stats: stats,
-                  config: config,
-                );
-
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(printed
-                          ? '$title printed successfully!'
-                          : 'Print command sent (check printer connection).'),
-                      backgroundColor: printed ? const Color(0xFF10B981) : Colors.orangeAccent,
-                    ),
-                  );
-                }
-              },
-            ),
+            _buildFinancialSummaryMenu(context, ref, range, activePeriod, stats, topProducts),
             const SizedBox(width: 10),
-            ActionButton(
-              icon: Icons.receipt_long_rounded,
-              label: 'ZRA Fiscal Z-Report',
-              onPressed: () async {
-                final digitaxService = ref.read(digitaxInventoryServiceProvider);
-                final printerService = ref.read(printerServiceProvider);
-                final config = ref.read(storeConfigProvider).value;
-
-                final reportData = await digitaxService.compileZraFiscalZReport(date: range.start);
-                final printed = await printerService.printZraFiscalZReport(
-                  reportData: reportData,
-                  config: config,
-                );
-
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(printed ? 'ZRA Fiscal Z-Report printed successfully!' : 'ZRA Fiscal Z-Report generated (Check printer connection).'),
-                      backgroundColor: printed ? const Color(0xFF10B981) : Colors.orangeAccent,
-                    ),
-                  );
-                }
-              },
-            ),
+            _buildZraZReportMenu(context, ref, range),
             const SizedBox(width: 10),
             _buildExportMenu(context, ref),
           ],
@@ -358,8 +304,243 @@ class ReportsScreen extends ConsumerWidget {
     );
   }
 
+  Widget _buildFinancialSummaryMenu(
+    BuildContext context,
+    WidgetRef ref,
+    DateTimeRange range,
+    ReportPeriod activePeriod,
+    Map<String, double> stats,
+    List<Map<String, dynamic>> topProducts,
+  ) {
+    final df = DateFormat('dd MMM yyyy');
+    final dateSubtitle = (range.start.year == range.end.year && range.start.month == range.end.month && range.start.day == range.end.day)
+        ? df.format(range.start)
+        : '${df.format(range.start)} - ${df.format(range.end)}';
+    final title = _getPeriodTitle(activePeriod, range);
+
+    return PopupMenuButton<String>(
+      tooltip: 'Financial Summary Actions',
+      offset: const Offset(0, 52),
+      color: const Color(0xFF1E1E24),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+      ),
+      onSelected: (value) async {
+        final printer = ref.read(printerServiceProvider);
+        final exportService = ref.read(exportServiceProvider);
+        final config = ref.read(storeConfigProvider).value;
+
+        switch (value) {
+          case 'print':
+            final printed = await printer.printFinancialSummarySlip(
+              periodTitle: title,
+              dateRangeLabel: dateSubtitle,
+              stats: stats,
+              config: config,
+            );
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(printed
+                      ? '$title printed successfully!'
+                      : 'Print command sent (check printer connection).'),
+                  backgroundColor: printed ? const Color(0xFF10B981) : Colors.orangeAccent,
+                ),
+              );
+            }
+            break;
+
+          case 'pdf_slip':
+            await exportService.exportFinancialSummarySlipToPdf(
+              periodTitle: title,
+              dateRangeLabel: dateSubtitle,
+              stats: stats,
+              config: config,
+            );
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('$title Slip (80mm) saved as PDF!'),
+                  backgroundColor: const Color(0xFF10B981),
+                ),
+              );
+            }
+            break;
+
+          case 'pdf_report':
+            await exportService.exportFinancialSummaryToPdf(
+              periodTitle: title,
+              dateRangeLabel: dateSubtitle,
+              stats: stats,
+              topProducts: topProducts,
+              config: config,
+            );
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('$title Executive Report (A4) saved as PDF!'),
+                  backgroundColor: const Color(0xFF10B981),
+                ),
+              );
+            }
+            break;
+        }
+      },
+      itemBuilder: (context) => [
+        PopupMenuItem(
+          value: 'print',
+          child: Row(
+            children: [
+              const Icon(Icons.print_rounded, size: 18, color: Color(0xFFC1F11D)),
+              const SizedBox(width: 10),
+              Text('Print Financial Slip', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white)),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: 'pdf_slip',
+          child: Row(
+            children: [
+              const Icon(Icons.receipt_rounded, size: 18, color: Colors.cyanAccent),
+              const SizedBox(width: 10),
+              Text('Save as PDF Slip (80mm)', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white)),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: 'pdf_report',
+          child: Row(
+            children: [
+              const Icon(Icons.picture_as_pdf_rounded, size: 18, color: Color(0xFFC6B4FF)),
+              const SizedBox(width: 10),
+              Text('Save as PDF Report (A4)', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white)),
+            ],
+          ),
+        ),
+      ],
+      child: const ActionButton(
+        icon: Icons.payments_rounded,
+        label: 'Financial Slip ▾',
+        isPrimary: true,
+      ),
+    );
+  }
+
+  Widget _buildZraZReportMenu(BuildContext context, WidgetRef ref, DateTimeRange range) {
+    return PopupMenuButton<String>(
+      tooltip: 'ZRA Fiscal Z-Report Actions',
+      offset: const Offset(0, 52),
+      color: const Color(0xFF1E1E24),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+      ),
+      onSelected: (value) async {
+        final digitaxService = ref.read(digitaxInventoryServiceProvider);
+        final printerService = ref.read(printerServiceProvider);
+        final exportService = ref.read(exportServiceProvider);
+        final config = ref.read(storeConfigProvider).value;
+
+        final reportData = await digitaxService.compileZraFiscalZReport(date: range.start);
+
+        switch (value) {
+          case 'print':
+            final printed = await printerService.printZraFiscalZReport(
+              reportData: reportData,
+              config: config,
+            );
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(printed
+                      ? 'ZRA Fiscal Z-Report printed successfully!'
+                      : 'ZRA Fiscal Z-Report generated (Check printer connection).'),
+                  backgroundColor: printed ? const Color(0xFF10B981) : Colors.orangeAccent,
+                ),
+              );
+            }
+            break;
+
+          case 'pdf_slip':
+            await exportService.exportZraFiscalZReportSlipToPdf(
+              reportData: reportData,
+              config: config,
+            );
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('ZRA Fiscal Z-Report Slip (80mm) saved as PDF!'),
+                  backgroundColor: Color(0xFF10B981),
+                ),
+              );
+            }
+            break;
+
+          case 'pdf_report':
+            await exportService.exportZraFiscalZReportToPdf(
+              reportData: reportData,
+              config: config,
+            );
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Official ZRA Fiscal Z-Report (A4) saved as PDF!'),
+                  backgroundColor: Color(0xFF10B981),
+                ),
+              );
+            }
+            break;
+        }
+      },
+      itemBuilder: (context) => [
+        PopupMenuItem(
+          value: 'print',
+          child: Row(
+            children: [
+              const Icon(Icons.print_rounded, size: 18, color: Color(0xFFC1F11D)),
+              const SizedBox(width: 10),
+              Text('Print Z-Report (Thermal)', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white)),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: 'pdf_slip',
+          child: Row(
+            children: [
+              const Icon(Icons.receipt_rounded, size: 18, color: Colors.cyanAccent),
+              const SizedBox(width: 10),
+              Text('Save as PDF Slip (80mm)', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white)),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: 'pdf_report',
+          child: Row(
+            children: [
+              const Icon(Icons.picture_as_pdf_rounded, size: 18, color: Color(0xFFC6B4FF)),
+              const SizedBox(width: 10),
+              Text('Save Official ZRA PDF (A4)', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white)),
+            ],
+          ),
+        ),
+      ],
+      child: const ActionButton(
+        icon: Icons.receipt_long_rounded,
+        label: 'ZRA Fiscal Z-Report ▾',
+      ),
+    );
+  }
+
   Widget _buildExportMenu(BuildContext context, WidgetRef ref) {
     return PopupMenuButton<String>(
+      tooltip: 'Export Transactions Data',
+      offset: const Offset(0, 52),
+      color: const Color(0xFF1E1E24),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+      ),
       onSelected: (value) async {
         final transactions = ref.read(reportTransactionsProvider).value;
         if (transactions == null || transactions.isEmpty) {
@@ -384,14 +565,40 @@ class ReportsScreen extends ConsumerWidget {
         }
       },
       itemBuilder: (context) => [
-        const PopupMenuItem(value: 'pdf', child: Text('Export PDF')),
-        const PopupMenuItem(value: 'excel', child: Text('Export Excel')),
-        const PopupMenuItem(value: 'csv', child: Text('Export CSV')),
+        PopupMenuItem(
+          value: 'pdf',
+          child: Row(
+            children: [
+              const Icon(Icons.picture_as_pdf_rounded, size: 18, color: Colors.redAccent),
+              const SizedBox(width: 10),
+              Text('Export PDF Report', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white)),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: 'excel',
+          child: Row(
+            children: [
+              const Icon(Icons.table_chart_rounded, size: 18, color: Colors.greenAccent),
+              const SizedBox(width: 10),
+              Text('Export Excel (.xlsx)', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white)),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: 'csv',
+          child: Row(
+            children: [
+              const Icon(Icons.description_rounded, size: 18, color: Colors.blueAccent),
+              const SizedBox(width: 10),
+              Text('Export CSV (.csv)', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white)),
+            ],
+          ),
+        ),
       ],
       child: const ActionButton(
         icon: Icons.download_rounded,
-        label: 'Export Data',
-        isPrimary: true,
+        label: 'Export Data ▾',
       ),
     );
   }
