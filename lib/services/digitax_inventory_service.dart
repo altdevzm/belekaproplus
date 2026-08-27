@@ -952,61 +952,89 @@ class DigiTaxInventoryService {
 
       if (resp.statusCode == 200 || resp.statusCode == 201) {
         final data = resp.data;
-        debugPrint('DIGITAX_SALES_SUCCESS: Raw Response from DigiTax: $data');
+        debugPrint('DIGITAX_SALES_QUEUED: Initial response from DigiTax: $data');
 
         if (data is! Map) return false;
 
-        // ── Use EXACT field names from DigiTax OpenAPI specification ──────────
-        //
-        // receipt_number  → ZRA SDC sequential invoice counter (integer, e.g. 38)
-        //                   This is what ZRA registers as the official invoice number.
-        //                   NOT sale_number (which is DigiTax's own internal ref).
-        //
-        // receipt_signature → 16-char ZRA fiscal signature
-        // internal_data     → ZRA VSDC internal data string
-        // sdc_id            → Virtual SDC device ID assigned by DigiTax per branch
-        //                     NOT the PC hardware serial number
-        // receipt_url       → Live ZRA portal verification URL (use as QR source)
-        // receipt_type_code → 'S'=Normal, 'R'=Credit Note
-        // ──────────────────────────────────────────────────────────────────────
+        Map<String, dynamic> saleData = Map<String, dynamic>.from(data);
+        final saleId = saleData['id']?.toString();
 
-        // SDC Invoice Number — receipt_number is an integer, convert to string
-        final rcptNumberRaw = data['receipt_number'];
+        // If not immediately signed (DigiTax queue processing), poll for live ZRA signature
+        if (saleData['receipt_signature'] == null || saleData['receipt_signature'].toString().trim().isEmpty) {
+          for (int attempt = 1; attempt <= 5; attempt++) {
+            await Future.delayed(const Duration(milliseconds: 1000));
+            try {
+              final pollResp = (saleId != null && saleId.isNotEmpty)
+                  ? await _dio.get(
+                      '$digitaxZambiaApiBaseUrl/sales/$saleId',
+                      options: Options(headers: headers),
+                    )
+                  : await _dio.get(
+                      '$digitaxZambiaApiBaseUrl/sales',
+                      queryParameters: {'trader_invoice_number': invoiceNo},
+                      options: Options(headers: headers),
+                    );
+
+              if (pollResp.statusCode == 200 && pollResp.data != null) {
+                dynamic pData = pollResp.data;
+                if (pData is Map) {
+                  final list = pData['sales'] ?? pData['data'] ?? pData['items'] ?? pData['results'];
+                  if (list is List && list.isNotEmpty) pData = list.first;
+                  if (pData is Map) {
+                    final sig = pData['receipt_signature']?.toString();
+                    if (sig != null && sig.trim().isNotEmpty) {
+                      saleData = Map<String, dynamic>.from(pData);
+                      debugPrint('DIGITAX_POLL_SUCCESS: Sale #$invoiceNo signed after $attempt attempt(s)!');
+                      break;
+                    }
+                  }
+                }
+              }
+            } catch (e) {
+              debugPrint('DIGITAX_POLL_NOTICE: Attempt $attempt for $invoiceNo: $e');
+            }
+          }
+        }
+
+        final liveSignature = saleData['receipt_signature']?.toString().trim();
+        if (liveSignature == null || liveSignature.isEmpty) {
+          debugPrint('DIGITAX_PENDING: Sale $invoiceNo is queued in DigiTax VSDC. Waiting for background confirmation.');
+          return false;
+        }
+
+        // SDC Invoice Number (integer counter from DigiTax / ZRA)
+        final rcptNumberRaw = saleData['receipt_number'];
         final sdcRcptNo = (rcptNumberRaw != null && rcptNumberRaw.toString().isNotEmpty)
             ? rcptNumberRaw.toString()
             : 'INV-${transaction.id.toString().padLeft(8, '0')}';
 
-        // ZRA Fiscal Signature
-        final markId = (data['receipt_signature']?.toString().isNotEmpty == true)
-            ? data['receipt_signature'].toString()
-            : 'MARK-${transaction.id.hashCode.toRadixString(16).toUpperCase()}';
-
         // ZRA VSDC Internal Data
-        final internalData = (data['internal_data']?.toString().isNotEmpty == true)
-            ? data['internal_data'].toString()
-            : (config?.mrcNo ?? '');
+        final internalData = saleData['internal_data']?.toString() ?? (config?.mrcNo ?? '');
 
-        // Virtual SDC Device ID (DigiTax-assigned, NOT hardware serial)
-        final sdcId = (data['sdc_id']?.toString().isNotEmpty == true)
-            ? data['sdc_id'].toString()
-            : (config?.sdcId?.isNotEmpty == true ? config!.sdcId! : '');
+        // Virtual SDC Device ID (from DigiTax registration)
+        final sdcId = (saleData['sdc_id']?.toString().isNotEmpty == true)
+            ? saleData['sdc_id'].toString()
+            : ((saleData['serial_number']?.toString().isNotEmpty == true)
+                ? saleData['serial_number'].toString()
+                : (config?.sdcId?.isNotEmpty == true ? config!.sdcId! : ''));
 
         // ZRA Verification QR URL
-        final qrData = (data['receipt_url']?.toString().isNotEmpty == true)
-            ? data['receipt_url'].toString()
+        final qrData = (saleData['receipt_url']?.toString().isNotEmpty == true)
+            ? saleData['receipt_url'].toString()
             : (sdcId.isNotEmpty
                 ? 'https://smartinvoice.zra.org.zm/verify?tpin=${config?.tpin ?? "1000000000"}&sdc=$sdcId&rcpt=$sdcRcptNo'
                 : '');
 
-        final invoiceType = switch (data['receipt_type_code']?.toString()) {
+        // Invoice type
+        final invoiceType = switch (saleData['receipt_type_code']?.toString()) {
           'S' => 'Normal Sale',
           'R' => 'Credit Note',
           'C' => 'Copy',
-          _ => data['kind'] != null ? data['kind'].toString().replaceAll('_', ' ').toUpperCase() : 'Normal Sale',
+          _ => saleData['kind'] != null ? saleData['kind'].toString().replaceAll('_', ' ').toUpperCase() : 'Normal Sale',
         };
 
-        // Step C: Pull Official Server-Side Tax Calculations from DigiTax if present
-        final taxSummary = data['sales_tax_summary'];
+        // Server-Side Tax Calculations from DigiTax
+        final taxSummary = saleData['sales_tax_summary'];
         if (taxSummary is Map) {
           final vatTaxable = double.tryParse((taxSummary['taxable_amount_vat'] ?? '0').toString()) ?? 0.0;
           final vatTax = double.tryParse((taxSummary['tax_amount_vat'] ?? '0').toString()) ?? 0.0;
@@ -1025,7 +1053,7 @@ class DigiTaxInventoryService {
 
         transaction.zraSdcId = sdcId;
         transaction.zraReceiptNumber = sdcRcptNo;
-        transaction.zraMarkId = markId;
+        transaction.zraMarkId = liveSignature;
         transaction.zraInternalData = internalData;
         transaction.zraQrCode = qrData;
         transaction.zraInvoiceType = invoiceType;
@@ -1035,15 +1063,14 @@ class DigiTaxInventoryService {
           await db.isar.saleTransactions.put(transaction);
         });
 
-        // Cache the DigiTax virtual SDC ID back to StoreConfig so all receipts
-        // (including reprints and past transactions) show the correct SDC ID.
+        // Cache the DigiTax virtual SDC ID back to StoreConfig
         if (sdcId.isNotEmpty && config != null && config.sdcId != sdcId) {
           config.sdcId = sdcId;
           try { await db.saveStoreConfig(config); } catch (_) {}
           debugPrint('DIGITAX_SDC_CACHED: Virtual SDC ID "$sdcId" cached to StoreConfig');
         }
 
-        debugPrint('DIGITAX_FISCALIZED_LIVE: SDC ID: $sdcId | SDC Inv No: $sdcRcptNo | Signature: $markId | Internal: $internalData | Type: $invoiceType');
+        debugPrint('DIGITAX_FISCALIZED_LIVE: SDC ID: $sdcId | SDC Inv No: $sdcRcptNo | Signature: $liveSignature | Internal: $internalData | Type: $invoiceType');
         return true;
       }
     } on DioException catch (dioErr) {
@@ -1113,29 +1140,53 @@ class DigiTaxInventoryService {
 
       if (resp.statusCode == 200 || resp.statusCode == 201) {
         final data = resp.data;
-        if (data is! Map) return false;
+        Map<String, dynamic> saleData = Map<String, dynamic>.from(data);
+        final saleId = saleData['id']?.toString();
 
-        // Exact DigiTax OpenAPI field names for credit note response
-        final rcptNumberRaw = data['receipt_number'];
+        if (saleData['receipt_signature'] == null || saleData['receipt_signature'].toString().trim().isEmpty) {
+          for (int attempt = 1; attempt <= 4; attempt++) {
+            await Future.delayed(const Duration(milliseconds: 1000));
+            try {
+              final pollResp = (saleId != null && saleId.isNotEmpty)
+                  ? await _dio.get('$digitaxZambiaApiBaseUrl/sales/$saleId', options: Options(headers: headers))
+                  : await _dio.get('$digitaxZambiaApiBaseUrl/sales', queryParameters: {'trader_invoice_number': "CN-${refundTx.id}"}, options: Options(headers: headers));
+              if (pollResp.statusCode == 200 && pollResp.data != null) {
+                dynamic pData = pollResp.data;
+                if (pData is Map) {
+                  final list = pData['sales'] ?? pData['data'] ?? pData['items'] ?? pData['results'];
+                  if (list is List && list.isNotEmpty) pData = list.first;
+                  if (pData is Map) {
+                    final sig = pData['receipt_signature']?.toString();
+                    if (sig != null && sig.trim().isNotEmpty) {
+                      saleData = Map<String, dynamic>.from(pData);
+                      break;
+                    }
+                  }
+                }
+              }
+            } catch (_) {}
+          }
+        }
+
+        final liveSignature = saleData['receipt_signature']?.toString().trim();
+        if (liveSignature == null || liveSignature.isEmpty) {
+          debugPrint('DIGITAX_CN_PENDING: Credit note for Tx #${refundTx.id} is queued.');
+          return false;
+        }
+
+        final rcptNumberRaw = saleData['receipt_number'];
         final sdcRcptNo = (rcptNumberRaw != null && rcptNumberRaw.toString().isNotEmpty)
             ? rcptNumberRaw.toString()
             : 'CN-${refundTx.id}';
-        final markId = (data['receipt_signature']?.toString().isNotEmpty == true)
-            ? data['receipt_signature'].toString()
-            : 'MARK-CN-${refundTx.id}';
-        final internalData = (data['internal_data']?.toString().isNotEmpty == true)
-            ? data['internal_data'].toString()
-            : (config?.mrcNo ?? '');
-        final sdcId = (data['sdc_id']?.toString().isNotEmpty == true)
-            ? data['sdc_id'].toString()
-            : (config?.sdcId ?? '');
-        final qrUrl = (data['receipt_url']?.toString().isNotEmpty == true)
-            ? data['receipt_url'].toString()
+        final internalData = saleData['internal_data']?.toString() ?? (config?.mrcNo ?? '');
+        final sdcId = saleData['sdc_id']?.toString() ?? (saleData['serial_number']?.toString() ?? (config?.sdcId ?? ''));
+        final qrUrl = (saleData['receipt_url']?.toString().isNotEmpty == true)
+            ? saleData['receipt_url'].toString()
             : (sdcId.isNotEmpty ? 'https://smartinvoice.zra.org.zm/verify?tpin=${config?.tpin}&sdc=$sdcId&rcpt=$sdcRcptNo' : '');
 
         refundTx.zraSdcId = sdcId;
         refundTx.zraReceiptNumber = sdcRcptNo;
-        refundTx.zraMarkId = markId;
+        refundTx.zraMarkId = liveSignature;
         refundTx.zraInternalData = internalData;
         refundTx.zraQrCode = qrUrl;
         refundTx.zraInvoiceType = 'Credit Note';
@@ -1321,7 +1372,6 @@ class DigiTaxInventoryService {
 
         if (matchData is! Map) return false;
 
-        // Exact DigiTax OpenAPI field names — refresh from GET /sales response
         final rcptNumberRaw = matchData['receipt_number'];
         final parsedSdcRcptNo = (rcptNumberRaw != null && rcptNumberRaw.toString().isNotEmpty)
             ? rcptNumberRaw.toString() : null;
@@ -1329,8 +1379,11 @@ class DigiTaxInventoryService {
             ? matchData['receipt_signature'].toString() : null;
         final parsedInternalData = matchData['internal_data']?.toString().isNotEmpty == true
             ? matchData['internal_data'].toString() : null;
-        final parsedSdcId = matchData['sdc_id']?.toString().isNotEmpty == true
-            ? matchData['sdc_id'].toString() : null;
+        final parsedSdcId = (matchData['sdc_id']?.toString().isNotEmpty == true)
+            ? matchData['sdc_id'].toString()
+            : ((matchData['serial_number']?.toString().isNotEmpty == true)
+                ? matchData['serial_number'].toString()
+                : null);
         final parsedQrUrl = matchData['receipt_url']?.toString().isNotEmpty == true
             ? matchData['receipt_url'].toString() : null;
         final parsedInvoiceType = switch (matchData['receipt_type_code']?.toString()) {
@@ -1340,37 +1393,24 @@ class DigiTaxInventoryService {
           _ => matchData['kind']?.toString().replaceAll('_', ' ').toUpperCase(),
         };
 
-        bool updated = false;
-        if (parsedSdcRcptNo != null && transaction.zraReceiptNumber != parsedSdcRcptNo) {
-          transaction.zraReceiptNumber = parsedSdcRcptNo;
-          updated = true;
-        }
-        if (parsedSignature != null && transaction.zraMarkId != parsedSignature) {
+        if (parsedSignature != null && parsedSignature.isNotEmpty) {
           transaction.zraMarkId = parsedSignature;
-          updated = true;
-        }
-        if (parsedInternalData != null && transaction.zraInternalData != parsedInternalData) {
-          transaction.zraInternalData = parsedInternalData;
-          updated = true;
-        }
-        if (parsedSdcId != null && transaction.zraSdcId != parsedSdcId) {
-          transaction.zraSdcId = parsedSdcId;
-          updated = true;
-        }
-        if (parsedQrUrl != null && transaction.zraQrCode != parsedQrUrl) {
-          transaction.zraQrCode = parsedQrUrl;
-          updated = true;
-        }
-        if (parsedInvoiceType != null && transaction.zraInvoiceType != parsedInvoiceType) {
-          transaction.zraInvoiceType = parsedInvoiceType;
-          updated = true;
-        }
-
-        if (updated) {
+          if (parsedSdcRcptNo != null) transaction.zraReceiptNumber = parsedSdcRcptNo;
+          if (parsedInternalData != null) transaction.zraInternalData = parsedInternalData;
+          if (parsedSdcId != null) transaction.zraSdcId = parsedSdcId;
+          if (parsedQrUrl != null) transaction.zraQrCode = parsedQrUrl;
+          if (parsedInvoiceType != null) transaction.zraInvoiceType = parsedInvoiceType;
           transaction.zraStatus = 'APPROVED';
+
           await db.isar.writeTxn(() async {
             await db.isar.saleTransactions.put(transaction);
           });
+
+          if (parsedSdcId != null && parsedSdcId.isNotEmpty && config != null && config.sdcId != parsedSdcId) {
+            config.sdcId = parsedSdcId;
+            try { await db.saveStoreConfig(config); } catch (_) {}
+          }
+
           debugPrint('DIGITAX_REFRESHED_LIVE: Transaction #${transaction.id} updated -> SDC Inv: ${transaction.zraReceiptNumber}, Signature: ${transaction.zraMarkId}, Internal: ${transaction.zraInternalData}');
           return true;
         }
