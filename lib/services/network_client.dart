@@ -36,13 +36,36 @@ class NetworkClient {
           ? Dio(BaseOptions(baseUrl: 'http://$overrideHost:8080', connectTimeout: const Duration(seconds: 3)))
           : _dio;
       
-      final response = await client.get('/health');
+      final response = await client.get('/status');
       _isConnected = response.statusCode == 200;
       return _isConnected;
     } catch (e) {
       _isConnected = false;
       debugPrint('CONNECTION_TEST_FAILED: $e');
       return false;
+    }
+  }
+
+  /// Retrieve server configuration and branch info from the Manager POS.
+  Future<Map<String, dynamic>?> getServerInfo([String? overrideHost]) async {
+    try {
+      final client = overrideHost != null 
+          ? Dio(BaseOptions(baseUrl: 'http://$overrideHost:8080', connectTimeout: const Duration(seconds: 4)))
+          : _dio;
+      
+      final response = await client.get('/status');
+      if (response.statusCode == 200 && response.data != null) {
+        final data = response.data is String ? jsonDecode(response.data as String) : response.data;
+        if (data is Map<String, dynamic>) {
+          _isConnected = true;
+          return data;
+        }
+      }
+      return null;
+    } catch (e) {
+      _isConnected = false;
+      debugPrint('GET_SERVER_INFO_ERROR: $e');
+      return null;
     }
   }
 

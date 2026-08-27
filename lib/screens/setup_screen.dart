@@ -8,6 +8,9 @@ import 'package:beleka_pos/services/cloud_database_service.dart';
 import 'package:beleka_pos/models/models.dart';
 import 'package:beleka_pos/providers/auth_provider.dart';
 import 'package:beleka_pos/screens/auth/backup_restore_modal.dart';
+import 'package:beleka_pos/services/network_client.dart';
+import 'package:beleka_pos/providers/store_provider.dart';
+import 'package:isar/isar.dart';
 import 'package:beleka_pos/main.dart';
 
 class SetupScreen extends ConsumerStatefulWidget {
@@ -18,7 +21,7 @@ class SetupScreen extends ConsumerStatefulWidget {
 }
 
 class _SetupScreenState extends ConsumerState<SetupScreen> {
-  int _activeTab = 0; // 0 = Create New Store, 1 = Connect Cloud Branch / Log in
+  int _activeTab = 0; // 0 = Create New Store, 1 = Connect Cloud Branch, 2 = Link LAN Client Till
 
   // Tab 0: New Store Setup
   final _formKey = GlobalKey<FormState>();
@@ -36,6 +39,15 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
   final _cloudPinController = TextEditingController();
   final _cloudStoreCodeController = TextEditingController(text: 'STORE-001');
 
+  // Tab 2: Link Client Till (LAN Till Mode)
+  final _tillFormKey = GlobalKey<FormState>();
+  final _tillServerIpController = TextEditingController();
+  final _tillNameController = TextEditingController(text: 'TILL-01');
+  bool _isTestingTillLink = false;
+  String? _tillTestMessage;
+  bool? _tillTestSuccess;
+  Map<String, dynamic>? _detectedServerInfo;
+
   bool _isLoading = false;
   String? _errorMessage;
   String? _statusMessage;
@@ -51,6 +63,8 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     _cloudStaffIdController.dispose();
     _cloudPinController.dispose();
     _cloudStoreCodeController.dispose();
+    _tillServerIpController.dispose();
+    _tillNameController.dispose();
     super.dispose();
   }
 
@@ -324,6 +338,182 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     }
   }
 
+  Future<void> _handleTestTillLink() async {
+    final ip = _tillServerIpController.text.trim();
+    if (ip.isEmpty) {
+      setState(() {
+        _tillTestMessage = 'Please enter the Master POS IP address.';
+        _tillTestSuccess = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _isTestingTillLink = true;
+      _tillTestMessage = null;
+      _tillTestSuccess = null;
+      _detectedServerInfo = null;
+    });
+
+    try {
+      final client = NetworkClient(serverUrl: 'http://$ip:8080');
+      final info = await client.getServerInfo(ip);
+      if (info != null) {
+        final bName = info['businessName'] ?? info['serverName'] ?? 'Master POS';
+        final branch = info['branchName'] ?? 'Branch ${info['bhfId'] ?? '00'}';
+        final bhfId = info['bhfId'] ?? '00';
+        setState(() {
+          _isTestingTillLink = false;
+          _tillTestSuccess = true;
+          _detectedServerInfo = info;
+          _tillTestMessage = 'Connected to $bName ($branch • ZRA bhfId: $bhfId)';
+        });
+      } else {
+        setState(() {
+          _isTestingTillLink = false;
+          _tillTestSuccess = false;
+          _tillTestMessage = 'Could not reach Master POS on $ip:8080. Ensure Master POS is running on the same network.';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _isTestingTillLink = false;
+        _tillTestSuccess = false;
+        _tillTestMessage = 'Connection failed: $e';
+      });
+    }
+  }
+
+  Future<void> _handleLinkClientTill() async {
+    if (!_tillFormKey.currentState!.validate()) return;
+
+    final ip = _tillServerIpController.text.trim();
+    final tillName = _tillNameController.text.trim().toUpperCase();
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+      _statusMessage = 'Connecting to Master Branch POS ($ip:8080)...';
+    });
+
+    try {
+      final client = NetworkClient(serverUrl: 'http://$ip:8080');
+      final info = _detectedServerInfo ?? await client.getServerInfo(ip);
+      
+      if (info == null) {
+        throw Exception('Unable to reach Master POS at $ip:8080. Check Wi-Fi and IP address.');
+      }
+
+      final db = ref.read(databaseServiceProvider);
+      final isar = ref.read(isarProvider);
+
+      setState(() => _statusMessage = 'Configuring local till profile...');
+
+      final bName = (info['businessName'] ?? info['serverName'] ?? 'Beleka POS Store').toString();
+      final branch = (info['branchName'] ?? 'Main Branch').toString();
+      final bhfId = (info['bhfId'] ?? info['branchCode'] ?? '00').toString();
+      final currency = (info['currencySymbol'] ?? 'ZK').toString();
+      final tpin = (info['tpin'] ?? '').toString();
+      final taxType = (info['businessTaxType'] ?? 'TURNOVER_TAX').toString();
+
+      final config = StoreConfig()
+        ..businessName = bName
+        ..branchName = branch
+        ..bhfId = bhfId
+        ..currencySymbol = currency
+        ..tpin = tpin
+        ..businessTaxType = taxType
+        ..terminalName = tillName
+        ..isManagerMode = false
+        ..serverIp = ip
+        ..port = 8080
+        ..isCloudSyncEnabled = false;
+
+      await db.saveStoreConfig(config);
+
+      setState(() => _statusMessage = 'Downloading catalog & categories from Master POS...');
+      try {
+        final categories = await client.fetchCategories();
+        if (categories.isNotEmpty) {
+          await isar.writeTxn(() async {
+            await isar.categorys.putAll(categories);
+          });
+        }
+      } catch (e) {
+        debugPrint('Till categories pull warning: $e');
+      }
+
+      try {
+        final products = await client.fetchProducts();
+        if (products.isNotEmpty) {
+          await isar.writeTxn(() async {
+            await isar.products.putAll(products);
+          });
+        }
+      } catch (e) {
+        debugPrint('Till products pull warning: $e');
+      }
+
+      setState(() => _statusMessage = 'Downloading staff & cashiers from Master POS...');
+      try {
+        final users = await client.fetchUsers();
+        if (users.isNotEmpty) {
+          await isar.writeTxn(() async {
+            for (final uMap in users) {
+              final numericId = (uMap['numericId'] ?? '').toString();
+              if (numericId.isEmpty) continue;
+              final existing = await isar.users.filter().numericIdEqualTo(numericId).findFirst();
+              final u = existing ?? User();
+              u.numericId = numericId;
+              u.name = (uMap['name'] ?? 'Staff $numericId').toString();
+              u.role = (uMap['role'] ?? 'cashier').toString();
+              u.branchCode = bhfId;
+              u.branchName = branch;
+              u.isActive = uMap['isActive'] == true;
+              if (uMap['passwordHash'] != null && uMap['passwordHash'].toString().isNotEmpty) {
+                u.passwordHash = uMap['passwordHash'].toString();
+              } else if (u.passwordHash.isEmpty) {
+                u.passwordHash = hashPin('1234');
+              }
+              await isar.users.put(u);
+            }
+          });
+        }
+      } catch (e) {
+        debugPrint('Till users pull warning: $e');
+      }
+
+      // If no users were downloaded, create a fallback cashier user
+      final hasLocalUsers = await db.hasUsers();
+      if (!hasLocalUsers) {
+        final fallbackCashier = User()
+          ..numericId = '1001'
+          ..name = 'Cashier 1'
+          ..role = 'cashier'
+          ..passwordHash = hashPin('1234')
+          ..branchCode = bhfId
+          ..branchName = branch
+          ..isActive = true;
+        await db.saveUser(fallbackCashier);
+      }
+
+      // Invalidate providers to transition to LoginScreen
+      ref.invalidate(hasUsersProvider);
+      ref.invalidate(appStartupProvider);
+      ref.invalidate(storeConfigProvider);
+
+    } catch (e) {
+      setState(() => _errorMessage = 'Till Link Failed: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _statusMessage = null;
+        });
+      }
+    }
+  }
+
   String _generateRecoveryCode() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     final rnd = math.Random();
@@ -415,7 +605,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       backgroundColor: const Color(0xFF141418),
       body: Center(
         child: Container(
-          width: 540,
+          width: 580,
           padding: const EdgeInsets.all(36),
           decoration: BoxDecoration(
             color: const Color(0xFF1A1A1E),
@@ -472,12 +662,17 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                 ),
                 const SizedBox(height: 24),
 
-                // Mode Tabs (Create New vs Cloud Branch Login)
+                // Mode Tabs (Create New vs Cloud Branch vs LAN Till)
                 _buildTabSwitcher(),
                 const SizedBox(height: 24),
 
                 // Form based on active tab
-                if (_activeTab == 0) _buildNewStoreForm() else _buildCloudLoginForm(),
+                if (_activeTab == 0) 
+                  _buildNewStoreForm() 
+                else if (_activeTab == 1) 
+                  _buildCloudLoginForm() 
+                else 
+                  _buildLanTillForm(),
 
                 const SizedBox(height: 16),
                 Center(
@@ -526,7 +721,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
               borderRadius: BorderRadius.circular(10),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(vertical: 12),
+                padding: const EdgeInsets.symmetric(vertical: 10),
                 decoration: BoxDecoration(
                   color: _activeTab == 0 ? accentColor.withValues(alpha: 0.15) : Colors.transparent,
                   borderRadius: BorderRadius.circular(10),
@@ -539,14 +734,14 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                   children: [
                     Icon(
                       Icons.storefront_rounded,
-                      size: 16,
+                      size: 14,
                       color: _activeTab == 0 ? accentColor : Colors.white38,
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 6),
                     Text(
-                      'CREATE NEW STORE',
+                      'MASTER POS',
                       style: GoogleFonts.manrope(
-                        fontSize: 11,
+                        fontSize: 10,
                         fontWeight: FontWeight.w900,
                         color: _activeTab == 0 ? Colors.white : Colors.white38,
                       ),
@@ -566,7 +761,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
               borderRadius: BorderRadius.circular(10),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(vertical: 12),
+                padding: const EdgeInsets.symmetric(vertical: 10),
                 decoration: BoxDecoration(
                   color: _activeTab == 1 ? accentColor.withValues(alpha: 0.15) : Colors.transparent,
                   borderRadius: BorderRadius.circular(10),
@@ -579,14 +774,14 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                   children: [
                     Icon(
                       Icons.cloud_sync_rounded,
-                      size: 16,
+                      size: 14,
                       color: _activeTab == 1 ? accentColor : Colors.white38,
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 6),
                     Text(
-                      'CONNECT CLOUD / BRANCH',
+                      'CLOUD BRANCH',
                       style: GoogleFonts.manrope(
-                        fontSize: 11,
+                        fontSize: 10,
                         fontWeight: FontWeight.w900,
                         color: _activeTab == 1 ? Colors.white : Colors.white38,
                       ),
@@ -594,6 +789,248 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                   ],
                 ),
               ),
+            ),
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: InkWell(
+              onTap: () => setState(() {
+                _activeTab = 2;
+                _errorMessage = null;
+              }),
+              borderRadius: BorderRadius.circular(10),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(
+                  color: _activeTab == 2 ? accentColor.withValues(alpha: 0.15) : Colors.transparent,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: _activeTab == 2 ? accentColor.withValues(alpha: 0.4) : Colors.transparent,
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.lan_rounded,
+                      size: 14,
+                      color: _activeTab == 2 ? accentColor : Colors.white38,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'LINK TILL (LAN)',
+                      style: GoogleFonts.manrope(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                        color: _activeTab == 2 ? Colors.white : Colors.white38,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLanTillForm() {
+    const accentColor = Color(0xFFC1F11D);
+    return Form(
+      key: _tillFormKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: accentColor.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: accentColor.withValues(alpha: 0.2)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.info_outline_rounded, color: accentColor, size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Link this computer as a Cashier Till to the Master POS terminal running in your branch.',
+                    style: GoogleFonts.inter(color: Colors.white70, fontSize: 11, height: 1.4),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+
+          _buildField(
+            label: 'TILL CODE / IDENTIFIER',
+            controller: _tillNameController,
+            hint: 'e.g. TILL-01, CHECKOUT-2',
+            validator: (v) => (v == null || v.isEmpty) ? 'Enter till identifier' : null,
+          ),
+          const SizedBox(height: 16),
+
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                child: _buildField(
+                  label: 'MASTER POS IP ADDRESS',
+                  controller: _tillServerIpController,
+                  hint: 'e.g. 192.168.1.100',
+                  validator: (v) => (v == null || v.isEmpty) ? 'Enter Master POS IP' : null,
+                ),
+              ),
+              const SizedBox(width: 10),
+              SizedBox(
+                height: 48,
+                child: ElevatedButton.icon(
+                  onPressed: _isTestingTillLink ? null : _handleTestTillLink,
+                  icon: _isTestingTillLink 
+                      ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2))
+                      : const Icon(Icons.network_check_rounded, size: 16),
+                  label: Text('TEST LINK', style: GoogleFonts.manrope(fontWeight: FontWeight.w900, fontSize: 11)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white12,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          if (_tillTestMessage != null) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: _tillTestSuccess == true 
+                    ? const Color(0xFF10B981).withValues(alpha: 0.12)
+                    : Colors.red.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: _tillTestSuccess == true 
+                      ? const Color(0xFF10B981).withValues(alpha: 0.3)
+                      : Colors.red.withValues(alpha: 0.3),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    _tillTestSuccess == true ? Icons.check_circle_rounded : Icons.error_outline_rounded,
+                    color: _tillTestSuccess == true ? const Color(0xFF10B981) : Colors.redAccent,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _tillTestMessage!,
+                      style: GoogleFonts.inter(
+                        color: _tillTestSuccess == true ? const Color(0xFF10B981) : Colors.redAccent,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          const SizedBox(height: 24),
+
+          if (_statusMessage != null) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: accentColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: accentColor.withValues(alpha: 0.2)),
+              ),
+              child: Row(
+                children: [
+                  const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(color: accentColor, strokeWidth: 2),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      _statusMessage!,
+                      style: GoogleFonts.ibmPlexMono(
+                        color: accentColor,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+
+          if (_errorMessage != null) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.red.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _errorMessage!,
+                      style: GoogleFonts.inter(color: Colors.redAccent, fontSize: 11, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: ElevatedButton(
+              onPressed: _isLoading ? null : _handleLinkClientTill,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: accentColor,
+                foregroundColor: Colors.black,
+                elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: _isLoading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2.5),
+                    )
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.link_rounded, size: 18),
+                        const SizedBox(width: 8),
+                        Text(
+                          'LINK THIS TILL & LAUNCH POS',
+                          style: GoogleFonts.manrope(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
             ),
           ),
         ],

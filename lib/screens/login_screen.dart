@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:beleka_pos/screens/settings/reset_pin_modal.dart';
 import 'package:beleka_pos/screens/auth/backup_restore_modal.dart';
+import 'package:beleka_pos/screens/settings/network_sync_modal.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:beleka_pos/services/database_service.dart';
 import 'package:beleka_pos/providers/auth_provider.dart';
@@ -613,61 +614,105 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Recognized Employee or Default Header
-                if (_recognizedName != null) ...[
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(6),
+                // Recognized Employee or Default Header with LAN Till Button
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (_recognizedName != null) ...[
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(6),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFC1F11D).withValues(alpha: 0.15),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(Icons.check, size: 12, color: Color(0xFFC1F11D)),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'STAFF IDENTIFIED',
+                                  style: GoogleFonts.ibmPlexMono(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 2,
+                                    color: const Color(0xFFC1F11D),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              _recognizedName!.toUpperCase(),
+                              style: GoogleFonts.manrope(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.white,
+                                letterSpacing: -0.5,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ] else ...[
+                            Text(
+                              'TERMINAL AUTHENTICATION',
+                              style: GoogleFonts.manrope(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.white,
+                                letterSpacing: -0.5,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Enter your Staff ID and PIN to begin shift',
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                color: Colors.white.withValues(alpha: 0.45),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    InkWell(
+                      onTap: () => showDialog(
+                        context: context,
+                        builder: (context) => const NetworkSyncModal(),
+                      ),
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFC1F11D).withValues(alpha: 0.15),
-                          shape: BoxShape.circle,
+                          color: Colors.white.withValues(alpha: 0.05),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
                         ),
-                        child: const Icon(Icons.check, size: 12, color: Color(0xFFC1F11D)),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'STAFF IDENTIFIED',
-                        style: GoogleFonts.ibmPlexMono(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 2,
-                          color: const Color(0xFFC1F11D),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.lan_rounded, size: 14, color: Color(0xFFC1F11D)),
+                            const SizedBox(width: 6),
+                            Text(
+                              'LAN TILL IP',
+                              style: GoogleFonts.ibmPlexMono(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white70,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _recognizedName!.toUpperCase(),
-                    style: GoogleFonts.manrope(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.white,
-                      letterSpacing: -0.5,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ] else ...[
-                  Text(
-                    'TERMINAL AUTHENTICATION',
-                    style: GoogleFonts.manrope(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.white,
-                      letterSpacing: -0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Enter your Staff ID and PIN to begin shift',
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      color: Colors.white.withValues(alpha: 0.45),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
                 const SizedBox(height: 16),
 
                 // Role Toggle

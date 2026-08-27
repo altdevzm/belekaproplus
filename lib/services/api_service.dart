@@ -113,6 +113,8 @@ class ApiService {
 
   void _registerRoutes(Router router) {
     router.get('/status', _handleStatus);
+    router.get('/health', _handleStatus);
+    router.get('/info', _handleStatus);
     router.post('/auth/login', _handleLogin);
     router.get('/products', _handleGetProducts);
     router.get('/categories', _handleGetCategories);
@@ -129,11 +131,19 @@ class ApiService {
 
   // ─── Handlers ─────────────────────────────────────────────────
 
-  Response _handleStatus(Request request) {
+  Future<Response> _handleStatus(Request request) async {
+    final config = await _db.getStoreConfig();
     return Response.ok(
       jsonEncode({
         'status': 'ok',
-        'serverName': 'Beleka POS Manager',
+        'serverName': config?.businessName ?? 'Beleka POS Manager',
+        'businessName': config?.businessName ?? 'Beleka POS',
+        'branchName': config?.branchName ?? 'Main Branch',
+        'branchCode': (config?.bhfId != null && config!.bhfId.isNotEmpty) ? config.bhfId : '00',
+        'bhfId': (config?.bhfId != null && config!.bhfId.isNotEmpty) ? config.bhfId : '00',
+        'currencySymbol': config?.currencySymbol ?? 'ZK',
+        'tpin': config?.tpin ?? '',
+        'businessTaxType': config?.businessTaxType ?? 'TURNOVER_TAX',
         'timestamp': DateTime.now().toIso8601String(),
         'activeTerminals': _activeTerminals.length,
       }),
@@ -355,6 +365,9 @@ class ApiService {
                 'numericId': u.numericId,
                 'name': u.name,
                 'role': u.role,
+                'passwordHash': u.passwordHash,
+                'branchCode': u.branchCode,
+                'branchName': u.branchName,
                 'isActive': u.isActive,
               })
           .toList();

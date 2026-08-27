@@ -512,14 +512,48 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> {
     PosTerminal? terminal,
   }) {
     final isEditing = terminal != null;
+    final isOwner = ref.read(isOwnerProvider);
+    final currentUser = ref.read(authProvider);
+    final storeConfig = ref.read(storeConfigProvider).value;
+
+    final userBranchCode = (!isOwner && currentUser?.branchCode != null && currentUser!.branchCode!.isNotEmpty && currentUser.branchCode != '00')
+        ? currentUser.branchCode!
+        : ((!isOwner && storeConfig != null && storeConfig.bhfId.isNotEmpty && storeConfig.bhfId != '00')
+            ? storeConfig.bhfId
+            : (isOwner ? '00' : '01'));
+
+    final userBranchName = (!isOwner && currentUser?.branchName != null && currentUser!.branchName!.isNotEmpty)
+        ? currentUser.branchName!
+        : ((!isOwner && storeConfig != null && storeConfig.branchName != null && storeConfig.branchName!.isNotEmpty)
+            ? storeConfig.branchName!
+            : (isOwner ? 'Main Store (HQ)' : 'Branch $userBranchCode'));
+
+    final List<Map<String, String>> branchOptions = [];
+    if (isOwner) {
+      if (branches.isEmpty) {
+        branchOptions.add({'code': '00', 'name': 'Main Store (HQ)', 'bhfId': '00'});
+      } else {
+        for (final b in branches) {
+          branchOptions.add({'code': b.code, 'name': b.name, 'bhfId': b.bhfId});
+        }
+      }
+    } else {
+      final matchingBranch = branches.where((b) => b.bhfId == userBranchCode || b.code == userBranchCode).firstOrNull;
+      if (matchingBranch != null) {
+        branchOptions.add({'code': matchingBranch.code, 'name': matchingBranch.name, 'bhfId': matchingBranch.bhfId});
+      } else {
+        branchOptions.add({'code': 'BR-00$userBranchCode', 'name': userBranchName, 'bhfId': userBranchCode});
+      }
+    }
+
     final codeCtrl = TextEditingController(text: terminal?.terminalCode ?? 'TILL-0${(ref.read(posTerminalsProvider).value?.length ?? 0) + 1}');
     final nameCtrl = TextEditingController(text: terminal?.name ?? 'Main Checkout Counter');
     final ipCtrl = TextEditingController(text: terminal?.deviceIp ?? '');
     final serialCtrl = TextEditingController(text: terminal?.serialNumber ?? '');
 
-    String selectedBranchCode = terminal?.branchCode ?? (branches.isNotEmpty ? branches.first.code : '00');
-    String selectedBranchName = terminal?.branchName ?? (branches.isNotEmpty ? branches.first.name : 'Main Store (HQ)');
-    String selectedBhfId = terminal?.digitaxBhfId ?? (branches.isNotEmpty ? branches.first.bhfId : '00');
+    String selectedBranchCode = terminal?.branchCode ?? branchOptions.first['code']!;
+    String selectedBranchName = terminal?.branchName ?? branchOptions.first['name']!;
+    String selectedBhfId = terminal?.digitaxBhfId ?? branchOptions.first['bhfId']!;
     String? selectedCashierId = terminal?.assignedCashierId ?? (users.isNotEmpty ? users.first.numericId : null);
     String? selectedCashierName = terminal?.assignedCashierName ?? (users.isNotEmpty ? users.first.name : null);
     String status = terminal?.status ?? 'ACTIVE';
@@ -584,35 +618,28 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> {
                       initialValue: selectedBranchCode,
                       dropdownColor: const Color(0xFF222228),
                       style: const TextStyle(color: Colors.white),
-                      decoration: const InputDecoration(
-                        labelText: 'Assigned Store Branch *',
-                        labelStyle: TextStyle(color: Colors.white70),
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.storefront_rounded, color: Colors.white60),
+                      decoration: InputDecoration(
+                        labelText: isOwner ? 'Assigned Store Branch *' : 'Assigned Store Branch (Locked to your Branch)',
+                        labelStyle: const TextStyle(color: Colors.white70),
+                        border: const OutlineInputBorder(),
+                        prefixIcon: const Icon(Icons.storefront_rounded, color: Colors.white60),
                       ),
-                      items: branches.isEmpty
-                          ? [
-                              const DropdownMenuItem(
-                                value: '00',
-                                child: Text('Main Store (HQ) • ZRA: 00'),
-                              )
-                            ]
-                          : branches.map((b) => DropdownMenuItem(
-                              value: b.code,
-                              child: Text('${b.name} (ZRA bhfId: ${b.bhfId})'),
-                            )).toList(),
-                      onChanged: (code) {
+                      items: branchOptions.map((b) => DropdownMenuItem(
+                        value: b['code'],
+                        child: Text('${b['name']} (ZRA bhfId: ${b['bhfId']})'),
+                      )).toList(),
+                      onChanged: isOwner ? (code) {
                         if (code != null) {
                           setModalState(() {
                             selectedBranchCode = code;
-                            final matchingBranch = branches.where((b) => b.code == code).firstOrNull;
-                            if (matchingBranch != null) {
-                              selectedBranchName = matchingBranch.name;
-                              selectedBhfId = matchingBranch.bhfId;
+                            final matching = branchOptions.where((b) => b['code'] == code).firstOrNull;
+                            if (matching != null) {
+                              selectedBranchName = matching['name']!;
+                              selectedBhfId = matching['bhfId']!;
                             }
                           });
                         }
-                      },
+                      } : null,
                     ),
                     const SizedBox(height: 14),
 
