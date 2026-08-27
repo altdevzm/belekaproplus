@@ -752,7 +752,7 @@ class PrinterService {
         final letter = _getTaxLetter(rate);
         bytes += generator.text(_formatRow3(
           '$letter (${rate.toStringAsFixed(0)}%)',
-          CurrencyFormatter.format(values['vat']!, currency),
+          CurrencyFormatter.formatTaxPrecision(values['vat']!, currency),
           CurrencyFormatter.format(values['total']!, currency),
           colCount,
         ));
@@ -1207,6 +1207,18 @@ class PrinterService {
       commands.append('${"Change".padRight(18)}${CurrencyFormatter.format(transaction.changeAmount, currency).padLeft(14)}\n');
     }
 
+    // Tax Summary Breakdown for Star
+    commands.append('\nTAX SUMMARY BREAKDOWN\n');
+    commands.append('${"CODE/RATE".padRight(12)}${"TAX AMT".padLeft(11)}${"TOTAL".padLeft(9)}\n');
+    final starBreakdown = _getTaxBreakdown(items);
+    starBreakdown.forEach((rate, values) {
+      final letter = _getTaxLetter(rate);
+      final rateStr = '$letter (${rate.toStringAsFixed(0)}%)'.padRight(12);
+      final taxStr = CurrencyFormatter.formatTaxPrecision(values['vat']!, currency).padLeft(11);
+      final totStr = CurrencyFormatter.format(values['total']!, currency).padLeft(9);
+      commands.append('$rateStr$taxStr$totStr\n');
+    });
+
     // ZRA Fiscal Control Block for Star
     final sdcIdStr = (transaction.zraSdcId != null && transaction.zraSdcId!.isNotEmpty)
         ? transaction.zraSdcId!
@@ -1451,6 +1463,31 @@ class PrinterService {
                       pw.Text(CurrencyFormatter.format(transaction.changeAmount, currency), style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8)),
                     ],
                   ),
+
+                pw.SizedBox(height: 1.5 * pdf.PdfPageFormat.mm),
+                pw.Text('TAX SUMMARY BREAKDOWN', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7.5)),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text('CODE / RATE', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7)),
+                    pw.Text('TAX AMT', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7)),
+                    pw.Text('TOTAL', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7)),
+                  ],
+                ),
+                ...(() {
+                  final pdfBreakdown = _getTaxBreakdown(items);
+                  return pdfBreakdown.entries.map((entry) {
+                    final letter = _getTaxLetter(entry.key);
+                    return pw.Row(
+                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                      children: [
+                        pw.Text('$letter (${entry.key.toStringAsFixed(0)}%)', style: const pw.TextStyle(fontSize: 7)),
+                        pw.Text(CurrencyFormatter.formatTaxPrecision(entry.value['vat']!, currency), style: const pw.TextStyle(fontSize: 7)),
+                        pw.Text(CurrencyFormatter.format(entry.value['total']!, currency), style: const pw.TextStyle(fontSize: 7)),
+                      ],
+                    );
+                  }).toList();
+                })(),
 
                 pw.SizedBox(height: 2 * pdf.PdfPageFormat.mm),
                 pw.Text('--------------------------------'),

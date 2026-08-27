@@ -319,7 +319,7 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
           _buildTotalRow('DISCOUNT', -widget.transaction.discountAmount, currency, isDiscount: true),
           const SizedBox(height: 12),
         ],
-        _buildTotalRow('SALES TAX', widget.transaction.taxAmount, currency),
+        _buildTotalRow('SALES TAX', widget.transaction.taxAmount, currency, isTax: true),
         const SizedBox(height: 20),
         _buildTotalRow(
           'GRAND TOTAL', 
@@ -331,7 +331,7 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
     );
   }
 
-  Widget _buildTotalRow(String label, double amount, String currency, {bool isMain = false, bool isDiscount = false}) {
+  Widget _buildTotalRow(String label, double amount, String currency, {bool isMain = false, bool isDiscount = false, bool isTax = false}) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -345,7 +345,7 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
           ),
         ),
         Text(
-          '$currency${amount.toStringAsFixed(2)}',
+          '$currency${amount.toStringAsFixed(isTax ? 4 : 2)}',
           style: GoogleFonts.inter(
             fontSize: isMain ? 36 : 16,
             fontWeight: FontWeight.w900,

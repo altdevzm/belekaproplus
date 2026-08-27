@@ -594,6 +594,48 @@ class ExportService {
               ],
 
               pw.SizedBox(height: 3),
+              pw.Text('TAX SUMMARY BREAKDOWN', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7.5)),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text('CODE / RATE', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7)),
+                  pw.Text('TAX AMT', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7)),
+                  pw.Text('TOTAL', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7)),
+                ],
+              ),
+              ...(() {
+                final Map<double, Map<String, double>> exportBreakdown = {};
+                for (var item in items) {
+                  final rate = item.taxRateAtSale;
+                  final total = item.priceAtSale * item.quantity;
+                  double vat = 0;
+                  if (item.isTaxInclusiveAtSale) {
+                    vat = total - (total / (1 + (rate / 100)));
+                  } else {
+                    vat = total * (rate / 100);
+                  }
+                  if (!exportBreakdown.containsKey(rate)) {
+                    exportBreakdown[rate] = {'vat': 0.0, 'total': 0.0};
+                  }
+                  exportBreakdown[rate]!['vat'] = exportBreakdown[rate]!['vat']! + vat;
+                  exportBreakdown[rate]!['total'] = exportBreakdown[rate]!['total']! + total;
+                }
+                return exportBreakdown.entries.map((entry) {
+                  final letter = entry.key >= 16.0 ? 'A' : (entry.key > 0 ? 'B' : 'C');
+                  final vatFormatted = '$currency${entry.value['vat']!.toStringAsFixed(4)}';
+                  final totFormatted = '$currency${entry.value['total']!.toStringAsFixed(2)}';
+                  return pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text('$letter (${entry.key.toStringAsFixed(0)}%)', style: const pw.TextStyle(fontSize: 7)),
+                      pw.Text(vatFormatted, style: const pw.TextStyle(fontSize: 7)),
+                      pw.Text(totFormatted, style: const pw.TextStyle(fontSize: 7)),
+                    ],
+                  );
+                }).toList();
+              })(),
+
+              pw.SizedBox(height: 3),
               pw.Text('--------------------------------'),
               if (isFiscalApproved) ...[
                 pw.Text('*** ZRA FISCAL CONTROL DATA ***', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8)),

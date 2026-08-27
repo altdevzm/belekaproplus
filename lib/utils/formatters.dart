@@ -24,4 +24,14 @@ class CurrencyFormatter {
     final cleanSymbol = symbol.toUpperCase().trim();
     return '$cleanSymbol ${amount.abs().toStringAsFixed(2)}';
   }
+
+  /// Formats tax and fiscal breakdown amounts with 4 decimal places matching DigiTax/ZRA VSDC precision
+  /// Result: ZK 12.0000 or ZK 1.6552
+  static String formatTaxPrecision(double amount, String symbol) {
+    if (amount.isNaN) return '${symbol.toUpperCase().trim()} 0.0000';
+    final formatter = NumberFormat("#,##0.0000");
+    final absAmount = amount.abs();
+    final formattedValue = formatter.format(absAmount);
+    return '${symbol.toUpperCase().trim()} $formattedValue';
+  }
 }
