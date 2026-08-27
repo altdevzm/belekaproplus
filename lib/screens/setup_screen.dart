@@ -21,9 +21,16 @@ class SetupScreen extends ConsumerStatefulWidget {
 }
 
 class _SetupScreenState extends ConsumerState<SetupScreen> {
-  int _activeTab = 0; // 0 = Create New Store, 1 = Connect Cloud Branch, 2 = Link LAN Client Till
+  int _activeTab = 0; // 0 = Owner Cloud Login, 1 = Create New Store, 2 = Connect Cloud Branch, 3 = Link LAN Client Till
 
-  // Tab 0: New Store Setup
+  // Tab 0: Owner Cloud Login (Restore / HQ Master Setup)
+  final _ownerFormKey = GlobalKey<FormState>();
+  final _ownerUrlController = TextEditingController(text: 'http://23.139.36.20:8003');
+  final _ownerIdController = TextEditingController();
+  final _ownerPinController = TextEditingController();
+  final _ownerStoreCodeController = TextEditingController();
+
+  // Tab 1: New Store Setup (Offline Blank)
   final _formKey = GlobalKey<FormState>();
   final _businessNameController = TextEditingController();
   final _adminIdController = TextEditingController();
@@ -32,14 +39,14 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
   final _serverIpController = TextEditingController();
   bool _isManagerMode = true;
 
-  // Tab 1: Connect Existing Cloud Branch / Log in
+  // Tab 2: Connect Existing Cloud Branch / Log in
   final _cloudFormKey = GlobalKey<FormState>();
   final _cloudUrlController = TextEditingController(text: 'http://23.139.36.20:8003');
   final _cloudStaffIdController = TextEditingController();
   final _cloudPinController = TextEditingController();
   final _cloudStoreCodeController = TextEditingController(text: 'STORE-001');
 
-  // Tab 2: Link Client Till (LAN Till Mode)
+  // Tab 3: Link Client Till (LAN Till Mode)
   final _tillFormKey = GlobalKey<FormState>();
   final _tillServerIpController = TextEditingController();
   final _tillNameController = TextEditingController(text: 'TILL-01');
@@ -54,6 +61,10 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
 
   @override
   void dispose() {
+    _ownerUrlController.dispose();
+    _ownerIdController.dispose();
+    _ownerPinController.dispose();
+    _ownerStoreCodeController.dispose();
     _businessNameController.dispose();
     _adminIdController.dispose();
     _pinController.dispose();
@@ -66,6 +77,212 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     _tillServerIpController.dispose();
     _tillNameController.dispose();
     super.dispose();
+  }
+
+  Future<void> _handleOwnerLogin() async {
+    if (!_ownerFormKey.currentState!.validate()) return;
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+      _statusMessage = 'Connecting to Beleka Cloud Server...';
+    });
+
+    try {
+      final db = ref.read(databaseServiceProvider);
+      final cloudService = CloudDatabaseService();
+      final baseUrl = _ownerUrlController.text.trim();
+      final userId = _ownerIdController.text.trim();
+      final pin = _ownerPinController.text.trim();
+      final storeCodeInput = _ownerStoreCodeController.text.trim();
+
+      // 1. Verify connection to Cloud Server
+      final isConnected = await cloudService.checkConnection(baseUrl);
+      if (!isConnected) {
+        throw Exception('Cannot reach Cloud Server at $baseUrl. Verify internet connection.');
+      }
+
+      setState(() => _statusMessage = 'Fetching Headquarters store profile & fiscal configs...');
+
+      // 2. Fetch available store branches from Cloud DB
+      final stores = await cloudService.getStores(baseUrl);
+      if (stores.isEmpty) {
+        throw Exception('No store records found on the cloud server. Please create a new store or verify server URL.');
+      }
+
+      Map<String, dynamic>? targetStore;
+      if (storeCodeInput.isNotEmpty) {
+        final query = storeCodeInput.trim().toUpperCase();
+        for (final s in stores) {
+          final sCode = (s['store_code'] ?? '').toString().toUpperCase();
+          final sName = (s['name'] ?? '').toString().toUpperCase();
+          final sBranch = (s['branch_name'] ?? '').toString().toUpperCase();
+          final sBhf = (s['bhf_id'] ?? '').toString().toUpperCase();
+          if (sCode == query || sName == query || sBranch == query || sBhf == query) {
+            targetStore = s;
+            break;
+          }
+        }
+      }
+
+      // Default to Headquarters (bhf_id == '00') or first store
+      targetStore ??= stores.firstWhere(
+        (s) => (s['bhf_id'] ?? '').toString() == '00',
+        orElse: () => stores.first,
+      );
+
+      final storeId = targetStore['id'] as int? ?? 1;
+      final storeName = (targetStore['name'] as String?) ?? 'Beleka Master Store';
+      final branchName = (targetStore['branch_name'] as String?) ?? 'Headquarters (HQ)';
+      final bhfId = (targetStore['bhf_id'] as String?) ?? '00';
+      final rawTpin = targetStore['tpin'] as String?;
+      final tpin = (rawTpin != null && rawTpin.trim().isNotEmpty) ? rawTpin.trim() : '1000000000';
+      final finalStoreCode = (targetStore['store_code'] as String?) ?? 'STORE-001';
+      final businessTaxType = (targetStore['business_tax_type'] as String?) ?? 'VAT_STANDARD';
+      final digitaxApiKey = (targetStore['digitax_api_key'] as String?) ?? '';
+      final digitaxEnv = (targetStore['digitax_environment'] as String?) ?? 'sandbox';
+      final currency = (targetStore['currency_symbol'] as String?) ?? 'ZK';
+
+      setState(() => _statusMessage = 'Authenticating Owner account credentials...');
+
+      // 3. Fetch cloud users for this store
+      final cloudUsers = await cloudService.getUsers(baseUrl, storeId: storeId);
+      Map<String, dynamic>? matchedUser;
+      
+      for (final u in cloudUsers) {
+        final uNumId = (u['numeric_id'] ?? '').toString();
+        if (uNumId == userId) {
+          matchedUser = u;
+          break;
+        }
+      }
+
+      // 4. Save Store Config with full HQ master data
+      final recoveryCode = _generateRecoveryCode();
+      final config = StoreConfig()
+        ..businessName = storeName
+        ..branchName = branchName
+        ..terminalName = 'MANAGER-01'
+        ..currencySymbol = currency
+        ..isManagerMode = true
+        ..isCloudSyncEnabled = true
+        ..cloudApiUrl = baseUrl
+        ..cloudStoreId = storeId
+        ..cloudStoreCode = finalStoreCode
+        ..bhfId = bhfId
+        ..tpin = tpin
+        ..businessTaxType = businessTaxType
+        ..digitaxApiKey = digitaxApiKey
+        ..digitaxEnvironment = digitaxEnv
+        ..taxRate = businessTaxType == 'TURNOVER_TAX' ? 3.0 : (businessTaxType == 'EXEMPT' ? 0.0 : 16.0)
+        ..recoveryCodeHash = hashPin(recoveryCode);
+
+      await db.saveStoreConfig(config);
+
+      // 5. Populate users from Cloud DB into local offline Isar DB
+      User? activeOwner;
+      if (cloudUsers.isNotEmpty) {
+        for (final u in cloudUsers) {
+          final uNumId = (u['numeric_id'] ?? '').toString();
+          final isTarget = (uNumId == userId);
+          final userObj = User()
+            ..numericId = uNumId
+            ..name = (u['name'] ?? (isTarget ? 'Owner' : 'Staff')).toString()
+            ..role = (isTarget ? 'owner' : (u['role'] ?? 'cashier').toString())
+            ..passwordHash = isTarget ? hashPin(pin) : (u['password_hash'] ?? hashPin('1234'))
+            ..branchName = (u['branch_name'] ?? branchName).toString()
+            ..branchCode = bhfId
+            ..phone = u['phone']?.toString();
+          
+          await db.saveUser(userObj);
+          if (isTarget) {
+            activeOwner = userObj;
+          }
+        }
+      }
+
+      if (activeOwner == null) {
+        activeOwner = User()
+          ..numericId = userId
+          ..passwordHash = hashPin(pin)
+          ..name = matchedUser != null ? (matchedUser['name'] ?? 'Store Owner') : 'Store Owner'
+          ..role = 'owner'
+          ..branchName = branchName
+          ..branchCode = bhfId;
+        await db.saveUser(activeOwner);
+
+        // Also push owner user to Cloud DB
+        try {
+          await cloudService.syncUser(
+            baseUrl: baseUrl,
+            storeId: storeId,
+            user: activeOwner,
+            plainPin: pin,
+          );
+        } catch (_) {}
+      }
+
+      // 6. Pull products & categories from Cloud DB into local database
+      setState(() => _statusMessage = 'Downloading master product catalog and inventory...');
+      try {
+        final cloudProducts = await cloudService.getProducts(baseUrl, storeId: storeId);
+        if (cloudProducts.isNotEmpty) {
+          final Set<String> catNames = {};
+          for (final p in cloudProducts) {
+            final catName = (p['category'] as String?) ?? 'General';
+            catNames.add(catName);
+          }
+          if (catNames.isNotEmpty) {
+            final catList = catNames.map((name) => Category(name: name)).toList();
+            await db.saveCategories(catList);
+          }
+
+          final savedCategories = await db.getAllCategories();
+          final Map<String, int> catMap = {
+            for (final c in savedCategories) c.name: c.id,
+          };
+
+          for (final p in cloudProducts) {
+            final catName = (p['category'] as String?) ?? 'General';
+            final catId = catMap[catName] ?? 1;
+            final prod = Product(
+              name: (p['name'] as String?) ?? 'Product',
+              sku: (p['sku'] as String?) ?? (p['barcode'] as String?) ?? 'SKU-${DateTime.now().millisecondsSinceEpoch}',
+              price: (p['price'] as num?)?.toDouble() ?? 0.0,
+              unitCost: (p['cost_price'] as num?)?.toDouble() ?? 0.0,
+              stockLevel: (p['stock_quantity'] as num?)?.toInt() ?? 0,
+              categoryId: catId,
+              branchCode: bhfId,
+              branchName: branchName,
+            );
+            await db.saveProduct(prod);
+          }
+        }
+      } catch (e) {
+        debugPrint('Cloud product pull notice: $e');
+      }
+
+      // 7. Show Recovery Dialog
+      if (mounted) {
+        await _showRecoveryDialog(recoveryCode);
+      }
+
+      // 8. Auto-login & Navigate to POS Shell
+      ref.read(authProvider.notifier).login(activeOwner);
+      ref.invalidate(hasUsersProvider);
+      ref.invalidate(appStartupProvider);
+      ref.invalidate(storeConfigProvider);
+
+    } catch (e) {
+      setState(() => _errorMessage = 'Owner Login Failed: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _statusMessage = null;
+        });
+      }
+    }
   }
 
   Future<void> _handleSetup() async {
@@ -605,7 +822,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       backgroundColor: const Color(0xFF141418),
       body: Center(
         child: Container(
-          width: 580,
+          width: 620,
           padding: const EdgeInsets.all(36),
           decoration: BoxDecoration(
             color: const Color(0xFF1A1A1E),
@@ -662,14 +879,16 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                 ),
                 const SizedBox(height: 24),
 
-                // Mode Tabs (Create New vs Cloud Branch vs LAN Till)
+                // Mode Tabs (Owner Login vs New Store vs Cloud Branch vs LAN Till)
                 _buildTabSwitcher(),
                 const SizedBox(height: 24),
 
                 // Form based on active tab
-                if (_activeTab == 0) 
-                  _buildNewStoreForm() 
+                if (_activeTab == 0)
+                  _buildOwnerLoginForm()
                 else if (_activeTab == 1) 
+                  _buildNewStoreForm() 
+                else if (_activeTab == 2) 
                   _buildCloudLoginForm() 
                 else 
                   _buildLanTillForm(),
@@ -712,6 +931,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       ),
       child: Row(
         children: [
+          // Tab 0: Owner Login
           Expanded(
             child: InkWell(
               onTap: () => setState(() {
@@ -721,7 +941,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
               borderRadius: BorderRadius.circular(10),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(vertical: 10),
+                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 2),
                 decoration: BoxDecoration(
                   color: _activeTab == 0 ? accentColor.withValues(alpha: 0.15) : Colors.transparent,
                   borderRadius: BorderRadius.circular(10),
@@ -733,17 +953,20 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(
-                      Icons.storefront_rounded,
+                      Icons.admin_panel_settings_rounded,
                       size: 14,
                       color: _activeTab == 0 ? accentColor : Colors.white38,
                     ),
-                    const SizedBox(width: 6),
-                    Text(
-                      'MASTER POS',
-                      style: GoogleFonts.manrope(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w900,
-                        color: _activeTab == 0 ? Colors.white : Colors.white38,
+                    const SizedBox(width: 4),
+                    Flexible(
+                      child: Text(
+                        'OWNER LOGIN',
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.manrope(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w900,
+                          color: _activeTab == 0 ? Colors.white : Colors.white38,
+                        ),
                       ),
                     ),
                   ],
@@ -751,7 +974,9 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
               ),
             ),
           ),
-          const SizedBox(width: 4),
+          const SizedBox(width: 3),
+
+          // Tab 1: New Store Setup
           Expanded(
             child: InkWell(
               onTap: () => setState(() {
@@ -761,7 +986,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
               borderRadius: BorderRadius.circular(10),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(vertical: 10),
+                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 2),
                 decoration: BoxDecoration(
                   color: _activeTab == 1 ? accentColor.withValues(alpha: 0.15) : Colors.transparent,
                   borderRadius: BorderRadius.circular(10),
@@ -773,17 +998,20 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(
-                      Icons.cloud_sync_rounded,
+                      Icons.storefront_rounded,
                       size: 14,
                       color: _activeTab == 1 ? accentColor : Colors.white38,
                     ),
-                    const SizedBox(width: 6),
-                    Text(
-                      'CLOUD BRANCH',
-                      style: GoogleFonts.manrope(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w900,
-                        color: _activeTab == 1 ? Colors.white : Colors.white38,
+                    const SizedBox(width: 4),
+                    Flexible(
+                      child: Text(
+                        'NEW STORE',
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.manrope(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w900,
+                          color: _activeTab == 1 ? Colors.white : Colors.white38,
+                        ),
                       ),
                     ),
                   ],
@@ -791,7 +1019,9 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
               ),
             ),
           ),
-          const SizedBox(width: 4),
+          const SizedBox(width: 3),
+
+          // Tab 2: Cloud Branch
           Expanded(
             child: InkWell(
               onTap: () => setState(() {
@@ -801,7 +1031,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
               borderRadius: BorderRadius.circular(10),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(vertical: 10),
+                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 2),
                 decoration: BoxDecoration(
                   color: _activeTab == 2 ? accentColor.withValues(alpha: 0.15) : Colors.transparent,
                   borderRadius: BorderRadius.circular(10),
@@ -813,17 +1043,65 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(
-                      Icons.lan_rounded,
+                      Icons.cloud_sync_rounded,
                       size: 14,
                       color: _activeTab == 2 ? accentColor : Colors.white38,
                     ),
-                    const SizedBox(width: 6),
-                    Text(
-                      'LINK TILL (LAN)',
-                      style: GoogleFonts.manrope(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w900,
-                        color: _activeTab == 2 ? Colors.white : Colors.white38,
+                    const SizedBox(width: 4),
+                    Flexible(
+                      child: Text(
+                        'BRANCH',
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.manrope(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w900,
+                          color: _activeTab == 2 ? Colors.white : Colors.white38,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 3),
+
+          // Tab 3: LAN Till Link
+          Expanded(
+            child: InkWell(
+              onTap: () => setState(() {
+                _activeTab = 3;
+                _errorMessage = null;
+              }),
+              borderRadius: BorderRadius.circular(10),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 2),
+                decoration: BoxDecoration(
+                  color: _activeTab == 3 ? accentColor.withValues(alpha: 0.15) : Colors.transparent,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: _activeTab == 3 ? accentColor.withValues(alpha: 0.4) : Colors.transparent,
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.lan_rounded,
+                      size: 14,
+                      color: _activeTab == 3 ? accentColor : Colors.white38,
+                    ),
+                    const SizedBox(width: 4),
+                    Flexible(
+                      child: Text(
+                        'LINK TILL',
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.manrope(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w900,
+                          color: _activeTab == 3 ? Colors.white : Colors.white38,
+                        ),
                       ),
                     ),
                   ],
@@ -1031,6 +1309,105 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                         ),
                       ],
                     ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOwnerLoginForm() {
+    return Form(
+      key: _ownerFormKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            margin: const EdgeInsets.only(bottom: 16),
+            decoration: BoxDecoration(
+              color: const Color(0xFFC1F11D).withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFC1F11D).withValues(alpha: 0.2)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.admin_panel_settings_rounded, color: Color(0xFFC1F11D), size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Log in with your existing Owner / Master account to restore your store profile, DigiTax ZRA settings, staff users, and product catalog.',
+                    style: GoogleFonts.inter(color: Colors.white70, fontSize: 11.5, height: 1.4),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          _buildField(
+            label: 'CLOUD API SERVER URL',
+            controller: _ownerUrlController,
+            hint: 'http://23.139.36.20:8003',
+            validator: (v) => (v == null || v.isEmpty) ? 'Cloud Server URL is required' : null,
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                flex: 3,
+                child: _buildField(
+                  label: 'OWNER USER / STAFF ID',
+                  controller: _ownerIdController,
+                  hint: 'e.g. 1001 or admin',
+                  isStaffId: true,
+                  validator: (v) => (v == null || v.isEmpty) ? 'Enter Owner ID' : null,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                flex: 3,
+                child: _buildField(
+                  label: 'STORE CODE (OPTIONAL)',
+                  controller: _ownerStoreCodeController,
+                  hint: 'Auto-detects HQ',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _buildField(
+            label: 'OWNER PASSWORD / PIN',
+            controller: _ownerPinController,
+            hint: '****',
+            isPin: true,
+            validator: (v) => (v == null || v.isEmpty) ? 'Enter Owner Password or PIN' : null,
+          ),
+          const SizedBox(height: 24),
+          if (_errorMessage != null) _buildErrorMessage(),
+          if (_statusMessage != null) _buildStatusMessage(),
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: ElevatedButton.icon(
+              onPressed: _isLoading ? null : _handleOwnerLogin,
+              icon: _isLoading
+                  ? const SizedBox.shrink()
+                  : const Icon(Icons.cloud_download_rounded, color: Colors.black, size: 20),
+              label: _isLoading
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2.5),
+                    )
+                  : Text(
+                      'RESTORE & LOG IN AS OWNER',
+                      style: GoogleFonts.manrope(fontWeight: FontWeight.w900, letterSpacing: 1),
+                    ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFC1F11D),
+                foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 0,
+              ),
             ),
           ),
         ],
