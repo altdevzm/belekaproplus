@@ -442,12 +442,18 @@ class ExportService {
     final dateOnlyStr = DateFormat('dd/MM/yyyy').format(transaction.timestamp);
     final timeOnlyStr = DateFormat('HH:mm:ss').format(transaction.timestamp);
 
+    String formatZraInvoiceNo(String? raw) {
+      if (raw == null || raw.trim().isEmpty || raw.trim() == 'PENDING' || raw.trim() == 'null') return 'PENDING';
+      final trimmed = raw.trim();
+      if (trimmed.toUpperCase().startsWith('INV1/') || trimmed.toUpperCase().startsWith('INV/') || trimmed.toUpperCase().startsWith('CN')) return trimmed;
+      final clean = trimmed.replaceFirst(RegExp(r'^(INV|CN)-0*'), '').replaceFirst(RegExp(r'^(INV|CN)-'), '');
+      return 'INV1/$clean';
+    }
+
     final sdcIdStr = (transaction.zraSdcId != null && transaction.zraSdcId!.isNotEmpty)
         ? transaction.zraSdcId!
         : (config?.sdcId?.isNotEmpty == true ? config!.sdcId! : 'PENDING');
-    final sdcInvNoStr = (transaction.zraReceiptNumber != null && transaction.zraReceiptNumber!.isNotEmpty && !transaction.zraReceiptNumber!.startsWith('INV-'))
-        ? transaction.zraReceiptNumber!
-        : 'PENDING';
+    final sdcInvNoStr = formatZraInvoiceNo(transaction.zraReceiptNumber);
     final signatureStr = (transaction.zraMarkId != null && transaction.zraMarkId!.isNotEmpty)
         ? transaction.zraMarkId!
         : 'PENDING';

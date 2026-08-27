@@ -360,12 +360,18 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
   Widget _buildZraFiscalCard(StoreConfig? config) {
     final dateFormatted = DateFormat('dd/MM/yyyy').format(widget.transaction.timestamp);
     final timeFormatted = DateFormat('HH:mm:ss').format(widget.transaction.timestamp);
+    String formatZraInvoiceNo(String? raw) {
+      if (raw == null || raw.trim().isEmpty || raw.trim() == 'PENDING' || raw.trim() == 'null') return 'PENDING';
+      final trimmed = raw.trim();
+      if (trimmed.toUpperCase().startsWith('INV1/') || trimmed.toUpperCase().startsWith('INV/') || trimmed.toUpperCase().startsWith('CN')) return trimmed;
+      final clean = trimmed.replaceFirst(RegExp(r'^(INV|CN)-0*'), '').replaceFirst(RegExp(r'^(INV|CN)-'), '');
+      return 'INV1/$clean';
+    }
+
     final sdcIdStr = (widget.transaction.zraSdcId != null && widget.transaction.zraSdcId!.isNotEmpty)
         ? widget.transaction.zraSdcId!
         : (config?.sdcId?.isNotEmpty == true ? config!.sdcId! : 'PENDING');
-    final sdcInvNoStr = (widget.transaction.zraReceiptNumber != null && widget.transaction.zraReceiptNumber!.isNotEmpty && !widget.transaction.zraReceiptNumber!.startsWith('INV-'))
-        ? widget.transaction.zraReceiptNumber!
-        : 'PENDING';
+    final sdcInvNoStr = formatZraInvoiceNo(widget.transaction.zraReceiptNumber);
     final signatureStr = (widget.transaction.zraMarkId != null && widget.transaction.zraMarkId!.isNotEmpty)
         ? widget.transaction.zraMarkId!
         : 'PENDING';

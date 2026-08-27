@@ -1002,11 +1002,18 @@ class DigiTaxInventoryService {
           return false;
         }
 
-        // SDC Invoice Number (from DigiTax / ZRA Smart Invoice)
+        // SDC Invoice Number (ZRA Smart Invoice format: INV1/{number})
         final rawRcpt = saleData['receipt_number'] ?? saleData['invoice_number'] ?? saleData['sdc_invoice_number'] ?? saleData['sale_number'];
-        final sdcRcptNo = (rawRcpt != null && rawRcpt.toString().trim().isNotEmpty && rawRcpt.toString() != 'null')
-            ? rawRcpt.toString().trim()
-            : 'PENDING';
+        String sdcRcptNo = 'PENDING';
+        if (rawRcpt != null && rawRcpt.toString().trim().isNotEmpty && rawRcpt.toString() != 'null') {
+          final rcptStr = rawRcpt.toString().trim();
+          if (rcptStr.toUpperCase().startsWith('INV1/') || rcptStr.toUpperCase().startsWith('INV/') || rcptStr.toUpperCase().startsWith('CN')) {
+            sdcRcptNo = rcptStr;
+          } else {
+            final cleanNum = rcptStr.replaceFirst(RegExp(r'^(INV|CN)-0*'), '').replaceFirst(RegExp(r'^(INV|CN)-'), '');
+            sdcRcptNo = 'INV1/$cleanNum';
+          }
+        }
 
         // ZRA VSDC Internal Data
         final internalData = saleData['internal_data']?.toString() ?? (config?.mrcNo ?? '');
@@ -1373,8 +1380,16 @@ class DigiTaxInventoryService {
         if (matchData is! Map) return false;
 
         final rawRcpt = matchData['receipt_number'] ?? matchData['invoice_number'] ?? matchData['sdc_invoice_number'] ?? matchData['sale_number'];
-        final parsedSdcRcptNo = (rawRcpt != null && rawRcpt.toString().trim().isNotEmpty && rawRcpt.toString() != 'null')
-            ? rawRcpt.toString().trim() : null;
+        String? parsedSdcRcptNo;
+        if (rawRcpt != null && rawRcpt.toString().trim().isNotEmpty && rawRcpt.toString() != 'null') {
+          final rcptStr = rawRcpt.toString().trim();
+          if (rcptStr.toUpperCase().startsWith('INV1/') || rcptStr.toUpperCase().startsWith('INV/') || rcptStr.toUpperCase().startsWith('CN')) {
+            parsedSdcRcptNo = rcptStr;
+          } else {
+            final cleanNum = rcptStr.replaceFirst(RegExp(r'^(INV|CN)-0*'), '').replaceFirst(RegExp(r'^(INV|CN)-'), '');
+            parsedSdcRcptNo = 'INV1/$cleanNum';
+          }
+        }
         final parsedSignature = matchData['receipt_signature']?.toString().isNotEmpty == true
             ? matchData['receipt_signature'].toString() : null;
         final parsedInternalData = matchData['internal_data']?.toString().isNotEmpty == true
