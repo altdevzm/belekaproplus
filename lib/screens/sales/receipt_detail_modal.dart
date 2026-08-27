@@ -628,6 +628,12 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
                     return;
                   }
 
+                  // Refresh from DigiTax first if fiscal data has not yet arrived
+                  if (config?.digitaxApiKey?.isNotEmpty == true && 
+                      (widget.transaction.zraReceiptNumber == null || widget.transaction.zraReceiptNumber!.isEmpty)) {
+                    await ref.read(digitaxInventoryServiceProvider).refreshTransactionFiscalData(widget.transaction);
+                  }
+
                   final printerService = ref.read(printerServiceProvider);
                   
                   if (!printerService.isConnected) {

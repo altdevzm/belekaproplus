@@ -1726,6 +1726,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       await db.saveTransaction(transaction, saleItems);
       
       // Fiscalize with DigiTax VSDC Cloud (Live ZRA Smart Invoice & Server-Side Tax Calculations)
+      final hasDigitax = config?.digitaxApiKey != null && config!.digitaxApiKey!.trim().isNotEmpty;
       final fiscalized = await ref.read(digitaxInventoryServiceProvider).fiscalizeSaleTransaction(transaction, saleItems);
 
       // Attempt local real-time sync (or queue for offline)
@@ -1744,12 +1745,15 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         }
       }
 
+      // ONLY print when pulled/verified from DigiTax (or if DigiTax is not configured)
       if (config?.autoPrintReceipt != false) {
-        await printer.printReceipt(transaction, saleItems, config: config);
-      }
-
-      if (!fiscalized) {
-        _scheduleDigitaxFiscalRefresh(transaction);
+        if (!hasDigitax || fiscalized) {
+          await printer.printReceipt(transaction, saleItems, config: config);
+        } else {
+          // If DigiTax is active but fiscalization is taking longer, do NOT print placeholder now;
+          // schedule background refresh which will trigger printing once live fiscal data arrives.
+          _scheduleDigitaxFiscalRefreshAndPrint(transaction, saleItems);
+        }
       }
 
       if (mounted) {
@@ -1765,6 +1769,27 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                   'Change Due: ${CurrencyFormatter.format(change, config?.currencySymbol ?? "ZK")}', 
                   style: const TextStyle(color: Color(0xFFC1F11D), fontSize: 22, fontWeight: FontWeight.bold),
                 ),
+                if (hasDigitax && !fiscalized) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEAB308).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        Icon(Icons.hourglass_top_rounded, color: Color(0xFFEAB308), size: 14),
+                        SizedBox(width: 6),
+                        Text(
+                          'DigiTax Fiscalizing... Receipt will print automatically',
+                          style: TextStyle(color: Color(0xFFEAB308), fontSize: 11, fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ],
             ),
             actions: [
@@ -1793,13 +1818,20 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     }
   }
 
-  void _scheduleDigitaxFiscalRefresh(SaleTransaction tx) {
-    Future.delayed(const Duration(seconds: 4), () async {
+  void _scheduleDigitaxFiscalRefreshAndPrint(SaleTransaction tx, List<SaleItem> items) {
+    Future.delayed(const Duration(seconds: 3), () async {
       try {
         final dtService = ref.read(digitaxInventoryServiceProvider);
-        await dtService.refreshTransactionFiscalData(tx);
+        final refreshed = await dtService.refreshTransactionFiscalData(tx);
+        if (refreshed && mounted) {
+          final config = ref.read(storeConfigProvider).value;
+          if (config?.autoPrintReceipt != false) {
+            await ref.read(printerServiceProvider).printReceipt(tx, items, config: config);
+            debugPrint('DIGITAX_ASYNC_PRINT: Live receipt printed after background confirmation for Tx #${tx.id}');
+          }
+        }
       } catch (e) {
-        debugPrint('Delayed fiscal refresh notice: $e');
+        debugPrint('Delayed fiscal refresh and print notice: $e');
       }
     });
   }
