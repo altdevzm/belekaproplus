@@ -1051,6 +1051,118 @@ class PrinterService {
     }
   }
 
+  /// Prints a dedicated Financial Summary Slip (Revenue, Profit, Tax/VAT, Transactions, Payment Breakdown)
+  /// for Daily, Weekly, Monthly, Yearly, or Custom date ranges.
+  Future<bool> printFinancialSummarySlip({
+    required String periodTitle,
+    required String dateRangeLabel,
+    required Map<String, double> stats,
+    StoreConfig? config,
+  }) async {
+    if (!_isConnected) {
+      await autoConnect(config: config);
+    }
+
+    final currency = config?.currencySymbol ?? 'K';
+    final revenue = stats['revenue'] ?? 0.0;
+    final profit = stats['profit'] ?? 0.0;
+    final tax = stats['tax'] ?? 0.0;
+    final count = (stats['count'] ?? 0.0).toInt();
+    final cash = stats['cash'] ?? 0.0;
+    final card = stats['card'] ?? 0.0;
+    final mobileMoney = stats['mobile_money'] ?? 0.0;
+    final profitMargin = revenue > 0 ? ((profit / revenue) * 100).toStringAsFixed(1) : '0.0';
+
+    if (_activeModel == PrinterModel.system) {
+      return await _printFinancialSummaryWithSystem(
+        periodTitle: periodTitle,
+        dateRangeLabel: dateRangeLabel,
+        revenue: revenue,
+        profit: profit,
+        tax: tax,
+        count: count,
+        cash: cash,
+        card: card,
+        mobileMoney: mobileMoney,
+        profitMargin: profitMargin,
+        currency: currency,
+        config: config,
+      );
+    }
+
+    if (_activeModel == PrinterModel.star) {
+      return await _printFinancialSummaryWithStar(
+        periodTitle: periodTitle,
+        dateRangeLabel: dateRangeLabel,
+        revenue: revenue,
+        profit: profit,
+        tax: tax,
+        count: count,
+        cash: cash,
+        card: card,
+        mobileMoney: mobileMoney,
+        profitMargin: profitMargin,
+        currency: currency,
+        config: config,
+      );
+    }
+
+    // ESC/POS Driver
+    try {
+      final preset = activePreset;
+      final colCount = preset.columnCount;
+      final profile = await CapabilityProfile.load();
+      final generator = Generator(preset.escPosSize, profile);
+      List<int> bytes = [];
+
+      bytes += generator.reset();
+
+      // Header
+      bytes += generator.setStyles(const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2));
+      bytes += generator.text(periodTitle.toUpperCase());
+      bytes += generator.setStyles(const PosStyles(align: PosAlign.center));
+      bytes += generator.text(config?.businessName ?? 'BELEKA POS');
+      if (config?.address != null && config!.address!.isNotEmpty) bytes += generator.text(config.address!);
+      if (config?.tpin != null && config!.tpin!.isNotEmpty) bytes += generator.text('TPIN: ${config.tpin}');
+      bytes += generator.text('Period: $dateRangeLabel');
+      bytes += generator.text('Generated: ${DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now())}');
+      bytes += generator.feed(1);
+      bytes += generator.text(preset.doubleDivider);
+
+      // Core Financial Metrics
+      bytes += generator.setStyles(const PosStyles(bold: true));
+      bytes += generator.text('FINANCIAL TOTALS');
+      bytes += generator.setStyles(const PosStyles());
+      bytes += generator.text(_formatRow2('Transactions', '$count sales', colCount));
+      bytes += generator.text(_formatRow2('Total Revenue', CurrencyFormatter.format(revenue, currency), colCount), styles: const PosStyles(bold: true));
+      bytes += generator.text(_formatRow2('Gross Profit', CurrencyFormatter.format(profit, currency), colCount), styles: const PosStyles(bold: true));
+      bytes += generator.text(_formatRow2('Profit Margin', '$profitMargin%', colCount));
+      bytes += generator.text(_formatRow2('Total Tax / VAT', CurrencyFormatter.formatTaxPrecision(tax, currency), colCount));
+      bytes += generator.text(preset.singleDivider);
+
+      // Payment Tender Breakdown
+      bytes += generator.setStyles(const PosStyles(bold: true));
+      bytes += generator.text('PAYMENT BREAKDOWN');
+      bytes += generator.setStyles(const PosStyles());
+      if (cash > 0) bytes += generator.text(_formatRow2('Cash', CurrencyFormatter.format(cash, currency), colCount));
+      if (card > 0) bytes += generator.text(_formatRow2('Card', CurrencyFormatter.format(card, currency), colCount));
+      if (mobileMoney > 0) bytes += generator.text(_formatRow2('Mobile Money', CurrencyFormatter.format(mobileMoney, currency), colCount));
+      bytes += generator.text(preset.singleDivider);
+      bytes += generator.text(_formatRow2('TOTAL COLLECTED', CurrencyFormatter.format(revenue, currency), colCount), styles: const PosStyles(bold: true));
+
+      bytes += generator.text(preset.doubleDivider);
+      bytes += generator.setStyles(const PosStyles(align: PosAlign.center));
+      bytes += generator.text('*** END OF SUMMARY SLIP ***');
+      bytes += generator.feed(3);
+      bytes += generator.cut();
+
+      return await _sendBytes(bytes);
+    } catch (e) {
+      debugPrint('Financial summary print error: $e');
+      return false;
+    }
+  }
+
   /// Sends raw ESC/POS byte sequence over the active driver pipeline
   Future<bool> _sendBytes(List<int> bytes) async {
     // 1. Direct TCP Socket Driver
@@ -1675,6 +1787,190 @@ class PrinterService {
       }
     } catch (e) {
       debugPrint('Summary print error: $e');
+      return false;
+    }
+  }
+
+  Future<bool> _printFinancialSummaryWithSystem({
+    required String periodTitle,
+    required String dateRangeLabel,
+    required double revenue,
+    required double profit,
+    required double tax,
+    required int count,
+    required double cash,
+    required double card,
+    required double mobileMoney,
+    required String profitMargin,
+    required String currency,
+    StoreConfig? config,
+  }) async {
+    try {
+      final doc = pw.Document();
+
+      doc.addPage(
+        pw.Page(
+          pageFormat: pdf.PdfPageFormat.roll80,
+          margin: const pw.EdgeInsets.all(5 * pdf.PdfPageFormat.mm),
+          build: (pw.Context context) {
+            return pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.center,
+              children: [
+                pw.Text(periodTitle.toUpperCase(), style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 13)),
+                pw.Text(config?.businessName ?? 'BELEKA POS', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
+                if (config?.address != null && config!.address!.isNotEmpty)
+                  pw.Text(config.address!, style: const pw.TextStyle(fontSize: 8)),
+                if (config?.tpin != null && config!.tpin!.isNotEmpty)
+                  pw.Text('TPIN: ${config.tpin}', style: const pw.TextStyle(fontSize: 8)),
+                pw.Text('Period: $dateRangeLabel', style: const pw.TextStyle(fontSize: 8)),
+                pw.Text('Generated: ${DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now())}', style: const pw.TextStyle(fontSize: 7.5)),
+                pw.SizedBox(height: 2 * pdf.PdfPageFormat.mm),
+                pw.Divider(thickness: 1),
+
+                pw.Align(alignment: pw.Alignment.centerLeft, child: pw.Text('FINANCIAL TOTALS', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9))),
+                pw.SizedBox(height: 1 * pdf.PdfPageFormat.mm),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [pw.Text('Transactions', style: const pw.TextStyle(fontSize: 8)), pw.Text('$count sales', style: const pw.TextStyle(fontSize: 8))],
+                ),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text('Total Revenue', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8.5)),
+                    pw.Text(CurrencyFormatter.format(revenue, currency), style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8.5)),
+                  ],
+                ),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text('Gross Profit', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8.5)),
+                    pw.Text(CurrencyFormatter.format(profit, currency), style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8.5)),
+                  ],
+                ),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [pw.Text('Profit Margin', style: const pw.TextStyle(fontSize: 8)), pw.Text('$profitMargin%', style: const pw.TextStyle(fontSize: 8))],
+                ),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [pw.Text('Total Tax / VAT', style: const pw.TextStyle(fontSize: 8)), pw.Text(CurrencyFormatter.formatTaxPrecision(tax, currency), style: const pw.TextStyle(fontSize: 8))],
+                ),
+
+                pw.SizedBox(height: 2 * pdf.PdfPageFormat.mm),
+                pw.Divider(thickness: 0.5),
+                pw.Align(alignment: pw.Alignment.centerLeft, child: pw.Text('PAYMENT BREAKDOWN', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9))),
+                pw.SizedBox(height: 1 * pdf.PdfPageFormat.mm),
+                if (cash > 0)
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [pw.Text('Cash', style: const pw.TextStyle(fontSize: 8)), pw.Text(CurrencyFormatter.format(cash, currency), style: const pw.TextStyle(fontSize: 8))],
+                  ),
+                if (card > 0)
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [pw.Text('Card', style: const pw.TextStyle(fontSize: 8)), pw.Text(CurrencyFormatter.format(card, currency), style: const pw.TextStyle(fontSize: 8))],
+                  ),
+                if (mobileMoney > 0)
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [pw.Text('Mobile Money', style: const pw.TextStyle(fontSize: 8)), pw.Text(CurrencyFormatter.format(mobileMoney, currency), style: const pw.TextStyle(fontSize: 8))],
+                  ),
+                pw.Divider(thickness: 0.5),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text('TOTAL COLLECTED', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8.5)),
+                    pw.Text(CurrencyFormatter.format(revenue, currency), style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8.5)),
+                  ],
+                ),
+                pw.SizedBox(height: 3 * pdf.PdfPageFormat.mm),
+                pw.Text('*** END OF SUMMARY SLIP ***', style: const pw.TextStyle(fontSize: 7.5)),
+              ],
+            );
+          },
+        ),
+      );
+
+      final slipName = '${periodTitle.replaceAll(' ', '_')}_Slip';
+      if (_activeSystemPrinter != null) {
+        return await pnt.Printing.directPrintPdf(
+          printer: _activeSystemPrinter!,
+          onLayout: (pdf.PdfPageFormat format) async => doc.save(),
+          name: slipName,
+        );
+      } else {
+        return await pnt.Printing.layoutPdf(
+          onLayout: (pdf.PdfPageFormat format) async => doc.save(),
+          name: slipName,
+        );
+      }
+    } catch (e) {
+      debugPrint('Financial summary system print error: $e');
+      return false;
+    }
+  }
+
+  Future<bool> _printFinancialSummaryWithStar({
+    required String periodTitle,
+    required String dateRangeLabel,
+    required double revenue,
+    required double profit,
+    required double tax,
+    required int count,
+    required double cash,
+    required double card,
+    required double mobileMoney,
+    required String profitMargin,
+    required String currency,
+    StoreConfig? config,
+  }) async {
+    try {
+      var commands = star.PrintCommands();
+
+      commands.appendAlignment(star.StarAlignmentPosition.Center);
+      commands.appendEmphasis(true);
+      commands.append('$periodTitle\n');
+      commands.append('${config?.businessName ?? 'BELEKA POS'}\n');
+      commands.appendEmphasis(false);
+      if (config?.address != null && config!.address!.isNotEmpty) commands.append('${config.address!}\n');
+      if (config?.tpin != null && config!.tpin!.isNotEmpty) commands.append('TPIN: ${config.tpin}\n');
+      commands.append('Period: $dateRangeLabel\n');
+      commands.append('Generated: ${DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now())}\n');
+      commands.append('--------------------------------\n');
+      commands.appendAlignment(star.StarAlignmentPosition.Left);
+
+      commands.appendEmphasis(true);
+      commands.append('FINANCIAL TOTALS\n');
+      commands.appendEmphasis(false);
+      commands.append('${"Transactions".padRight(18)}${"$count sales".padLeft(14)}\n');
+      commands.append('${"Total Revenue".padRight(18)}${CurrencyFormatter.format(revenue, currency).padLeft(14)}\n');
+      commands.append('${"Gross Profit".padRight(18)}${CurrencyFormatter.format(profit, currency).padLeft(14)}\n');
+      commands.append('${"Profit Margin".padRight(18)}${"$profitMargin%".padLeft(14)}\n');
+      commands.append('${"Total Tax/VAT".padRight(18)}${CurrencyFormatter.formatTaxPrecision(tax, currency).padLeft(14)}\n');
+      commands.append('--------------------------------\n');
+
+      commands.appendEmphasis(true);
+      commands.append('PAYMENT BREAKDOWN\n');
+      commands.appendEmphasis(false);
+      if (cash > 0) commands.append('${"Cash".padRight(18)}${CurrencyFormatter.format(cash, currency).padLeft(14)}\n');
+      if (card > 0) commands.append('${"Card".padRight(18)}${CurrencyFormatter.format(card, currency).padLeft(14)}\n');
+      if (mobileMoney > 0) commands.append('${"Mobile Money".padRight(18)}${CurrencyFormatter.format(mobileMoney, currency).padLeft(14)}\n');
+      commands.append('--------------------------------\n');
+      commands.append('${"TOTAL COLLECTED".padRight(18)}${CurrencyFormatter.format(revenue, currency).padLeft(14)}\n');
+      commands.append('================================\n');
+      commands.appendAlignment(star.StarAlignmentPosition.Center);
+      commands.append('*** END OF SUMMARY SLIP ***\n\n\n');
+      commands.appendCutPaper(star.StarCutPaperAction.PartialCutWithFeed);
+
+      if (_activeDevice?.address == null) return false;
+      final result = await star.StarPrnt.sendCommands(
+        portName: _activeDevice!.address!,
+        emulation: _starEmulation.text,
+        printCommands: commands,
+      );
+      return result.toString().contains('Success');
+    } catch (e) {
+      debugPrint('Star financial summary print error: $e');
       return false;
     }
   }

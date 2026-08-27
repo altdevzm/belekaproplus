@@ -11,6 +11,10 @@ import 'package:beleka_pos/screens/sales/receipt_detail_modal.dart';
 import 'package:beleka_pos/services/digitax_inventory_service.dart';
 import 'package:beleka_pos/services/printer_service.dart';
 
+enum ReportPeriod { daily, weekly, monthly, yearly, custom }
+
+final reportPeriodProvider = StateProvider<ReportPeriod>((ref) => ReportPeriod.daily);
+
 final reportDateRangeProvider = StateProvider<DateTimeRange>((ref) {
   final now = DateTime.now();
   return DateTimeRange(
@@ -76,9 +80,55 @@ final reportTopProductsProvider = Provider<List<Map<String, dynamic>>>((ref) {
 class ReportsScreen extends ConsumerWidget {
   const ReportsScreen({super.key});
 
+  void _applyPeriod(WidgetRef ref, ReportPeriod period) {
+    ref.read(reportPeriodProvider.notifier).state = period;
+    final now = DateTime.now();
+
+    DateTime start;
+    DateTime end = DateTime(now.year, now.month, now.day, 23, 59, 59, 999);
+
+    switch (period) {
+      case ReportPeriod.daily:
+        start = DateTime(now.year, now.month, now.day, 0, 0, 0, 0);
+        break;
+      case ReportPeriod.weekly:
+        final daysToMonday = (now.weekday - DateTime.monday) % 7;
+        final startOfWeek = now.subtract(Duration(days: daysToMonday));
+        start = DateTime(startOfWeek.year, startOfWeek.month, startOfWeek.day, 0, 0, 0, 0);
+        break;
+      case ReportPeriod.monthly:
+        start = DateTime(now.year, now.month, 1, 0, 0, 0, 0);
+        break;
+      case ReportPeriod.yearly:
+        start = DateTime(now.year, 1, 1, 0, 0, 0, 0);
+        break;
+      case ReportPeriod.custom:
+        return; // Custom range handled by DatePicker
+    }
+
+    ref.read(reportDateRangeProvider.notifier).state = DateTimeRange(start: start, end: end);
+  }
+
+  String _getPeriodTitle(ReportPeriod period, DateTimeRange range) {
+    final df = DateFormat('dd MMM yyyy');
+    switch (period) {
+      case ReportPeriod.daily:
+        return 'DAILY FINANCIAL SUMMARY (${df.format(range.start)})';
+      case ReportPeriod.weekly:
+        return 'WEEKLY FINANCIAL SUMMARY (${df.format(range.start)} - ${df.format(range.end)})';
+      case ReportPeriod.monthly:
+        return 'MONTHLY FINANCIAL SUMMARY (${DateFormat('MMMM yyyy').format(range.start)})';
+      case ReportPeriod.yearly:
+        return 'YEARLY FINANCIAL SUMMARY (${range.start.year})';
+      case ReportPeriod.custom:
+        return 'FINANCIAL SUMMARY (${df.format(range.start)} - ${df.format(range.end)})';
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final range = ref.watch(reportDateRangeProvider);
+    final activePeriod = ref.watch(reportPeriodProvider);
     final transactionsAsync = ref.watch(reportTransactionsProvider);
     final stats = ref.watch(reportStatsProvider);
     final topProducts = ref.watch(reportTopProductsProvider);
@@ -89,14 +139,16 @@ class ReportsScreen extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildHeader(context, ref, range),
-          const SizedBox(height: 24),
+          _buildHeader(context, ref, range, activePeriod, stats),
+          const SizedBox(height: 16),
+          _buildPeriodSelector(context, ref, activePeriod, range),
+          const SizedBox(height: 20),
           Expanded(
             child: SingleChildScrollView(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildSummaryCards(context, ref, stats, currency),
+                  _buildSummaryCards(context, ref, stats, currency, activePeriod, range),
                   const SizedBox(height: 32),
                   if (topProducts.isNotEmpty) ...[
                     _buildTopProductsSection(context, topProducts),
@@ -104,7 +156,7 @@ class ReportsScreen extends ConsumerWidget {
                   ],
                   transactionsAsync.when(
                     data: (transactions) => SizedBox(
-                      height: 500, // Fixed height or adjust as needed
+                      height: 500,
                       child: _buildTransactionList(context, ref, transactions, currency),
                     ),
                     loading: () => const Center(child: CircularProgressIndicator(color: Color(0xFFC1F11D))),
@@ -119,7 +171,99 @@ class ReportsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildHeader(BuildContext context, WidgetRef ref, DateTimeRange range) {
+  Widget _buildPeriodSelector(BuildContext context, WidgetRef ref, ReportPeriod activePeriod, DateTimeRange range) {
+    final options = [
+      {'period': ReportPeriod.daily, 'label': '📅 Daily (Today)'},
+      {'period': ReportPeriod.weekly, 'label': '📆 Weekly (This Week)'},
+      {'period': ReportPeriod.monthly, 'label': '📊 Monthly (This Month)'},
+      {'period': ReportPeriod.yearly, 'label': '📈 Yearly (This Year)'},
+      {'period': ReportPeriod.custom, 'label': '🗓️ Custom Range'},
+    ];
+
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: const Color(0xFF161619),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: options.map((opt) {
+            final period = opt['period'] as ReportPeriod;
+            final isSelected = activePeriod == period;
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              child: InkWell(
+                onTap: () {
+                  if (period == ReportPeriod.custom) {
+                    _openCustomDatePicker(context, ref, range);
+                  } else {
+                    _applyPeriod(ref, period);
+                  }
+                },
+                borderRadius: BorderRadius.circular(8),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isSelected ? const Color(0xFFC1F11D) : Colors.transparent,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    opt['label'] as String,
+                    style: GoogleFonts.manrope(
+                      fontSize: 12,
+                      fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
+                      color: isSelected ? Colors.black : Colors.white70,
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openCustomDatePicker(BuildContext context, WidgetRef ref, DateTimeRange range) async {
+    final picked = await showDateRangePicker(
+      context: context,
+      initialDateRange: range,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now().add(const Duration(days: 1)),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: Color(0xFFC1F11D),
+              onPrimary: Colors.black,
+              surface: Color(0xFF1A1A1E),
+              onSurface: Colors.white,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      ref.read(reportPeriodProvider.notifier).state = ReportPeriod.custom;
+      ref.read(reportDateRangeProvider.notifier).state = DateTimeRange(
+        start: DateTime(picked.start.year, picked.start.month, picked.start.day, 0, 0, 0, 0),
+        end: DateTime(picked.end.year, picked.end.month, picked.end.day, 23, 59, 59, 999),
+      );
+    }
+  }
+
+  Widget _buildHeader(
+    BuildContext context,
+    WidgetRef ref,
+    DateTimeRange range,
+    ReportPeriod activePeriod,
+    Map<String, double> stats,
+  ) {
     final dateFormat = DateFormat('MMM d, yyyy');
     
     return Row(
@@ -148,8 +292,40 @@ class ReportsScreen extends ConsumerWidget {
         ),
         Row(
           children: [
-            _buildDateRangePicker(context, ref, range),
-            const SizedBox(width: 12),
+            ActionButton(
+              icon: Icons.print_rounded,
+              label: 'Print Financial Slip',
+              isPrimary: true,
+              onPressed: () async {
+                final printer = ref.read(printerServiceProvider);
+                final config = ref.read(storeConfigProvider).value;
+                final df = DateFormat('dd MMM yyyy');
+                final dateSubtitle = (range.start.year == range.end.year && range.start.month == range.end.month && range.start.day == range.end.day)
+                    ? df.format(range.start)
+                    : '${df.format(range.start)} - ${df.format(range.end)}';
+
+                final title = _getPeriodTitle(activePeriod, range);
+
+                final printed = await printer.printFinancialSummarySlip(
+                  periodTitle: title,
+                  dateRangeLabel: dateSubtitle,
+                  stats: stats,
+                  config: config,
+                );
+
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(printed
+                          ? '$title printed successfully!'
+                          : 'Print command sent (check printer connection).'),
+                      backgroundColor: printed ? const Color(0xFF10B981) : Colors.orangeAccent,
+                    ),
+                  );
+                }
+              },
+            ),
+            const SizedBox(width: 10),
             ActionButton(
               icon: Icons.receipt_long_rounded,
               label: 'ZRA Fiscal Z-Report',
@@ -174,45 +350,11 @@ class ReportsScreen extends ConsumerWidget {
                 }
               },
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 10),
             _buildExportMenu(context, ref),
           ],
         ),
       ],
-    );
-  }
-
-  Widget _buildDateRangePicker(BuildContext context, WidgetRef ref, DateTimeRange range) {
-    return ActionButton(
-      icon: Icons.calendar_today_rounded,
-      label: 'Select Date Range',
-      onPressed: () async {
-        final picked = await showDateRangePicker(
-          context: context,
-          initialDateRange: range,
-          firstDate: DateTime(2020),
-          lastDate: DateTime.now().add(const Duration(days: 1)),
-          builder: (context, child) {
-            return Theme(
-              data: Theme.of(context).copyWith(
-                colorScheme: const ColorScheme.dark(
-                  primary: Color(0xFFC1F11D),
-                  onPrimary: Colors.black,
-                  surface: Color(0xFF1A1A1E),
-                  onSurface: Colors.white,
-                ),
-              ),
-              child: child!,
-            );
-          },
-        );
-        if (picked != null) {
-          ref.read(reportDateRangeProvider.notifier).state = DateTimeRange(
-            start: DateTime(picked.start.year, picked.start.month, picked.start.day, 0, 0, 0, 0),
-            end: DateTime(picked.end.year, picked.end.month, picked.end.day, 23, 59, 59, 999),
-          );
-        }
-      },
     );
   }
 
@@ -254,7 +396,14 @@ class ReportsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildSummaryCards(BuildContext context, WidgetRef ref, Map<String, double> stats, String currency) {
+  Widget _buildSummaryCards(
+    BuildContext context,
+    WidgetRef ref,
+    Map<String, double> stats,
+    String currency,
+    ReportPeriod activePeriod,
+    DateTimeRange range,
+  ) {
     return Column(
       children: [
         Column(
