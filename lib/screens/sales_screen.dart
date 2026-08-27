@@ -1745,13 +1745,12 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         }
       }
 
-      // ONLY print when pulled/verified from DigiTax (or if DigiTax is not configured)
+      // Option A: Print receipt immediately so customer always leaves with proof of purchase.
+      // If online/fiscalized -> prints Tax Invoice with live ZRA QR code.
+      // If offline/pending -> prints Customer Sales Slip and syncs fiscal data in the background.
       if (config?.autoPrintReceipt != false) {
-        if (!hasDigitax || fiscalized) {
-          await printer.printReceipt(transaction, saleItems, config: config);
-        } else {
-          // If DigiTax is active but fiscalization is taking longer, do NOT print placeholder now;
-          // schedule background refresh which will trigger printing once live fiscal data arrives.
+        await printer.printReceipt(transaction, saleItems, config: config);
+        if (hasDigitax && !fiscalized) {
           _scheduleDigitaxFiscalRefreshAndPrint(transaction, saleItems);
         }
       }

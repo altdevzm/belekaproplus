@@ -464,6 +464,14 @@ class ExportService {
         ? transaction.zraQrCode!
         : 'https://smartinvoice.zra.org.zm/verify?tpin=${config?.tpin ?? "1000000000"}&sdc=$sdcIdStr&rcpt=$sdcInvNoStr';
 
+    final isFiscalApproved = transaction.zraStatus == 'APPROVED' &&
+                             transaction.zraMarkId != null &&
+                             transaction.zraMarkId!.isNotEmpty &&
+                             transaction.zraMarkId != 'PENDING';
+    final receiptTitle = transaction.isCreditNote
+        ? 'ZRA FISCAL CREDIT NOTE'
+        : (isFiscalApproved ? 'TAX INVOICE / OFFICIAL RECEIPT' : 'CUSTOMER SALES SLIP');
+
     pdf.addPage(
       pw.Page(
         pageFormat: const PdfPageFormat(80 * PdfPageFormat.mm, double.infinity, marginAll: 4 * PdfPageFormat.mm),
@@ -493,7 +501,7 @@ class ExportService {
 
               pw.SizedBox(height: 4),
               pw.Text('================================'),
-              pw.Text('TAX INVOICE / OFFICIAL RECEIPT', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
+              pw.Text(receiptTitle, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
               pw.Text('================================'),
               
               pw.Row(
@@ -587,67 +595,73 @@ class ExportService {
 
               pw.SizedBox(height: 3),
               pw.Text('--------------------------------'),
-              pw.Text('*** ZRA FISCAL CONTROL DATA ***', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8)),
-              pw.Text('--------------------------------'),
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Text('Date:', style: const pw.TextStyle(fontSize: 7)),
-                  pw.Text(dateOnlyStr, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7)),
-                ],
-              ),
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Text('Time:', style: const pw.TextStyle(fontSize: 7)),
-                  pw.Text(timeOnlyStr, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7)),
-                ],
-              ),
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Text('SDC Id:', style: const pw.TextStyle(fontSize: 7)),
-                  pw.Text(sdcIdStr, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7)),
-                ],
-              ),
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Text('SDC Invoice No:', style: const pw.TextStyle(fontSize: 7)),
-                  pw.Text(sdcInvNoStr, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7)),
-                ],
-              ),
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Text('Signature:', style: const pw.TextStyle(fontSize: 7)),
-                  pw.Text(signatureStr, style: const pw.TextStyle(fontSize: 6.5)),
-                ],
-              ),
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Text('Internal Data:', style: const pw.TextStyle(fontSize: 7)),
-                  pw.Text(internalDataStr, style: const pw.TextStyle(fontSize: 6.5)),
-                ],
-              ),
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Text('Invoice Type:', style: const pw.TextStyle(fontSize: 7)),
-                  pw.Text(transaction.zraInvoiceType ?? 'Normal Sale', style: const pw.TextStyle(fontSize: 6.5)),
-                ],
-              ),
-              
-              pw.SizedBox(height: 2),
-              pw.BarcodeWidget(
-                barcode: pw.Barcode.qrCode(),
-                data: zraQrData,
-                width: 55,
-                height: 55,
-              ),
-              pw.SizedBox(height: 1),
-              pw.Text('Scan QR Code to Verify on ZRA Portal', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 6.5)),
+              if (isFiscalApproved) ...[
+                pw.Text('*** ZRA FISCAL CONTROL DATA ***', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8)),
+                pw.Text('--------------------------------'),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text('Date:', style: const pw.TextStyle(fontSize: 7)),
+                    pw.Text(dateOnlyStr, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7)),
+                  ],
+                ),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text('Time:', style: const pw.TextStyle(fontSize: 7)),
+                    pw.Text(timeOnlyStr, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7)),
+                  ],
+                ),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text('SDC Id:', style: const pw.TextStyle(fontSize: 7)),
+                    pw.Text(sdcIdStr, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7)),
+                  ],
+                ),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text('SDC Invoice No:', style: const pw.TextStyle(fontSize: 7)),
+                    pw.Text(sdcInvNoStr, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7)),
+                  ],
+                ),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text('Signature:', style: const pw.TextStyle(fontSize: 7)),
+                    pw.Text(signatureStr, style: const pw.TextStyle(fontSize: 6.5)),
+                  ],
+                ),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text('Internal Data:', style: const pw.TextStyle(fontSize: 7)),
+                    pw.Text(internalDataStr, style: const pw.TextStyle(fontSize: 6.5)),
+                  ],
+                ),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text('Invoice Type:', style: const pw.TextStyle(fontSize: 7)),
+                    pw.Text(transaction.zraInvoiceType ?? 'Normal Sale', style: const pw.TextStyle(fontSize: 6.5)),
+                  ],
+                ),
+                
+                pw.SizedBox(height: 2),
+                pw.BarcodeWidget(
+                  barcode: pw.Barcode.qrCode(),
+                  data: zraQrData,
+                  width: 55,
+                  height: 55,
+                ),
+                pw.SizedBox(height: 1),
+                pw.Text('Scan QR Code to Verify on ZRA Portal', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 6.5)),
+              ] else ...[
+                pw.Text('*** OFFLINE TRANSACTION - FISCAL PENDING ***', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7.5)),
+                pw.Text('Official ZRA Smart Invoice will sync automatically', style: const pw.TextStyle(fontSize: 6.5)),
+                pw.Text('--------------------------------'),
+              ],
 
               pw.SizedBox(height: 3),
               pw.Text('================================'),

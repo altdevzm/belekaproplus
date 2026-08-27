@@ -633,10 +633,19 @@ class PrinterService {
         bytes += generator.text('TPIN: ${config.tpin!}', styles: const PosStyles(align: PosAlign.center, bold: true));
       }
 
+      final isFiscalApproved = transaction.zraStatus == 'APPROVED' &&
+                               transaction.zraMarkId != null &&
+                               transaction.zraMarkId!.isNotEmpty &&
+                               transaction.zraMarkId != 'PENDING';
+
+      final receiptTitle = transaction.isCreditNote
+          ? 'ZRA FISCAL CREDIT NOTE'
+          : (isFiscalApproved ? 'TAX INVOICE / OFFICIAL RECEIPT' : 'CUSTOMER SALES SLIP');
+
       bytes += generator.feed(1);
       bytes += generator.text(preset.doubleDivider);
       bytes += generator.text(
-        transaction.isCreditNote ? 'ZRA FISCAL CREDIT NOTE' : 'TAX INVOICE / OFFICIAL RECEIPT',
+        receiptTitle,
         styles: const PosStyles(align: PosAlign.center, bold: true),
       );
       if (transaction.isCreditNote && transaction.orgInvoiceNo != null) {
@@ -749,7 +758,7 @@ class PrinterService {
         ));
       });
 
-      // 9. SDC / ZRA Smart Invoice Compliance (Mandatory Fields)
+      // 9. SDC / ZRA Smart Invoice Compliance Block
       final dateFormatted = DateFormat('dd/MM/yyyy').format(transaction.timestamp);
       final timeFormatted = DateFormat('HH:mm:ss').format(transaction.timestamp);
       final sdcIdStr = (transaction.zraSdcId != null && transaction.zraSdcId!.isNotEmpty)
@@ -765,34 +774,47 @@ class PrinterService {
 
       bytes += generator.feed(1);
       bytes += generator.text(preset.singleDivider);
-      bytes += generator.text(
-        '*** ZRA FISCAL CONTROL DATA ***',
-        styles: const PosStyles(align: PosAlign.center, bold: true),
-      );
-      bytes += generator.text(preset.singleDivider);
-      bytes += generator.text(_formatRow2('Date:', dateFormatted, colCount));
-      bytes += generator.text(_formatRow2('Time:', timeFormatted, colCount));
-      bytes += generator.text(_formatRow2('SDC Id:', sdcIdStr, colCount));
-      bytes += generator.text(_formatRow2('SDC Invoice No:', sdcInvNoStr, colCount));
-      bytes += generator.text(_formatRow2('Signature:', signatureStr, colCount));
-      bytes += generator.text(_formatRow2('Internal Data:', internalDataStr, colCount));
-      bytes += generator.text(_formatRow2('Invoice Type:', transaction.zraInvoiceType ?? 'Normal Sale', colCount));
-      bytes += generator.text(preset.singleDivider);
 
-      // Print Live ZRA Smart Invoice Verification QR Code
-      final zraQrData = (transaction.zraQrCode != null && transaction.zraQrCode!.isNotEmpty)
-          ? transaction.zraQrCode!
-          : 'https://smartinvoice.zra.org.zm/verify?tpin=${config?.tpin ?? "1000000000"}&sdc=$sdcIdStr&rcpt=$sdcInvNoStr';
-      bytes += generator.feed(1);
-      bytes += generator.qrcode(
-        zraQrData,
-        size: preset.qrSize,
-      );
-      bytes += generator.feed(1);
-      bytes += generator.text(
-        'Scan QR Code to Verify on ZRA Portal',
-        styles: const PosStyles(align: PosAlign.center, bold: true),
-      );
+      if (isFiscalApproved) {
+        bytes += generator.text(
+          '*** ZRA FISCAL CONTROL DATA ***',
+          styles: const PosStyles(align: PosAlign.center, bold: true),
+        );
+        bytes += generator.text(preset.singleDivider);
+        bytes += generator.text(_formatRow2('Date:', dateFormatted, colCount));
+        bytes += generator.text(_formatRow2('Time:', timeFormatted, colCount));
+        bytes += generator.text(_formatRow2('SDC Id:', sdcIdStr, colCount));
+        bytes += generator.text(_formatRow2('SDC Invoice No:', sdcInvNoStr, colCount));
+        bytes += generator.text(_formatRow2('Signature:', signatureStr, colCount));
+        bytes += generator.text(_formatRow2('Internal Data:', internalDataStr, colCount));
+        bytes += generator.text(_formatRow2('Invoice Type:', transaction.zraInvoiceType ?? 'Normal Sale', colCount));
+        bytes += generator.text(preset.singleDivider);
+
+        // Print Live ZRA Smart Invoice Verification QR Code
+        final zraQrData = (transaction.zraQrCode != null && transaction.zraQrCode!.isNotEmpty)
+            ? transaction.zraQrCode!
+            : 'https://smartinvoice.zra.org.zm/verify?tpin=${config?.tpin ?? "1000000000"}&sdc=$sdcIdStr&rcpt=$sdcInvNoStr';
+        bytes += generator.feed(1);
+        bytes += generator.qrcode(
+          zraQrData,
+          size: preset.qrSize,
+        );
+        bytes += generator.feed(1);
+        bytes += generator.text(
+          'Scan QR Code to Verify on ZRA Portal',
+          styles: const PosStyles(align: PosAlign.center, bold: true),
+        );
+      } else {
+        bytes += generator.text(
+          '*** OFFLINE TRANSACTION - FISCAL PENDING ***',
+          styles: const PosStyles(align: PosAlign.center, bold: true),
+        );
+        bytes += generator.text(
+          'Official ZRA Smart Invoice will sync automatically',
+          styles: const PosStyles(align: PosAlign.center),
+        );
+        bytes += generator.text(preset.singleDivider);
+      }
 
       // 10. Customer Friendly Footer
       bytes += generator.feed(1);
@@ -1128,10 +1150,18 @@ class PrinterService {
     commands.appendEmphasis(false);
     if (config?.address != null && config!.address!.isNotEmpty) commands.append('${config.address!}\n');
     if (config?.contactNumber != null && config!.contactNumber!.isNotEmpty) commands.append('Tel: ${config.contactNumber!}\n');
-    if (config?.tpin != null && config!.tpin!.isNotEmpty) commands.append('TPIN: ${config.tpin!}\n');
+    final isFiscalApproved = transaction.zraStatus == 'APPROVED' &&
+                             transaction.zraMarkId != null &&
+                             transaction.zraMarkId!.isNotEmpty &&
+                             transaction.zraMarkId != 'PENDING';
+
+    final receiptTitle = transaction.isCreditNote
+        ? 'ZRA FISCAL CREDIT NOTE'
+        : (isFiscalApproved ? 'TAX INVOICE / OFFICIAL RECEIPT' : 'CUSTOMER SALES SLIP');
+
     commands.append('\n${preset.singleDivider}\n');
     commands.appendEmphasis(true);
-    commands.append('TAX INVOICE / OFFICIAL RECEIPT\n');
+    commands.append('$receiptTitle\n');
     commands.appendEmphasis(false);
     commands.append('${preset.singleDivider}\n');
 
@@ -1190,26 +1220,34 @@ class PrinterService {
         : (config?.mrcNo?.isNotEmpty == true ? config!.mrcNo! : 'PENDING');
 
     commands.append('\n${preset.singleDivider}\n');
-    commands.appendEmphasis(true);
-    commands.append('*** ZRA FISCAL CONTROL DATA ***\n');
-    commands.appendEmphasis(false);
-    commands.append('${preset.singleDivider}\n');
-    commands.append('Date: $dateOnlyStr\n');
-    commands.append('Time: $timeOnlyStr\n');
-    commands.append('SDC Id: $sdcIdStr\n');
-    commands.append('SDC Invoice No: $sdcInvNoStr\n');
-    commands.append('Signature: $signatureStr\n');
-    commands.append('Internal Data: $internalDataStr\n');
-    commands.append('Invoice Type: ${transaction.zraInvoiceType ?? "Normal Sale"}\n');
-    commands.append('${preset.singleDivider}\n');
+    if (isFiscalApproved) {
+      commands.appendEmphasis(true);
+      commands.append('*** ZRA FISCAL CONTROL DATA ***\n');
+      commands.appendEmphasis(false);
+      commands.append('${preset.singleDivider}\n');
+      commands.append('Date: $dateOnlyStr\n');
+      commands.append('Time: $timeOnlyStr\n');
+      commands.append('SDC Id: $sdcIdStr\n');
+      commands.append('SDC Invoice No: $sdcInvNoStr\n');
+      commands.append('Signature: $signatureStr\n');
+      commands.append('Internal Data: $internalDataStr\n');
+      commands.append('Invoice Type: ${transaction.zraInvoiceType ?? "Normal Sale"}\n');
+      commands.append('${preset.singleDivider}\n');
 
-    final zraQrData = (transaction.zraQrCode != null && transaction.zraQrCode!.isNotEmpty)
-        ? transaction.zraQrCode!
-        : 'https://smartinvoice.zra.org.zm/verify?tpin=${config?.tpin ?? "1000000000"}&sdc=$sdcIdStr&rcpt=$sdcInvNoStr';
+      final zraQrData = (transaction.zraQrCode != null && transaction.zraQrCode!.isNotEmpty)
+          ? transaction.zraQrCode!
+          : 'https://smartinvoice.zra.org.zm/verify?tpin=${config?.tpin ?? "1000000000"}&sdc=$sdcIdStr&rcpt=$sdcInvNoStr';
 
-    commands.appendAlignment(star.StarAlignmentPosition.Center);
-    commands.append('Scan QR Code to Verify on ZRA Portal\n');
-    commands.append('$zraQrData\n\n');
+      commands.appendAlignment(star.StarAlignmentPosition.Center);
+      commands.append('Scan QR Code to Verify on ZRA Portal\n');
+      commands.append('$zraQrData\n\n');
+    } else {
+      commands.appendEmphasis(true);
+      commands.append('*** OFFLINE TRANSACTION - FISCAL PENDING ***\n');
+      commands.appendEmphasis(false);
+      commands.append('Official ZRA Smart Invoice will sync automatically\n');
+      commands.append('${preset.singleDivider}\n\n');
+    }
 
     commands.append('${preset.doubleDivider}\n');
     commands.appendEmphasis(true);
@@ -1294,6 +1332,14 @@ class PrinterService {
           ? transaction.zraQrCode!
           : 'https://smartinvoice.zra.org.zm/verify?tpin=${config?.tpin ?? "1000000000"}&sdc=$sdcIdStr&rcpt=$sdcInvNoStr';
 
+      final isFiscalApproved = transaction.zraStatus == 'APPROVED' &&
+                               transaction.zraMarkId != null &&
+                               transaction.zraMarkId!.isNotEmpty &&
+                               transaction.zraMarkId != 'PENDING';
+      final receiptTitle = transaction.isCreditNote
+          ? 'ZRA FISCAL CREDIT NOTE'
+          : (isFiscalApproved ? 'TAX INVOICE / OFFICIAL RECEIPT' : 'CUSTOMER SALES SLIP');
+
       doc.addPage(
         pw.Page(
           pageFormat: rollFormat,
@@ -1321,7 +1367,7 @@ class PrinterService {
                 if (config?.tpin != null && config!.tpin!.isNotEmpty) pw.Text('TPIN: ${config.tpin!}', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
                 pw.SizedBox(height: 2 * pdf.PdfPageFormat.mm),
                 pw.Text('================================'),
-                pw.Text('TAX INVOICE / OFFICIAL RECEIPT', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
+                pw.Text(receiptTitle, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
                 pw.Text('================================'),
                 
                 pw.Row(
@@ -1408,67 +1454,72 @@ class PrinterService {
 
                 pw.SizedBox(height: 2 * pdf.PdfPageFormat.mm),
                 pw.Text('--------------------------------'),
-                pw.Text('*** ZRA FISCAL CONTROL DATA ***', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8)),
-                pw.Text('--------------------------------'),
-                pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Text('Date:', style: const pw.TextStyle(fontSize: 7)),
-                    pw.Text(dateFormatted, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7)),
-                  ],
-                ),
-                pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Text('Time:', style: const pw.TextStyle(fontSize: 7)),
-                    pw.Text(timeFormatted, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7)),
-                  ],
-                ),
-                pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Text('SDC Id:', style: const pw.TextStyle(fontSize: 7)),
-                    pw.Text(sdcIdStr, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7)),
-                  ],
-                ),
-                pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Text('SDC Invoice No:', style: const pw.TextStyle(fontSize: 7)),
-                    pw.Text(sdcInvNoStr, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7)),
-                  ],
-                ),
-                pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Text('Signature:', style: const pw.TextStyle(fontSize: 7)),
-                    pw.Text(signatureStr, style: const pw.TextStyle(fontSize: 6.5)),
-                  ],
-                ),
-                pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Text('Internal Data:', style: const pw.TextStyle(fontSize: 7)),
-                    pw.Text(internalDataStr, style: const pw.TextStyle(fontSize: 6.5)),
-                  ],
-                ),
-                pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Text('Invoice Type:', style: const pw.TextStyle(fontSize: 7)),
-                    pw.Text(transaction.zraInvoiceType ?? 'Normal Sale', style: const pw.TextStyle(fontSize: 6.5)),
-                  ],
-                ),
-                
-                pw.SizedBox(height: 2 * pdf.PdfPageFormat.mm),
-                pw.BarcodeWidget(
-                  barcode: pw.Barcode.qrCode(),
-                  data: zraQrData,
-                  width: 58,
-                  height: 58,
-                ),
-                pw.SizedBox(height: 1 * pdf.PdfPageFormat.mm),
-                pw.Text('Scan QR Code to Verify on ZRA Portal', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 6.5)),
+                if (isFiscalApproved) ...[
+                  pw.Text('*** ZRA FISCAL CONTROL DATA ***', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8)),
+                  pw.Text('--------------------------------'),
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text('Date:', style: const pw.TextStyle(fontSize: 7)),
+                      pw.Text(dateFormatted, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7)),
+                    ],
+                  ),
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text('Time:', style: const pw.TextStyle(fontSize: 7)),
+                      pw.Text(timeFormatted, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7)),
+                    ],
+                  ),
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text('SDC Id:', style: const pw.TextStyle(fontSize: 7)),
+                      pw.Text(sdcIdStr, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7)),
+                    ],
+                  ),
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text('SDC Invoice No:', style: const pw.TextStyle(fontSize: 7)),
+                      pw.Text(sdcInvNoStr, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7)),
+                    ],
+                  ),
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text('Signature:', style: const pw.TextStyle(fontSize: 7)),
+                      pw.Text(signatureStr, style: const pw.TextStyle(fontSize: 6.5)),
+                    ],
+                  ),
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text('Internal Data:', style: const pw.TextStyle(fontSize: 7)),
+                      pw.Text(internalDataStr, style: const pw.TextStyle(fontSize: 6.5)),
+                    ],
+                  ),
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text('Invoice Type:', style: const pw.TextStyle(fontSize: 7)),
+                      pw.Text(transaction.zraInvoiceType ?? 'Normal Sale', style: const pw.TextStyle(fontSize: 6.5)),
+                    ],
+                  ),
+                  pw.SizedBox(height: 2 * pdf.PdfPageFormat.mm),
+                  pw.BarcodeWidget(
+                    barcode: pw.Barcode.qrCode(),
+                    data: zraQrData,
+                    width: 58,
+                    height: 58,
+                  ),
+                  pw.SizedBox(height: 1 * pdf.PdfPageFormat.mm),
+                  pw.Text('Scan QR Code to Verify on ZRA Portal', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 6.5)),
+                ] else ...[
+                  pw.Text('*** OFFLINE TRANSACTION - FISCAL PENDING ***', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7.5)),
+                  pw.Text('Official ZRA Smart Invoice will sync automatically', style: const pw.TextStyle(fontSize: 6.5)),
+                  pw.Text('--------------------------------'),
+                ],
 
                 pw.SizedBox(height: 2 * pdf.PdfPageFormat.mm),
                 pw.Text('================================'),
