@@ -325,41 +325,104 @@ class DigiTaxInventoryService {
         errors.add('Failed to fetch remote items: $e');
       }
 
-      // Map remote items by name and barcode/code
+      // Map remote items by DigiTax ID, name, and barcode/code (used by push section)
+      final Map<String, Map<String, dynamic>> remoteById = {};
       final Map<String, Map<String, dynamic>> remoteByName = {};
       final Map<String, Map<String, dynamic>> remoteByCode = {};
 
       for (final item in remoteList) {
         if (item is Map<String, dynamic>) {
+          final id   = (item['id'] ?? '').toString();
           final name = (item['item_name'] ?? item['itemNm'] ?? item['name'] ?? '').toString().trim().toLowerCase();
           final code = (item['item_code'] ?? item['itemCd'] ?? item['bar_code'] ?? item['barcode'] ?? item['sku'] ?? '').toString().trim();
+          if (id.isNotEmpty)   remoteById[id]     = item;
           if (name.isNotEmpty) remoteByName[name] = item;
           if (code.isNotEmpty) remoteByCode[code] = item;
         }
       }
 
-      // 3. Pull remote items down to POS (Update existing, never duplicate, strictly isolate per branch)
+      // ──────────────────────────────────────────────────────────────────────────
+      // 3. Pull — Branch-Isolated Sync
+      //
+      // IMPORTANT: DigiTax GET /items returns ALL items for the business (confirmed
+      // from official API docs — no bhf_id filter parameter exists).
+      // The shared catalog must be isolated here in the local Isar DB using branchCode.
+      //
+      // Rules:
+      //  • Branch managers ('01', '02', …): ONLY update products that were already
+      //    pushed BY THIS BRANCH, matched exclusively by DigiTax item id (itemClsCd).
+      //    Name-matching is disabled to prevent cross-contamination with identically-
+      //    named HQ / other-branch products.
+      //  • HQ owner ('00'): can match by DigiTax ID first, then fall back to name/
+      //    barcode, and can auto-create new products from the master catalog.
+      // ──────────────────────────────────────────────────────────────────────────
       for (final r in remoteList) {
-        if (r is Map) {
-          final rId = (r['id'] ?? '').toString();
-          final rItemCode = (r['item_code'] ?? r['itemCd'] ?? '').toString();
-          final rBarcode = (r['bar_code'] ?? r['barcode'] ?? r['sku'] ?? '').toString();
-          final rName = (r['item_name'] ?? r['itemNm'] ?? r['name'] ?? '').toString().trim();
-          final rPrice = double.tryParse((r['default_unit_price'] ?? r['dftPrc'] ?? r['price'] ?? '0').toString()) ?? 0.0;
-          final rTaxCode = (r['vat_category_code'] ?? r['taxTyCd'] ?? r['tax_code'] ?? 'A').toString();
-          final rQty = int.tryParse((r['stock_quantity'] ?? r['qty'] ?? r['stock_level'] ?? '0').toString()) ?? 0;
+        if (r is! Map) continue;
 
-          if (rName.isEmpty) continue;
+        final rId     = (r['id'] ?? '').toString();
+        final rItemCode = (r['item_code'] ?? r['itemCd'] ?? '').toString();
+        final rBarcode  = (r['bar_code'] ?? r['barcode'] ?? r['sku'] ?? '').toString();
+        final rName   = (r['item_name'] ?? r['itemNm'] ?? r['name'] ?? '').toString().trim();
+        final rPrice  = double.tryParse((r['default_unit_price'] ?? r['dftPrc'] ?? r['price'] ?? '0').toString()) ?? 0.0;
+        final rTaxCode = (r['vat_category_code'] ?? r['taxTyCd'] ?? r['tax_code'] ?? 'A').toString();
+        final rQty    = int.tryParse((r['stock_quantity'] ?? r['qty'] ?? r['stock_level'] ?? '0').toString()) ?? 0;
 
-          // Strictly match product belonging to THIS branch
-          final existing = await db.isar.products
+        if (rName.isEmpty) continue;
+
+        if (bhfId != '00') {
+          // ── BRANCH MANAGER ── strict isolation ────────────────────────────
+          // Only update products already linked to this DigiTax item (by id).
+          if (rId.isEmpty) continue;
+          final existingByDtId = await db.isar.products
               .filter()
               .branchCodeEqualTo(bhfId)
+              .and()
+              .itemClsCdEqualTo(rId)
+              .findFirst();
+
+          if (existingByDtId != null) {
+            bool modified = false;
+            if (existingByDtId.price == 0 && rPrice > 0) {
+              existingByDtId.price = rPrice;
+              modified = true;
+            }
+            if (!existingByDtId.isSyncedWithDigitax) {
+              existingByDtId.isSyncedWithDigitax = true;
+              modified = true;
+            }
+            existingByDtId.lastDigitaxSyncDate = DateTime.now();
+            if (modified) {
+              await db.isar.writeTxn(() async {
+                await db.isar.products.put(existingByDtId);
+              });
+            }
+            pulledCount++;
+          }
+          // No match by DigiTax ID → skip. Never create HQ items in branch DB.
+        } else {
+          // ── HQ OWNER ── can match broadly and auto-create ──────────────────
+          // Priority 1: exact DigiTax item id (safest — no name collision risk)
+          Product? existing;
+          if (rId.isNotEmpty) {
+            existing = await db.isar.products
+                .filter()
+                .branchCodeEqualTo('00')
+                .and()
+                .itemClsCdEqualTo(rId)
+                .findFirst();
+          }
+
+          // Priority 2: name or barcode (for products pushed before itemClsCd was stored)
+          existing ??= await db.isar.products
+              .filter()
+              .branchCodeEqualTo('00')
               .and()
               .group((q) => q
                   .nameEqualTo(rName, caseSensitive: false)
                   .or()
-                  .skuEqualTo(rBarcode.isNotEmpty ? rBarcode : (rItemCode.isNotEmpty ? rItemCode : rId)))
+                  .skuEqualTo(rBarcode.isNotEmpty
+                      ? rBarcode
+                      : (rItemCode.isNotEmpty ? rItemCode : '__no_match__')))
               .findFirst();
 
           if (existing != null) {
@@ -369,7 +432,7 @@ class DigiTaxInventoryService {
               modified = true;
             }
             if (rId.isNotEmpty && existing.itemClsCd != rId) {
-              existing.itemClsCd = rId; // Store remote DigiTax item ID
+              existing.itemClsCd = rId;
               modified = true;
             }
             if (!existing.isSyncedWithDigitax) {
@@ -377,17 +440,15 @@ class DigiTaxInventoryService {
               modified = true;
             }
             existing.lastDigitaxSyncDate = DateTime.now();
-
             if (modified) {
               await db.isar.writeTxn(() async {
-                await db.isar.products.put(existing);
+                await db.isar.products.put(existing!);
               });
             }
-          } else if (bhfId == '00' && isOwner) {
-            // ONLY Headquarters ('00') when executed by Corporate Owner can auto-create products from DigiTax catalog.
-            // Branches NEVER import HQ items into their isolated branch inventory!
-            final finalSku = rBarcode.isNotEmpty 
-                ? rBarcode 
+          } else if (isOwner) {
+            // HQ Owner: auto-create from DigiTax master catalog
+            final finalSku = rBarcode.isNotEmpty
+                ? rBarcode
                 : (rItemCode.isNotEmpty ? rItemCode : (rId.isNotEmpty ? rId : 'SKU-${DateTime.now().millisecondsSinceEpoch}'));
 
             final newProd = Product(
@@ -423,7 +484,11 @@ class DigiTaxInventoryService {
           final pNameKey = p.name.trim().toLowerCase();
           final pCodeKey = p.sku.trim();
 
-          final existingRemote = remoteByName[pNameKey] ?? (pCodeKey.isNotEmpty ? remoteByCode[pCodeKey] : null);
+          // Priority 1: match by DigiTax item ID already stored locally (most reliable)
+          // Priority 2: fall back to name / barcode match (for newly-added products)
+          final existingRemote = (p.itemClsCd.isNotEmpty && p.itemClsCd.startsWith('item_')
+              ? remoteById[p.itemClsCd]
+              : null) ?? remoteByName[pNameKey] ?? (pCodeKey.isNotEmpty ? remoteByCode[pCodeKey] : null);
 
           if (existingRemote != null) {
             final remoteId = (existingRemote['id'] ?? '').toString();
