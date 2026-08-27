@@ -14,7 +14,7 @@ import 'package:beleka_pos/services/printer_service.dart';
 final reportDateRangeProvider = StateProvider<DateTimeRange>((ref) {
   final now = DateTime.now();
   return DateTimeRange(
-    start: DateTime(now.year, now.month, now.day),
+    start: DateTime(now.year, now.month, now.day, 0, 0, 0, 0),
     end: DateTime(now.year, now.month, now.day, 23, 59, 59, 999),
   );
 });
@@ -25,24 +25,52 @@ final reportTransactionsProvider = StreamProvider<List<SaleTransaction>>((ref) {
   return db.watchTransactionsInRange(range.start, range.end);
 });
 
-final reportStatsProvider = StreamProvider<Map<String, double>>((ref) async* {
-  final range = ref.watch(reportDateRangeProvider);
-  final db = ref.watch(databaseServiceProvider);
-  
-  yield await db.getRangeStats(range.start, range.end);
-  await for (final _ in db.isar.saleTransactions.watchLazy()) {
-    yield await db.getRangeStats(range.start, range.end);
+final reportStatsProvider = Provider<Map<String, double>>((ref) {
+  final transactions = ref.watch(reportTransactionsProvider).value ?? [];
+
+  double revenue = transactions.fold(0.0, (sum, t) => sum + (t.totalAmount.isNaN ? 0.0 : t.totalAmount));
+  double profit = transactions.fold(0.0, (sum, t) => sum + (t.grossProfit.isNaN ? 0.0 : t.grossProfit));
+  double tax = transactions.fold(0.0, (sum, t) => sum + (t.taxAmount.isNaN ? 0.0 : t.taxAmount));
+
+  final Map<String, double> paymentBreakdown = {};
+  for (var t in transactions) {
+    final amount = t.totalAmount.isNaN ? 0.0 : t.totalAmount;
+    final method = t.paymentMethod.toLowerCase().replaceAll(' ', '_');
+    paymentBreakdown[method] = (paymentBreakdown[method] ?? 0) + amount;
   }
+
+  return {
+    'revenue': revenue,
+    'profit': profit,
+    'tax': tax,
+    'count': transactions.length.toDouble(),
+    'cash': paymentBreakdown['cash'] ?? 0.0,
+    'card': paymentBreakdown['card'] ?? 0.0,
+    'mobile_money': paymentBreakdown['mobile_money'] ?? 0.0,
+  };
 });
 
-final reportTopProductsProvider = StreamProvider<List<Map<String, dynamic>>>((ref) async* {
-  final range = ref.watch(reportDateRangeProvider);
-  final db = ref.watch(databaseServiceProvider);
-  
-  yield await db.getTopSellingProductsInRange(range.start, range.end);
-  await for (final _ in db.isar.saleTransactions.watchLazy()) {
-    yield await db.getTopSellingProductsInRange(range.start, range.end);
+final reportTopProductsProvider = Provider<List<Map<String, dynamic>>>((ref) {
+  final transactions = ref.watch(reportTransactionsProvider).value ?? [];
+
+  final Map<int, int> productQuantities = {};
+  final Map<int, String> productNames = {};
+
+  for (var t in transactions) {
+    for (var item in t.items) {
+      productQuantities[item.productId] = (productQuantities[item.productId] ?? 0) + item.quantity;
+      productNames[item.productId] = item.productName;
+    }
   }
+
+  final sortedProducts = productQuantities.entries.toList()
+    ..sort((a, b) => b.value.compareTo(a.value));
+
+  return sortedProducts.take(10).map((e) => {
+    'productId': e.key,
+    'name': productNames[e.key] ?? 'Product #${e.key}',
+    'quantity': e.value,
+  }).toList();
 });
 
 class ReportsScreen extends ConsumerWidget {
@@ -52,8 +80,8 @@ class ReportsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final range = ref.watch(reportDateRangeProvider);
     final transactionsAsync = ref.watch(reportTransactionsProvider);
-    final statsAsync = ref.watch(reportStatsProvider);
-    final topProductsAsync = ref.watch(reportTopProductsProvider);
+    final stats = ref.watch(reportStatsProvider);
+    final topProducts = ref.watch(reportTopProductsProvider);
     final currency = ref.watch(storeConfigProvider).value?.currencySymbol ?? '\$';
 
     return Padding(
@@ -68,18 +96,12 @@ class ReportsScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  statsAsync.when(
-                    data: (stats) => _buildSummaryCards(context, ref, stats, currency),
-                    loading: () => const Center(child: LinearProgressIndicator(color: Color(0xFFC1F11D))),
-                    error: (e, _) => Text('Error: $e'),
-                  ),
+                  _buildSummaryCards(context, ref, stats, currency),
                   const SizedBox(height: 32),
-                  topProductsAsync.when(
-                    data: (products) => _buildTopProductsSection(context, products),
-                    loading: () => const SizedBox.shrink(),
-                    error: (e, _) => const SizedBox.shrink(),
-                  ),
-                  const SizedBox(height: 32),
+                  if (topProducts.isNotEmpty) ...[
+                    _buildTopProductsSection(context, topProducts),
+                    const SizedBox(height: 32),
+                  ],
                   transactionsAsync.when(
                     data: (transactions) => SizedBox(
                       height: 500, // Fixed height or adjust as needed
@@ -185,7 +207,10 @@ class ReportsScreen extends ConsumerWidget {
           },
         );
         if (picked != null) {
-          ref.read(reportDateRangeProvider.notifier).state = picked;
+          ref.read(reportDateRangeProvider.notifier).state = DateTimeRange(
+            start: DateTime(picked.start.year, picked.start.month, picked.start.day, 0, 0, 0, 0),
+            end: DateTime(picked.end.year, picked.end.month, picked.end.day, 23, 59, 59, 999),
+          );
         }
       },
     );

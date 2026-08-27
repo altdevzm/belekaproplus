@@ -715,9 +715,12 @@ class DatabaseService {
   // --- Range Reporting Methods ---
 
   Future<List<SaleTransaction>> getTransactionsInRange(DateTime start, DateTime end) async {
+    final effectiveStart = DateTime(start.year, start.month, start.day, 0, 0, 0, 0);
+    final effectiveEnd = DateTime(end.year, end.month, end.day, 23, 59, 59, 999);
+
     final transactions = await isar.saleTransactions
         .filter()
-        .timestampBetween(start, end)
+        .timestampBetween(effectiveStart, effectiveEnd)
         .sortByTimestampDesc()
         .findAll();
 
