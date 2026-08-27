@@ -6,6 +6,7 @@ import 'package:isar/isar.dart';
 import 'package:beleka_pos/models/models.dart';
 import 'package:beleka_pos/services/database_service.dart';
 import 'package:beleka_pos/services/local_sql_service.dart';
+import 'package:beleka_pos/services/printer_service.dart';
 import 'package:beleka_pos/providers/store_provider.dart';
 import 'package:beleka_pos/providers/auth_provider.dart';
 
@@ -86,11 +87,29 @@ class DigiTaxInventoryService {
   ));
 
   bool _isSyncRunning = false;
+  Timer? _fiscalQueueTimer;
 
   // Official DigiTax Zambia API Base URL from zm.docs.digitax.tech OpenAPI spec
   static const String digitaxZambiaApiBaseUrl = 'https://api.digitax.tech/zm/v1';
 
-  DigiTaxInventoryService({required this.ref});
+  DigiTaxInventoryService({required this.ref}) {
+    _startPeriodicFiscalWorker();
+  }
+
+  void _startPeriodicFiscalWorker() {
+    _fiscalQueueTimer?.cancel();
+    _fiscalQueueTimer = Timer.periodic(const Duration(seconds: 45), (_) async {
+      final config = ref.read(storeConfigProvider).value;
+      if (config?.digitaxApiKey?.trim().isNotEmpty == true) {
+        await processPendingFiscalQueue();
+      }
+    });
+  }
+
+  void dispose() {
+    _fiscalQueueTimer?.cancel();
+    _fiscalQueueTimer = null;
+  }
 
   // --------------------------------------------------------------------------
   // 1. DE-DUPLICATION ENGINE
@@ -1229,10 +1248,16 @@ class DigiTaxInventoryService {
 
   /// Automatically process offline or pending transactions and submit them to DigiTax
   Future<int> processPendingFiscalQueue() async {
+    final config = ref.read(storeConfigProvider).value;
+    final apiKey = config?.digitaxApiKey?.trim();
+    if (apiKey == null || apiKey.isEmpty) return 0;
+
     final db = ref.read(databaseServiceProvider);
     final pendingTransactions = await db.isar.saleTransactions
         .filter()
-        .zraStatusEqualTo('pending')
+        .zraStatusEqualTo('PENDING', caseSensitive: false)
+        .or()
+        .zraStatusEqualTo('pending', caseSensitive: false)
         .or()
         .zraReceiptNumberIsNull()
         .findAll();
@@ -1244,7 +1269,15 @@ class DigiTaxInventoryService {
       try {
         await tx.items.load();
         final success = await fiscalizeSaleTransaction(tx, tx.items.toList());
-        if (success) fiscalizedCount++;
+        if (success) {
+          fiscalizedCount++;
+          if (config?.autoPrintReceipt != false) {
+            try {
+              await ref.read(printerServiceProvider).printReceipt(tx, tx.items.toList(), config: config);
+              debugPrint('DIGITAX_OFFLINE_SYNC_PRINT: Tx #${tx.id} printed after background sync');
+            } catch (_) {}
+          }
+        }
       } catch (e) {
         debugPrint('DIGITAX_QUEUE_ERROR on Tx ${tx.id}: $e');
       }
