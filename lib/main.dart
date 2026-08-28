@@ -71,13 +71,13 @@ void main() async {
         });
       }
 
-      // Automatic product deduplication purge
+      // Automatic product deduplication purge (strictly branch isolated)
       final allProducts = await isar.products.where().findAll();
       final Map<String, Product> uniqueMap = {};
       final List<Id> duplicateProductIds = [];
       for (final p in allProducts) {
-        final key = p.name.trim().toLowerCase();
-        if (key.isEmpty) continue;
+        final key = '${p.branchCode}_${p.name.trim().toLowerCase()}';
+        if (p.name.trim().isEmpty) continue;
         if (uniqueMap.containsKey(key)) {
           final existing = uniqueMap[key]!;
           if (p.stockLevel > existing.stockLevel) existing.stockLevel = p.stockLevel;

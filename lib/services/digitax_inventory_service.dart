@@ -384,7 +384,6 @@ class DigiTaxInventoryService {
         final rName   = (r['item_name'] ?? r['itemNm'] ?? r['name'] ?? '').toString().trim();
         final rPrice  = double.tryParse((r['default_unit_price'] ?? r['dftPrc'] ?? r['price'] ?? '0').toString()) ?? 0.0;
         final rTaxCode = (r['vat_category_code'] ?? r['taxTyCd'] ?? r['tax_code'] ?? 'A').toString();
-        final rQty    = int.tryParse((r['stock_quantity'] ?? r['qty'] ?? r['stock_level'] ?? '0').toString()) ?? 0;
 
         if (rName.isEmpty) continue;
 
@@ -465,7 +464,7 @@ class DigiTaxInventoryService {
               });
             }
           } else if (isOwner) {
-            // HQ Owner: auto-create from DigiTax master catalog
+            // HQ Owner: auto-create from DigiTax master catalog (Initial stock set to 0, physical stock managed locally)
             final finalSku = rBarcode.isNotEmpty
                 ? rBarcode
                 : (rItemCode.isNotEmpty ? rItemCode : (rId.isNotEmpty ? rId : 'SKU-${DateTime.now().millisecondsSinceEpoch}'));
@@ -474,7 +473,7 @@ class DigiTaxInventoryService {
               name: rName,
               sku: finalSku,
               price: rPrice,
-              stockLevel: rQty,
+              stockLevel: 0, // Physical stock must be received locally, not copied from company-wide cloud balance
               categoryId: 0,
               itemClsCd: rId,
               zraTaxCode: ['A', 'B', 'C', 'E', 'TOT'].contains(rTaxCode) ? rTaxCode : 'A',
@@ -490,7 +489,7 @@ class DigiTaxInventoryService {
         }
       }
 
-      // 4. Push local products & quantity changes UP to DigiTax (Only for products belonging to this branch!)
+      // 4. Push local products & price updates UP to DigiTax (Only for products belonging to this branch!)
       final localProducts = await db.getAllProducts(branchCode: bhfId);
 
       for (final p in localProducts) {
@@ -511,31 +510,10 @@ class DigiTaxInventoryService {
 
           if (existingRemote != null) {
             final remoteId = (existingRemote['id'] ?? '').toString();
-            final remoteStock = int.tryParse((existingRemote['stock_quantity'] ?? existingRemote['quantity'] ?? '0').toString()) ?? 0;
             final remotePrice = double.tryParse((existingRemote['default_unit_price'] ?? '0').toString()) ?? 0.0;
 
             if (remoteId.isNotEmpty) {
               p.itemClsCd = remoteId;
-
-              // Check if stock quantity changed locally -> push adjustment to DigiTax (PUT /stock/adjust)
-              final stockDiff = p.stockLevel - remoteStock;
-              if (stockDiff != 0) {
-                try {
-                  await _dio.put(
-                    '$digitaxZambiaApiBaseUrl/stock/adjust',
-                    data: {
-                      "item_id": remoteId,
-                      "quantity": stockDiff.abs(),
-                      "action": stockDiff > 0 ? "ADD" : "DEDUCT",
-                      "movement_type": stockDiff > 0 ? "06" : "16",
-                    },
-                    options: Options(headers: headers),
-                  );
-                  debugPrint('DIGITAX_STOCK_EQUILIBRIUM: Pushed stock change ($stockDiff) for "${p.name}" to DigiTax');
-                } catch (stockErr) {
-                  debugPrint('DIGITAX_STOCK_ADJUST_NOTE: $stockErr');
-                }
-              }
 
               // Check if price changed locally -> update DigiTax (PUT /items/{item_id})
               if (p.price > 0 && (p.price - remotePrice).abs() > 0.01) {
