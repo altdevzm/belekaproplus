@@ -156,6 +156,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     final categoryFilter = ref.watch(inventoryCategoryFilterProvider);
     final branchFilter = ref.watch(inventoryBranchFilterProvider);
     final user = ref.watch(authProvider);
+    final storeConfig = ref.watch(storeConfigProvider).value;
     final totalProducts = productsAsync.value ?? [];
     final categories = categoriesAsync.value ?? [];
     
@@ -163,8 +164,10 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     final filteredProducts = totalProducts.where((p) {
       // 1. Multi-Branch Store Isolation
       if (user?.role == 'branch_manager' || user?.role == 'cashier') {
-        final assignedBranch = user?.branchCode ?? '00';
-        if (p.branchCode != assignedBranch && p.branchCode != '00') {
+        final assignedBranch = (user?.branchCode != null && user!.branchCode!.isNotEmpty && user.branchCode != '00')
+            ? user.branchCode!
+            : (storeConfig?.bhfId.isNotEmpty == true ? storeConfig!.bhfId : '00');
+        if (p.branchCode != assignedBranch) {
           return false;
         }
       } else if (branchFilter != null) {

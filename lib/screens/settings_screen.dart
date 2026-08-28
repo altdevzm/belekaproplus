@@ -22,6 +22,7 @@ class SettingsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isOwner = ref.watch(isOwnerProvider);
+    final isManager = ref.watch(isManagerProvider);
 
     return Padding(
       padding: const EdgeInsets.all(20),
@@ -71,7 +72,7 @@ class SettingsScreen extends ConsumerWidget {
                       ),
                       buttonLabel: 'View License',
                     ),
-                    if (isOwner)
+                    if (isOwner || isManager)
                       _buildSettingsCard(
                         context,
                         'Tax & Compliance',
@@ -117,11 +118,11 @@ class SettingsScreen extends ConsumerWidget {
                         builder: (context) => const UserManagementModal(),
                       ),
                     ),
-                    if (isOwner)
+                    if (isOwner || isManager)
                       _buildSettingsCard(
                         context,
                         'Store Information',
-                        'Update company name, address and details',
+                        'Update company name, branch details and terminal',
                         Icons.storefront_rounded,
                         const Color(0xFFFFB3B5),
                         onPressed: () => showDialog(
@@ -164,11 +165,11 @@ class SettingsScreen extends ConsumerWidget {
                         builder: (context) => const BackupSettingsModal(),
                       ),
                     ),
-                    if (isOwner)
+                    if (isOwner || isManager)
                       _buildSettingsCard(
                         context,
                         'DigiTax & ZRA Smart Invoice',
-                        'Configure DigiTax API Key, Environment & Live Tax Rates',
+                        'Configure DigiTax API Key, Branch Code (bhfId) & Live Tax Rates',
                         Icons.receipt_long_rounded,
                         const Color(0xFF10B981),
                         buttonLabel: 'Configure',

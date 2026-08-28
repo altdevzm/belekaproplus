@@ -87,19 +87,35 @@ class DatabaseService {
 
   // Product methods
   Future<List<Product>> getAllProducts({bool includeArchived = false, String? branchCode}) async {
-    if (branchCode != null && branchCode.isNotEmpty && branchCode != '00') {
-      if (!includeArchived) {
-        return await isar.products
-            .filter()
-            .isArchivedEqualTo(false)
-            .and()
-            .group((q) => q.branchCodeEqualTo(branchCode).or().branchCodeEqualTo('00').or().branchCodeEqualTo(''))
-            .findAll();
+    if (branchCode != null && branchCode.isNotEmpty) {
+      if (branchCode == '00') {
+        if (!includeArchived) {
+          return await isar.products
+              .filter()
+              .isArchivedEqualTo(false)
+              .and()
+              .group((q) => q.branchCodeEqualTo('00').or().branchCodeEqualTo(''))
+              .findAll();
+        } else {
+          return await isar.products
+              .filter()
+              .group((q) => q.branchCodeEqualTo('00').or().branchCodeEqualTo(''))
+              .findAll();
+        }
       } else {
-        return await isar.products
-            .filter()
-            .group((q) => q.branchCodeEqualTo(branchCode).or().branchCodeEqualTo('00').or().branchCodeEqualTo(''))
-            .findAll();
+        if (!includeArchived) {
+          return await isar.products
+              .filter()
+              .isArchivedEqualTo(false)
+              .and()
+              .branchCodeEqualTo(branchCode)
+              .findAll();
+        } else {
+          return await isar.products
+              .filter()
+              .branchCodeEqualTo(branchCode)
+              .findAll();
+        }
       }
     } else {
       if (!includeArchived) {
@@ -111,21 +127,39 @@ class DatabaseService {
   }
 
   Stream<List<Product>> watchAllProducts({bool includeArchived = false, String? branchCode}) {
-    if (branchCode != null && branchCode.isNotEmpty && branchCode != '00') {
-      if (!includeArchived) {
-        return isar.products
-            .filter()
-            .isArchivedEqualTo(false)
-            .and()
-            .group((q) => q.branchCodeEqualTo(branchCode).or().branchCodeEqualTo('00').or().branchCodeEqualTo(''))
-            .build()
-            .watch(fireImmediately: true);
+    if (branchCode != null && branchCode.isNotEmpty) {
+      if (branchCode == '00') {
+        if (!includeArchived) {
+          return isar.products
+              .filter()
+              .isArchivedEqualTo(false)
+              .and()
+              .group((q) => q.branchCodeEqualTo('00').or().branchCodeEqualTo(''))
+              .build()
+              .watch(fireImmediately: true);
+        } else {
+          return isar.products
+              .filter()
+              .group((q) => q.branchCodeEqualTo('00').or().branchCodeEqualTo(''))
+              .build()
+              .watch(fireImmediately: true);
+        }
       } else {
-        return isar.products
-            .filter()
-            .group((q) => q.branchCodeEqualTo(branchCode).or().branchCodeEqualTo('00').or().branchCodeEqualTo(''))
-            .build()
-            .watch(fireImmediately: true);
+        if (!includeArchived) {
+          return isar.products
+              .filter()
+              .isArchivedEqualTo(false)
+              .and()
+              .branchCodeEqualTo(branchCode)
+              .build()
+              .watch(fireImmediately: true);
+        } else {
+          return isar.products
+              .filter()
+              .branchCodeEqualTo(branchCode)
+              .build()
+              .watch(fireImmediately: true);
+        }
       }
     } else {
       if (!includeArchived) {
