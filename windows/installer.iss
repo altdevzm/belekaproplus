@@ -1,6 +1,6 @@
 ; Inno Setup Script for Beleka POS Windows Installer (Windows 8, 8.1, 10, 11)
 #define MyAppName "Beleka POS"
-#define MyAppVersion "1.2.3"
+#define MyAppVersion "2.0.0"
 #define MyAppPublisher "Beleka Technologies"
 #define MyAppURL "https://github.com/altdevzm/belekapro"
 #define MyAppExeName "beleka_pos.exe"

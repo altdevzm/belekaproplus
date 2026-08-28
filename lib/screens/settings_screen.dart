@@ -29,13 +29,28 @@ class SettingsScreen extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Settings',
-            style: GoogleFonts.inter(
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-              color: Colors.white,
-            ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                (isOwner || isManager) ? 'Settings' : 'Hardware & Till Settings',
+                style: GoogleFonts.inter(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                (isOwner || isManager)
+                    ? 'Manage store configuration, tax compliance, hardware and network sync'
+                    : 'Configure local thermal receipt printers, cash drawers, scales and barcode scanners for this till',
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  color: Colors.white38,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 20),
           Expanded(
@@ -60,34 +75,11 @@ class SettingsScreen extends ConsumerWidget {
                   crossAxisSpacing: 14,
                   childAspectRatio: ratio,
                   children: [
-                    _buildSettingsCard(
-                      context,
-                      'System License',
-                      'View hardware ID, activation status and plan',
-                      Icons.verified_user_rounded,
-                      const Color(0xFFC1F11D),
-                      onPressed: () => showDialog(
-                        context: context,
-                        builder: (context) => const LicenseInfoModal(),
-                      ),
-                      buttonLabel: 'View License',
-                    ),
-                    if (isOwner || isManager)
-                      _buildSettingsCard(
-                        context,
-                        'Tax & Compliance',
-                        'Configure VAT, GST and tax regulations',
-                        Icons.account_balance_rounded,
-                        const Color(0xFFC6B4FF),
-                        onPressed: () => showDialog(
-                          context: context,
-                          builder: (context) => const StoreConfigModal(),
-                        ),
-                      ),
+                    // Printers & Hardware (Accessible to Cashiers & Managers)
                     _buildSettingsCard(
                       context,
                       'Printers & Hardware',
-                      'Manage thermal printers and scanners',
+                      'Manage thermal receipt printers, cash drawer kick pulse and scanners',
                       Icons.print_rounded,
                       const Color(0xFF4ADE80),
                       onPressed: () => showDialog(
@@ -95,6 +87,7 @@ class SettingsScreen extends ConsumerWidget {
                         builder: (context) => const PrinterSettingsModal(),
                       ),
                     ),
+                    // Electronic Scale (Accessible to Cashiers & Managers)
                     _buildSettingsCard(
                       context,
                       'Electronic Scale',
@@ -107,18 +100,42 @@ class SettingsScreen extends ConsumerWidget {
                       ),
                       buttonLabel: 'Configure Scale',
                     ),
-                    _buildSettingsCard(
-                      context,
-                      'User Management',
-                      'Add or edit staff accounts and permissions',
-                      Icons.people_rounded,
-                      const Color(0xFF5BBEEA),
-                      onPressed: () => showDialog(
-                        context: context,
-                        builder: (context) => const UserManagementModal(),
+                    // Administrative / Manager-Only Settings
+                    if (isOwner || isManager) ...[
+                      _buildSettingsCard(
+                        context,
+                        'System License',
+                        'View hardware ID, activation status and plan',
+                        Icons.verified_user_rounded,
+                        const Color(0xFFC1F11D),
+                        onPressed: () => showDialog(
+                          context: context,
+                          builder: (context) => const LicenseInfoModal(),
+                        ),
+                        buttonLabel: 'View License',
                       ),
-                    ),
-                    if (isOwner || isManager)
+                      _buildSettingsCard(
+                        context,
+                        'Tax & Compliance',
+                        'Configure VAT, GST and tax regulations',
+                        Icons.account_balance_rounded,
+                        const Color(0xFFC6B4FF),
+                        onPressed: () => showDialog(
+                          context: context,
+                          builder: (context) => const StoreConfigModal(),
+                        ),
+                      ),
+                      _buildSettingsCard(
+                        context,
+                        'User Management',
+                        'Add or edit staff accounts and permissions',
+                        Icons.people_rounded,
+                        const Color(0xFF5BBEEA),
+                        onPressed: () => showDialog(
+                          context: context,
+                          builder: (context) => const UserManagementModal(),
+                        ),
+                      ),
                       _buildSettingsCard(
                         context,
                         'Store Information',
@@ -130,42 +147,41 @@ class SettingsScreen extends ConsumerWidget {
                           builder: (context) => const StoreConfigModal(),
                         ),
                       ),
-                    _buildSettingsCard(
-                      context,
-                      'Export Data',
-                      'Export transactions to CSV for accounting',
-                      Icons.download_rounded,
-                      const Color(0xFF7DD3A8),
-                      onPressed: () async {
-                        final db = ref.read(databaseServiceProvider);
-                        final transactions = await db.getRecentTransactions(limit: 10000);
-                        await ref.read(exportServiceProvider).exportTransactionsToCsv(transactions);
-                      },
-                      buttonLabel: 'Export CSV',
-                    ),
-                    _buildSettingsCard(
-                      context,
-                      'Loyalty Programs',
-                      'Setup customer rewards and discount points',
-                      Icons.card_giftcard_rounded,
-                      Colors.amber,
-                      onPressed: () => showDialog(
-                        context: context,
-                        builder: (context) => const LoyaltySettingsModal(),
+                      _buildSettingsCard(
+                        context,
+                        'Export Data',
+                        'Export transactions to CSV for accounting',
+                        Icons.download_rounded,
+                        const Color(0xFF7DD3A8),
+                        onPressed: () async {
+                          final db = ref.read(databaseServiceProvider);
+                          final transactions = await db.getRecentTransactions(limit: 10000);
+                          await ref.read(exportServiceProvider).exportTransactionsToCsv(transactions);
+                        },
+                        buttonLabel: 'Export CSV',
                       ),
-                    ),
-                    _buildSettingsCard(
-                      context,
-                      'Backup & Security',
-                      'Configure automated database backups and storage',
-                      Icons.security_rounded,
-                      Colors.orangeAccent,
-                      onPressed: () => showDialog(
-                        context: context,
-                        builder: (context) => const BackupSettingsModal(),
+                      _buildSettingsCard(
+                        context,
+                        'Loyalty Programs',
+                        'Setup customer rewards and discount points',
+                        Icons.card_giftcard_rounded,
+                        Colors.amber,
+                        onPressed: () => showDialog(
+                          context: context,
+                          builder: (context) => const LoyaltySettingsModal(),
+                        ),
                       ),
-                    ),
-                    if (isOwner || isManager)
+                      _buildSettingsCard(
+                        context,
+                        'Backup & Security',
+                        'Configure automated database backups and storage',
+                        Icons.security_rounded,
+                        Colors.orangeAccent,
+                        onPressed: () => showDialog(
+                          context: context,
+                          builder: (context) => const BackupSettingsModal(),
+                        ),
+                      ),
                       _buildSettingsCard(
                         context,
                         'DigiTax & ZRA Smart Invoice',
@@ -178,20 +194,21 @@ class SettingsScreen extends ConsumerWidget {
                           builder: (context) => const ZraTaxConfigModal(),
                         ),
                       ),
-                _buildSettingsCard(
-                  context,
-                  'Network & Multi-Till Sync',
-                  'Configure Master Server IP, Cashier Client Tills & Live LAN Sync',
-                  Icons.hub_rounded,
-                  const Color(0xFF6366F1),
-                  onPressed: () => showDialog(
-                    context: context,
-                    builder: (context) => const NetworkSyncModal(),
-                  ),
-                ),
-                ],
-              );
-            },
+                      _buildSettingsCard(
+                        context,
+                        'Network & Multi-Till Sync',
+                        'Configure Master Server IP, Cashier Client Tills & Live LAN Sync',
+                        Icons.hub_rounded,
+                        const Color(0xFF6366F1),
+                        onPressed: () => showDialog(
+                          context: context,
+                          builder: (context) => const NetworkSyncModal(),
+                        ),
+                      ),
+                    ],
+                  ],
+                );
+              },
             ),
           ),
         ],

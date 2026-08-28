@@ -65,7 +65,9 @@ final isManagerProvider = Provider<bool>((ref) {
 /// Convenient provider to check if a Cashier is logged in.
 final isCashierProvider = Provider<bool>((ref) {
   final user = ref.watch(authProvider);
-  return user?.role == 'cashier';
+  if (user == null) return false;
+  final role = user.role.toLowerCase().trim();
+  return role == 'cashier';
 });
 
 /// Real-time stream provider to retrieve all active users in the system.

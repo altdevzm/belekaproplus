@@ -204,9 +204,12 @@ class _PrinterSettingsModalState extends ConsumerState<PrinterSettingsModal> {
 
     return Dialog(
       backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
       child: Container(
-        width: 640,
-        height: 780,
+        width: 660,
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.92,
+        ),
         decoration: BoxDecoration(
           color: const Color(0xFF141418),
           borderRadius: BorderRadius.circular(24),
@@ -219,10 +222,11 @@ class _PrinterSettingsModalState extends ConsumerState<PrinterSettingsModal> {
             ),
           ],
         ),
-        padding: const EdgeInsets.all(32),
+        padding: const EdgeInsets.fromLTRB(28, 24, 28, 20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // Modal Header
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -268,553 +272,563 @@ class _PrinterSettingsModalState extends ConsumerState<PrinterSettingsModal> {
                 ),
               ],
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
             
-            // Driver Model & Paper Size Selector
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      flex: 3,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'PRINTER DRIVER ENGINE',
-                            style: GoogleFonts.ibmPlexMono(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white.withValues(alpha: 0.4), letterSpacing: 1),
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              _buildModelChip('ESC/POS', PrinterModel.generic),
-                              const SizedBox(width: 8),
-                              _buildModelChip('STAR', PrinterModel.star),
-                              const SizedBox(width: 8),
-                              _buildModelChip('CUPS / OS', PrinterModel.system),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'THERMAL PAPER ROLL WIDTH (PRINT SIZE)',
-                          style: GoogleFonts.ibmPlexMono(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white.withValues(alpha: 0.4), letterSpacing: 1),
-                        ),
-                        Text(
-                          '${_paperWidthMm}MM ACTIVE',
-                          style: GoogleFonts.ibmPlexMono(fontSize: 9, fontWeight: FontWeight.bold, color: const Color(0xFFC1F11D), letterSpacing: 1),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: ThermalPaperPreset.presets.map((preset) {
-                        return _buildWidthChip(preset.label, preset.widthMm, preset.description);
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.03),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.info_outline_rounded, color: Color(0xFFC1F11D), size: 14),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              '${ThermalPaperPreset.fromWidth(_paperWidthMm).label}: ${ThermalPaperPreset.fromWidth(_paperWidthMm).description} (${ThermalPaperPreset.fromWidth(_paperWidthMm).columnCount} cols)',
-                              style: GoogleFonts.inter(fontSize: 11, color: Colors.white70),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            
-            const SizedBox(height: 18),
-            // Interface Selector
-            if (_selectedModel != PrinterModel.system) ...[
-              Text(
-                'CONNECTION INTERFACE',
-                style: GoogleFonts.ibmPlexMono(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white.withValues(alpha: 0.4), letterSpacing: 1),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  _buildTypeChip('USB / DIRECT', PrinterType.usb),
-                  const SizedBox(width: 8),
-                  _buildTypeChip('NETWORK TCP/IP', PrinterType.network),
-                  const SizedBox(width: 8),
-                  _buildTypeChip('BLUETOOTH', PrinterType.bluetooth),
-                  const Spacer(),
-                  _buildRefreshButton(),
-                ],
-              ),
-            ] else ...[
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'SYSTEM OS / CUPS PRINTERS',
-                    style: GoogleFonts.ibmPlexMono(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white.withValues(alpha: 0.4), letterSpacing: 1),
-                  ),
-                  _buildRefreshButton(),
-                ],
-              ),
-            ],
-
-            // Direct Network IP Input for Network Printers
-            if (_selectedType == PrinterType.network && _selectedModel != PrinterModel.system) ...[
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  Expanded(
-                    child: Container(
-                      height: 42,
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.4),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-                      ),
-                      child: TextField(
-                        controller: _ipController,
-                        style: GoogleFonts.ibmPlexMono(color: Colors.white, fontSize: 12),
-                        decoration: InputDecoration(
-                          hintText: 'e.g. 192.168.1.100:9100',
-                          hintStyle: GoogleFonts.ibmPlexMono(color: Colors.white24, fontSize: 12),
-                          border: InputBorder.none,
-                          prefixIcon: const Icon(Icons.router, size: 16, color: Color(0xFFC1F11D)),
-                          prefixIconConstraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  ElevatedButton(
-                    onPressed: () {
-                      final ip = _ipController.text.trim();
-                      if (ip.isNotEmpty) {
-                        _selectPrinter(PrinterDevice(name: 'Network Thermal POS ($ip)', address: ip));
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFC1F11D),
-                      foregroundColor: Colors.black,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    ),
-                    child: Text('ATTACH IP', style: GoogleFonts.manrope(fontWeight: FontWeight.bold, fontSize: 11)),
-                  ),
-                ],
-              ),
-            ],
-
-            const SizedBox(height: 14),
-            
-            // Search / Filter Bar for long lists
-            Container(
-              height: 38,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.03),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
-              ),
-              child: TextField(
-                controller: _searchController,
-                style: GoogleFonts.inter(color: Colors.white, fontSize: 12),
-                onChanged: (val) => setState(() => _filterQuery = val.trim()),
-                decoration: InputDecoration(
-                  hintText: 'Filter printers by name or address...',
-                  hintStyle: GoogleFonts.inter(color: Colors.white24, fontSize: 11),
-                  border: InputBorder.none,
-                  prefixIcon: const Icon(Icons.search_rounded, size: 16, color: Colors.white38),
-                  prefixIconConstraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                  suffixIcon: _filterQuery.isNotEmpty 
-                      ? IconButton(
-                          icon: const Icon(Icons.close, size: 14, color: Colors.white38),
-                          onPressed: () {
-                            _searchController.clear();
-                            setState(() => _filterQuery = '');
-                          },
-                        ) 
-                      : null,
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            // Discovered Devices List
+            // Scrollable Settings Content
             Expanded(
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
-                ),
-                child: Builder(
-                  builder: (context) {
-                    final filteredDevices = _devices.where((d) {
-                      if (_filterQuery.isEmpty) return true;
-                      final q = _filterQuery.toLowerCase();
-                      return d.name.toLowerCase().contains(q) || (d.address?.toLowerCase().contains(q) ?? false);
-                    }).toList();
-
-                    if (_devices.isEmpty) {
-                      return Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Driver Model & Paper Size Selector
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
                           children: [
-                            Icon(
-                              _isScanning ? Icons.sync_rounded : Icons.print_disabled_outlined, 
-                              size: 40, 
-                              color: _isScanning ? const Color(0xFFC1F11D) : Colors.white24,
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              _isScanning ? 'Scanning hardware interfaces...' : 'No printer devices found. Click REFRESH or enter Network IP above.',
-                              textAlign: TextAlign.center,
-                              style: GoogleFonts.inter(fontSize: 12, color: Colors.white38),
+                            Expanded(
+                              flex: 3,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'PRINTER DRIVER ENGINE',
+                                    style: GoogleFonts.ibmPlexMono(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white.withValues(alpha: 0.4), letterSpacing: 1),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      _buildModelChip('ESC/POS', PrinterModel.generic),
+                                      const SizedBox(width: 8),
+                                      _buildModelChip('STAR', PrinterModel.star),
+                                      const SizedBox(width: 8),
+                                      _buildModelChip('CUPS / OS', PrinterModel.system),
+                                    ],
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         ),
-                      );
-                    }
-
-                    if (filteredDevices.isEmpty) {
-                      return Center(
-                        child: Text(
-                          'No printer matching "$_filterQuery"',
-                          style: GoogleFonts.inter(fontSize: 12, color: Colors.white38),
-                        ),
-                      );
-                    }
-
-                    return ListView.builder(
-                      padding: const EdgeInsets.all(12),
-                      itemCount: filteredDevices.length,
-                      itemBuilder: (context, index) {
-                        final device = filteredDevices[index];
-                        final isSelected = selectedPrinter?.device.address == device.address;
-                        
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: InkWell(
-                            onTap: () => _selectPrinter(device),
-                            borderRadius: BorderRadius.circular(10),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                              decoration: BoxDecoration(
-                                color: isSelected ? const Color(0xFFC1F11D).withValues(alpha: 0.1) : Colors.white.withValues(alpha: 0.02),
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(
-                                  color: isSelected ? const Color(0xFFC1F11D) : Colors.white.withValues(alpha: 0.05),
-                                  width: isSelected ? 1.5 : 1,
+                        const SizedBox(height: 16),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'THERMAL PAPER ROLL WIDTH (PRINT SIZE)',
+                                  style: GoogleFonts.ibmPlexMono(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white.withValues(alpha: 0.4), letterSpacing: 1),
                                 ),
+                                Text(
+                                  '${_paperWidthMm}MM ACTIVE',
+                                  style: GoogleFonts.ibmPlexMono(fontSize: 9, fontWeight: FontWeight.bold, color: const Color(0xFFC1F11D), letterSpacing: 1),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: ThermalPaperPreset.presets.map((preset) {
+                                return _buildWidthChip(preset.label, preset.widthMm, preset.description);
+                              }).toList(),
+                            ),
+                            const SizedBox(height: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.03),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
                               ),
                               child: Row(
                                 children: [
-                                  Icon(
-                                    _selectedModel == PrinterModel.system ? Icons.desktop_windows_rounded :
-                                    _selectedType == PrinterType.usb ? Icons.usb_rounded : 
-                                    _selectedType == PrinterType.network ? Icons.router_rounded : Icons.bluetooth_rounded,
-                                    color: isSelected ? const Color(0xFFC1F11D) : Colors.white38,
-                                    size: 20,
-                                  ),
-                                  const SizedBox(width: 14),
+                                  const Icon(Icons.info_outline_rounded, color: Color(0xFFC1F11D), size: 14),
+                                  const SizedBox(width: 8),
                                   Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          device.name,
-                                          style: GoogleFonts.manrope(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 13,
-                                            color: isSelected ? const Color(0xFFC1F11D) : Colors.white,
-                                          ),
-                                        ),
-                                        Text(
-                                          device.address ?? 'Direct port',
-                                          style: GoogleFonts.ibmPlexMono(
-                                            fontSize: 10,
-                                            color: Colors.white38,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: isSelected ? const Color(0xFFC1F11D) : Colors.white.withValues(alpha: 0.05),
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(
-                                          isSelected ? Icons.check_circle_rounded : Icons.touch_app_rounded,
-                                          color: isSelected ? Colors.black : Colors.white38,
-                                          size: 12,
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          isSelected ? 'ACTIVE' : 'SELECT',
-                                          style: GoogleFonts.ibmPlexMono(
-                                            fontSize: 9,
-                                            fontWeight: FontWeight.bold,
-                                            color: isSelected ? Colors.black : Colors.white60,
-                                          ),
-                                        ),
-                                      ],
+                                    child: Text(
+                                      '${ThermalPaperPreset.fromWidth(_paperWidthMm).label}: ${ThermalPaperPreset.fromWidth(_paperWidthMm).description} (${ThermalPaperPreset.fromWidth(_paperWidthMm).columnCount} cols)',
+                                      style: GoogleFonts.inter(fontSize: 11, color: Colors.white70),
                                     ),
                                   ),
                                 ],
                               ),
                             ),
-                          ),
-                        );
-                      },
-                    );
-                  },
-                ),
-              ),
-            ),
-            
-            const SizedBox(height: 18),
-            
-            // Barcode Scanner Live Hardware Test
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.35),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.qr_code_scanner_rounded, color: Color(0xFFC1F11D), size: 22),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'HARDWARE SCANNER (USB / BLUETOOTH)',
-                          style: GoogleFonts.ibmPlexMono(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.white30),
-                        ),
-                        Text(
-                          _lastScanned,
-                          style: GoogleFonts.ibmPlexMono(
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                            color: _lastScanned == 'Waiting for scan...' ? Colors.white24 : const Color(0xFFC1F11D),
-                          ),
+                          ],
                         ),
                       ],
                     ),
-                  ),
-                  if (_lastScanned != 'Waiting for scan...')
-                    IconButton(
-                      icon: const Icon(Icons.refresh, size: 16, color: Colors.white38),
-                      onPressed: () => setState(() => _lastScanned = 'Waiting for scan...'),
-                    ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 18),
-            
-            // CASH DRAWER DRIVER & HARDWARE KICK SECTION
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.02),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
+                    
+                    const SizedBox(height: 18),
+                    // Interface Selector
+                    if (_selectedModel != PrinterModel.system) ...[
+                      Text(
+                        'CONNECTION INTERFACE',
+                        style: GoogleFonts.ibmPlexMono(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white.withValues(alpha: 0.4), letterSpacing: 1),
+                      ),
+                      const SizedBox(height: 8),
                       Row(
                         children: [
-                          const Icon(Icons.point_of_sale_rounded, color: Color(0xFFC1F11D), size: 18),
+                          _buildTypeChip('USB / DIRECT', PrinterType.usb),
                           const SizedBox(width: 8),
+                          _buildTypeChip('NETWORK TCP/IP', PrinterType.network),
+                          const SizedBox(width: 8),
+                          _buildTypeChip('BLUETOOTH', PrinterType.bluetooth),
+                          const Spacer(),
+                          _buildRefreshButton(),
+                        ],
+                      ),
+                    ] else ...[
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
                           Text(
-                            'CASH DRAWER HARDWARE DRIVER (RJ11 / RJ12)',
-                            style: GoogleFonts.ibmPlexMono(
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              color: const Color(0xFFC1F11D),
-                              letterSpacing: 1,
+                            'SYSTEM OS / CUPS PRINTERS',
+                            style: GoogleFonts.ibmPlexMono(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white.withValues(alpha: 0.4), letterSpacing: 1),
+                          ),
+                          _buildRefreshButton(),
+                        ],
+                      ),
+                    ],
+
+                    // Direct Network IP Input for Network Printers
+                    if (_selectedType == PrinterType.network && _selectedModel != PrinterModel.system) ...[
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Container(
+                              height: 42,
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.4),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                              ),
+                              child: TextField(
+                                controller: _ipController,
+                                style: GoogleFonts.ibmPlexMono(color: Colors.white, fontSize: 12),
+                                decoration: InputDecoration(
+                                  hintText: 'e.g. 192.168.1.100:9100',
+                                  hintStyle: GoogleFonts.ibmPlexMono(color: Colors.white24, fontSize: 12),
+                                  border: InputBorder.none,
+                                  prefixIcon: const Icon(Icons.router, size: 16, color: Color(0xFFC1F11D)),
+                                  prefixIconConstraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                                ),
+                              ),
                             ),
+                          ),
+                          const SizedBox(width: 8),
+                          ElevatedButton(
+                            onPressed: () {
+                              final ip = _ipController.text.trim();
+                              if (ip.isNotEmpty) {
+                                _selectPrinter(PrinterDevice(name: 'Network Thermal POS ($ip)', address: ip));
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFC1F11D),
+                              foregroundColor: Colors.black,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            ),
+                            child: Text('ATTACH IP', style: GoogleFonts.manrope(fontWeight: FontWeight.bold, fontSize: 11)),
                           ),
                         ],
                       ),
-                      Switch(
-                        value: _autoOpenCashDrawer,
-                        onChanged: (v) {
-                          setState(() => _autoOpenCashDrawer = v);
-                          _saveCashDrawerSettings();
-                        },
-                        activeThumbColor: const Color(0xFFC1F11D),
-                      ),
                     ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Automatically trigger the electric kick pulse to pop open the cash drawer when a transaction is completed.',
-                    style: GoogleFonts.inter(fontSize: 11, color: Colors.white54),
-                  ),
-                  if (_autoOpenCashDrawer) ...[
-                    const SizedBox(height: 14),
-                    const Divider(color: Colors.white10, height: 1),
-                    const SizedBox(height: 14),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Only Kick for Cash / Split Payments',
-                              style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white),
-                            ),
-                            Text(
-                              'Do not kick drawer on pure card/digital payments',
-                              style: GoogleFonts.inter(fontSize: 10, color: Colors.white38),
-                            ),
-                          ],
-                        ),
-                        Switch(
-                          value: _openDrawerCashOnly,
-                          onChanged: (v) {
-                            setState(() => _openDrawerCashOnly = v);
-                            _saveCashDrawerSettings();
-                          },
-                          activeThumbColor: const Color(0xFFC1F11D),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Text(
-                          'Connector Pin: ',
-                          style: GoogleFonts.inter(fontSize: 11, color: Colors.white70),
-                        ),
-                        const SizedBox(width: 8),
-                        ChoiceChip(
-                          label: Text('Pin 2 (Standard ESC/POS)', style: GoogleFonts.ibmPlexMono(fontSize: 10)),
-                          selected: _cashDrawerPin == 2,
-                          onSelected: (_) {
-                            setState(() => _cashDrawerPin = 2);
-                            _saveCashDrawerSettings();
-                          },
-                          selectedColor: const Color(0xFFC1F11D).withValues(alpha: 0.2),
-                        ),
-                        const SizedBox(width: 8),
-                        ChoiceChip(
-                          label: Text('Pin 5 (Alternative)', style: GoogleFonts.ibmPlexMono(fontSize: 10)),
-                          selected: _cashDrawerPin == 5,
-                          onSelected: (_) {
-                            setState(() => _cashDrawerPin = 5);
-                            _saveCashDrawerSettings();
-                          },
-                          selectedColor: const Color(0xFFC1F11D).withValues(alpha: 0.2),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-                    // Test Drawer Kick Button
-                    SizedBox(
-                      height: 42,
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: () async {
-                          final printerService = ref.read(printerServiceProvider);
-                          final db = ref.read(databaseServiceProvider);
-                          final config = await db.getStoreConfig();
-                          
-                          final ok = await printerService.openCashDrawer(
-                            config: config,
-                            pin: _cashDrawerPin,
-                            pulseOnMs: _cashDrawerPulseOnMs,
-                          );
 
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Row(
-                                  children: [
-                                    Icon(
-                                      ok ? Icons.check_circle_rounded : Icons.warning_amber_rounded,
-                                      color: ok ? const Color(0xFFC1F11D) : Colors.orangeAccent,
-                                      size: 20,
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: Text(
-                                        ok 
-                                          ? '✓ Kick pulse sent! Cash drawer should open.'
-                                          : '⚠️ Kick pulse sent to hardware driver. Ensure printer cable is connected to cash drawer.',
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                backgroundColor: const Color(0xFF1A1A1F),
-                                behavior: SnackBarBehavior.floating,
+                    const SizedBox(height: 14),
+                    
+                    // Search / Filter Bar for long lists
+                    Container(
+                      height: 38,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.03),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+                      ),
+                      child: TextField(
+                        controller: _searchController,
+                        style: GoogleFonts.inter(color: Colors.white, fontSize: 12),
+                        onChanged: (val) => setState(() => _filterQuery = val.trim()),
+                        decoration: InputDecoration(
+                          hintText: 'Filter printers by name or address...',
+                          hintStyle: GoogleFonts.inter(color: Colors.white24, fontSize: 11),
+                          border: InputBorder.none,
+                          prefixIcon: const Icon(Icons.search_rounded, size: 16, color: Colors.white38),
+                          prefixIconConstraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                          suffixIcon: _filterQuery.isNotEmpty 
+                              ? IconButton(
+                                  icon: const Icon(Icons.close, size: 14, color: Colors.white38),
+                                  onPressed: () {
+                                    _searchController.clear();
+                                    setState(() => _filterQuery = '');
+                                  },
+                                ) 
+                              : null,
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    // Discovered Devices List
+                    Container(
+                      height: 160,
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+                      ),
+                      child: Builder(
+                        builder: (context) {
+                          final filteredDevices = _devices.where((d) {
+                            if (_filterQuery.isEmpty) return true;
+                            final q = _filterQuery.toLowerCase();
+                            return d.name.toLowerCase().contains(q) || (d.address?.toLowerCase().contains(q) ?? false);
+                          }).toList();
+
+                          if (_devices.isEmpty) {
+                            return Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    _isScanning ? Icons.sync_rounded : Icons.print_disabled_outlined, 
+                                    size: 32, 
+                                    color: _isScanning ? const Color(0xFFC1F11D) : Colors.white24,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    _isScanning ? 'Scanning hardware interfaces...' : 'No printer devices found. Click REFRESH or enter Network IP above.',
+                                    textAlign: TextAlign.center,
+                                    style: GoogleFonts.inter(fontSize: 11, color: Colors.white38),
+                                  ),
+                                ],
                               ),
                             );
                           }
+
+                          if (filteredDevices.isEmpty) {
+                            return Center(
+                              child: Text(
+                                'No printer matching "$_filterQuery"',
+                                style: GoogleFonts.inter(fontSize: 12, color: Colors.white38),
+                              ),
+                            );
+                          }
+
+                          return ListView.builder(
+                            padding: const EdgeInsets.all(10),
+                            itemCount: filteredDevices.length,
+                            itemBuilder: (context, index) {
+                              final device = filteredDevices[index];
+                              final isSelected = selectedPrinter?.device.address == device.address;
+                              
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 6),
+                                child: InkWell(
+                                  onTap: () => _selectPrinter(device),
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                    decoration: BoxDecoration(
+                                      color: isSelected ? const Color(0xFFC1F11D).withValues(alpha: 0.1) : Colors.white.withValues(alpha: 0.02),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
+                                        color: isSelected ? const Color(0xFFC1F11D) : Colors.white.withValues(alpha: 0.05),
+                                        width: isSelected ? 1.5 : 1,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          _selectedModel == PrinterModel.system ? Icons.desktop_windows_rounded :
+                                          _selectedType == PrinterType.usb ? Icons.usb_rounded : 
+                                          _selectedType == PrinterType.network ? Icons.router_rounded : Icons.bluetooth_rounded,
+                                          color: isSelected ? const Color(0xFFC1F11D) : Colors.white38,
+                                          size: 18,
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                device.name,
+                                                style: GoogleFonts.manrope(
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 12,
+                                                  color: isSelected ? const Color(0xFFC1F11D) : Colors.white,
+                                                ),
+                                              ),
+                                              Text(
+                                                device.address ?? 'Direct port',
+                                                style: GoogleFonts.ibmPlexMono(
+                                                  fontSize: 10,
+                                                  color: Colors.white38,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: isSelected ? const Color(0xFFC1F11D) : Colors.white.withValues(alpha: 0.05),
+                                            borderRadius: BorderRadius.circular(6),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(
+                                                isSelected ? Icons.check_circle_rounded : Icons.touch_app_rounded,
+                                                color: isSelected ? Colors.black : Colors.white38,
+                                                size: 11,
+                                              ),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                isSelected ? 'ACTIVE' : 'SELECT',
+                                                style: GoogleFonts.ibmPlexMono(
+                                                  fontSize: 9,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: isSelected ? Colors.black : Colors.white60,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          );
                         },
-                        icon: const Icon(Icons.bolt_rounded, color: Color(0xFFC1F11D), size: 18),
-                        label: Text(
-                          '⚡ TEST CASH DRAWER (KICK NOW)',
-                          style: GoogleFonts.manrope(fontWeight: FontWeight.w900, fontSize: 11, letterSpacing: 0.5, color: const Color(0xFFC1F11D)),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          side: BorderSide(color: const Color(0xFFC1F11D).withValues(alpha: 0.4)),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        ),
+                      ),
+                    ),
+                    
+                    const SizedBox(height: 14),
+                    
+                    // Barcode Scanner Live Hardware Test
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.35),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.qr_code_scanner_rounded, color: Color(0xFFC1F11D), size: 20),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'HARDWARE SCANNER (USB / BLUETOOTH)',
+                                  style: GoogleFonts.ibmPlexMono(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.white30),
+                                ),
+                                Text(
+                                  _lastScanned,
+                                  style: GoogleFonts.ibmPlexMono(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: _lastScanned == 'Waiting for scan...' ? Colors.white24 : const Color(0xFFC1F11D),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (_lastScanned != 'Waiting for scan...')
+                            IconButton(
+                              icon: const Icon(Icons.refresh, size: 16, color: Colors.white38),
+                              onPressed: () => setState(() => _lastScanned = 'Waiting for scan...'),
+                            ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 14),
+                    
+                    // CASH DRAWER DRIVER & HARDWARE KICK SECTION
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.02),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(Icons.point_of_sale_rounded, color: Color(0xFFC1F11D), size: 18),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'CASH DRAWER HARDWARE DRIVER (RJ11 / RJ12)',
+                                    style: GoogleFonts.ibmPlexMono(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: const Color(0xFFC1F11D),
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              Switch(
+                                value: _autoOpenCashDrawer,
+                                onChanged: (v) {
+                                  setState(() => _autoOpenCashDrawer = v);
+                                  _saveCashDrawerSettings();
+                                },
+                                activeThumbColor: const Color(0xFFC1F11D),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Automatically trigger the electric kick pulse to pop open the cash drawer when a transaction is completed.',
+                            style: GoogleFonts.inter(fontSize: 11, color: Colors.white54),
+                          ),
+                          if (_autoOpenCashDrawer) ...[
+                            const SizedBox(height: 12),
+                            const Divider(color: Colors.white10, height: 1),
+                            const SizedBox(height: 12),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Only Kick for Cash / Split Payments',
+                                      style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white),
+                                    ),
+                                    Text(
+                                      'Do not kick drawer on pure card/digital payments',
+                                      style: GoogleFonts.inter(fontSize: 10, color: Colors.white38),
+                                    ),
+                                  ],
+                                ),
+                                Switch(
+                                  value: _openDrawerCashOnly,
+                                  onChanged: (v) {
+                                    setState(() => _openDrawerCashOnly = v);
+                                    _saveCashDrawerSettings();
+                                  },
+                                  activeThumbColor: const Color(0xFFC1F11D),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                Text(
+                                  'Connector Pin: ',
+                                  style: GoogleFonts.inter(fontSize: 11, color: Colors.white70),
+                                ),
+                                const SizedBox(width: 8),
+                                ChoiceChip(
+                                  label: Text('Pin 2 (Standard ESC/POS)', style: GoogleFonts.ibmPlexMono(fontSize: 10)),
+                                  selected: _cashDrawerPin == 2,
+                                  onSelected: (_) {
+                                    setState(() => _cashDrawerPin = 2);
+                                    _saveCashDrawerSettings();
+                                  },
+                                  selectedColor: const Color(0xFFC1F11D).withValues(alpha: 0.2),
+                                ),
+                                const SizedBox(width: 8),
+                                ChoiceChip(
+                                  label: Text('Pin 5 (Alternative)', style: GoogleFonts.ibmPlexMono(fontSize: 10)),
+                                  selected: _cashDrawerPin == 5,
+                                  onSelected: (_) {
+                                    setState(() => _cashDrawerPin = 5);
+                                    _saveCashDrawerSettings();
+                                  },
+                                  selectedColor: const Color(0xFFC1F11D).withValues(alpha: 0.2),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            // Test Drawer Kick Button
+                            SizedBox(
+                              height: 40,
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                onPressed: () async {
+                                  final printerService = ref.read(printerServiceProvider);
+                                  final db = ref.read(databaseServiceProvider);
+                                  final config = await db.getStoreConfig();
+                                  
+                                  final ok = await printerService.openCashDrawer(
+                                    config: config,
+                                    pin: _cashDrawerPin,
+                                    pulseOnMs: _cashDrawerPulseOnMs,
+                                  );
+
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Row(
+                                          children: [
+                                            Icon(
+                                              ok ? Icons.check_circle_rounded : Icons.warning_amber_rounded,
+                                              color: ok ? const Color(0xFFC1F11D) : Colors.orangeAccent,
+                                              size: 20,
+                                            ),
+                                            const SizedBox(width: 10),
+                                            Expanded(
+                                              child: Text(
+                                                ok 
+                                                  ? '✓ Kick pulse sent! Cash drawer should open.'
+                                                  : '⚠️ Kick pulse sent to hardware driver. Ensure printer cable is connected to cash drawer.',
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        backgroundColor: const Color(0xFF1A1A1F),
+                                        behavior: SnackBarBehavior.floating,
+                                      ),
+                                    );
+                                  }
+                                },
+                                icon: const Icon(Icons.bolt_rounded, color: Color(0xFFC1F11D), size: 18),
+                                label: Text(
+                                  '⚡ TEST CASH DRAWER (KICK NOW)',
+                                  style: GoogleFonts.manrope(fontWeight: FontWeight.w900, fontSize: 11, letterSpacing: 0.5, color: const Color(0xFFC1F11D)),
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  side: BorderSide(color: const Color(0xFFC1F11D).withValues(alpha: 0.4)),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ),
                   ],
-                ],
+                ),
               ),
             ),
 
-            const SizedBox(height: 18),
+            const SizedBox(height: 14),
             
             // Test Print Action Button
             SizedBox(
-              height: 48,
+              height: 46,
               child: ElevatedButton(
                 onPressed: () async {
                   final printerService = ref.read(printerServiceProvider);

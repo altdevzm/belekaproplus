@@ -168,8 +168,10 @@ class ShellScreen extends ConsumerWidget {
         _NavDestination(ScreenType.settings, Icons.settings_rounded, 'Settings'),
       ];
     } else {
+      // Cashier role (Sales + Hardware/Printer Settings)
       return const [
         _NavDestination(ScreenType.sales, Icons.point_of_sale_rounded, 'Sales'),
+        _NavDestination(ScreenType.settings, Icons.settings_rounded, 'Settings'),
       ];
     }
   }
