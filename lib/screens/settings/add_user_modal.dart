@@ -33,7 +33,8 @@ class _AddUserModalState extends ConsumerState<AddUserModal> {
     _passwordController = TextEditingController();
     _confirmPasswordController = TextEditingController();
     _nameController = TextEditingController(text: widget.userToEdit?.name ?? '');
-    _role = widget.userToEdit?.role ?? 'cashier';
+    final rawRole = (widget.userToEdit?.role ?? 'cashier').toLowerCase().trim();
+    _role = (rawRole == 'admin' || rawRole == 'manager') ? 'manager' : (rawRole == 'owner' ? 'owner' : 'cashier');
 
     _passwordController.addListener(() {
       setState(() {});
@@ -298,7 +299,7 @@ class _AddUserModalState extends ConsumerState<AddUserModal> {
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
-              value: _role,
+              value: ['owner', 'manager', 'cashier'].contains(_role) ? _role : 'cashier',
               dropdownColor: const Color(0xFF1A1A1F),
               icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white24),
               isExpanded: true,

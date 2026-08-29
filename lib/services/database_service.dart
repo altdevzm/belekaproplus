@@ -283,7 +283,8 @@ class DatabaseService {
       if (product == null) {
         throw Exception('Product Not Found: Internal database error.');
       }
-      if (product.stockLevel < item.quantity) {
+      final double requiredQty = (item.isWeighted && item.weight > 0) ? item.weight : item.quantity.toDouble();
+      if (product.stockLevel < requiredQty) {
         throw Exception('INSUFFICIENT_STOCK: ${product.name} (Only ${product.stockLevel} left)');
       }
     }
@@ -306,12 +307,14 @@ class DatabaseService {
         final product = await isar.products.get(item.productId);
         if (product != null) {
           final oldStock = product.stockLevel;
-          product.stockLevel -= item.quantity;
+          final double effectiveQty = (item.isWeighted && item.weight > 0) ? item.weight : item.quantity.toDouble();
+          final int deductUnits = (item.isWeighted && item.weight > 0) ? item.weight.ceil() : item.quantity;
+          product.stockLevel = (product.stockLevel - deductUnits).clamp(0, 9999999);
           await isar.products.put(product);
           
-          debugPrint('STOCK_DEDUCTION: Product ${product.name} (ID: ${product.id}) | Before: $oldStock | Deducted: ${item.quantity} | After: ${product.stockLevel}');
+          debugPrint('STOCK_DEDUCTION: Product ${product.name} (ID: ${product.id}) | Before: $oldStock | Deducted: $deductUnits (Qty/Wt: $effectiveQty) | After: ${product.stockLevel}');
           
-          totalCost += (item.unitCostAtSale) * item.quantity;
+          totalCost += (item.unitCostAtSale) * effectiveQty;
         }
       }
 
@@ -402,15 +405,38 @@ class DatabaseService {
         item.isRefunded = true;
         await isar.saleItems.put(item);
 
-        // Restore stock
+        // Restore stock and record movement
         final product = await isar.products.get(item.productId);
         if (product != null) {
-          product.stockLevel += item.quantity;
+          final prevStock = product.stockLevel;
+          final int restoreUnits = (item.isWeighted && item.weight > 0) ? item.weight.ceil() : item.quantity;
+          product.stockLevel += restoreUnits;
           await isar.products.put(product);
+
+          // Record official ZRA SAR Stock Movement (Type 11 = Customer Return/Refund)
+          final movement = StockMovement(
+            productId: product.id,
+            productName: product.name,
+            sku: product.sku,
+            branchCode: product.branchCode,
+            branchName: product.branchName,
+            movementType: '11', // ZRA SAR 11: Customer Return
+            actionType: 'ADD',
+            previousStock: prevStock,
+            quantityChanged: restoreUnits,
+            newStock: product.stockLevel,
+            unitCost: product.unitCost,
+            totalCostImpact: restoreUnits * product.unitCost,
+            reasonCategory: 'Refund / Return from Customer',
+            reasonNotes: 'Restocked from refund on Sale #${transaction.id}',
+            userName: transaction.cashierName,
+          );
+          await isar.stockMovements.put(movement);
         }
 
-        refundedAmount += item.priceAtSale * item.quantity;
-        refundedCost += item.unitCostAtSale * item.quantity;
+        final double effectiveQty = (item.isWeighted && item.weight > 0) ? item.weight : item.quantity.toDouble();
+        refundedAmount += item.priceAtSale * effectiveQty;
+        refundedCost += item.unitCostAtSale * effectiveQty;
       }
 
       // Update transaction status
@@ -419,6 +445,34 @@ class DatabaseService {
         transaction.status = 'refunded';
       } else {
         transaction.status = 'partially_refunded';
+      }
+
+      // Record Refund Transaction in Isar
+      final refundRecord = RefundTransaction()
+        ..refundNumber = 'REF-${DateTime.now().millisecondsSinceEpoch.toString().substring(6)}'
+        ..refundType = transaction.paymentMethod.toUpperCase()
+        ..amount = refundedAmount
+        ..reason = 'Customer Return (Tx #${transaction.id})'
+        ..authorizedBy = transaction.cashierName
+        ..createdAt = DateTime.now();
+      await isar.refundTransactions.put(refundRecord);
+
+      // Deduct refunded amount from Payment Account
+      final pMethod = transaction.paymentMethod.toUpperCase();
+      final accType = pMethod.contains('CASH') ? 'CASH' : (pMethod.contains('CARD') ? 'CARD' : 'AIRTEL_MONEY');
+      final acc = await isar.paymentAccounts.filter().accountTypeEqualTo(accType).findFirst();
+      if (acc != null) {
+        acc.balance -= refundedAmount;
+        await isar.paymentAccounts.put(acc);
+      }
+
+      // If Cash, update active Shift cashRefunds so till reconciliation is accurate
+      if (pMethod.contains('CASH')) {
+        final activeShift = await isar.cashShifts.filter().statusEqualTo('OPEN').findFirst();
+        if (activeShift != null) {
+          activeShift.cashRefunds += refundedAmount;
+          await isar.cashShifts.put(activeShift);
+        }
       }
 
       // Proportional reduction in customer loyalty points/spend
@@ -437,6 +491,7 @@ class DatabaseService {
 
       // Update transaction profit
       transaction.grossProfit -= (refundedAmount - refundedCost);
+      if (transaction.grossProfit.isNaN) transaction.grossProfit = 0.0;
       
       await isar.saleTransactions.put(transaction);
     });
@@ -521,29 +576,41 @@ class DatabaseService {
 
     double todayRevenue = todaySales.fold(0.0, (sum, t) {
       if (t.totalAmount.isNaN) return sum;
+      if (t.status == 'refunded') return sum;
+      if (t.isCreditNote) return sum - t.totalAmount;
       return sum + t.totalAmount;
     });
     double yesterdayRevenue = yesterdaySales.fold(0.0, (sum, t) {
       if (t.totalAmount.isNaN) return sum;
+      if (t.status == 'refunded') return sum;
+      if (t.isCreditNote) return sum - t.totalAmount;
       return sum + t.totalAmount;
     });
     double todayProfit = todaySales.fold(0.0, (sum, t) {
       if (t.grossProfit.isNaN) return sum;
+      if (t.status == 'refunded') return sum;
       return sum + t.grossProfit;
     });
     double yesterdayProfit = yesterdaySales.fold(0.0, (sum, t) {
       if (t.grossProfit.isNaN) return sum;
+      if (t.status == 'refunded') return sum;
       return sum + t.grossProfit;
     });
 
     double todayTax = todaySales.fold(0.0, (sum, t) {
       if (t.taxAmount.isNaN) return sum;
+      if (t.status == 'refunded') return sum;
+      if (t.isCreditNote) return sum - t.taxAmount;
       return sum + t.taxAmount;
     });
     double yesterdayTax = yesterdaySales.fold(0.0, (sum, t) {
       if (t.taxAmount.isNaN) return sum;
+      if (t.status == 'refunded') return sum;
+      if (t.isCreditNote) return sum - t.taxAmount;
       return sum + t.taxAmount;
     });
+
+    final activeTodayCount = todaySales.where((t) => t.status != 'refunded' && !t.isCreditNote).length;
 
     return {
       'todayRevenue': todayRevenue,
@@ -552,7 +619,7 @@ class DatabaseService {
       'yesterdayProfit': yesterdayProfit,
       'todayTax': todayTax,
       'yesterdayTax': yesterdayTax,
-      'todayCount': todaySales.length.toDouble(),
+      'todayCount': activeTodayCount.toDouble(),
     };
   }
 
@@ -581,19 +648,32 @@ class DatabaseService {
         .timestampBetween(startOfYesterday, startOfToday)
         .findAll();
 
-    double todayRevenue = todaySales.fold(0.0, (sum, t) => sum + (t.totalAmount.isNaN ? 0.0 : t.totalAmount));
-    double yesterdayRevenue = yesterdaySales.fold(0.0, (sum, t) => sum + (t.totalAmount.isNaN ? 0.0 : t.totalAmount));
+    double todayRevenue = todaySales.fold(0.0, (sum, t) {
+      if (t.totalAmount.isNaN) return sum;
+      if (t.status == 'refunded') return sum;
+      if (t.isCreditNote) return sum - t.totalAmount;
+      return sum + t.totalAmount;
+    });
+    double yesterdayRevenue = yesterdaySales.fold(0.0, (sum, t) {
+      if (t.totalAmount.isNaN) return sum;
+      if (t.status == 'refunded') return sum;
+      if (t.isCreditNote) return sum - t.totalAmount;
+      return sum + t.totalAmount;
+    });
 
     int totalItems = 0;
     for (var t in todaySales) {
+      if (t.status == 'refunded') continue;
       await t.items.load();
-      totalItems += t.items.fold(0, (sum, item) => sum + item.quantity);
+      totalItems += t.items.where((i) => !i.isRefunded).fold(0, (sum, item) => sum + item.quantity);
     }
+
+    final activeTodayCount = todaySales.where((t) => t.status != 'refunded' && !t.isCreditNote).length;
 
     return {
       'todayRevenue': todayRevenue,
       'yesterdayRevenue': yesterdayRevenue,
-      'todayCount': todaySales.length.toDouble(),
+      'todayCount': activeTodayCount.toDouble(),
       'todayItems': totalItems.toDouble(),
     };
   }
@@ -775,22 +855,40 @@ class DatabaseService {
   Future<Map<String, double>> getRangeStats(DateTime start, DateTime end) async {
     final transactions = await getTransactionsInRange(start, end);
 
-    double revenue = transactions.fold(0.0, (sum, t) => sum + (t.totalAmount.isNaN ? 0.0 : t.totalAmount));
-    double profit = transactions.fold(0.0, (sum, t) => sum + (t.grossProfit.isNaN ? 0.0 : t.grossProfit));
-    double tax = transactions.fold(0.0, (sum, t) => sum + (t.taxAmount.isNaN ? 0.0 : t.taxAmount));
+    double revenue = transactions.fold(0.0, (sum, t) {
+      if (t.totalAmount.isNaN) return sum;
+      if (t.status == 'refunded' && !t.isCreditNote) return sum;
+      if (t.isCreditNote) return sum - t.totalAmount;
+      return sum + t.totalAmount;
+    });
+    double profit = transactions.fold(0.0, (sum, t) {
+      if (t.grossProfit.isNaN) return sum;
+      if (t.status == 'refunded' && !t.isCreditNote) return sum;
+      return sum + t.grossProfit;
+    });
+    double tax = transactions.fold(0.0, (sum, t) {
+      if (t.taxAmount.isNaN) return sum;
+      if (t.status == 'refunded' && !t.isCreditNote) return sum;
+      if (t.isCreditNote) return sum - t.taxAmount;
+      return sum + t.taxAmount;
+    });
 
     final Map<String, double> paymentBreakdown = {};
     for (var t in transactions) {
-      final amount = t.totalAmount.isNaN ? 0.0 : t.totalAmount;
+      if (t.status == 'refunded' && !t.isCreditNote) continue;
+      final factor = t.isCreditNote ? -1.0 : 1.0;
+      final amount = (t.totalAmount.isNaN ? 0.0 : t.totalAmount) * factor;
       final method = t.paymentMethod.toLowerCase().replaceAll(' ', '_');
       paymentBreakdown[method] = (paymentBreakdown[method] ?? 0) + amount;
     }
+
+    final activeCount = transactions.where((t) => t.status != 'refunded' && !t.isCreditNote).length;
 
     return {
       'revenue': revenue,
       'profit': profit,
       'tax': tax,
-      'count': transactions.length.toDouble(),
+      'count': activeCount.toDouble(),
       'cash': paymentBreakdown['cash'] ?? 0.0,
       'card': paymentBreakdown['card'] ?? 0.0,
       'mobile_money': paymentBreakdown['mobile_money'] ?? 0.0,
@@ -804,9 +902,13 @@ class DatabaseService {
     final Map<int, String> productNames = {};
 
     for (var t in transactions) {
+      if (t.status == 'refunded') continue;
       await t.items.load();
       for (var item in t.items) {
-        productQuantities[item.productId] = (productQuantities[item.productId] ?? 0) + item.quantity;
+        if (item.isRefunded) continue;
+        final qty = (item.isWeighted && item.weight > 0) ? item.weight.ceil() : item.quantity;
+        final factor = t.isCreditNote ? -1 : 1;
+        productQuantities[item.productId] = (productQuantities[item.productId] ?? 0) + (qty * factor);
         productNames[item.productId] = item.productName;
       }
     }
@@ -1257,5 +1359,101 @@ class DatabaseService {
     // Sort newest first
     backups.sort((a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()));
     return backups;
+  }
+
+  // --------------------------------------------------------------------------
+  // Stock Movement & Adjustment Audit Trail
+  // --------------------------------------------------------------------------
+
+  /// Record an inventory stock movement (Stock In, Stock Out, or Physical Recount) with full reason tracking
+  Future<StockMovement> recordStockMovement({
+    required Product product,
+    required String actionType, // 'ADD', 'DEDUCT', 'RECOUNT'
+    required String movementType, // ZRA SAR code ('01', '02', '03', '04', '06', '11', '12', '13', '14', '15', '16')
+    required int quantityChanged, // Positive magnitude
+    required int newStockLevel,
+    required String reasonCategory,
+    String? reasonNotes,
+    String? userId,
+    String? userName,
+    String? branchCode,
+    String? branchName,
+    bool isSyncedWithDigitax = false,
+    String? digitaxSarNo,
+  }) async {
+    final previousStock = product.stockLevel;
+    final bCode = (branchCode != null && branchCode.isNotEmpty) ? branchCode : product.branchCode;
+    final totalCost = (product.unitCost * quantityChanged).abs();
+
+    final movement = StockMovement(
+      productId: product.id,
+      productName: product.name,
+      sku: product.sku,
+      branchCode: bCode,
+      branchName: branchName ?? product.branchName,
+      movementType: movementType,
+      actionType: actionType,
+      previousStock: previousStock,
+      quantityChanged: quantityChanged,
+      newStock: newStockLevel,
+      unitCost: product.unitCost,
+      totalCostImpact: totalCost,
+      reasonCategory: reasonCategory,
+      reasonNotes: reasonNotes,
+      userId: userId,
+      userName: userName,
+      isSyncedWithDigitax: isSyncedWithDigitax,
+      digitaxSarNo: digitaxSarNo,
+    );
+
+    await isar.writeTxn(() async {
+      product.stockLevel = newStockLevel;
+      await isar.products.put(product);
+      await isar.stockMovements.put(movement);
+    });
+
+    return movement;
+  }
+
+  /// Get list of all stock movements with optional branch filter
+  Future<List<StockMovement>> getStockMovements({
+    String? branchCode,
+    int? productId,
+    int limit = 200,
+  }) async {
+    final query = isar.stockMovements.filter();
+    
+    if (branchCode != null && branchCode.isNotEmpty && branchCode != '00') {
+      if (productId != null) {
+        return await query.branchCodeEqualTo(branchCode).and().productIdEqualTo(productId).sortByTimestampDesc().limit(limit).findAll();
+      } else {
+        return await query.branchCodeEqualTo(branchCode).sortByTimestampDesc().limit(limit).findAll();
+      }
+    } else if (productId != null) {
+      return await query.productIdEqualTo(productId).sortByTimestampDesc().limit(limit).findAll();
+    }
+
+    return await isar.stockMovements.where().sortByTimestampDesc().limit(limit).findAll();
+  }
+
+  /// Watch live stream of stock movements for real-time UI updates
+  Stream<List<StockMovement>> watchStockMovements({
+    String? branchCode,
+    int? productId,
+    int limit = 200,
+  }) {
+    final query = isar.stockMovements.filter();
+    
+    if (branchCode != null && branchCode.isNotEmpty && branchCode != '00') {
+      if (productId != null) {
+        return query.branchCodeEqualTo(branchCode).and().productIdEqualTo(productId).sortByTimestampDesc().limit(limit).watch(fireImmediately: true);
+      } else {
+        return query.branchCodeEqualTo(branchCode).sortByTimestampDesc().limit(limit).watch(fireImmediately: true);
+      }
+    } else if (productId != null) {
+      return query.productIdEqualTo(productId).sortByTimestampDesc().limit(limit).watch(fireImmediately: true);
+    }
+
+    return isar.stockMovements.where().sortByTimestampDesc().limit(limit).watch(fireImmediately: true);
   }
 }

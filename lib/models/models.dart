@@ -80,6 +80,7 @@ class Product {
   // DigiTax Inventory Synchronization Status
   bool isSyncedWithDigitax = false;
   DateTime? lastDigitaxSyncDate;
+  bool isDigitaxSyncEnabled = true; // When false: product is kept offline/private, NEVER uploaded to DigiTax, and excluded from fiscal payloads
   
   @Index()
   bool isArchived = false;
@@ -112,6 +113,7 @@ class Product {
     this.branchName,
     this.isSyncedWithDigitax = false,
     this.lastDigitaxSyncDate,
+    this.isDigitaxSyncEnabled = true,
     this.isArchived = false,
     this.discountPrice,
     this.discountStartDate,
@@ -134,6 +136,8 @@ class SaleTransaction {
   late double subtotal;
   late double taxAmount;
   late double discountAmount;
+  double serviceChargeAmount = 0.0;
+  double serviceChargeRate = 0.0; // e.g. 10.0%
   late double totalCost;
   late double grossProfit;
   double tenderedAmount = 0.0;
@@ -178,6 +182,8 @@ class SaleTransaction {
     this.subtotal = 0.0,
     this.taxAmount = 0.0,
     this.discountAmount = 0.0,
+    this.serviceChargeAmount = 0.0,
+    this.serviceChargeRate = 0.0,
     this.totalCost = 0.0,
     this.grossProfit = 0.0,
     this.tenderedAmount = 0.0,
@@ -228,6 +234,7 @@ class SaleItem {
   bool isWeighted = false;
   String unitOfMeasure = 'kg'; // 'kg', 'g', 'pcs', 'unit', 'ltr', 'lb'
   bool isRefunded = false;
+  bool isDigitaxExempt = false; // When true: item is offline/private and excluded from fiscal invoice
 
   SaleItem({
     required this.productId,
@@ -239,6 +246,7 @@ class SaleItem {
     this.isWeighted = false,
     this.unitOfMeasure = 'kg',
     this.isRefunded = false,
+    this.isDigitaxExempt = false,
     this.taxRateAtSale = 0.0,
     this.isTaxInclusiveAtSale = true,
   });
@@ -288,6 +296,10 @@ class StoreConfig {
   String? recoveryCodeHash;
   
   double taxRate = 16.0; // Default VAT in Zambia
+  
+  // Restaurant / Hospitality Service Charge (Non-Taxable, Not sent to DigiTax)
+  bool serviceChargeEnabled = false;
+  double defaultServiceChargeRate = 0.0; // e.g. 10.0%
   
   // Loyalty Program System Settings
   bool loyaltyEnabled = false;
@@ -683,3 +695,66 @@ class PosTerminal {
   @Index()
   DateTime createdAt = DateTime.now();
 }
+
+@collection
+class StockMovement {
+  Id id = Isar.autoIncrement;
+
+  @Index()
+  late int productId;
+  late String productName;
+  late String sku;
+  
+  @Index()
+  String branchCode = '00';
+  String? branchName;
+  
+  // ZRA SAR Movement Type Code ('01', '02', '03', '04', '06', '11', '12', '13', '14', '15', '16')
+  late String movementType;
+  
+  // 'ADD' (Stock In), 'DEDUCT' (Stock Out), 'RECOUNT' (Physical Audit Recount)
+  late String actionType;
+  
+  int previousStock = 0;
+  int quantityChanged = 0; // Absolute value of quantity adjusted
+  int newStock = 0;
+  
+  double unitCost = 0.0;
+  double totalCostImpact = 0.0; // quantityChanged * unitCost
+  
+  // Descriptive business reason
+  late String reasonCategory; // e.g. 'Damaged / Broken Goods', 'Expired Stock', 'Restock / Purchase', 'Physical Audit Shrinkage', 'Theft / Loss', 'Store Use / Sample', 'Return to Supplier', 'Transfer In', 'Transfer Out', 'Other'
+  String? reasonNotes; // Custom remarks or batch/PO/audit reference
+  
+  String? userId;
+  String? userName;
+  
+  bool isSyncedWithDigitax = false;
+  String? digitaxSarNo; // e.g. 'SAR-00-1724867123'
+  
+  @Index()
+  DateTime timestamp = DateTime.now();
+
+  StockMovement({
+    this.id = Isar.autoIncrement,
+    required this.productId,
+    required this.productName,
+    required this.sku,
+    this.branchCode = '00',
+    this.branchName,
+    required this.movementType,
+    required this.actionType,
+    required this.previousStock,
+    required this.quantityChanged,
+    required this.newStock,
+    this.unitCost = 0.0,
+    this.totalCostImpact = 0.0,
+    required this.reasonCategory,
+    this.reasonNotes,
+    this.userId,
+    this.userName,
+    this.isSyncedWithDigitax = false,
+    this.digitaxSarNo,
+  }) : timestamp = DateTime.now();
+}
+

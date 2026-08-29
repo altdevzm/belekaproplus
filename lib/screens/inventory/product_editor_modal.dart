@@ -12,6 +12,7 @@ import 'package:beleka_pos/providers/theme_provider.dart';
 import 'package:beleka_pos/providers/auth_provider.dart';
 import 'package:beleka_pos/services/digitax_inventory_service.dart';
 import 'package:beleka_pos/screens/inventory/category_management_modal.dart';
+import 'package:beleka_pos/screens/inventory/add_stock_modal.dart';
 
 class ProductEditorModal extends ConsumerStatefulWidget {
   final Product? product;
@@ -36,9 +37,11 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
   late TextEditingController _discountDurationController;
   late TextEditingController _tareWeightController;
   late TextEditingController _scalePluController;
+  late TextEditingController _taxRateController;
   bool _hasDiscount = false;
   bool _isTaxInclusive = true;
   bool _isWeighted = false;
+  bool _isDigitaxSyncEnabled = true;
   String _unitOfMeasure = 'kg';
   int? _selectedCategoryId;
   String? _imagePath;
@@ -71,6 +74,10 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
     _hasDiscount = widget.product?.discountPrice != null;
     
     _isTaxInclusive = widget.product?.isTaxInclusive ?? true;
+    _isDigitaxSyncEnabled = widget.product?.isDigitaxSyncEnabled ?? true;
+    _taxRateController = TextEditingController(
+      text: (widget.product?.taxRate ?? 16.0).toStringAsFixed(1).replaceAll('.0', ''),
+    );
     
     _selectedCategoryId = widget.product?.categoryId;
     _imagePath = widget.product?.imagePath;
@@ -87,6 +94,7 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
     _discountDurationController.dispose();
     _tareWeightController.dispose();
     _scalePluController.dispose();
+    _taxRateController.dispose();
     super.dispose();
   }
 
@@ -196,14 +204,9 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                   ],
                 ),
                 const SizedBox(height: 20),
-                _buildTextField(
-                  controller: _stockController,
-                  label: _isWeighted ? 'INITIAL STOCK (${_unitOfMeasure.toUpperCase()})' : 'INITIAL STOCK (UNITS)',
-                  hint: '0',
-                  keyboardType: TextInputType.number,
-                  accentColor: accentColor,
-                  validator: (v) => int.tryParse(v ?? '') == null ? 'Invalid' : null,
-                ),
+                _buildStockSection(accentColor),
+                const SizedBox(height: 20),
+                _buildDigitaxComplianceSection(accentColor),
                 const SizedBox(height: 20),
                 _buildScaleSection(accentColor),
                 const SizedBox(height: 20),
@@ -530,6 +533,124 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
       case CategorySector.other: return const Color(0xFFC1F11D);
     }
   }
+
+  Widget _buildStockSection(Color accentColor) {
+    final isEditing = widget.product != null;
+
+    if (isEditing) {
+      final currentStock = widget.product!.stockLevel;
+      final unitLabel = _isWeighted ? _unitOfMeasure.toUpperCase() : 'UNITS';
+
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.03),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.amber.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
+              ),
+              child: const Icon(Icons.lock_outline_rounded, color: Colors.amber, size: 20),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: [
+                      Text(
+                        'CURRENT STOCK LEVEL (LOCKED)',
+                        style: GoogleFonts.manrope(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1,
+                          color: Colors.white54,
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          'ZRA / DigiTax Protected',
+                          style: GoogleFonts.ibmPlexMono(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.amber,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '$currentStock $unitLabel',
+                    style: GoogleFonts.ibmPlexMono(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Direct quantity edits are locked for ZRA audit compliance. Use the "Adjust" button to record additions or deductions with reason codes.',
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: Colors.white38,
+                      height: 1.3,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            OutlinedButton.icon(
+              onPressed: () async {
+                Navigator.pop(context);
+                await showDialog<bool>(
+                  context: context,
+                  builder: (context) => StockAdjustmentModal(
+                    product: widget.product!,
+                  ),
+                );
+              },
+              icon: const Icon(Icons.tune_rounded, size: 14, color: Color(0xFF4ADE80)),
+              label: Text('Adjust', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: const Color(0xFF4ADE80))),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Color(0xFF4ADE80), width: 1),
+                backgroundColor: const Color(0xFF4ADE80).withValues(alpha: 0.08),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return _buildTextField(
+      controller: _stockController,
+      label: _isWeighted ? 'INITIAL OPENING STOCK (${_unitOfMeasure.toUpperCase()})' : 'INITIAL OPENING STOCK (UNITS)',
+      hint: '0',
+      keyboardType: TextInputType.number,
+      accentColor: accentColor,
+      validator: (v) => int.tryParse(v ?? '') == null ? 'Please enter a valid initial stock' : null,
+    );
+  }
+
   Widget _buildScaleSection(Color accentColor) {
     final units = [
       {'id': 'kg', 'name': 'kg (Kilograms)'},
@@ -624,7 +745,7 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                         ),
                         child: DropdownButtonHideUnderline(
                           child: DropdownButton<String>(
-                            value: _unitOfMeasure,
+                            value: units.any((u) => u['id'] == _unitOfMeasure) ? _unitOfMeasure : units.first['id'],
                             isExpanded: true,
                             dropdownColor: const Color(0xFF1A1A20),
                             items: units.map((u) {
@@ -665,6 +786,208 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
               hint: 'e.g. 00123 (for embedded barcode scales)',
               accentColor: accentColor,
             ),
+            Builder(
+              builder: (context) {
+                final currencySymbol = ref.watch(storeConfigProvider).value?.currencySymbol ?? r'$';
+                final costPerUnit = double.tryParse(_unitCostController.text.trim()) ?? 0.0;
+                final pricePerUnit = double.tryParse(_priceController.text.trim()) ?? 0.0;
+                final stockQty = double.tryParse(_stockController.text.trim()) ?? (widget.product?.stockLevel.toDouble() ?? 100.0);
+                final totalCost = stockQty * costPerUnit;
+                final totalRevenue = stockQty * pricePerUnit;
+                final projectedProfit = totalRevenue - totalCost;
+                final profitPerUnit = pricePerUnit - costPerUnit;
+                final markupPercent = costPerUnit > 0 ? ((pricePerUnit - costPerUnit) / costPerUnit * 100) : 0.0;
+
+                return Container(
+                  margin: const EdgeInsets.only(top: 16),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFC1F11D).withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0xFFC1F11D).withValues(alpha: 0.2)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.analytics_rounded, color: Color(0xFFC1F11D), size: 16),
+                          const SizedBox(width: 8),
+                          Text(
+                            'SCALE VALUATION & PROFIT PROJECTION',
+                            style: GoogleFonts.manrope(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w900,
+                              color: const Color(0xFFC1F11D),
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('Stock Batch Weight:', style: const TextStyle(color: Colors.white70, fontSize: 11.5)),
+                          Text('${stockQty.toStringAsFixed(0)} ${_unitOfMeasure.toUpperCase()}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                        ],
+                      ),
+                      const SizedBox(height: 5),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('Unit Purchase Cost:', style: const TextStyle(color: Colors.white70, fontSize: 11.5)),
+                          Text('$currencySymbol${costPerUnit.toStringAsFixed(2)} / $_unitOfMeasure', style: const TextStyle(color: Colors.white, fontSize: 11.5)),
+                        ],
+                      ),
+                      const SizedBox(height: 5),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('Selling Price per ${_unitOfMeasure.toUpperCase()}:', style: const TextStyle(color: Colors.white70, fontSize: 11.5)),
+                          Text('$currencySymbol${pricePerUnit.toStringAsFixed(2)} / $_unitOfMeasure', style: const TextStyle(color: Colors.white, fontSize: 11.5)),
+                        ],
+                      ),
+                      const SizedBox(height: 5),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('Total Stock Cost (${stockQty.toStringAsFixed(0)} $_unitOfMeasure × $currencySymbol${costPerUnit.toStringAsFixed(2)}):', style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                          Text('$currencySymbol${totalCost.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                        ],
+                      ),
+                      const SizedBox(height: 5),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('Total Sales Value (${stockQty.toStringAsFixed(0)} $_unitOfMeasure × $currencySymbol${pricePerUnit.toStringAsFixed(2)}):', style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                          Text('$currencySymbol${totalRevenue.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                        ],
+                      ),
+                      const Divider(color: Colors.white12, height: 18),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('PROJECTED PROFIT:', style: GoogleFonts.manrope(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 12)),
+                          Text(
+                            '${projectedProfit >= 0 ? "+" : ""}$currencySymbol${projectedProfit.toStringAsFixed(2)} (${markupPercent.toStringAsFixed(1)}% markup)',
+                            style: GoogleFonts.manrope(
+                              color: projectedProfit >= 0 ? const Color(0xFFC1F11D) : Colors.redAccent,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '💡 Profit per $_unitOfMeasure: Selling at $currencySymbol${pricePerUnit.toStringAsFixed(2)} - cost $currencySymbol${costPerUnit.toStringAsFixed(2)} = +$currencySymbol${profitPerUnit.toStringAsFixed(2)} profit per 1 $_unitOfMeasure.',
+                        style: GoogleFonts.inter(fontSize: 10.5, color: Colors.white60, height: 1.3),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDigitaxComplianceSection(Color accentColor) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: _isDigitaxSyncEnabled
+            ? const Color(0xFF10B981).withValues(alpha: 0.04)
+            : Colors.blue.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: _isDigitaxSyncEnabled
+              ? const Color(0xFF10B981).withValues(alpha: 0.25)
+              : Colors.blue.withValues(alpha: 0.3),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    _isDigitaxSyncEnabled ? Icons.cloud_done_rounded : Icons.cloud_off_rounded,
+                    color: _isDigitaxSyncEnabled ? const Color(0xFF10B981) : Colors.blueAccent,
+                    size: 22,
+                  ),
+                  const SizedBox(width: 14),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'DIGITAX & ZRA SMART INVOICE SYNC',
+                        style: GoogleFonts.manrope(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1,
+                          color: _isDigitaxSyncEnabled ? Colors.white : Colors.blue.shade100,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _isDigitaxSyncEnabled
+                            ? 'Active in ZRA Smart Invoice • Cloud Synced'
+                            : 'Offline-only product • Will NOT sync to DigiTax',
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          color: _isDigitaxSyncEnabled ? const Color(0xFF10B981) : Colors.blueAccent,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              Switch(
+                value: _isDigitaxSyncEnabled,
+                onChanged: (v) {
+                  setState(() {
+                    _isDigitaxSyncEnabled = v;
+                    if (!v) {
+                      _taxRateController.text = '0'; // Default untaxed for offline private items
+                    } else {
+                      _taxRateController.text = '16';
+                    }
+                  });
+                },
+                activeThumbColor: const Color(0xFF10B981),
+                inactiveThumbColor: Colors.blueAccent,
+              ),
+            ],
+          ),
+          if (!_isDigitaxSyncEnabled) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.blue.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.shield_outlined, color: Colors.blueAccent, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '🔒 Private Offline Item: Stored locally only on this computer. Excluded from DigiTax cloud stock and ZRA fiscal sales payloads.',
+                      style: GoogleFonts.inter(fontSize: 11, color: Colors.white70),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
         ],
       ),
@@ -679,49 +1002,101 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: _isTaxInclusive ? accentColor.withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.05)),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Icon(
-                _isTaxInclusive ? Icons.cloud_done_rounded : Icons.inventory_2_outlined,
-                color: _isTaxInclusive ? accentColor : Colors.white38,
-                size: 22,
-              ),
-              const SizedBox(width: 14),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              Row(
                 children: [
-                  Text(
-                    'TAX INCLUSIVE',
-                    style: GoogleFonts.manrope(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1,
-                      color: Colors.white,
-                    ),
+                  Icon(
+                    _isTaxInclusive ? Icons.percent_rounded : Icons.money_off_csred_rounded,
+                    color: _isTaxInclusive ? accentColor : Colors.white38,
+                    size: 22,
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    _isTaxInclusive
-                        ? 'Tax Inclusive • Syncs to DigiTax cloud'
-                        : 'Tax Exclusive • Local stock only (won\'t sync)',
-                    style: GoogleFonts.inter(
-                      fontSize: 11,
-                      color: _isTaxInclusive ? accentColor : Colors.white38,
-                      fontWeight: FontWeight.w500,
-                    ),
+                  const SizedBox(width: 14),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'TAX INCLUSIVE',
+                        style: GoogleFonts.manrope(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _isTaxInclusive
+                            ? 'Price includes tax'
+                            : 'Price is tax exclusive',
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          color: _isTaxInclusive ? accentColor : Colors.white38,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
+              Switch(
+                value: _isTaxInclusive,
+                onChanged: (v) => setState(() => _isTaxInclusive = v),
+                activeThumbColor: accentColor,
+              ),
             ],
           ),
-          Switch(
-            value: _isTaxInclusive,
-            onChanged: (v) => setState(() => _isTaxInclusive = v),
-            activeThumbColor: accentColor,
-          ),
+          if (!_isDigitaxSyncEnabled) ...[
+            const SizedBox(height: 16),
+            const Divider(color: Colors.white12, height: 1),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'TAX RATE (%) - OFFLINE ITEM',
+                        style: GoogleFonts.manrope(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1,
+                          color: Colors.white54,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Choose 0% for untaxed or enter custom rate',
+                        style: GoogleFonts.inter(fontSize: 10, color: Colors.white38),
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(
+                  width: 110,
+                  height: 42,
+                  child: TextFormField(
+                    controller: _taxRateController,
+                    keyboardType: TextInputType.number,
+                    style: GoogleFonts.inter(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                    decoration: InputDecoration(
+                      suffixText: '%',
+                      suffixStyle: const TextStyle(color: Colors.white60),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      filled: true,
+                      fillColor: Colors.white.withValues(alpha: 0.05),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -822,11 +1197,18 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
           ? storeConfig.branchName!
           : (currentUser?.branchName ?? (isOwner ? 'Headquarters (HQ)' : 'Main Branch'));
 
+      final initialStock = (widget.product != null)
+          ? widget.product!.stockLevel
+          : (int.tryParse(_stockController.text.trim()) ?? 0);
+
+      final parsedTaxRate = double.tryParse(_taxRateController.text.trim()) ?? (_isTaxInclusive ? 16.0 : 0.0);
+      final zraTaxCode = !_isDigitaxSyncEnabled ? 'EXEMPT' : (parsedTaxRate == 0 ? 'C' : 'A');
+
       final product = widget.product ?? Product(
-        name: _nameController.text,
-        sku: _skuController.text,
+        name: _nameController.text.trim(),
+        sku: _skuController.text.trim(),
         price: double.parse(_priceController.text),
-        stockLevel: int.parse(_stockController.text),
+        stockLevel: initialStock,
         categoryId: _selectedCategoryId ?? 0,
         unitCost: double.tryParse(_unitCostController.text) ?? 0.0,
         imagePath: _imagePath,
@@ -834,11 +1216,12 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
         discountStartDate: _hasDiscount ? DateTime.now() : null,
         discountEndDate: (_hasDiscount && durationDays != null) ? DateTime.now().add(Duration(days: durationDays)) : null,
         isTaxInclusive: _isTaxInclusive,
-        taxRate: _isTaxInclusive ? 16.0 : 0.0,
-        zraTaxCode: 'A',
+        taxRate: parsedTaxRate,
+        zraTaxCode: zraTaxCode,
         branchCode: branchBhfId,
         branchName: branchName,
         isSyncedWithDigitax: false,
+        isDigitaxSyncEnabled: _isDigitaxSyncEnabled,
         lastDigitaxSyncDate: null,
         isWeighted: _isWeighted,
         unitOfMeasure: _unitOfMeasure,
@@ -849,19 +1232,20 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
       final previousStock = widget.product?.stockLevel;
 
       if (widget.product != null) {
-        product.name = _nameController.text;
-        product.sku = _skuController.text;
+        product.name = _nameController.text.trim();
+        product.sku = _skuController.text.trim();
         product.price = double.parse(_priceController.text);
         product.unitCost = double.tryParse(_unitCostController.text) ?? 0.0;
-        product.stockLevel = int.parse(_stockController.text);
+        product.stockLevel = widget.product!.stockLevel; // Stock quantity is locked in edit mode
         product.categoryId = _selectedCategoryId ?? 0;
         product.imagePath = _imagePath;
         product.discountPrice = discountPrice;
         product.discountStartDate = _hasDiscount ? (product.discountStartDate ?? DateTime.now()) : null;
         product.discountEndDate = (_hasDiscount && durationDays != null) ? DateTime.now().add(Duration(days: durationDays)) : null;
         product.isTaxInclusive = _isTaxInclusive;
-        product.taxRate = _isTaxInclusive ? 16.0 : 0.0;
-        product.zraTaxCode = 'A';
+        product.taxRate = parsedTaxRate;
+        product.zraTaxCode = zraTaxCode;
+        product.isDigitaxSyncEnabled = _isDigitaxSyncEnabled;
         product.branchCode = branchBhfId;
         product.branchName = branchName;
         product.isWeighted = _isWeighted;
@@ -872,22 +1256,77 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
 
       await db.saveProduct(product);
 
-      // Always push product to DigiTax VSDC Cloud for live ZRA compliance
+      final diff = (previousStock != null) ? (product.stockLevel - previousStock) : product.stockLevel;
+      final movementType = previousStock == null ? '01' : (diff > 0 ? '06' : '16');
+
+      // Record stock movement audit entry if stock changed
+      if (previousStock == null && product.stockLevel > 0) {
+        await db.recordStockMovement(
+          product: product,
+          actionType: 'ADD',
+          movementType: '01',
+          quantityChanged: product.stockLevel,
+          newStockLevel: product.stockLevel,
+          reasonCategory: 'Initial Inventory Opening',
+          reasonNotes: 'New product registered in catalog',
+          userId: currentUser?.numericId ?? '1001',
+          userName: currentUser?.name ?? 'Manager',
+          branchCode: branchBhfId,
+          branchName: branchName,
+          isSyncedWithDigitax: false,
+        );
+      } else if (previousStock != null && diff != 0) {
+        await db.recordStockMovement(
+          product: product,
+          actionType: diff > 0 ? 'ADD' : 'DEDUCT',
+          movementType: diff > 0 ? '06' : '16',
+          quantityChanged: diff.abs(),
+          newStockLevel: product.stockLevel,
+          reasonCategory: diff > 0 ? 'Manual Inventory Adjustment In' : 'Manual Inventory Adjustment Out',
+          reasonNotes: 'Adjusted in Product Editor',
+          userId: currentUser?.numericId ?? '1001',
+          userName: currentUser?.name ?? 'Manager',
+          branchCode: branchBhfId,
+          branchName: branchName,
+          isSyncedWithDigitax: false,
+        );
+      }
+
+      // Push product to DigiTax VSDC Cloud ONLY if enabled for DigiTax sync
       bool digitaxSynced = false;
       String? syncErr;
-      try {
-        digitaxSynced = await ref.read(digitaxInventoryServiceProvider).syncSingleProductToDigitax(
-          product,
-          previousStock: previousStock,
-          branchCode: branchBhfId,
-        );
-      } catch (e) {
-        syncErr = e.toString();
-        debugPrint('DigiTax product push notice: $e');
+      if (product.isDigitaxSyncEnabled) {
+        try {
+          digitaxSynced = await ref.read(digitaxInventoryServiceProvider).syncSingleProductToDigitax(
+            product,
+            previousStock: previousStock,
+            branchCode: branchBhfId,
+            movementType: movementType,
+            reasonNotes: 'Product Editor update',
+          );
+        } catch (e) {
+          syncErr = e.toString();
+          debugPrint('DigiTax product push notice: $e');
+        }
       }
 
       if (mounted) {
-        if (digitaxSynced) {
+        if (!product.isDigitaxSyncEnabled) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.shield_rounded, color: Colors.blueAccent, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text('🔒 ${product.name} saved offline (Exempt from DigiTax/ZRA sync)'),
+                  ),
+                ],
+              ),
+              backgroundColor: const Color(0xFF1E293B),
+            ),
+          );
+        } else if (digitaxSynced) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('✅ ${product.name} saved & registered with DigiTax!'),

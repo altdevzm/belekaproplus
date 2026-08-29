@@ -37,6 +37,7 @@ class Store(Base):
     sales = relationship("SaleTransaction", back_populates="store", cascade="all, delete-orphan")
     customers = relationship("Customer", back_populates="store", cascade="all, delete-orphan")
     purchase_orders = relationship("PurchaseOrder", back_populates="store", cascade="all, delete-orphan")
+    stock_movements = relationship("StockMovement", back_populates="store", cascade="all, delete-orphan")
 
 class User(Base):
     __tablename__ = "users"
@@ -95,6 +96,7 @@ class Product(Base):
 
     store = relationship("Store", back_populates="products")
     category = relationship("Category", back_populates="products")
+    stock_movements = relationship("StockMovement", back_populates="product")
     __table_args__ = (UniqueConstraint("store_id", "sku", name="uk_product_store_sku"),)
 
 class Customer(Base):
@@ -191,6 +193,58 @@ class PurchaseOrderItem(Base):
     product_name = Column(String(255), nullable=False)
     unit_cost = Column(Numeric(12, 2), default=0.00)
     quantity_ordered = Column(Integer, nullable=False, default=1)
-    quantity_received = Column(Integer, default=0)
-
     purchase_order = relationship("PurchaseOrder", back_populates="items")
+
+class StockMovement(Base):
+    __tablename__ = "stock_movements"
+
+    id = Column(Integer, primary_key=True, index=True)
+    store_id = Column(Integer, ForeignKey("stores.id", ondelete="CASCADE"), nullable=False, index=True)
+    product_id = Column(Integer, ForeignKey("products.id", ondelete="SET NULL"), nullable=True, index=True)
+    product_name = Column(String(255), nullable=False)
+    sku = Column(String(100), nullable=False, index=True)
+    branch_code = Column(String(10), default="00", index=True)
+    branch_name = Column(String(100), nullable=True)
+    movement_type = Column(String(10), nullable=False) # '01', '02', '03', '04', '06', '11', '12', '13', '14', '15', '16'
+    action_type = Column(String(20), nullable=False) # 'ADD', 'DEDUCT', 'RECOUNT'
+    previous_stock = Column(Integer, default=0)
+    quantity_changed = Column(Integer, default=0)
+    new_stock = Column(Integer, default=0)
+    unit_cost = Column(Numeric(12, 2), default=0.00)
+    total_cost_impact = Column(Numeric(12, 2), default=0.00)
+    reason_category = Column(String(100), nullable=False)
+    reason_notes = Column(Text, nullable=True)
+    user_id = Column(String(50), nullable=True)
+    user_name = Column(String(255), nullable=True)
+    is_synced_with_digitax = Column(Boolean, default=False)
+    digitax_sar_no = Column(String(100), nullable=True)
+    timestamp = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+    store = relationship("Store", back_populates="stock_movements")
+    product = relationship("Product", back_populates="stock_movements")
+
+
+class TotReturn(Base):
+    """Turnover Tax (TOT) monthly return record — ZRA Zambia."""
+    __tablename__ = "tot_returns"
+
+    id = Column(Integer, primary_key=True, index=True)
+    store_id = Column(Integer, ForeignKey("stores.id", ondelete="CASCADE"), nullable=False, index=True)
+    charge_year = Column(Integer, nullable=False, index=True)            # e.g. 2026
+    charge_month = Column(Integer, nullable=False, index=True)           # 1–12
+    gross_turnover = Column(Numeric(14, 2), nullable=False, default=0.00)  # Total sales for the month
+    tot_rate = Column(Numeric(5, 2), nullable=False, default=0.00)         # 0 or 5 (%)
+    tot_amount = Column(Numeric(14, 2), nullable=False, default=0.00)      # Tax owed
+    due_date = Column(DateTime(timezone=True), nullable=True)              # 14th of following month
+    # Status lifecycle: draft → submitted → paid
+    status = Column(String(30), nullable=False, default="draft", index=True)
+    digitax_reference = Column(String(100), nullable=True)                # ZRA / DigiTax ack ref
+    notes = Column(Text, nullable=True)
+    submitted_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    store = relationship("Store", backref="tot_returns")
+    __table_args__ = (
+        UniqueConstraint("store_id", "charge_year", "charge_month", name="uk_tot_store_year_month"),
+    )

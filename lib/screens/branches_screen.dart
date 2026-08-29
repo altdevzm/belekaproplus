@@ -590,59 +590,70 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
                     Text('Select a manager from your existing users, or provision a new user account.', style: GoogleFonts.inter(fontSize: 11.5, color: Colors.white54)),
                     const SizedBox(height: 12),
 
-                    // USER SELECTION DROPDOWN
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1E1E24),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<String?>(
-                          value: isCreateNewUser ? '__CREATE_NEW__' : selectedUserId,
-                          isExpanded: true,
-                          dropdownColor: const Color(0xFF1E1E24),
-                          style: GoogleFonts.inter(color: Colors.white, fontSize: 13),
-                          hint: const Text('Select Existing User as Manager', style: TextStyle(color: Colors.white38)),
-                          items: [
-                            const DropdownMenuItem<String?>(
-                              value: null,
-                              child: Text('-- No Manager Assigned --', style: TextStyle(color: Colors.white54)),
+                    Builder(
+                      builder: (context) {
+                        final uniqueUsers = <String, User>{};
+                        for (final u in users) {
+                          uniqueUsers[u.numericId] = u;
+                        }
+                        final safeSelectedUserId = (selectedUserId != null && uniqueUsers.containsKey(selectedUserId))
+                            ? selectedUserId
+                            : null;
+
+                        return Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1E1E24),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<String?>(
+                              value: isCreateNewUser ? '__CREATE_NEW__' : safeSelectedUserId,
+                              isExpanded: true,
+                              dropdownColor: const Color(0xFF1E1E24),
+                              style: GoogleFonts.inter(color: Colors.white, fontSize: 13),
+                              hint: const Text('Select Existing User as Manager', style: TextStyle(color: Colors.white38)),
+                              items: [
+                                const DropdownMenuItem<String?>(
+                                  value: null,
+                                  child: Text('-- No Manager Assigned --', style: TextStyle(color: Colors.white54)),
+                                ),
+                                ...uniqueUsers.values.map((u) => DropdownMenuItem<String?>(
+                                  value: u.numericId,
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.person_outline_rounded, size: 16, color: accentColor),
+                                      const SizedBox(width: 8),
+                                      Text('${u.name} (Role: ${u.role.toUpperCase()}) - ID: ${u.numericId}'),
+                                    ],
+                                  ),
+                                )),
+                                const DropdownMenuItem<String?>(
+                                  value: '__CREATE_NEW__',
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.person_add_alt_1_rounded, size: 16, color: Color(0xFF10B981)),
+                                      SizedBox(width: 8),
+                                      Text('+ Provision New Manager User', style: TextStyle(color: Color(0xFFA7F3D0), fontWeight: FontWeight.bold)),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                              onChanged: (val) {
+                                setModalState(() {
+                                  if (val == '__CREATE_NEW__') {
+                                    isCreateNewUser = true;
+                                    selectedUserId = null;
+                                  } else {
+                                    isCreateNewUser = false;
+                                    selectedUserId = val;
+                                  }
+                                });
+                              },
                             ),
-                            ...users.map((u) => DropdownMenuItem<String?>(
-                              value: u.numericId,
-                              child: Row(
-                                children: [
-                                  Icon(Icons.person_outline_rounded, size: 16, color: accentColor),
-                                  const SizedBox(width: 8),
-                                  Text('${u.name} (Role: ${u.role.toUpperCase()}) - ID: ${u.numericId}'),
-                                ],
-                              ),
-                            )),
-                            DropdownMenuItem<String?>(
-                              value: '__CREATE_NEW__',
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.person_add_alt_1_rounded, size: 16, color: Color(0xFF10B981)),
-                                  const SizedBox(width: 8),
-                                  Text('+ Provision New Manager User', style: TextStyle(color: Colors.greenAccent[200], fontWeight: FontWeight.bold)),
-                                ],
-                              ),
-                            ),
-                          ],
-                          onChanged: (val) {
-                            setModalState(() {
-                              if (val == '__CREATE_NEW__') {
-                                isCreateNewUser = true;
-                                selectedUserId = null;
-                              } else {
-                                isCreateNewUser = false;
-                                selectedUserId = val;
-                              }
-                            });
-                          },
-                        ),
-                      ),
+                          ),
+                        );
+                      },
                     ),
 
                     // If "Create New User" is chosen, show inputs for new manager credentials

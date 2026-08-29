@@ -889,22 +889,36 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> {
             ? storeConfig.branchName!
             : (isOwner ? 'Main Store (HQ)' : 'Branch $userBranchCode'));
 
-    final List<Map<String, String>> branchOptions = [];
+    final Map<String, Map<String, String>> uniqueBranches = {};
     if (isOwner) {
-      if (branches.isEmpty) {
-        branchOptions.add({'code': '00', 'name': 'Main Store (HQ)', 'bhfId': '00'});
-      } else {
-        for (final b in branches) {
-          branchOptions.add({'code': b.code, 'name': b.name, 'bhfId': b.bhfId});
-        }
+      // Always guarantee Main Store (HQ) is present
+      uniqueBranches['00'] = {'code': '00', 'name': 'Main Store (HQ)', 'bhfId': '00'};
+      for (final b in branches) {
+        uniqueBranches[b.code] = {'code': b.code, 'name': b.name, 'bhfId': b.bhfId};
       }
     } else {
       final matchingBranch = branches.where((b) => b.bhfId == userBranchCode || b.code == userBranchCode).firstOrNull;
       if (matchingBranch != null) {
-        branchOptions.add({'code': matchingBranch.code, 'name': matchingBranch.name, 'bhfId': matchingBranch.bhfId});
+        uniqueBranches[matchingBranch.code] = {'code': matchingBranch.code, 'name': matchingBranch.name, 'bhfId': matchingBranch.bhfId};
       } else {
-        branchOptions.add({'code': 'BR-00$userBranchCode', 'name': userBranchName, 'bhfId': userBranchCode});
+        uniqueBranches[userBranchCode] = {'code': userBranchCode, 'name': userBranchName, 'bhfId': userBranchCode};
       }
+    }
+
+    // If editing a terminal that has an existing branchCode not in the map, ensure it is safely represented
+    if (terminal != null && terminal.branchCode.isNotEmpty) {
+      if (!uniqueBranches.containsKey(terminal.branchCode)) {
+        uniqueBranches[terminal.branchCode] = {
+          'code': terminal.branchCode,
+          'name': terminal.branchName.isNotEmpty ? terminal.branchName : 'Branch ${terminal.branchCode}',
+          'bhfId': terminal.digitaxBhfId.isNotEmpty ? terminal.digitaxBhfId : terminal.branchCode,
+        };
+      }
+    }
+
+    final List<Map<String, String>> branchOptions = uniqueBranches.values.toList();
+    if (branchOptions.isEmpty) {
+      branchOptions.add({'code': '00', 'name': 'Main Store (HQ)', 'bhfId': '00'});
     }
 
     final codeCtrl = TextEditingController(text: terminal?.terminalCode ?? 'TILL-0${(ref.read(posTerminalsProvider).value?.length ?? 0) + 1}');
@@ -912,11 +926,25 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> {
     final ipCtrl = TextEditingController(text: terminal?.deviceIp ?? '');
     final serialCtrl = TextEditingController(text: terminal?.serialNumber ?? '');
 
-    String selectedBranchCode = terminal?.branchCode ?? branchOptions.first['code']!;
-    String selectedBranchName = terminal?.branchName ?? branchOptions.first['name']!;
-    String selectedBhfId = terminal?.digitaxBhfId ?? branchOptions.first['bhfId']!;
-    String? selectedCashierId = terminal?.assignedCashierId ?? (users.isNotEmpty ? users.first.numericId : null);
-    String? selectedCashierName = terminal?.assignedCashierName ?? (users.isNotEmpty ? users.first.name : null);
+    String selectedBranchCode = (terminal != null && uniqueBranches.containsKey(terminal.branchCode))
+        ? terminal.branchCode
+        : branchOptions.first['code']!;
+    String selectedBranchName = uniqueBranches[selectedBranchCode]?['name'] ?? branchOptions.first['name']!;
+    String selectedBhfId = uniqueBranches[selectedBranchCode]?['bhfId'] ?? branchOptions.first['bhfId']!;
+    
+    // Deduplicate user list for cashier dropdown
+    final Map<String, User> uniqueUsersMap = {};
+    for (final u in users) {
+      if (u.numericId.isNotEmpty) {
+        uniqueUsersMap[u.numericId] = u;
+      }
+    }
+    final List<User> uniqueUsers = uniqueUsersMap.values.toList();
+
+    String selectedCashierId = (terminal?.assignedCashierId != null && uniqueUsersMap.containsKey(terminal?.assignedCashierId))
+        ? terminal!.assignedCashierId!
+        : '';
+    String? selectedCashierName = uniqueUsersMap[selectedCashierId]?.name;
     String status = terminal?.status ?? 'ACTIVE';
 
     showDialog(
@@ -976,7 +1004,7 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> {
 
                     // Store Branch Selection
                     DropdownButtonFormField<String>(
-                      initialValue: selectedBranchCode,
+                      initialValue: uniqueBranches.containsKey(selectedBranchCode) ? selectedBranchCode : branchOptions.first['code'],
                       dropdownColor: const Color(0xFF222228),
                       style: const TextStyle(color: Colors.white),
                       decoration: InputDecoration(
@@ -1006,7 +1034,7 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> {
 
                     // Default Assigned Cashier
                     DropdownButtonFormField<String>(
-                      initialValue: selectedCashierId,
+                      initialValue: (selectedCashierId.isEmpty || uniqueUsersMap.containsKey(selectedCashierId)) ? selectedCashierId : '',
                       dropdownColor: const Color(0xFF222228),
                       style: const TextStyle(color: Colors.white),
                       decoration: const InputDecoration(
@@ -1017,15 +1045,15 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> {
                       ),
                       items: [
                         const DropdownMenuItem(value: '', child: Text('None (Assign on shift open)')),
-                        ...users.map((u) => DropdownMenuItem(
+                        ...uniqueUsers.map((u) => DropdownMenuItem(
                           value: u.numericId,
                           child: Text('${u.name} (ID: ${u.numericId} • ${u.role.toUpperCase()})'),
                         )),
                       ],
                       onChanged: (id) {
                         setModalState(() {
-                          selectedCashierId = id;
-                          final matchingUser = users.where((u) => u.numericId == id).firstOrNull;
+                          selectedCashierId = id ?? '';
+                          final matchingUser = uniqueUsersMap[selectedCashierId];
                           selectedCashierName = matchingUser?.name;
                         });
                       },
@@ -1312,21 +1340,36 @@ class _AssignShiftModalState extends ConsumerState<_AssignShiftModal> {
               ),
               const SizedBox(height: 16),
 
-              DropdownButtonFormField<String>(
-                initialValue: _selectedCashierId,
-                dropdownColor: const Color(0xFF222228),
-                style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(
-                  labelText: 'Select Cashier / Staff *',
-                  labelStyle: TextStyle(color: Colors.white70),
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.person, color: Colors.white60),
-                ),
-                items: widget.users.map((u) => DropdownMenuItem(
-                  value: u.numericId,
-                  child: Text('${u.name} (ID: ${u.numericId} • ${u.role.toUpperCase()})'),
-                )).toList(),
-                onChanged: (id) => setState(() => _selectedCashierId = id),
+              Builder(
+                builder: (context) {
+                  final uniqueUsersMap = <String, User>{};
+                  for (final u in widget.users) {
+                    if (u.numericId.isNotEmpty) {
+                      uniqueUsersMap[u.numericId] = u;
+                    }
+                  }
+                  final uniqueUsersList = uniqueUsersMap.values.toList();
+                  final safeCashierId = (_selectedCashierId != null && uniqueUsersMap.containsKey(_selectedCashierId))
+                      ? _selectedCashierId
+                      : (uniqueUsersList.isNotEmpty ? uniqueUsersList.first.numericId : null);
+
+                  return DropdownButtonFormField<String>(
+                    initialValue: safeCashierId,
+                    dropdownColor: const Color(0xFF222228),
+                    style: const TextStyle(color: Colors.white),
+                    decoration: const InputDecoration(
+                      labelText: 'Select Cashier / Staff *',
+                      labelStyle: TextStyle(color: Colors.white70),
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.person, color: Colors.white60),
+                    ),
+                    items: uniqueUsersList.map((u) => DropdownMenuItem(
+                      value: u.numericId,
+                      child: Text('${u.name} (ID: ${u.numericId} • ${u.role.toUpperCase()})'),
+                    )).toList(),
+                    onChanged: (id) => setState(() => _selectedCashierId = id),
+                  );
+                },
               ),
               const SizedBox(height: 14),
 

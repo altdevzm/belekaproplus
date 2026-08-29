@@ -729,6 +729,11 @@ class PrinterService {
         bytes += generator.text(_formatRow2(taxLabel, CurrencyFormatter.format(transaction.taxAmount, currency), colCount));
       }
 
+      if (transaction.serviceChargeAmount > 0) {
+        final scLabel = 'SERVICE CHG (${transaction.serviceChargeRate.toStringAsFixed(0)}% UNTAXED)';
+        bytes += generator.text(_formatRow2(scLabel, CurrencyFormatter.format(transaction.serviceChargeAmount, currency), colCount));
+      }
+
       bytes += generator.feed(1);
       bytes += generator.text(preset.doubleDivider);
 
@@ -1451,6 +1456,11 @@ class PrinterService {
       commands.append('${taxLabel.padRight(18)}${CurrencyFormatter.format(transaction.taxAmount, currency).padLeft(14)}\n');
     }
 
+    if (transaction.serviceChargeAmount > 0) {
+      final scLabel = 'SERVICE (${transaction.serviceChargeRate.toStringAsFixed(0)}% UNTAXED)';
+      commands.append('${scLabel.padRight(18)}${CurrencyFormatter.format(transaction.serviceChargeAmount, currency).padLeft(14)}\n');
+    }
+
     commands.append('${preset.doubleDivider}\n');
     commands.appendEmphasis(true);
     commands.append('${"TOTAL DUE".padRight(16)}${CurrencyFormatter.format(transaction.totalAmount, currency).padLeft(16)}\n');
@@ -1700,6 +1710,14 @@ class PrinterService {
                     children: [
                       pw.Text((config?.businessTaxType == 'TURNOVER_TAX') ? 'TURNOVER TAX' : 'TOTAL VAT', style: const pw.TextStyle(fontSize: 8)),
                       pw.Text(CurrencyFormatter.format(transaction.taxAmount, currency), style: const pw.TextStyle(fontSize: 8)),
+                    ],
+                  ),
+                if (transaction.serviceChargeAmount > 0)
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text('SERVICE CHG (${transaction.serviceChargeRate.toStringAsFixed(0)}% UNTAXED)', style: const pw.TextStyle(fontSize: 8)),
+                      pw.Text(CurrencyFormatter.format(transaction.serviceChargeAmount, currency), style: const pw.TextStyle(fontSize: 8)),
                     ],
                   ),
                 pw.Divider(thickness: 1),

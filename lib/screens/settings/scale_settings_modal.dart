@@ -50,7 +50,8 @@ class _ScaleSettingsModalState extends ConsumerState<ScaleSettingsModal> {
     _portController = TextEditingController(text: config?.scalePort ?? 'COM1');
     _baudRateController = TextEditingController(text: (config?.scaleBaudRate ?? 9600).toString());
     _defaultTareController = TextEditingController(text: (config?.defaultTareWeight ?? 0.0).toStringAsFixed(3));
-    _scaleProtocol = config?.scaleProtocol ?? 'generic';
+    final rawProtocol = config?.scaleProtocol.trim();
+    _scaleProtocol = (_protocols.any((p) => p['id'] == rawProtocol)) ? rawProtocol! : 'generic';
   }
 
   @override
@@ -296,7 +297,7 @@ class _ScaleSettingsModalState extends ConsumerState<ScaleSettingsModal> {
                     ),
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<String>(
-                        value: _scaleProtocol,
+                        value: _protocols.any((p) => p['id'] == _scaleProtocol) ? _scaleProtocol : 'generic',
                         isExpanded: true,
                         dropdownColor: const Color(0xFF1A1A20),
                         items: _protocols.map((p) {

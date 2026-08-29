@@ -35,6 +35,7 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
   late TextEditingController _terminalController;
   late TextEditingController _loyaltyEarnRateController;
   late TextEditingController _loyaltyValueController;
+  late TextEditingController _serviceChargeRateController;
   late TextEditingController _serverIpController;
   late TextEditingController _brandColorHexController;
   
@@ -42,6 +43,7 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
   String _selectedBrandColorHex = '#C1F11D';
   CategorySector _selectedSector = CategorySector.other;
   bool _loyaltyEnabled = false;
+  bool _serviceChargeEnabled = false;
   bool _isManagerMode = true;
   
   bool _isLoading = true;
@@ -78,6 +80,7 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
     _terminalController = TextEditingController();
     _loyaltyEarnRateController = TextEditingController();
     _loyaltyValueController = TextEditingController();
+    _serviceChargeRateController = TextEditingController(text: '10.0');
     _serverIpController = TextEditingController();
     _brandColorHexController = TextEditingController(text: '#C1F11D');
     _loadConfig();
@@ -106,6 +109,10 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
       _loyaltyEnabled = _currentConfig!.loyaltyEnabled;
       _loyaltyEarnRateController.text = _currentConfig!.loyaltyEarnRate.toString();
       _loyaltyValueController.text = _currentConfig!.loyaltyRedemptionValue.toString();
+      _serviceChargeEnabled = _currentConfig!.serviceChargeEnabled;
+      _serviceChargeRateController.text = _currentConfig!.defaultServiceChargeRate > 0 
+          ? _currentConfig!.defaultServiceChargeRate.toString() 
+          : '10.0';
       _isManagerMode = _currentConfig!.isManagerMode;
       _serverIpController.text = _currentConfig!.serverIp ?? '';
       
@@ -120,6 +127,7 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
       _terminalController.text = 'TERMINAL-01';
       _loyaltyEarnRateController.text = '1.0';
       _loyaltyValueController.text = '0.01';
+      _serviceChargeRateController.text = '10.0';
     }
 
     if (mounted) {
@@ -144,6 +152,7 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
     _terminalController.dispose();
     _loyaltyEarnRateController.dispose();
     _loyaltyValueController.dispose();
+    _serviceChargeRateController.dispose();
     _serverIpController.dispose();
     _brandColorHexController.dispose();
     super.dispose();
@@ -184,6 +193,8 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
     config.loyaltyEnabled = _loyaltyEnabled;
     config.loyaltyEarnRate = double.tryParse(_loyaltyEarnRateController.text) ?? 1.0;
     config.loyaltyRedemptionValue = double.tryParse(_loyaltyValueController.text) ?? 0.01;
+    config.serviceChargeEnabled = _serviceChargeEnabled;
+    config.defaultServiceChargeRate = double.tryParse(_serviceChargeRateController.text) ?? 0.0;
     config.isManagerMode = _isManagerMode;
     config.serverIp = _serverIpController.text;
 
@@ -461,6 +472,26 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
                                 ),
                               ),
                             ],
+                          ),
+                        ],
+                        
+                        const SizedBox(height: 32),
+                        // Section: Hospitality & Restaurant Service Charge
+                        _buildSectionHeader('HOSPITALITY / RESTAURANT SERVICE CHARGE', activeBrandColor),
+                        const SizedBox(height: 16),
+                        _buildServiceChargeToggle(activeBrandColor),
+                        if (_serviceChargeEnabled) ...[
+                          const SizedBox(height: 16),
+                          _buildTextField(
+                            label: 'DEFAULT SERVICE CHARGE RATE (%)',
+                            hint: '10.0',
+                            controller: _serviceChargeRateController,
+                            keyboardType: TextInputType.number,
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Non-taxable (0% VAT). Printed on customer receipts, but excluded from DigiTax fiscal payloads.',
+                            style: GoogleFonts.inter(fontSize: 11, color: Colors.white38),
                           ),
                         ],
                         
@@ -939,6 +970,55 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
           Switch(
             value: _loyaltyEnabled,
             onChanged: (v) => setState(() => _loyaltyEnabled = v),
+            activeThumbColor: activeBrandColor,
+            activeTrackColor: activeBrandColor.withValues(alpha: 0.3),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildServiceChargeToggle(Color activeBrandColor) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _serviceChargeEnabled 
+            ? activeBrandColor.withValues(alpha: 0.05) 
+            : Colors.white.withValues(alpha: 0.02),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: _serviceChargeEnabled 
+              ? activeBrandColor.withValues(alpha: 0.2) 
+              : Colors.white.withValues(alpha: 0.05),
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'ENABLE RESTAURANT SERVICE CHARGE',
+                style: GoogleFonts.inter(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 12,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'Add service charge to bills/receipts (Non-taxable / 0% VAT)',
+                style: GoogleFonts.inter(
+                  fontSize: 10.5,
+                  color: Colors.white.withValues(alpha: 0.4),
+                ),
+              ),
+            ],
+          ),
+          Switch(
+            value: _serviceChargeEnabled,
+            onChanged: (v) => setState(() => _serviceChargeEnabled = v),
             activeThumbColor: activeBrandColor,
             activeTrackColor: activeBrandColor.withValues(alpha: 0.3),
           ),

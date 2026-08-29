@@ -7,6 +7,9 @@ import 'package:beleka_pos/services/database_service.dart';
 import 'package:beleka_pos/services/export_service.dart';
 import 'package:beleka_pos/screens/inventory/product_editor_modal.dart';
 import 'package:beleka_pos/screens/inventory/category_management_modal.dart';
+import 'package:beleka_pos/screens/inventory/add_stock_modal.dart';
+import 'package:beleka_pos/screens/inventory/stock_movement_history_modal.dart';
+import 'package:beleka_pos/screens/inventory/digitax_stock_reconcile_modal.dart';
 import 'package:beleka_pos/providers/store_provider.dart';
 import 'package:beleka_pos/providers/theme_provider.dart';
 import 'package:beleka_pos/services/barcode_service.dart';
@@ -313,6 +316,43 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
               style: OutlinedButton.styleFrom(
                 side: const BorderSide(color: Color(0xFF10B981), width: 1),
                 backgroundColor: const Color(0xFF10B981).withValues(alpha: 0.08),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+            const SizedBox(width: 10),
+
+            // DigiTax Stock Reconciliation Button
+            OutlinedButton.icon(
+              onPressed: () => showDialog(
+                context: context,
+                builder: (context) => const DigiTaxStockReconcileModal(),
+              ),
+              icon: const Icon(Icons.compare_arrows_rounded, size: 16, color: Color(0xFF4ADE80)),
+              label: Text(
+                'Reconcile Stock',
+                style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13, color: const Color(0xFF4ADE80)),
+              ),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Color(0xFF4ADE80), width: 1),
+                backgroundColor: const Color(0xFF4ADE80).withValues(alpha: 0.08),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+            const SizedBox(width: 10),
+
+            // Stock Movements Audit History Button
+            OutlinedButton.icon(
+              onPressed: () => showDialog(
+                context: context,
+                builder: (context) => const StockMovementHistoryModal(),
+              ),
+              icon: const Icon(Icons.history_rounded, size: 16, color: Color(0xFF60A5FA)),
+              label: Text('Stock Movements', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13, color: const Color(0xFF60A5FA))),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Color(0xFF60A5FA), width: 1),
+                backgroundColor: const Color(0xFF60A5FA).withValues(alpha: 0.08),
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
@@ -673,7 +713,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
           _buildHeaderCell('Stock Level', flex: 2),
           _buildHeaderCell('Selling Price', flex: 2),
           _buildHeaderCell('Status', flex: 2),
-          _buildHeaderCell('Actions', flex: 1),
+          _buildHeaderCell('Actions', flex: 2),
         ],
       ),
     );
@@ -785,11 +825,15 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                             ),
                             const SizedBox(width: 6),
                             Text(
-                              product.isSyncedWithDigitax ? '🟢 DigiTax Synced' : '🟡 Local Stock',
+                              !product.isDigitaxSyncEnabled
+                                  ? '🔒 Offline (Exempt)'
+                                  : (product.isSyncedWithDigitax ? '🟢 DigiTax Synced' : '🟡 Pending Sync'),
                               style: GoogleFonts.inter(
                                 fontSize: 9,
                                 fontWeight: FontWeight.w600,
-                                color: product.isSyncedWithDigitax ? const Color(0xFF10B981) : Colors.amber,
+                                color: !product.isDigitaxSyncEnabled
+                                    ? Colors.blueAccent
+                                    : (product.isSyncedWithDigitax ? const Color(0xFF10B981) : Colors.amber),
                               ),
                             ),
                           ],
@@ -883,10 +927,41 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
 
             // Actions
             Expanded(
-              flex: 1,
+              flex: 2,
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
+                  // Quick Adjust Stock Button (+/- with reason tracking)
+                  IconButton(
+                    onPressed: () async {
+                      final result = await showDialog<bool>(
+                        context: context,
+                        builder: (context) => StockAdjustmentModal(
+                          product: product,
+                        ),
+                      );
+                      if (result == true) {
+                        ref.invalidate(inventoryProductsProvider);
+                      }
+                    },
+                    icon: const Icon(Icons.tune_rounded, color: Color(0xFFC1F11D), size: 18),
+                    tooltip: 'Adjust Stock & Record Reason (ZRA SAR)',
+                  ),
+
+                  // Stock Movement History Audit Log Button
+                  IconButton(
+                    onPressed: () => showDialog(
+                      context: context,
+                      builder: (context) => StockMovementHistoryModal(
+                        productId: product.id,
+                        productName: product.name,
+                      ),
+                    ),
+                    icon: const Icon(Icons.history_rounded, color: Colors.white60, size: 18),
+                    tooltip: 'View Stock Movement Audit Log',
+                  ),
+
+                  // Edit Product Details
                   IconButton(
                     onPressed: () async {
                       final result = await showDialog<bool>(
@@ -900,7 +975,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                       }
                     },
                     icon: const Icon(Icons.edit_outlined, color: Colors.white38, size: 18),
-                    tooltip: 'Edit & Allocate Category',
+                    tooltip: 'Edit Product Details',
                   ),
                   IconButton(
                     onPressed: () async {

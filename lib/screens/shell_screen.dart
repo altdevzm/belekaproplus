@@ -19,6 +19,8 @@ import 'dart:io';
 
 import 'package:beleka_pos/services/network_client.dart';
 import 'package:beleka_pos/core/core.dart';
+import 'package:beleka_pos/widgets/update_banner.dart';
+import 'package:beleka_pos/widgets/tax_reminder_banner.dart';
 
 enum ScreenType { dashboard, sales, inventory, purchases, accounts, branches, terminals, settings, reports }
 
@@ -64,6 +66,7 @@ class ShellScreen extends ConsumerWidget {
     return Column(
       children: [
         _buildStatusBar(ref, isCompact: isCompact),
+        const UpdateBanner(),
         Expanded(child: _buildMainContent(current)),
         NavigationBar(
           selectedIndex: selectedIndex.clamp(0, destinations.length - 1),
@@ -104,6 +107,7 @@ class ShellScreen extends ConsumerWidget {
           child: Column(
             children: [
               _buildStatusBar(ref, isCompact: false),
+              const UpdateBanner(),
               Expanded(child: _buildMainContent(current)),
             ],
           ),
@@ -126,6 +130,7 @@ class ShellScreen extends ConsumerWidget {
           child: Column(
             children: [
               _buildStatusBar(ref, isCompact: false),
+              const UpdateBanner(),
               Expanded(
                 child: isUltraWide
                     ? ConstrainedContent(child: _buildMainContent(current))
@@ -441,6 +446,9 @@ class ShellScreen extends ConsumerWidget {
             },
           ),
           const Spacer(),
+          // Tax reminder — shown when deadlines are within 14 days
+          const TaxReminderBanner(),
+          const SizedBox(width: 8),
           // Staff
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),

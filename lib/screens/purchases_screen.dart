@@ -1631,7 +1631,7 @@ class _CreatePoModalState extends ConsumerState<_CreatePoModal> {
                                   children: [
                                     Expanded(
                                       child: DropdownButtonFormField<int>(
-                                        initialValue: _selectedSupplierId,
+                                        initialValue: (_selectedSupplierId != null && suppliers.any((s) => s.id == _selectedSupplierId)) ? _selectedSupplierId : null,
                                         dropdownColor: const Color(0xFF222228),
                                         style: const TextStyle(color: Colors.white),
                                         decoration: InputDecoration(
@@ -1686,7 +1686,7 @@ class _CreatePoModalState extends ConsumerState<_CreatePoModal> {
                                 return Column(
                                   children: [
                                     DropdownButtonFormField<int>(
-                                      initialValue: _selectedProductId,
+                                      initialValue: (_selectedProductId != null && prods.any((p) => p.id == _selectedProductId)) ? _selectedProductId : null,
                                       dropdownColor: const Color(0xFF222228),
                                       style: const TextStyle(color: Colors.white),
                                       decoration: InputDecoration(
@@ -2193,7 +2193,7 @@ class _CreateReturnModalState extends ConsumerState<_CreateReturnModal> {
           mainAxisSize: MainAxisSize.min,
           children: [
             DropdownButtonFormField<int>(
-              initialValue: _selectedSupplierId,
+              initialValue: (_selectedSupplierId != null && suppliers.any((s) => s.id == _selectedSupplierId)) ? _selectedSupplierId : null,
               decoration: const InputDecoration(labelText: 'Select Supplier', border: OutlineInputBorder()),
               items: suppliers.map((s) => DropdownMenuItem(value: s.id, child: Text(s.name))).toList(),
               onChanged: (id) => setState(() => _selectedSupplierId = id),
@@ -2205,7 +2205,7 @@ class _CreateReturnModalState extends ConsumerState<_CreateReturnModal> {
                 if (!snapshot.hasData) return const CircularProgressIndicator();
                 final prods = snapshot.data!;
                 return DropdownButtonFormField<int>(
-                  initialValue: _selectedProductId,
+                  initialValue: (_selectedProductId != null && prods.any((p) => p.id == _selectedProductId)) ? _selectedProductId : null,
                   decoration: const InputDecoration(labelText: 'Select Product to Return', border: OutlineInputBorder()),
                   items: prods.map((p) => DropdownMenuItem(value: p.id, child: Text(p.name))).toList(),
                   onChanged: (id) => setState(() => _selectedProductId = id),

@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:beleka_pos/models/models.dart';
+import 'store_provider.dart';
 
 class CartItem {
   final Product product;
@@ -66,6 +67,8 @@ class CartState {
   final Customer? customer;
   final int appliedPoints;
   final double discountAmount;
+  final double serviceChargeRate; // e.g. 10.0 for 10%
+  final bool serviceChargeEnabled;
   final String? customerTpin;
   final String? customerBusinessName;
   final String? customerAddress;
@@ -75,6 +78,8 @@ class CartState {
     this.customer,
     this.appliedPoints = 0,
     this.discountAmount = 0.0,
+    this.serviceChargeRate = 0.0,
+    this.serviceChargeEnabled = false,
     this.customerTpin,
     this.customerBusinessName,
     this.customerAddress,
@@ -85,6 +90,8 @@ class CartState {
     Customer? customer,
     int? appliedPoints,
     double? discountAmount,
+    double? serviceChargeRate,
+    bool? serviceChargeEnabled,
     String? customerTpin,
     String? customerBusinessName,
     String? customerAddress,
@@ -96,6 +103,8 @@ class CartState {
       customer: clearCustomer ? null : (customer ?? this.customer),
       appliedPoints: appliedPoints ?? this.appliedPoints,
       discountAmount: discountAmount ?? this.discountAmount,
+      serviceChargeRate: serviceChargeRate ?? this.serviceChargeRate,
+      serviceChargeEnabled: serviceChargeEnabled ?? this.serviceChargeEnabled,
       customerTpin: clearTpin ? null : (customerTpin ?? this.customerTpin),
       customerBusinessName: clearTpin ? null : (customerBusinessName ?? this.customerBusinessName),
       customerAddress: clearTpin ? null : (customerAddress ?? this.customerAddress),
@@ -104,8 +113,16 @@ class CartState {
 }
 
 class CartNotifier extends StateNotifier<CartState> {
+  final bool defaultServiceChargeEnabled;
+  final double defaultServiceChargeRate;
 
-  CartNotifier() : super(CartState());
+  CartNotifier({
+    this.defaultServiceChargeEnabled = false,
+    this.defaultServiceChargeRate = 0.0,
+  }) : super(CartState(
+          serviceChargeEnabled: defaultServiceChargeEnabled && defaultServiceChargeRate > 0,
+          serviceChargeRate: defaultServiceChargeEnabled && defaultServiceChargeRate > 0 ? defaultServiceChargeRate : 0.0,
+        ));
 
   double get taxRate => 0.0; // Global tax rate is no longer used
 
@@ -226,6 +243,20 @@ class CartNotifier extends StateNotifier<CartState> {
     );
   }
 
+  void setServiceChargeRate(double rate) {
+    state = state.copyWith(
+      serviceChargeRate: rate,
+      serviceChargeEnabled: rate > 0,
+    );
+  }
+
+  void toggleServiceCharge(bool enabled, {double? defaultRate}) {
+    state = state.copyWith(
+      serviceChargeEnabled: enabled,
+      serviceChargeRate: enabled ? (defaultRate ?? (state.serviceChargeRate > 0 ? state.serviceChargeRate : 10.0)) : 0.0,
+    );
+  }
+
   void setCustomerTpin(String? tpin, {String? businessName, String? address}) {
     state = state.copyWith(
       customerTpin: tpin,
@@ -236,18 +267,29 @@ class CartNotifier extends StateNotifier<CartState> {
   }
 
   void clear() {
-    state = CartState();
+    state = CartState(
+      serviceChargeEnabled: defaultServiceChargeEnabled && defaultServiceChargeRate > 0,
+      serviceChargeRate: defaultServiceChargeEnabled && defaultServiceChargeRate > 0 ? defaultServiceChargeRate : 0.0,
+    );
   }
 
   double get subtotal => state.items.fold(0, (sum, item) => sum + item.subtotal);
   double get tax => state.items.fold(0, (sum, item) => sum + item.totalTax);
-  double get totalBeforeDiscount => subtotal + tax;
-  double get total => totalBeforeDiscount - state.discountAmount;
+  
+  // Non-taxable restaurant service charge calculated on subtotal
+  double get serviceChargeAmount => state.serviceChargeEnabled
+      ? (subtotal * (state.serviceChargeRate / 100))
+      : 0.0;
+
+  double get totalBeforeDiscount => subtotal + tax + serviceChargeAmount;
+  double get total => (totalBeforeDiscount - state.discountAmount).clamp(0.0, double.infinity);
 }
 
 final cartProvider = StateNotifierProvider<CartNotifier, CartState>((ref) {
-  final notifier = CartNotifier();
-  
-  // Store config tax rate is no longer applied globally
+  final config = ref.watch(storeConfigProvider).value;
+  final notifier = CartNotifier(
+    defaultServiceChargeEnabled: config?.serviceChargeEnabled ?? false,
+    defaultServiceChargeRate: config?.defaultServiceChargeRate ?? 0.0,
+  );
   return notifier;
 });

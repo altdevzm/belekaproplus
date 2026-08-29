@@ -411,10 +411,39 @@ class LocalSqlService {
       );
     ''');
 
+    // 21. Stock Movements Table
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS stock_movements (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        product_id INTEGER NOT NULL,
+        product_name TEXT NOT NULL,
+        sku TEXT NOT NULL,
+        branch_code TEXT DEFAULT '00',
+        branch_name TEXT,
+        movement_type TEXT NOT NULL,
+        action_type TEXT NOT NULL,
+        previous_stock INTEGER NOT NULL,
+        quantity_changed INTEGER NOT NULL,
+        new_stock INTEGER NOT NULL,
+        unit_cost REAL DEFAULT 0.0,
+        total_cost_impact REAL DEFAULT 0.0,
+        reason_category TEXT NOT NULL,
+        reason_notes TEXT,
+        user_id TEXT,
+        user_name TEXT,
+        is_synced_with_digitax INTEGER DEFAULT 0,
+        digitax_sar_no TEXT,
+        timestamp TEXT NOT NULL
+      );
+    ''');
+
     // Create SQL Indexes for high performance
     await db.execute('CREATE INDEX IF NOT EXISTS idx_products_sku ON products(sku);');
     await db.execute('CREATE INDEX IF NOT EXISTS idx_sales_synced ON sale_transactions(is_synced);');
     await db.execute('CREATE INDEX IF NOT EXISTS idx_sales_uuid ON sale_transactions(transaction_uuid);');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_stock_movements_prod ON stock_movements(product_id);');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_stock_movements_branch ON stock_movements(branch_code);');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_stock_movements_time ON stock_movements(timestamp);');
   }
 
   // --- SQL HELPER METHODS ---

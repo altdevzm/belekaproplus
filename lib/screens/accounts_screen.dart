@@ -11,6 +11,9 @@ import 'package:beleka_pos/services/database_service.dart';
 import 'package:beleka_pos/services/export_service.dart';
 import 'package:beleka_pos/services/postgres_sync_service.dart';
 import 'package:beleka_pos/services/printer_service.dart';
+import 'package:beleka_pos/services/digitax_inventory_service.dart';
+import 'package:beleka_pos/screens/dashboard_screen.dart';
+import 'package:beleka_pos/screens/sales_screen.dart';
 
 // --- DATA PROVIDERS ---
 
@@ -1250,66 +1253,96 @@ class _OpenShiftModalState extends ConsumerState<_OpenShiftModal> {
             const SizedBox(height: 16),
 
             // Cashier Selection Dropdown
-            DropdownButtonFormField<String>(
-              initialValue: _selectedCashierId,
-              decoration: const InputDecoration(labelText: 'Assign Cashier / User', border: OutlineInputBorder()),
-              items: users.map((u) => DropdownMenuItem(
-                value: u.numericId,
-                child: Text('${u.name} (ID: ${u.numericId} • ${u.role.toUpperCase()})'),
-              )).toList(),
-              onChanged: (id) => setState(() => _selectedCashierId = id),
+            Builder(
+              builder: (context) {
+                final uniqueUsers = <String, User>{};
+                for (final u in users) {
+                  uniqueUsers[u.numericId] = u;
+                }
+                final safeCashierId = (uniqueUsers.containsKey(_selectedCashierId))
+                    ? _selectedCashierId
+                    : (uniqueUsers.isNotEmpty ? uniqueUsers.keys.first : null);
+
+                return DropdownButtonFormField<String>(
+                  initialValue: safeCashierId,
+                  decoration: const InputDecoration(labelText: 'Assign Cashier / User', border: OutlineInputBorder()),
+                  items: uniqueUsers.values.map((u) => DropdownMenuItem(
+                    value: u.numericId,
+                    child: Text('${u.name} (ID: ${u.numericId} • ${u.role.toUpperCase()})'),
+                  )).toList(),
+                  onChanged: (id) => setState(() => _selectedCashierId = id),
+                );
+              },
             ),
             const SizedBox(height: 12),
 
             // Till Selection Dropdown (Dynamic from Database)
-            DropdownButtonFormField<String>(
-              initialValue: _selectedTill,
-              decoration: const InputDecoration(labelText: 'Assigned Till / Terminal', border: OutlineInputBorder()),
-              items: tills.isEmpty
-                  ? [
-                      const DropdownMenuItem(
-                        value: 'TILL-01 - Main Counter Till 1',
-                        child: Text('TILL-01 - Main Counter Till 1'),
-                      )
-                    ]
-                  : tills.map((t) => DropdownMenuItem(
-                      value: '${t.terminalCode} - ${t.name}',
-                      child: Text('${t.terminalCode} - ${t.name} (${t.branchName})'),
-                    )).toList(),
-              onChanged: (v) {
-                if (v != null) {
-                  setState(() {
-                    _selectedTill = v;
-                    final matchingTill = tills.where((t) => '${t.terminalCode} - ${t.name}' == v).firstOrNull;
-                    if (matchingTill != null) {
-                      _selectedBranch = matchingTill.branchName;
-                      if (matchingTill.assignedCashierId != null && matchingTill.assignedCashierId!.isNotEmpty) {
-                        _selectedCashierId = matchingTill.assignedCashierId;
-                      }
-                    }
-                  });
+            Builder(
+              builder: (context) {
+                final tillOptions = <String, String>{};
+                if (tills.isEmpty) {
+                  tillOptions['TILL-01 - Main Counter Till 1'] = 'TILL-01 - Main Counter Till 1 (Main Store HQ)';
+                } else {
+                  for (final t in tills) {
+                    tillOptions['${t.terminalCode} - ${t.name}'] = '${t.terminalCode} - ${t.name} (${t.branchName})';
+                  }
                 }
+                final safeTill = tillOptions.containsKey(_selectedTill)
+                    ? _selectedTill
+                    : tillOptions.keys.first;
+
+                return DropdownButtonFormField<String>(
+                  initialValue: safeTill,
+                  decoration: const InputDecoration(labelText: 'Assigned Till / Terminal', border: OutlineInputBorder()),
+                  items: tillOptions.entries.map((e) => DropdownMenuItem(
+                    value: e.key,
+                    child: Text(e.value),
+                  )).toList(),
+                  onChanged: (v) {
+                    if (v != null) {
+                      setState(() {
+                        _selectedTill = v;
+                        final matchingTill = tills.where((t) => '${t.terminalCode} - ${t.name}' == v).firstOrNull;
+                        if (matchingTill != null) {
+                          _selectedBranch = matchingTill.branchName;
+                          if (matchingTill.assignedCashierId != null && matchingTill.assignedCashierId!.isNotEmpty) {
+                            _selectedCashierId = matchingTill.assignedCashierId;
+                          }
+                        }
+                      });
+                    }
+                  },
+                );
               },
             ),
             const SizedBox(height: 12),
 
             // Branch Selection Dropdown (Dynamic from Database)
-            DropdownButtonFormField<String>(
-              initialValue: _selectedBranch,
-              decoration: const InputDecoration(labelText: 'Store Branch', border: OutlineInputBorder()),
-              items: branches.isEmpty
-                  ? [
-                      const DropdownMenuItem(
-                        value: 'Main Store (HQ)',
-                        child: Text('Main Store (HQ)'),
-                      )
-                    ]
-                  : branches.map((b) => DropdownMenuItem(
-                      value: b.name,
-                      child: Text('${b.name} (Code: ${b.code} • ZRA: ${b.bhfId})'),
-                    )).toList(),
-              onChanged: (v) {
-                if (v != null) setState(() => _selectedBranch = v);
+            Builder(
+              builder: (context) {
+                final branchOptions = <String, String>{};
+                if (branches.isEmpty) {
+                  branchOptions['Main Store (HQ)'] = 'Main Store (HQ)';
+                } else {
+                  for (final b in branches) {
+                    branchOptions[b.name] = '${b.name} (Code: ${b.code} • ZRA: ${b.bhfId})';
+                  }
+                }
+                final safeBranch = branchOptions.containsKey(_selectedBranch)
+                    ? _selectedBranch
+                    : branchOptions.keys.first;
+
+                return DropdownButtonFormField<String>(
+                  initialValue: safeBranch,
+                  decoration: const InputDecoration(labelText: 'Store Branch', border: OutlineInputBorder()),
+                  items: branchOptions.entries.map((e) => DropdownMenuItem(
+                    value: e.key,
+                    child: Text(e.value),
+                  )).toList(),
+                  onChanged: (v) {
+                    if (v != null) setState(() => _selectedBranch = v);
+                  },
+                );
               },
             ),
             const SizedBox(height: 12),
@@ -1554,7 +1587,7 @@ class _RecordExpenseModalState extends ConsumerState<_RecordExpenseModal> {
             TextField(controller: _amountCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Amount (K)', border: OutlineInputBorder())),
             const SizedBox(height: 12),
             DropdownButtonFormField<int>(
-              initialValue: _selectedAccountId,
+              initialValue: (_selectedAccountId != null && accounts.any((a) => a.id == _selectedAccountId)) ? _selectedAccountId : (accounts.isNotEmpty ? accounts.first.id : null),
               decoration: const InputDecoration(labelText: 'Payment Wallet / Account', border: OutlineInputBorder()),
               items: accounts.map((a) => DropdownMenuItem(value: a.id, child: Text('${a.name} (Bal: K${a.balance.toStringAsFixed(2)})'))).toList(),
               onChanged: (id) => setState(() => _selectedAccountId = id),
@@ -1640,14 +1673,14 @@ class _TransferFundsModalState extends ConsumerState<_TransferFundsModal> {
           mainAxisSize: MainAxisSize.min,
           children: [
             DropdownButtonFormField<int>(
-              initialValue: _fromAccountId,
+              initialValue: (_fromAccountId != null && accounts.any((a) => a.id == _fromAccountId)) ? _fromAccountId : (accounts.isNotEmpty ? accounts.first.id : null),
               decoration: const InputDecoration(labelText: 'From Account', border: OutlineInputBorder()),
               items: accounts.map((a) => DropdownMenuItem(value: a.id, child: Text('${a.name} (K${a.balance.toStringAsFixed(2)})'))).toList(),
               onChanged: (id) => setState(() => _fromAccountId = id),
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<int>(
-              initialValue: _toAccountId,
+              initialValue: (_toAccountId != null && accounts.any((a) => a.id == _toAccountId)) ? _toAccountId : (accounts.length > 1 ? accounts[1].id : (accounts.isNotEmpty ? accounts.first.id : null)),
               decoration: const InputDecoration(labelText: 'To Account', border: OutlineInputBorder()),
               items: accounts.map((a) => DropdownMenuItem(value: a.id, child: Text('${a.name} (K${a.balance.toStringAsFixed(2)})'))).toList(),
               onChanged: (id) => setState(() => _toAccountId = id),
@@ -1774,13 +1807,15 @@ class _RecordRefundModalState extends ConsumerState<_RecordRefundModal> {
     final isar = ref.read(isarProvider);
     final user = ref.read(authProvider);
 
+    final refund = RefundTransaction()
+      ..refundNumber = 'REF-${DateTime.now().millisecondsSinceEpoch.toString().substring(6)}'
+      ..refundType = _type
+      ..amount = amount
+      ..reason = _reasonCtrl.text.trim().isNotEmpty ? _reasonCtrl.text.trim() : 'Customer Return'
+      ..authorizedBy = user?.name ?? 'Manager'
+      ..createdAt = DateTime.now();
+
     await isar.writeTxn(() async {
-      final refund = RefundTransaction()
-        ..refundNumber = 'REF-${DateTime.now().millisecondsSinceEpoch.toString().substring(6)}'
-        ..refundType = _type
-        ..amount = amount
-        ..reason = _reasonCtrl.text.trim().isNotEmpty ? _reasonCtrl.text.trim() : 'Customer Return'
-        ..authorizedBy = user?.name ?? 'Manager';
       await isar.refundTransactions.put(refund);
 
       // Deduct from corresponding account
@@ -1801,9 +1836,25 @@ class _RecordRefundModalState extends ConsumerState<_RecordRefundModal> {
       }
     });
 
+    // Submit to DigiTax live
+    try {
+      await ref.read(digitaxInventoryServiceProvider).submitManualRefundToDigitax(refund);
+    } catch (_) {}
+
+    // Pop open cash drawer for cash payout
+    if (_type == 'CASH') {
+      try {
+        ref.read(printerServiceProvider).openCashDrawer();
+      } catch (_) {}
+    }
+
     ref.invalidate(refundsProvider);
     ref.invalidate(paymentAccountsProvider);
     ref.invalidate(activeShiftProvider);
+    ref.invalidate(dashboardStatsProvider);
+    ref.invalidate(cashierDashboardStatsProvider);
+    ref.invalidate(recentTransactionsProvider);
+    ref.invalidate(productsProvider);
     if (mounted) Navigator.pop(context);
   }
 

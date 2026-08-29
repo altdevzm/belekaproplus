@@ -10,6 +10,7 @@ import 'package:beleka_pos/utils/formatters.dart';
 import 'package:beleka_pos/screens/sales/receipt_detail_modal.dart';
 import 'package:beleka_pos/services/digitax_inventory_service.dart';
 import 'package:beleka_pos/services/printer_service.dart';
+import 'package:beleka_pos/screens/reports/tot_report_screen.dart';
 
 enum ReportPeriod { daily, weekly, monthly, yearly, custom }
 
@@ -32,22 +33,40 @@ final reportTransactionsProvider = StreamProvider<List<SaleTransaction>>((ref) {
 final reportStatsProvider = Provider<Map<String, double>>((ref) {
   final transactions = ref.watch(reportTransactionsProvider).value ?? [];
 
-  double revenue = transactions.fold(0.0, (sum, t) => sum + (t.totalAmount.isNaN ? 0.0 : t.totalAmount));
-  double profit = transactions.fold(0.0, (sum, t) => sum + (t.grossProfit.isNaN ? 0.0 : t.grossProfit));
-  double tax = transactions.fold(0.0, (sum, t) => sum + (t.taxAmount.isNaN ? 0.0 : t.taxAmount));
+  double revenue = transactions.fold(0.0, (sum, t) {
+    if (t.totalAmount.isNaN) return sum;
+    if (t.status == 'refunded' && !t.isCreditNote) return sum;
+    if (t.isCreditNote) return sum - t.totalAmount;
+    return sum + t.totalAmount;
+  });
+  double profit = transactions.fold(0.0, (sum, t) {
+    if (t.grossProfit.isNaN) return sum;
+    if (t.status == 'refunded' && !t.isCreditNote) return sum;
+    return sum + t.grossProfit;
+  });
+  double tax = transactions.fold(0.0, (sum, t) {
+    if (t.taxAmount.isNaN) return sum;
+    if (t.status == 'refunded' && !t.isCreditNote) return sum;
+    if (t.isCreditNote) return sum - t.taxAmount;
+    return sum + t.taxAmount;
+  });
 
   final Map<String, double> paymentBreakdown = {};
   for (var t in transactions) {
-    final amount = t.totalAmount.isNaN ? 0.0 : t.totalAmount;
+    if (t.status == 'refunded' && !t.isCreditNote) continue;
+    final factor = t.isCreditNote ? -1.0 : 1.0;
+    final amount = (t.totalAmount.isNaN ? 0.0 : t.totalAmount) * factor;
     final method = t.paymentMethod.toLowerCase().replaceAll(' ', '_');
     paymentBreakdown[method] = (paymentBreakdown[method] ?? 0) + amount;
   }
+
+  final activeCount = transactions.where((t) => t.status != 'refunded' && !t.isCreditNote).length;
 
   return {
     'revenue': revenue,
     'profit': profit,
     'tax': tax,
-    'count': transactions.length.toDouble(),
+    'count': activeCount.toDouble(),
     'cash': paymentBreakdown['cash'] ?? 0.0,
     'card': paymentBreakdown['card'] ?? 0.0,
     'mobile_money': paymentBreakdown['mobile_money'] ?? 0.0,
@@ -61,8 +80,12 @@ final reportTopProductsProvider = Provider<List<Map<String, dynamic>>>((ref) {
   final Map<int, String> productNames = {};
 
   for (var t in transactions) {
+    if (t.status == 'refunded') continue;
     for (var item in t.items) {
-      productQuantities[item.productId] = (productQuantities[item.productId] ?? 0) + item.quantity;
+      if (item.isRefunded) continue;
+      final qty = (item.isWeighted && item.weight > 0) ? item.weight.ceil() : item.quantity;
+      final factor = t.isCreditNote ? -1 : 1;
+      productQuantities[item.productId] = (productQuantities[item.productId] ?? 0) + (qty * factor);
       productNames[item.productId] = item.productName;
     }
   }
@@ -291,14 +314,26 @@ class ReportsScreen extends ConsumerWidget {
             ),
           ],
         ),
-        Row(
-          children: [
-            _buildFinancialSummaryMenu(context, ref, range, activePeriod, stats, topProducts),
-            const SizedBox(width: 10),
-            _buildZraZReportMenu(context, ref, range),
-            const SizedBox(width: 10),
-            _buildExportMenu(context, ref),
-          ],
+        Consumer(
+          builder: (context, ref, child) {
+            final config = ref.watch(storeConfigProvider).value;
+            final isTot = config?.businessTaxType == 'TURNOVER_TAX' || config?.businessTaxType == 'COMPOSITE';
+            return Row(
+              children: [
+                _buildFinancialSummaryMenu(context, ref, range, activePeriod, stats, topProducts),
+                const SizedBox(width: 10),
+                _buildStockAdjustmentReportMenu(context, ref, range),
+                const SizedBox(width: 10),
+                _buildZraZReportMenu(context, ref, range),
+                if (isTot) ...[
+                  const SizedBox(width: 10),
+                  _buildTotReturnButton(context),
+                ],
+                const SizedBox(width: 10),
+                _buildExportMenu(context, ref),
+              ],
+            );
+          },
         ),
       ],
     );
@@ -528,6 +563,134 @@ class ReportsScreen extends ConsumerWidget {
       child: const ActionButton(
         icon: Icons.receipt_long_rounded,
         label: 'ZRA Fiscal Z-Report ▾',
+      ),
+    );
+  }
+
+  Widget _buildStockAdjustmentReportMenu(BuildContext context, WidgetRef ref, DateTimeRange range) {
+    return PopupMenuButton<String>(
+      tooltip: 'Stock Adjustments & ZRA SAR Report',
+      offset: const Offset(0, 52),
+      color: const Color(0xFF1E1E24),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+      ),
+      onSelected: (value) async {
+        final db = ref.read(databaseServiceProvider);
+        final exportService = ref.read(exportServiceProvider);
+        final config = ref.read(storeConfigProvider).value;
+
+        final allMovements = await db.getStockMovements();
+        // Filter by selected report date range
+        final inRange = allMovements.where((m) {
+          return m.timestamp.isAfter(range.start) && m.timestamp.isBefore(range.end);
+        }).toList();
+
+        if (inRange.isEmpty && context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No stock adjustment records found in the selected date range.')),
+          );
+          return;
+        }
+
+        switch (value) {
+          case 'print':
+            await exportService.exportStockMovementsToPdf(
+              inRange,
+              config: config,
+              dateRange: range,
+              printDirectly: true,
+            );
+            break;
+          case 'pdf':
+            await exportService.exportStockMovementsToPdf(
+              inRange,
+              config: config,
+              dateRange: range,
+              printDirectly: false,
+            );
+            break;
+          case 'excel':
+            await exportService.exportStockMovementsToExcel(inRange, config: config);
+            break;
+          case 'csv':
+            await exportService.exportStockMovementsToCsv(inRange, config: config);
+            break;
+        }
+      },
+      itemBuilder: (context) => [
+        PopupMenuItem(
+          value: 'print',
+          child: Row(
+            children: [
+              const Icon(Icons.print_rounded, size: 18, color: Color(0xFF10B981)),
+              const SizedBox(width: 10),
+              Text('Print SAR Audit Report', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white)),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: 'pdf',
+          child: Row(
+            children: [
+              const Icon(Icons.picture_as_pdf_rounded, size: 18, color: Colors.redAccent),
+              const SizedBox(width: 10),
+              Text('Save as PDF Document (A4)', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white)),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: 'excel',
+          child: Row(
+            children: [
+              const Icon(Icons.table_chart_rounded, size: 18, color: Colors.greenAccent),
+              const SizedBox(width: 10),
+              Text('Export to Excel (.xlsx)', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white)),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: 'csv',
+          child: Row(
+            children: [
+              const Icon(Icons.text_snippet_rounded, size: 18, color: Colors.amberAccent),
+              const SizedBox(width: 10),
+              Text('Export to CSV (.csv)', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white)),
+            ],
+          ),
+        ),
+      ],
+      child: const ActionButton(
+        icon: Icons.inventory_2_outlined,
+        label: 'Stock SAR Report ▾',
+      ),
+    );
+  }
+
+  Widget _buildTotReturnButton(BuildContext context) {
+    return SizedBox(
+      height: 48,
+      child: ElevatedButton.icon(
+        onPressed: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const TotReportScreen()),
+          );
+        },
+        icon: const Icon(Icons.receipt_long_rounded, size: 18),
+        label: Text(
+          'TOT Return',
+          style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFFF5C842).withValues(alpha: 0.12),
+          foregroundColor: const Color(0xFFF5C842),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+            side: BorderSide(color: const Color(0xFFF5C842).withValues(alpha: 0.3)),
+          ),
+          elevation: 0,
+        ),
       ),
     );
   }

@@ -505,7 +505,6 @@ class ApiService {
                 'numericId': u.numericId,
                 'name': u.name,
                 'role': u.role,
-                'passwordHash': u.passwordHash,
                 'branchCode': u.branchCode,
                 'branchName': u.branchName,
                 'isActive': u.isActive,
@@ -517,6 +516,7 @@ class ApiService {
           body: jsonEncode({'error': '$e'}), headers: _jsonHeaders);
     }
   }
+
 
   Future<Response> _handleCreateUser(Request request) async {
     try {

@@ -609,7 +609,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       itemCount: products.length,
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
-        childAspectRatio: 1.05,
+        childAspectRatio: 1.45,
         crossAxisSpacing: 10,
         mainAxisSpacing: 10,
       ),
@@ -647,16 +647,16 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            mainAxisAlignment: MainAxisAlignment.start,
             children: [
-              // Top Row: Product Icon/Image & Out of Stock / Promo Tag
+              // Top Row: Product Icon/Image & Badge
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    width: 38,
-                    height: 38,
+                    width: 36,
+                    height: 36,
                     decoration: BoxDecoration(
                       color: const Color(0xFFC1F11D).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(10),
@@ -666,7 +666,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                             borderRadius: BorderRadius.circular(10),
                             child: Image.file(File(product.imagePath!), fit: BoxFit.cover),
                           )
-                        : const Icon(Icons.inventory_2_outlined, color: Color(0xFFC1F11D), size: 19),
+                        : const Icon(Icons.inventory_2_outlined, color: Color(0xFFC1F11D), size: 18),
                   ),
                   if (isOutOfStock)
                     Container(
@@ -676,9 +676,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
-                        'OUT OF STOCK',
+                        'OUT',
                         style: GoogleFonts.manrope(
-                          fontSize: 8.5,
+                          fontSize: 8,
                           fontWeight: FontWeight.w900,
                           color: Colors.redAccent,
                           letterSpacing: 0.3,
@@ -689,21 +689,20 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFC1F11D).withValues(alpha: 0.15),
+                        color: const Color(0xFFC1F11D).withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.scale_rounded, color: Color(0xFFC1F11D), size: 10),
-                          const SizedBox(width: 3),
+                          const Icon(Icons.scale_rounded, color: Color(0xFFC1F11D), size: 9),
+                          const SizedBox(width: 2),
                           Text(
-                            '/${product.unitOfMeasure.toUpperCase()}',
+                            product.unitOfMeasure.toUpperCase(),
                             style: GoogleFonts.manrope(
-                              fontSize: 8.5,
+                              fontSize: 8,
                               fontWeight: FontWeight.w900,
                               color: const Color(0xFFC1F11D),
-                              letterSpacing: 0.3,
                             ),
                           ),
                         ],
@@ -713,101 +712,105 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFC1F11D).withValues(alpha: 0.15),
+                        color: Colors.orangeAccent.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
                         'PROMO',
                         style: GoogleFonts.manrope(
-                          fontSize: 8.5,
+                          fontSize: 8,
                           fontWeight: FontWeight.w900,
-                          color: const Color(0xFFC1F11D),
-                          letterSpacing: 0.3,
+                          color: Colors.orangeAccent,
                         ),
                       ),
                     ),
                 ],
               ),
 
-              // Middle: Product Name & SKU
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      product.name,
-                      style: GoogleFonts.manrope(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
-                        color: isOutOfStock ? Colors.white54 : Colors.white,
-                        height: 1.2,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '#${product.sku}',
-                      style: GoogleFonts.ibmPlexMono(
-                        fontSize: 9.5,
-                        color: Colors.white30,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
+              const SizedBox(height: 8),
+
+              // Product Name & SKU — tightly below the icon
+              Text(
+                product.name,
+                style: GoogleFonts.manrope(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w800,
+                  color: isOutOfStock ? Colors.white38 : Colors.white,
+                  height: 1.25,
                 ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '#${product.sku}',
+                style: GoogleFonts.ibmPlexMono(
+                  fontSize: 9,
+                  color: Colors.white24,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
 
-              // Bottom Row: Price & Instant Add Button
+              // Push price & add button to bottom
+              const Spacer(),
+
+              // Bottom Row: Price & Instant Add
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (hasDiscount) ...[
-                        Text(
-                          CurrencyFormatter.format(product.price, currency),
-                          style: const TextStyle(
-                            fontSize: 9.5,
-                            color: Colors.white30,
-                            decoration: TextDecoration.lineThrough,
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (hasDiscount) ...[
+                          Text(
+                            CurrencyFormatter.format(product.price, currency),
+                            style: const TextStyle(
+                              fontSize: 9,
+                              color: Colors.white24,
+                              decoration: TextDecoration.lineThrough,
+                            ),
                           ),
-                        ),
-                        Text(
-                          '${CurrencyFormatter.format(product.discountPrice!, currency)}${product.isWeighted ? "/${product.unitOfMeasure}" : ""}',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w900,
-                            color: const Color(0xFFC1F11D),
+                          Text(
+                            '${CurrencyFormatter.format(product.discountPrice!, currency)}${product.isWeighted ? "/${product.unitOfMeasure}" : ""}',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w900,
+                              color: const Color(0xFFC1F11D),
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
-                        ),
-                      ] else ...[
-                        Text(
-                          '${CurrencyFormatter.format(product.price, currency)}${product.isWeighted ? "/${product.unitOfMeasure}" : ""}',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w900,
-                            color: const Color(0xFFC1F11D),
+                        ] else ...[
+                          Text(
+                            '${CurrencyFormatter.format(product.price, currency)}${product.isWeighted ? "/${product.unitOfMeasure}" : ""}',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w900,
+                              color: isOutOfStock ? Colors.white24 : const Color(0xFFC1F11D),
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
-                        ),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
+                  const SizedBox(width: 6),
                   Container(
                     width: 28,
                     height: 28,
                     decoration: BoxDecoration(
-                      color: isOutOfStock ? Colors.white.withValues(alpha: 0.05) : const Color(0xFFC1F11D).withValues(alpha: 0.15),
+                      color: isOutOfStock
+                          ? Colors.white.withValues(alpha: 0.04)
+                          : const Color(0xFFC1F11D),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
-                      isOutOfStock ? Icons.block_rounded : (product.isWeighted ? Icons.scale_rounded : Icons.add), 
-                      color: isOutOfStock ? Colors.white24 : const Color(0xFFC1F11D), 
-                      size: 16,
+                      isOutOfStock ? Icons.block_rounded : (product.isWeighted ? Icons.scale_rounded : Icons.add),
+                      color: isOutOfStock ? Colors.white24 : Colors.black,
+                      size: 15,
                     ),
                   ),
                 ],
@@ -1161,45 +1164,62 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
   Widget _buildCompactMethodBtn(String method, IconData icon, Color color) {
     final isSelected = _selectedPaymentMethod == method;
     return Expanded(
-      child: Material(
-        color: isSelected ? color.withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.03),
-        borderRadius: BorderRadius.circular(12),
-        child: InkWell(
-          onTap: () => setState(() {
-            _selectedPaymentMethod = method;
-            if (method != 'CASH') {
-              _tenderedAmount = ref.read(cartProvider.notifier).total;
-            } else {
-              _tenderedAmount = 0;
-            }
-          }),
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            height: 48,
-            decoration: BoxDecoration(
-              border: Border.all(color: isSelected ? color.withValues(alpha: 0.4) : Colors.white.withValues(alpha: 0.05)),
-              borderRadius: BorderRadius.circular(12),
+      child: GestureDetector(
+        onTap: () => setState(() {
+          _selectedPaymentMethod = method;
+          if (method != 'CASH') {
+            _tenderedAmount = ref.read(cartProvider.notifier).total;
+          } else {
+            _tenderedAmount = 0;
+          }
+        }),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOutCubic,
+          height: 52,
+          decoration: BoxDecoration(
+            color: isSelected ? color : Colors.white.withValues(alpha: 0.07),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: isSelected ? color : Colors.white.withValues(alpha: 0.18),
+              width: isSelected ? 0 : 1.2,
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon, color: isSelected ? color : Colors.white24, size: 16),
-                const SizedBox(width: 8),
-                Text(
-                  method == 'MOBILE MONEY' ? 'M-MONEY' : method,
-                  style: GoogleFonts.manrope(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    color: isSelected ? Colors.white : Colors.white30,
-                  ),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: color.withValues(alpha: 0.45),
+                      blurRadius: 14,
+                      spreadRadius: 0,
+                      offset: const Offset(0, 4),
+                    ),
+                  ]
+                : [],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                color: isSelected ? Colors.black : Colors.white.withValues(alpha: 0.75),
+                size: 17,
+              ),
+              const SizedBox(width: 7),
+              Text(
+                method == 'MOBILE MONEY' ? 'M-MONEY' : method,
+                style: GoogleFonts.manrope(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0.8,
+                  color: isSelected ? Colors.black : Colors.white.withValues(alpha: 0.85),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
+
 
   Widget _buildNumericKeypad() {
     return Column(
@@ -1691,10 +1711,70 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Subtotal', style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 12)),
-              Text(CurrencyFormatter.format(cartNotifier.total, currency), style: const TextStyle(color: Colors.white, fontSize: 13)),
+              Text('Items Subtotal', style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 12)),
+              Text(CurrencyFormatter.format(cartNotifier.subtotal, currency), style: const TextStyle(color: Colors.white, fontSize: 12)),
             ],
           ),
+          if (cartNotifier.tax > 0) ...[
+            const SizedBox(height: 6),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('VAT / Tax', style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 12)),
+                Text(CurrencyFormatter.format(cartNotifier.tax, currency), style: const TextStyle(color: Colors.white, fontSize: 12)),
+              ],
+            ),
+          ],
+          if (cartState.serviceChargeEnabled && cartNotifier.serviceChargeAmount > 0) ...[
+            const SizedBox(height: 6),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      'Service Charge (${cartState.serviceChargeRate.toStringAsFixed(0)}% • Untaxed)',
+                      style: const TextStyle(color: Color(0xFF60A5FA), fontSize: 11.5, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(width: 6),
+                    InkWell(
+                      onTap: () => cartNotifier.toggleServiceCharge(false),
+                      child: const Icon(Icons.close, size: 14, color: Colors.white38),
+                    ),
+                  ],
+                ),
+                Text(
+                  CurrencyFormatter.format(cartNotifier.serviceChargeAmount, currency),
+                  style: const TextStyle(color: Color(0xFF60A5FA), fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+          ] else ...[
+            const SizedBox(height: 6),
+            InkWell(
+              onTap: () => _showServiceChargeModal(context, cartNotifier, cartState),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('+ Service Charge (Untaxed)', style: TextStyle(color: Colors.white.withValues(alpha: 0.35), fontSize: 11)),
+                    Text('0%', style: TextStyle(color: Colors.white.withValues(alpha: 0.25), fontSize: 11)),
+                  ],
+                ),
+              ),
+            ),
+          ],
+          if (cartState.discountAmount > 0) ...[
+            const SizedBox(height: 6),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Discount', style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 12)),
+                Text('- ${CurrencyFormatter.format(cartState.discountAmount, currency)}', style: const TextStyle(color: Color(0xFFC1F11D), fontSize: 12, fontWeight: FontWeight.bold)),
+              ],
+            ),
+          ],
           const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1711,17 +1791,106 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     );
   }
 
+  void _showServiceChargeModal(BuildContext context, CartNotifier cartNotifier, CartState cartState) {
+    final rateCtrl = TextEditingController(
+      text: cartState.serviceChargeRate > 0 ? cartState.serviceChargeRate.toStringAsFixed(0) : '10',
+    );
+
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            const Icon(Icons.room_service_rounded, color: Color(0xFF60A5FA)),
+            const SizedBox(width: 10),
+            Text('Restaurant Service Charge', style: GoogleFonts.manrope(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Apply a non-taxable service charge to this bill. This charge is NOT subject to VAT and is not invoiced to DigiTax.',
+              style: GoogleFonts.inter(fontSize: 12, color: Colors.white60),
+            ),
+            const SizedBox(height: 16),
+            Text('QUICK SELECT PERCENTAGE', style: GoogleFonts.manrope(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.white38, letterSpacing: 1)),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                ...[5, 10, 15].map((rate) => Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: ActionChip(
+                    label: Text('$rate%'),
+                    backgroundColor: Colors.white.withValues(alpha: 0.05),
+                    labelStyle: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                    onPressed: () {
+                      rateCtrl.text = rate.toString();
+                    },
+                  ),
+                )),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Text('CUSTOM PERCENTAGE (%)', style: GoogleFonts.manrope(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.white38, letterSpacing: 1)),
+            const SizedBox(height: 8),
+            TextField(
+              controller: rateCtrl,
+              keyboardType: TextInputType.number,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                suffixText: '%',
+                suffixStyle: const TextStyle(color: Colors.white60),
+                filled: true,
+                fillColor: Colors.white.withValues(alpha: 0.05),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              cartNotifier.toggleServiceCharge(false);
+              Navigator.pop(dialogCtx);
+            },
+            child: const Text('Remove', style: TextStyle(color: Colors.redAccent)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF60A5FA),
+              foregroundColor: Colors.black,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () {
+              final rate = double.tryParse(rateCtrl.text.trim()) ?? 0.0;
+              cartNotifier.setServiceChargeRate(rate);
+              Navigator.pop(dialogCtx);
+            },
+            child: const Text('Apply Charge', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showB2bCustomerModal(BuildContext context, CartNotifier cartNotifier, CartState cartState) {
     final tpinCtrl = TextEditingController(text: cartState.customerTpin ?? '');
     final nameCtrl = TextEditingController(text: cartState.customerBusinessName ?? '');
     final addrCtrl = TextEditingController(text: cartState.customerAddress ?? '');
     bool isVerifying = false;
+    bool isVerified = false;
+    String? verifyError;
 
     showDialog(
       context: context,
       builder: (dialogCtx) => StatefulBuilder(
         builder: (context, setModalState) => AlertDialog(
           backgroundColor: const Color(0xFF1A1A1E),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           title: Row(
             children: [
               const Icon(Icons.business_rounded, color: Color(0xFFC1F11D)),
@@ -1734,39 +1903,153 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Enter the corporate buyer’s ZRA TPIN to issue an official Tax Invoice for VAT claim.', style: TextStyle(color: Colors.white54, fontSize: 12)),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: tpinCtrl,
-                  style: const TextStyle(color: Colors.white),
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    labelText: 'Customer TPIN (10 Digits) *',
-                    hintText: '1000000000',
-                    filled: true,
-                    fillColor: Colors.black26,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                    suffixIcon: isVerifying
-                        ? const SizedBox(height: 18, width: 18, child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFC1F11D))))
-                        : TextButton(
-                            onPressed: () async {
-                              final tpin = tpinCtrl.text.trim();
-                              if (tpin.isEmpty) return;
-                              setModalState(() => isVerifying = true);
-                              try {
-                                final res = await ref.read(digitaxInventoryServiceProvider).lookupTaxpayerTpin(tpin);
-                                if (res != null) {
-                                  nameCtrl.text = res['taxpayer_name'] ?? res['name'] ?? '';
-                                  addrCtrl.text = res['physical_address'] ?? res['address'] ?? '';
-                                }
-                              } finally {
-                                setModalState(() => isVerifying = false);
-                              }
-                            },
-                            child: const Text('Verify', style: TextStyle(color: Color(0xFFC1F11D), fontWeight: FontWeight.bold)),
-                          ),
-                  ),
+                const Text(
+                  "Enter the corporate buyer's ZRA TPIN to issue an official Tax Invoice for VAT claim.",
+                  style: TextStyle(color: Colors.white54, fontSize: 12),
                 ),
+                const SizedBox(height: 16),
+
+                Builder(
+                  builder: (context) {
+                    Future<void> doVerify() async {
+                      final tpin = tpinCtrl.text.trim();
+                      if (tpin.length != 10) {
+                        setModalState(() => verifyError = 'TPIN must be exactly 10 digits');
+                        return;
+                      }
+                      setModalState(() {
+                        isVerifying = true;
+                        verifyError = null;
+                      });
+                      try {
+                        final res = await ref.read(digitaxInventoryServiceProvider).lookupTaxpayerTpin(tpin);
+                        if (res != null && res.containsKey('error')) {
+                          setModalState(() {
+                            verifyError = res['error'] as String?;
+                            isVerified = false;
+                          });
+                        } else if (res != null) {
+                          final fetchedName = (res['taxpayer_name'] ?? res['name'] ?? '').toString();
+                          final fetchedAddr = (res['physical_address'] ?? res['address'] ?? '').toString();
+                          if (fetchedName.isNotEmpty) nameCtrl.text = fetchedName;
+                          if (fetchedAddr.isNotEmpty) addrCtrl.text = fetchedAddr;
+                          setModalState(() {
+                            isVerified = true;
+                            verifyError = null;
+                          });
+                        } else {
+                          setModalState(() {
+                            verifyError = 'TPIN not found. Enter business name manually.';
+                            isVerified = false;
+                          });
+                        }
+                      } finally {
+                        setModalState(() => isVerifying = false);
+                      }
+                    }
+
+                    return TextField(
+                      controller: tpinCtrl,
+                      style: const TextStyle(color: Colors.white),
+                      keyboardType: TextInputType.number,
+                      maxLength: 10,
+                      onChanged: (val) {
+                        final clean = val.trim();
+                        if (clean.length == 10) {
+                          doVerify();
+                        } else if (isVerified || verifyError != null) {
+                          setModalState(() {
+                            isVerified = false;
+                            verifyError = null;
+                          });
+                        }
+                      },
+                      decoration: InputDecoration(
+                        labelText: 'Customer TPIN (10 Digits) *',
+                        hintText: '1000000000',
+                        counterText: '',
+                        filled: true,
+                        fillColor: isVerified
+                            ? const Color(0xFF10B981).withValues(alpha: 0.08)
+                            : Colors.black26,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide(
+                            color: isVerified
+                                ? const Color(0xFF10B981)
+                                : verifyError != null
+                                    ? Colors.redAccent
+                                    : Colors.white24,
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide(
+                            color: isVerified
+                                ? const Color(0xFF10B981)
+                                : const Color(0xFFC1F11D),
+                            width: 1.5,
+                          ),
+                        ),
+                        suffixIcon: isVerifying
+                            ? const Padding(
+                                padding: EdgeInsets.all(14),
+                                child: SizedBox(
+                                  height: 18,
+                                  width: 18,
+                                  child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFC1F11D)),
+                                ),
+                              )
+                            : isVerified
+                                ? const Padding(
+                                    padding: EdgeInsets.all(12),
+                                    child: Icon(Icons.verified_rounded, color: Color(0xFF10B981), size: 22),
+                                  )
+                                : TextButton(
+                                    onPressed: doVerify,
+                                    child: const Text('Verify', style: TextStyle(color: Color(0xFFC1F11D), fontWeight: FontWeight.bold)),
+                                  ),
+                      ),
+                    );
+                  },
+                ),
+
+                // Verified banner
+                if (isVerified)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8, left: 2),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 14),
+                        const SizedBox(width: 6),
+                        Text(
+                          'ZRA Taxpayer Verified',
+                          style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF10B981), fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                // Error message
+                if (verifyError != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8, left: 2),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.info_outline_rounded, color: Colors.amber, size: 14),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            verifyError!,
+                            style: GoogleFonts.inter(fontSize: 11, color: Colors.amber, fontWeight: FontWeight.w500),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
                 const SizedBox(height: 12),
                 TextField(
                   controller: nameCtrl,
@@ -1804,6 +2087,12 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                 final tpin = tpinCtrl.text.trim();
                 final name = nameCtrl.text.trim();
                 final addr = addrCtrl.text.trim();
+                if (tpin.isEmpty || name.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Please enter the TPIN and business name')),
+                  );
+                  return;
+                }
                 cartNotifier.setCustomerTpin(
                   tpin.isNotEmpty ? tpin : null,
                   businessName: name.isNotEmpty ? name : null,
@@ -1843,6 +2132,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         weight: item.isWeighted ? item.weight : 0.0,
         isWeighted: item.isWeighted,
         unitOfMeasure: item.product.unitOfMeasure,
+        isDigitaxExempt: !item.product.isDigitaxSyncEnabled,
       )).toList();
 
       final currentUser = ref.read(authProvider);
@@ -1856,6 +2146,8 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         subtotal: cartNotifier.subtotal,
         taxAmount: cartNotifier.tax,
         discountAmount: cartState.discountAmount,
+        serviceChargeAmount: cartNotifier.serviceChargeAmount,
+        serviceChargeRate: cartState.serviceChargeRate,
         tenderedAmount: _selectedPaymentMethod == 'CASH' ? _tenderedAmount : total,
         changeAmount: _selectedPaymentMethod == 'CASH' ? change : 0.0,
         customerTpin: cartState.customerTpin,

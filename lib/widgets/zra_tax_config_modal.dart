@@ -314,7 +314,9 @@ class _ZraTaxConfigModalState extends ConsumerState<ZraTaxConfigModal> {
                       const SizedBox(height: 10),
 
                       DropdownButtonFormField<String>(
-                        initialValue: _businessTaxType,
+                        initialValue: const ['VAT_STANDARD', 'TURNOVER_TAX', 'EXEMPT', 'COMPOSITE'].contains(_businessTaxType)
+                            ? _businessTaxType
+                            : 'VAT_STANDARD',
                         dropdownColor: const Color(0xFF222228),
                         style: const TextStyle(color: Colors.white),
                         decoration: InputDecoration(
@@ -414,7 +416,7 @@ class _ZraTaxConfigModalState extends ConsumerState<ZraTaxConfigModal> {
                           Expanded(
                             flex: 3,
                             child: DropdownButtonFormField<String>(
-                              initialValue: _digitaxEnv,
+                              initialValue: (_digitaxEnv.toLowerCase() == 'production') ? 'production' : 'sandbox',
                               isExpanded: true,
                               dropdownColor: const Color(0xFF222228),
                               style: const TextStyle(color: Colors.white),

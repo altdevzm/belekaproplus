@@ -1,10 +1,10 @@
-import hashlib
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from pydantic import BaseModel
 from app.database import get_db
 from app import models, schemas
+from app.auth_deps import get_current_user, verify_store_access, hash_password, require_roles
 
 router = APIRouter(prefix="/api/v1/users", tags=["Users"])
 
@@ -13,31 +13,45 @@ class UserSyncBatch(BaseModel):
     users: List[schemas.UserCreate]
 
 @router.get("", response_model=List[schemas.UserResponse])
-def get_users(store_id: Optional[int] = None, db: Session = Depends(get_db)):
-    """Fetch active users from Cloud PostgreSQL."""
-    query = db.query(models.User).filter(models.User.is_active == True)
-    if store_id:
-        query = query.filter(models.User.store_id == store_id)
+def get_users(
+    store_id: Optional[int] = None,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Fetch active users from Cloud PostgreSQL (tenant-scoped)."""
+    target_store_id = store_id or current_user.store_id
+    verify_store_access(target_store_id, current_user)
+
+    query = db.query(models.User).filter(
+        models.User.is_active == True,
+        models.User.store_id == target_store_id
+    )
     return query.all()
 
 @router.post("", response_model=schemas.UserResponse, status_code=status.HTTP_201_CREATED)
-def create_or_update_user(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
+def create_or_update_user(
+    user_in: schemas.UserCreate,
+    current_user: models.User = Depends(require_roles(["owner", "branch_manager"])),
+    db: Session = Depends(get_db)
+):
     """
-    Create or update a user (e.g. Branch Manager) in the Cloud PostgreSQL database.
+    Create or update a user in the Cloud PostgreSQL database.
+    Requires Manager or Owner privileges.
     """
-    # Ensure store exists, or use store_id 1 / create default
+    verify_store_access(user_in.store_id, current_user)
+
     store = db.query(models.Store).filter(models.Store.id == user_in.store_id).first()
     if not store:
-        # Fallback to first active store
-        store = db.query(models.Store).first()
-        if not store:
-            store = models.Store(store_code="HQ-00", name="Headquarters Main Store", bhf_id="00")
-            db.add(store)
-            db.flush()
-        user_in.store_id = store.id
+        raise HTTPException(status_code=404, detail="Store branch not found")
+
+    # Hash raw PIN/password if provided in password_hash field
+    formatted_hash = user_in.password_hash
+    if formatted_hash and not (formatted_hash.startswith("$2b$") or formatted_hash.startswith("$2a$")):
+        formatted_hash = hash_password(formatted_hash)
 
     existing = db.query(models.User).filter(
-        models.User.numeric_id == user_in.numeric_id
+        models.User.numeric_id == user_in.numeric_id,
+        models.User.store_id == user_in.store_id
     ).first()
 
     if existing:
@@ -46,9 +60,8 @@ def create_or_update_user(user_in: schemas.UserCreate, db: Session = Depends(get
         existing.branch_name = user_in.branch_name
         existing.phone = user_in.phone
         existing.is_active = user_in.is_active if user_in.is_active is not None else True
-        if user_in.password_hash:
-            existing.password_hash = user_in.password_hash
-        existing.store_id = user_in.store_id
+        if formatted_hash:
+            existing.password_hash = formatted_hash
         db.commit()
         db.refresh(existing)
         return existing
@@ -60,7 +73,7 @@ def create_or_update_user(user_in: schemas.UserCreate, db: Session = Depends(get
         role=user_in.role,
         branch_name=user_in.branch_name,
         phone=user_in.phone,
-        password_hash=user_in.password_hash,
+        password_hash=formatted_hash or hash_password("0000"),
         is_active=user_in.is_active if user_in.is_active is not None else True,
     )
     db.add(user)
@@ -69,14 +82,24 @@ def create_or_update_user(user_in: schemas.UserCreate, db: Session = Depends(get
     return user
 
 @router.post("/sync", status_code=status.HTTP_200_OK)
-def sync_users_batch(payload: UserSyncBatch, db: Session = Depends(get_db)):
+def sync_users_batch(
+    payload: UserSyncBatch,
+    current_user: models.User = Depends(require_roles(["owner", "branch_manager"])),
+    db: Session = Depends(get_db)
+):
     """
     Batch sync users from local POS to Cloud PostgreSQL.
     """
     synced_ids = []
     for u_in in payload.users:
+        verify_store_access(u_in.store_id, current_user)
+        formatted_hash = u_in.password_hash
+        if formatted_hash and not (formatted_hash.startswith("$2b$") or formatted_hash.startswith("$2a$")):
+            formatted_hash = hash_password(formatted_hash)
+
         existing = db.query(models.User).filter(
-            models.User.numeric_id == u_in.numeric_id
+            models.User.numeric_id == u_in.numeric_id,
+            models.User.store_id == u_in.store_id
         ).first()
 
         if existing:
@@ -84,8 +107,8 @@ def sync_users_batch(payload: UserSyncBatch, db: Session = Depends(get_db)):
             existing.role = u_in.role
             existing.branch_name = u_in.branch_name
             existing.phone = u_in.phone
-            if u_in.password_hash:
-                existing.password_hash = u_in.password_hash
+            if formatted_hash:
+                existing.password_hash = formatted_hash
         else:
             new_u = models.User(
                 store_id=u_in.store_id,
@@ -94,7 +117,7 @@ def sync_users_batch(payload: UserSyncBatch, db: Session = Depends(get_db)):
                 role=u_in.role,
                 branch_name=u_in.branch_name,
                 phone=u_in.phone,
-                password_hash=u_in.password_hash,
+                password_hash=formatted_hash or hash_password("0000"),
                 is_active=True,
             )
             db.add(new_u)

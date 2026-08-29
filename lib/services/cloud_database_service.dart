@@ -111,9 +111,9 @@ class CloudDatabaseService {
           'manager_phone': branch.managerPhone,
           if (tpin != null && tpin.isNotEmpty) 'tpin': tpin,
           if (digitaxApiKey != null && digitaxApiKey.isNotEmpty) 'digitax_api_key': digitaxApiKey,
-          'digitax_environment': ?digitaxEnvironment,
-          'business_tax_type': ?businessTaxType,
-          'currency_symbol': ?currencySymbol,
+          'digitax_environment': digitaxEnvironment ?? 'sandbox',
+          'business_tax_type': businessTaxType ?? 'VAT_STANDARD',
+          'currency_symbol': currencySymbol ?? 'K',
         },
       );
       return response.statusCode == 200 || response.statusCode == 201;

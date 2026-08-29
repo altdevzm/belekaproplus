@@ -56,6 +56,7 @@ void main() async {
         RefundTransactionSchema,
         StoreBranchSchema,
         PosTerminalSchema,
+        StockMovementSchema,
       ],
       directory: dir.path,
     );
@@ -178,8 +179,9 @@ final appStartupProvider = FutureProvider<Map<String, dynamic>>((ref) async {
 
   final hasUsers = await db.hasUsers();
   
-  // Auto-initialize Hardware Drivers (Barcode Scanner + Auto-detect Printer)
+  // Auto-initialize Hardware Drivers & Multi-Terminal Network Sync
   ref.read(barcodeServiceProvider).init();
+  ref.read(networkManagerProvider).initialize();
   final config = await db.getStoreConfig();
   ref.read(printerServiceProvider).autoConnect(
     config: config,
@@ -198,10 +200,6 @@ class BelekaApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Initialize the network manager once the app starts
-    ref.read(networkManagerProvider).initialize();
-    ref.read(barcodeServiceProvider).init();
-
     final authState = ref.watch(authProvider);
     final startupAsync = ref.watch(appStartupProvider);
 
