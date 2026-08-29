@@ -78,7 +78,7 @@ class TotService {
         data: jsonEncode({
           'charge_year': year,
           'charge_month': month,
-          if (notes != null) 'notes': notes,
+          'notes': ?notes,
         }),
       );
       if (resp.statusCode == 200) {
@@ -98,8 +98,9 @@ class TotService {
     try {
       final resp = await _dio.get(
         '$_api/api/v1/tot/returns/$storeId',
-        queryParameters: {if (year != null) 'year': year},
+        queryParameters: {'year': ?year},
       );
+
 
 
       if (resp.statusCode == 200) {
