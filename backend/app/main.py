@@ -9,7 +9,8 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(
     title="Beleka POS Cloud PostgreSQL API",
     description="Multi-Store Cloud Database API Service for Beleka Point of Sale System",
-    version="1.0.0",
+    version="2.0.1",
+
 )
 
 # Secure CORS middleware configuration
