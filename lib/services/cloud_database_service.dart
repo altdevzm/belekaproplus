@@ -258,5 +258,33 @@ class CloudDatabaseService {
       return [];
     }
   }
+
+  /// Download a full database backup export snapshot from the VPS backend.
+  Future<Map<String, dynamic>?> downloadVpsBackup({
+    required String baseUrl,
+    required int storeId,
+    String? token,
+  }) async {
+    try {
+      final sanitizedUrl = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+      final options = Options(
+        headers: token != null && token.isNotEmpty ? {'Authorization': 'Bearer $token'} : null,
+      );
+      final response = await _dio.get(
+        '$sanitizedUrl/api/v1/sync/export-backup',
+        queryParameters: {'store_id': storeId},
+        options: options,
+      );
+
+      if (response.statusCode == 200 && response.data is Map) {
+        return Map<String, dynamic>.from(response.data);
+      }
+      return null;
+    } catch (e) {
+      debugPrint('VPS Cloud Backup Download Failed: $e');
+      return null;
+    }
+  }
 }
+
 

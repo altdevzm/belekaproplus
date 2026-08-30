@@ -1,4 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from datetime import datetime
+from sqlalchemy.sql import func
 from sqlalchemy.orm import Session
 from typing import List
 from app.database import get_db
@@ -99,3 +101,62 @@ def sync_batch_sales(
 
     db.commit()
     return {"status": "success", "synced_uuids": synced_uuids}
+
+@router.get("/export-backup")
+def export_vps_backup(
+    store_id: int,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Exports a complete backup snapshot of the VPS cloud database for a given store.
+    """
+    verify_store_access(store_id, current_user)
+
+    store = db.query(models.Store).filter(models.Store.id == store_id).first()
+    if not store:
+        raise HTTPException(status_code=404, detail="Store branch not found")
+
+    users = db.query(models.User).filter(models.User.store_id == store_id).all()
+    categories = db.query(models.Category).filter(models.Category.store_id == store_id).all()
+    products = db.query(models.Product).filter(models.Product.store_id == store_id).all()
+    sales = db.query(models.SaleTransaction).filter(models.SaleTransaction.store_id == store_id).all()
+    customers = db.query(models.Customer).filter(models.Customer.store_id == store_id).all()
+    stock_movements = db.query(models.StockMovement).filter(models.StockMovement.store_id == store_id).all()
+
+    def serialize_obj(obj):
+        if obj is None:
+            return None
+        d = {}
+        for column in obj.__table__.columns:
+            val = getattr(obj, column.name)
+            if hasattr(val, 'isoformat'):
+                val = val.isoformat()
+            elif isinstance(val, (int, float, str, bool, list, dict, type(None))):
+                pass
+            else:
+                val = str(val)
+            d[column.name] = val
+        return d
+
+    sales_data = []
+    for s in sales:
+        s_dict = serialize_obj(s)
+        items = db.query(models.SaleItem).filter(models.SaleItem.sale_transaction_id == s.id).all()
+        s_dict["items"] = [serialize_obj(i) for i in items]
+        sales_data.append(s_dict)
+
+    backup_payload = {
+        "backup_version": "1.0",
+        "exported_at": str(db.query(func.now()).scalar() or ""),
+        "store": serialize_obj(store),
+        "users": [serialize_obj(u) for u in users],
+        "categories": [serialize_obj(c) for c in categories],
+        "products": [serialize_obj(p) for p in products],
+        "sales": sales_data,
+        "customers": [serialize_obj(cust) for cust in customers],
+        "stock_movements": [serialize_obj(sm) for sm in stock_movements],
+    }
+
+    return backup_payload
+

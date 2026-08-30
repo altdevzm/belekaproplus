@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -17,6 +18,7 @@ import 'package:beleka_pos/services/network_manager.dart';
 import 'package:beleka_pos/services/printer_service.dart';
 import 'package:beleka_pos/services/barcode_service.dart';
 
+import 'package:beleka_pos/services/backup_service.dart';
 import 'package:beleka_pos/services/local_sql_service.dart';
 
 void main() async {
@@ -105,7 +107,7 @@ void main() async {
           if (localSqlService != null)
             localSqlServiceProvider.overrideWithValue(localSqlService),
         ],
-        child: const BelekaApp(),
+        child: const AppExitBackupHandler(child: BelekaApp()),
       ),
     );
   } catch (e, stack) {
@@ -305,3 +307,63 @@ class BelekaApp extends ConsumerWidget {
     );
   }
 }
+
+class AppExitBackupHandler extends StatefulWidget {
+  final Widget child;
+  const AppExitBackupHandler({super.key, required this.child});
+
+  @override
+  State<AppExitBackupHandler> createState() => _AppExitBackupHandlerState();
+}
+
+class _AppExitBackupHandlerState extends State<AppExitBackupHandler> with WidgetsBindingObserver {
+  bool _isPerformingExitBackup = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  Future<ui.AppExitResponse> didRequestAppExit() async {
+    if (_isPerformingExitBackup) {
+      return ui.AppExitResponse.exit;
+    }
+    _isPerformingExitBackup = true;
+
+    try {
+      final isar = Isar.getInstance();
+      if (isar != null) {
+        debugPrint('App closing detected: Initiating automatic local & VPS cloud backup sequence...');
+        final storeConfig = await isar.storeConfigs.where().findFirst();
+        final cloudUrl = storeConfig?.cloudApiUrl;
+        final storeId = storeConfig?.cloudStoreId ?? 1;
+
+        final backupService = BackupService();
+        final results = await backupService.performFullExitBackup(
+          isar: isar,
+          cloudBaseUrl: cloudUrl,
+          storeId: storeId,
+        );
+        debugPrint('App exit backup completed. Results: $results');
+      }
+    } catch (e) {
+      debugPrint('App exit backup notice: $e');
+    }
+
+    return ui.AppExitResponse.exit;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return widget.child;
+  }
+}
+
