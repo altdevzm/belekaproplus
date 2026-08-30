@@ -29,7 +29,7 @@ subprojects {
     subproject.plugins.withId("com.android.library") {
         val android = subproject.extensions.findByType(com.android.build.gradle.LibraryExtension::class.java)
         if (android != null) {
-            android.compileSdk = 34
+            android.compileSdk = 36
             if (android.namespace == null && subproject.name != "app") {
                 android.namespace = if (subproject.group.toString().isNotEmpty()) {
                     subproject.group.toString()
@@ -46,7 +46,7 @@ subprojects {
         if (project.hasProperty("android")) {
             val android = project.extensions.findByName("android")
             if (android is com.android.build.gradle.BaseExtension) {
-                android.compileSdkVersion(34)
+                android.compileSdkVersion(36)
             }
         }
     }
