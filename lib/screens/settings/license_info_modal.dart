@@ -47,11 +47,15 @@ class _LicenseInfoModalState extends ConsumerState<LicenseInfoModal> {
 
     return Dialog(
       backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       child: Container(
         width: 580,
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.9,
+        ),
         decoration: BoxDecoration(
           color: const Color(0xFF141418),
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(20),
           border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
           boxShadow: [
             BoxShadow(
@@ -61,60 +65,69 @@ class _LicenseInfoModalState extends ConsumerState<LicenseInfoModal> {
             ),
           ],
         ),
-        padding: const EdgeInsets.all(32),
+        padding: const EdgeInsets.all(16),
         child: _isLoading
             ? const Center(child: CircularProgressIndicator(color: Color(0xFFC1F11D)))
-            : Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Header
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFC1F11D).withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Icon(Icons.verified_user_outlined, color: Color(0xFFC1F11D), size: 22),
-                          ),
-                          const SizedBox(width: 14),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+            : SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Header
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Row(
                             children: [
-                              Text(
-                                'SYSTEM LICENSE',
-                                style: GoogleFonts.manrope(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w900,
-                                  color: Colors.white,
-                                  letterSpacing: 1.5,
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFC1F11D).withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(10),
                                 ),
+                                child: const Icon(Icons.verified_user_outlined, color: Color(0xFFC1F11D), size: 20),
                               ),
-                              Text(
-                                'AUTHENTIC HARDWARE ACTIVATION',
-                                style: GoogleFonts.ibmPlexMono(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                  color: const Color(0xFFC1F11D),
-                                  letterSpacing: 1,
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'SYSTEM LICENSE',
+                                      style: GoogleFonts.manrope(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w900,
+                                        color: Colors.white,
+                                        letterSpacing: 1.2,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    Text(
+                                      'AUTHENTIC HARDWARE ACTIVATION',
+                                      style: GoogleFonts.ibmPlexMono(
+                                        fontSize: 8.5,
+                                        fontWeight: FontWeight.bold,
+                                        color: const Color(0xFFC1F11D),
+                                        letterSpacing: 0.5,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
                           ),
-                        ],
-                      ),
-                      IconButton(
-                        onPressed: () => Navigator.pop(context),
-                        icon: const Icon(Icons.close, color: Colors.white24),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.pop(context),
+                          icon: const Icon(Icons.close, color: Colors.white24, size: 20),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
 
                   // License Status Card
                   Container(
@@ -357,6 +370,7 @@ class _LicenseInfoModalState extends ConsumerState<LicenseInfoModal> {
                   ),
                 ],
               ),
+            ),
       ),
     );
   }

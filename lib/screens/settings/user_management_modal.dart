@@ -15,11 +15,15 @@ class UserManagementModal extends ConsumerWidget {
 
     return Dialog(
       backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       child: Container(
         width: 600,
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.9,
+        ),
         decoration: BoxDecoration(
           color: const Color(0xFF141418),
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(20),
           border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
           boxShadow: [
             BoxShadow(
@@ -29,7 +33,7 @@ class UserManagementModal extends ConsumerWidget {
             ),
           ],
         ),
-        padding: const EdgeInsets.all(40),
+        padding: const EdgeInsets.all(16),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -40,9 +44,9 @@ class UserManagementModal extends ConsumerWidget {
                 Text(
                   'STAFF ACCOUNTS',
                   style: GoogleFonts.manrope(
-                    fontSize: 14,
+                    fontSize: 13,
                     fontWeight: FontWeight.w800,
-                    letterSpacing: 2,
+                    letterSpacing: 1.5,
                     color: const Color(0xFFC1F11D),
                   ),
                 ),
@@ -52,15 +56,17 @@ class UserManagementModal extends ConsumerWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 32),
-            usersAsync.when(
-              data: (users) => _buildStaffList(context, ref, users),
-              loading: () => const Center(child: CircularProgressIndicator(color: Color(0xFFC1F11D))),
-              error: (e, s) => Center(child: Text('Error: $e', style: const TextStyle(color: Colors.redAccent))),
+            const SizedBox(height: 16),
+            Expanded(
+              child: usersAsync.when(
+                data: (users) => _buildStaffList(context, ref, users),
+                loading: () => const Center(child: CircularProgressIndicator(color: Color(0xFFC1F11D))),
+                error: (e, s) => Center(child: Text('Error: $e', style: const TextStyle(color: Colors.redAccent))),
+              ),
             ),
-            const SizedBox(height: 48),
+            const SizedBox(height: 16),
             SizedBox(
-              height: 56,
+              height: 48,
               child: ElevatedButton(
                 onPressed: () => showDialog(
                   context: context,

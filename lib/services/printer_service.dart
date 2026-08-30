@@ -400,14 +400,34 @@ class PrinterService {
           model: TcpPrinterInput(ipAddress: device.address!),
         );
       } else if (type == PrinterType.bluetooth) {
-        success = await _printerManager.connect(
-          type: type,
-          model: BluetoothPrinterInput(
-            name: device.name,
-            address: device.address!,
-            isBle: true, 
-          ),
-        );
+        // Dual-mode Bluetooth: Try Bluetooth Classic SPP first (used by 95% of ESC/POS mini printers), then BLE
+        try {
+          success = await _printerManager.connect(
+            type: type,
+            model: BluetoothPrinterInput(
+              name: device.name,
+              address: device.address!,
+              isBle: false, 
+            ),
+          );
+        } catch (_) {
+          success = false;
+        }
+
+        if (!success) {
+          try {
+            success = await _printerManager.connect(
+              type: type,
+              model: BluetoothPrinterInput(
+                name: device.name,
+                address: device.address!,
+                isBle: true, 
+              ),
+            );
+          } catch (_) {
+            success = false;
+          }
+        }
       }
       
       if (success) {
@@ -685,8 +705,9 @@ class PrinterService {
       bytes += generator.text(preset.singleDivider);
 
       // 5. Line Items Rows
+      final isTot = config?.businessTaxType == 'TURNOVER_TAX';
       for (var item in items) {
-        final taxLetter = _getTaxLetter(item.taxRateAtSale);
+        final taxLetter = isTot ? 'E' : _getTaxLetter(item.taxRateAtSale);
         final effectiveQty = (item.isWeighted && item.weight > 0)
             ? item.weight
             : item.quantity.toDouble();
@@ -724,9 +745,8 @@ class PrinterService {
         bytes += generator.text(_formatRow2('DISCOUNT', '-${CurrencyFormatter.format(transaction.discountAmount, currency)}', colCount));
       }
 
-      if (transaction.taxAmount > 0) {
-        final taxLabel = (config?.businessTaxType == 'TURNOVER_TAX') ? 'TURNOVER TAX (INCL)' : 'TOTAL VAT (INCLUDED)';
-        bytes += generator.text(_formatRow2(taxLabel, CurrencyFormatter.format(transaction.taxAmount, currency), colCount));
+      if (transaction.taxAmount > 0 && !isTot) {
+        bytes += generator.text(_formatRow2('TOTAL VAT (INCLUDED)', CurrencyFormatter.format(transaction.taxAmount, currency), colCount));
       }
 
       if (transaction.serviceChargeAmount > 0) {
@@ -755,19 +775,25 @@ class PrinterService {
 
       // 8. Tax Summary Table
       bytes += generator.feed(1);
-      bytes += generator.text('TAX SUMMARY BREAKDOWN', styles: const PosStyles(bold: true));
-      bytes += generator.text(_formatRow3('CODE / RATE', 'TAX AMT', 'TOTAL', colCount), styles: const PosStyles(bold: true));
+      if (isTot) {
+        bytes += generator.text('TAX SUMMARY (TURNOVER TAX)', styles: const PosStyles(bold: true));
+        bytes += generator.text(_formatRow2('ITEM OUTPUT TAX:', 'K0.00 (EXEMPT)', colCount));
+        bytes += generator.text('Turnover Tax is remitted monthly at 5%', styles: const PosStyles(align: PosAlign.center));
+      } else {
+        bytes += generator.text('TAX SUMMARY BREAKDOWN', styles: const PosStyles(bold: true));
+        bytes += generator.text(_formatRow3('CODE / RATE', 'TAX AMT', 'TOTAL', colCount), styles: const PosStyles(bold: true));
 
-      final breakdown = _getTaxBreakdown(items);
-      breakdown.forEach((rate, values) {
-        final letter = _getTaxLetter(rate);
-        bytes += generator.text(_formatRow3(
-          '$letter (${rate.toStringAsFixed(0)}%)',
-          CurrencyFormatter.formatTaxPrecision(values['vat']!, currency),
-          CurrencyFormatter.format(values['total']!, currency),
-          colCount,
-        ));
-      });
+        final breakdown = _getTaxBreakdown(items);
+        breakdown.forEach((rate, values) {
+          final letter = _getTaxLetter(rate);
+          bytes += generator.text(_formatRow3(
+            '$letter (${rate.toStringAsFixed(0)}%)',
+            CurrencyFormatter.formatTaxPrecision(values['vat']!, currency),
+            CurrencyFormatter.format(values['total']!, currency),
+            colCount,
+          ));
+        });
+      }
 
       // 9. SDC / ZRA Smart Invoice Compliance Block
       final dateFormatted = DateFormat('dd/MM/yyyy').format(transaction.timestamp);

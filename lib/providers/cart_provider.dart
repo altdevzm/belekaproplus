@@ -266,6 +266,10 @@ class CartNotifier extends StateNotifier<CartState> {
     );
   }
 
+  bool addItem(Product product, {int quantity = 1}) => addProduct(product, quantity: quantity);
+
+  void clearCart() => clear();
+
   void clear() {
     state = CartState(
       serviceChargeEnabled: defaultServiceChargeEnabled && defaultServiceChargeRate > 0,

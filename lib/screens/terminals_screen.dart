@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import 'package:isar/isar.dart';
 import 'package:beleka_pos/models/models.dart';
 import 'package:beleka_pos/providers/theme_provider.dart';
@@ -10,12 +11,39 @@ import 'package:beleka_pos/providers/auth_provider.dart';
 import 'package:beleka_pos/services/database_service.dart';
 import 'package:beleka_pos/services/local_sql_service.dart';
 import 'package:beleka_pos/services/api_service.dart';
+import 'package:beleka_pos/services/export_service.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
-import 'package:beleka_pos/screens/accounts_screen.dart';
 import 'package:beleka_pos/services/printer_service.dart';
 import 'package:beleka_pos/services/license_service.dart';
 import 'package:beleka_pos/screens/settings/license_info_modal.dart';
 import 'package:beleka_pos/utils/formatters.dart';
+
+// --- DATA PROVIDERS ---
+
+final cashShiftsProvider = FutureProvider<List<CashShift>>((ref) async {
+  final isar = ref.watch(isarProvider);
+  return await isar.cashShifts.where().sortByOpeningTimeDesc().findAll();
+});
+
+final activeShiftProvider = FutureProvider<CashShift?>((ref) async {
+  final isar = ref.watch(isarProvider);
+  return await isar.cashShifts.filter().statusEqualTo('OPEN').findFirst();
+});
+
+final activeShiftsListProvider = FutureProvider<List<CashShift>>((ref) async {
+  final isar = ref.watch(isarProvider);
+  return await isar.cashShifts.filter().statusEqualTo('OPEN').findAll();
+});
+
+final paymentAccountsProvider = FutureProvider<List<PaymentAccount>>((ref) async {
+  final isar = ref.watch(isarProvider);
+  return await isar.paymentAccounts.where().sortByCreatedAt().findAll();
+});
+
+final refundsProvider = FutureProvider<List<RefundTransaction>>((ref) async {
+  final isar = ref.watch(isarProvider);
+  return await isar.refundTransactions.where().sortByRefundDateDesc().findAll();
+});
 
 class TerminalsScreen extends ConsumerStatefulWidget {
   const TerminalsScreen({super.key});
@@ -24,7 +52,21 @@ class TerminalsScreen extends ConsumerStatefulWidget {
   ConsumerState<TerminalsScreen> createState() => _TerminalsScreenState();
 }
 
-class _TerminalsScreenState extends ConsumerState<TerminalsScreen> {
+class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final accentColor = ref.watch(accentColorProvider);
@@ -79,7 +121,7 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Monitor connected cashier registers, auto-handshake over Wi-Fi/LAN, link branch bhfId, and assign shifts.',
+                    'Monitor connected cashier registers, assign cashier shifts, generate per-till PDF reports, and balance till floats.',
                     style: GoogleFonts.inter(fontSize: 13, color: Colors.white54),
                   ),
                 ],
@@ -102,346 +144,851 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 18),
 
           // Master POS Host Hub Status Card
           _buildMasterHubBanner(context, storeConfig, hostIp, hostPort, accentColor),
-          const SizedBox(height: 20),
+          const SizedBox(height: 18),
 
-          // KPI Stats Overview Bar
-          Row(
-            children: [
-              Expanded(
-                child: _buildMetricCard(
-                  title: 'CONNECTED TILLS',
-                  value: '${terminals.length} / $maxAllowedTills',
-                  subtitle: '$activeTerminalsCount Active (Max $maxAllowedTills on License)',
-                  icon: Icons.point_of_sale_rounded,
-                  color: accentColor,
+          // Tab Bar for Terminals vs Shift Balancing
+          Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFF141417),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white.withAlpha(15)),
+            ),
+            child: TabBar(
+              controller: _tabController,
+              isScrollable: true,
+              tabAlignment: TabAlignment.start,
+              indicatorColor: accentColor,
+              indicatorWeight: 3,
+              labelColor: accentColor,
+              unselectedLabelColor: Colors.white60,
+              labelStyle: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13),
+              tabs: [
+                Tab(
+                  icon: const Icon(Icons.point_of_sale_rounded, size: 18),
+                  text: 'Tills & Cashier Terminals (${terminals.length})',
                 ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: _buildMetricCard(
-                  title: 'ACTIVE SHIFT TILLS',
-                  value: '${activeShifts.length}',
-                  subtitle: '${activeShifts.length} Cashiers Live On Shift',
-                  icon: Icons.person_pin_circle_rounded,
-                  color: Colors.green,
+                Tab(
+                  icon: const Icon(Icons.calculate_rounded, size: 18),
+                  text: 'Till & Shift Balancing (${activeShifts.length} Active)',
                 ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: _buildMetricCard(
-                  title: 'CONNECTED BRANCHES',
-                  value: '${branches.length}',
-                  subtitle: 'ZRA Fiscal Branches Linked',
-                  icon: Icons.storefront_rounded,
-                  color: Colors.purpleAccent,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: _buildMetricCard(
-                  title: 'TERMINAL SALES TODAY',
-                  value: CurrencyFormatter.format(totalSalesToday, currency),
-                  subtitle: 'Aggregate Till Revenue',
-                  icon: Icons.payments_rounded,
-                  color: Colors.amber,
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 18),
 
-          // Terminals Grid / List
+          // Tab Views
           Expanded(
-            child: terminals.isEmpty
-                ? _buildEmptyTillsState(context, hostIp, hostPort, accentColor, branches, users)
-                : GridView.builder(
-                    gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                      maxCrossAxisExtent: 440,
-                      mainAxisExtent: 295,
-                      crossAxisSpacing: 16,
-                      mainAxisSpacing: 16,
-                    ),
-                    itemCount: terminals.length,
-                    itemBuilder: (context, index) {
-                      final t = terminals[index];
-                      final isLiveConnected = apiService.activeTerminals.containsKey(t.terminalCode) ||
-                          DateTime.now().difference(t.lastActive).inMinutes < 5;
-                      final matchingShift = activeShifts.where((s) => s.terminalId == '${t.terminalCode} - ${t.name}' || s.terminalId == t.terminalCode || s.terminalId == t.name).firstOrNull;
-                      final isShiftOpen = matchingShift != null;
-                      final isActive = t.status == 'ACTIVE';
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                // TAB 1: TILLS & CASHIER TERMINALS
+                _buildTillsTab(
+                  context: context,
+                  terminals: terminals,
+                  maxAllowedTills: maxAllowedTills,
+                  activeTerminalsCount: activeTerminalsCount,
+                  activeShifts: activeShifts,
+                  branches: branches,
+                  users: users,
+                  totalSalesToday: totalSalesToday,
+                  currency: currency,
+                  accentColor: accentColor,
+                  apiService: apiService,
+                  hostIp: hostIp,
+                  hostPort: hostPort,
+                ),
 
-                      return Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF161619),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: isShiftOpen
-                                ? Colors.green.withAlpha(120)
-                                : isActive
-                                    ? Colors.white.withAlpha(20)
-                                    : Colors.redAccent.withAlpha(60),
-                            width: isShiftOpen ? 1.5 : 1,
-                          ),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Top Row: Code, Status & Actions Menu
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Row(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.all(8),
-                                      decoration: BoxDecoration(
-                                        color: isShiftOpen
-                                            ? Colors.green.withAlpha(40)
-                                            : accentColor.withAlpha(30),
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Icon(
-                                        Icons.point_of_sale_rounded,
-                                        color: isShiftOpen ? Colors.green : accentColor,
-                                        size: 20,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          t.terminalCode.toUpperCase(),
-                                          style: GoogleFonts.manrope(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w900,
-                                            letterSpacing: 1,
-                                            color: Colors.white,
-                                          ),
-                                        ),
-                                        Row(
-                                          children: [
-                                            Text(
-                                              t.name,
-                                              style: GoogleFonts.inter(fontSize: 12, color: Colors.white70),
-                                            ),
-                                            if (t.deviceIp != null && t.deviceIp!.isNotEmpty) ...[
-                                              const SizedBox(width: 6),
-                                              Text(
-                                                '• ${t.deviceIp}',
-                                                style: GoogleFonts.ibmPlexMono(fontSize: 10, color: Colors.white38),
-                                              ),
-                                            ],
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                                Row(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: isShiftOpen
-                                            ? Colors.green.withAlpha(30)
-                                            : isLiveConnected
-                                                ? const Color(0xFF10B981).withAlpha(30)
-                                                : isActive
-                                                    ? Colors.blue.withAlpha(30)
-                                                    : Colors.orange.withAlpha(30),
-                                        borderRadius: BorderRadius.circular(6),
-                                        border: Border.all(
-                                          color: isShiftOpen
-                                              ? Colors.green.withAlpha(80)
-                                              : isLiveConnected
-                                                  ? const Color(0xFF10B981).withAlpha(80)
-                                                  : isActive
-                                                      ? Colors.blue.withAlpha(80)
-                                                      : Colors.orange.withAlpha(80),
-                                        ),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          if (isLiveConnected) ...[
-                                            Container(
-                                              width: 6,
-                                              height: 6,
-                                              margin: const EdgeInsets.only(right: 5),
-                                              decoration: const BoxDecoration(
-                                                color: Color(0xFF10B981),
-                                                shape: BoxShape.circle,
-                                              ),
-                                            ),
-                                          ],
-                                          Text(
-                                            isShiftOpen 
-                                                ? 'LIVE SHIFT' 
-                                                : isLiveConnected 
-                                                    ? 'CONNECTED' 
-                                                    : t.status,
-                                            style: GoogleFonts.jetBrainsMono(
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.bold,
-                                              color: isShiftOpen
-                                                  ? Colors.green
-                                                  : isLiveConnected
-                                                      ? const Color(0xFF10B981)
-                                                      : isActive
-                                                          ? Colors.blue
-                                                          : Colors.orange,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    PopupMenuButton<String>(
-                                      icon: const Icon(Icons.more_vert_rounded, size: 18, color: Colors.white54),
-                                      onSelected: (val) async {
-                                        if (val == 'edit') {
-                                          _showAddEditTerminalDialog(context, accentColor, branches, users, terminal: t);
-                                        } else if (val == 'toggle_status') {
-                                          await _toggleTerminalStatus(t);
-                                        } else if (val == 'delete') {
-                                          await _deleteTerminal(context, t);
-                                        }
-                                      },
-                                      itemBuilder: (context) => [
-                                        const PopupMenuItem(value: 'edit', child: Row(children: [Icon(Icons.edit_rounded, size: 16), SizedBox(width: 8), Text('Edit Till')])),
-                                        PopupMenuItem(value: 'toggle_status', child: Row(children: [Icon(Icons.toggle_on_rounded, size: 16), SizedBox(width: 8), Text(isActive ? 'Set Inactive' : 'Set Active')])),
-                                        const PopupMenuItem(value: 'delete', child: Row(children: [Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 16), SizedBox(width: 8), Text('Delete Till', style: TextStyle(color: Colors.redAccent))])),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                            const Divider(color: Colors.white10, height: 20),
-
-                            // Branch & DigiTax bhfId Info
-                            Row(
-                              children: [
-                                const Icon(Icons.storefront_rounded, size: 14, color: Colors.white38),
-                                const SizedBox(width: 6),
-                                Expanded(
-                                  child: Text(
-                                    t.branchName,
-                                    style: GoogleFonts.inter(fontSize: 12, color: Colors.white70),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withAlpha(10),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Text(
-                                    'ZRA bhfId: ${t.digitaxBhfId}',
-                                    style: GoogleFonts.jetBrainsMono(fontSize: 10, color: Colors.white54),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-
-                            // Assigned Cashier Info
-                            Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withAlpha(8),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Row(
-                                children: [
-                                  CircleAvatar(
-                                    radius: 14,
-                                    backgroundColor: isShiftOpen ? Colors.green.withAlpha(40) : Colors.white.withAlpha(20),
-                                    child: Icon(Icons.person, size: 14, color: isShiftOpen ? Colors.green : Colors.white70),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          isShiftOpen
-                                              ? '${matchingShift.cashierName} (Active Shift)'
-                                              : (t.assignedCashierName != null && t.assignedCashierName!.isNotEmpty)
-                                                  ? t.assignedCashierName!
-                                                  : 'Unassigned Cashier',
-                                          style: GoogleFonts.inter(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w600,
-                                            color: isShiftOpen ? Colors.green : Colors.white,
-                                          ),
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        Text(
-                                          isShiftOpen
-                                              ? 'Shift #: ${matchingShift.shiftNumber}'
-                                              : (t.assignedCashierId != null && t.assignedCashierId!.isNotEmpty)
-                                                  ? 'Assigned ID: ${t.assignedCashierId}'
-                                                  : 'Cashier can log in directly',
-                                          style: GoogleFonts.inter(fontSize: 10, color: Colors.white38),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const Spacer(),
-
-                            // Bottom Row: Sales Today & Action Button
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text('TILL REVENUE', style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w800, color: Colors.white38, letterSpacing: 1)),
-                                    Text(
-                                      CurrencyFormatter.format(t.salesToday, currency),
-                                      style: GoogleFonts.jetBrainsMono(fontSize: 14, fontWeight: FontWeight.bold, color: accentColor),
-                                    ),
-                                  ],
-                                ),
-                                ElevatedButton.icon(
-                                  onPressed: isShiftOpen
-                                      ? () {
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            SnackBar(content: Text('${t.name} currently has an open shift under ${matchingShift.cashierName}. Reconcile under Accounts > Shifts.')),
-                                          );
-                                        }
-                                      : () => _openShiftForTerminal(context, t, users, accentColor),
-                                  icon: Icon(isShiftOpen ? Icons.check_circle_outline : Icons.login_rounded, size: 14),
-                                  label: Text(isShiftOpen ? 'Shift Active' : 'Assign Shift', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: isShiftOpen ? Colors.white.withAlpha(15) : accentColor,
-                                    foregroundColor: isShiftOpen ? Colors.white70 : Colors.black,
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                    elevation: 0,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
+                // TAB 2: TILL & SHIFT BALANCING
+                _buildShiftBalancingTab(
+                  context: context,
+                  terminals: terminals,
+                  users: users,
+                  activeShifts: activeShifts,
+                  currency: currency,
+                  accentColor: accentColor,
+                ),
+              ],
+            ),
           ),
         ],
       ),
     );
+  }
+
+  // =========================================================================
+  // TAB 1: TILLS & CASHIER TERMINALS
+  // =========================================================================
+  Widget _buildTillsTab({
+    required BuildContext context,
+    required List<PosTerminal> terminals,
+    required int maxAllowedTills,
+    required int activeTerminalsCount,
+    required List<CashShift> activeShifts,
+    required List<StoreBranch> branches,
+    required List<User> users,
+    required double totalSalesToday,
+    required String currency,
+    required Color accentColor,
+    required ApiService apiService,
+    required String hostIp,
+    required int hostPort,
+  }) {
+    return Column(
+      children: [
+        // KPI Stats Overview Bar
+        Row(
+          children: [
+            Expanded(
+              child: _buildMetricCard(
+                title: 'CONNECTED TILLS',
+                value: '${terminals.length} / $maxAllowedTills',
+                subtitle: '$activeTerminalsCount Active (Max $maxAllowedTills on License)',
+                icon: Icons.point_of_sale_rounded,
+                color: accentColor,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: _buildMetricCard(
+                title: 'ACTIVE SHIFT TILLS',
+                value: '${activeShifts.length}',
+                subtitle: '${activeShifts.length} Cashiers Live On Shift',
+                icon: Icons.person_pin_circle_rounded,
+                color: Colors.green,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: _buildMetricCard(
+                title: 'CONNECTED BRANCHES',
+                value: '${branches.length}',
+                subtitle: 'ZRA Fiscal Branches Linked',
+                icon: Icons.storefront_rounded,
+                color: Colors.purpleAccent,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: _buildMetricCard(
+                title: 'TERMINAL SALES TODAY',
+                value: CurrencyFormatter.format(totalSalesToday, currency),
+                subtitle: 'Aggregate Live Till Revenue',
+                icon: Icons.payments_rounded,
+                color: Colors.amber,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+
+        // Terminals Grid / List
+        Expanded(
+          child: terminals.isEmpty
+              ? _buildEmptyTillsState(context, hostIp, hostPort, accentColor, branches, users)
+              : GridView.builder(
+                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                    maxCrossAxisExtent: 450,
+                    mainAxisExtent: 310,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                  ),
+                  itemCount: terminals.length,
+                  itemBuilder: (context, index) {
+                    final t = terminals[index];
+                    final isLiveConnected = apiService.activeTerminals.containsKey(t.terminalCode) ||
+                        DateTime.now().difference(t.lastActive).inMinutes < 5;
+                    final matchingShift = activeShifts.where((s) =>
+                        s.terminalId == '${t.terminalCode} - ${t.name}' ||
+                        s.terminalId == t.terminalCode ||
+                        s.terminalId == t.name).firstOrNull;
+                    final isShiftOpen = matchingShift != null;
+                    final isActive = t.status == 'ACTIVE';
+
+                    return Container(
+                      padding: const EdgeInsets.all(18),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF161619),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: isShiftOpen
+                              ? Colors.green.withAlpha(120)
+                              : isActive
+                                  ? Colors.white.withAlpha(20)
+                                  : Colors.redAccent.withAlpha(60),
+                          width: isShiftOpen ? 1.5 : 1,
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Top Row: Code, Status & Actions Menu
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: isShiftOpen
+                                          ? Colors.green.withAlpha(40)
+                                          : accentColor.withAlpha(30),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Icon(
+                                      Icons.point_of_sale_rounded,
+                                      color: isShiftOpen ? Colors.green : accentColor,
+                                      size: 20,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        t.terminalCode.toUpperCase(),
+                                        style: GoogleFonts.manrope(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w900,
+                                          letterSpacing: 1,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                      Row(
+                                        children: [
+                                          Text(
+                                            t.name,
+                                            style: GoogleFonts.inter(fontSize: 12, color: Colors.white70),
+                                          ),
+                                          if (t.deviceIp != null && t.deviceIp!.isNotEmpty) ...[
+                                            const SizedBox(width: 6),
+                                            Text(
+                                              '• ${t.deviceIp}',
+                                              style: GoogleFonts.ibmPlexMono(fontSize: 10, color: Colors.white38),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: isShiftOpen
+                                          ? Colors.green.withAlpha(30)
+                                          : isLiveConnected
+                                              ? const Color(0xFF10B981).withAlpha(30)
+                                              : isActive
+                                                  ? Colors.blue.withAlpha(30)
+                                                  : Colors.orange.withAlpha(30),
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(
+                                        color: isShiftOpen
+                                            ? Colors.green.withAlpha(80)
+                                            : isLiveConnected
+                                                ? const Color(0xFF10B981).withAlpha(80)
+                                                : isActive
+                                                    ? Colors.blue.withAlpha(80)
+                                                    : Colors.orange.withAlpha(80),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      isShiftOpen
+                                          ? 'LIVE SHIFT'
+                                          : isLiveConnected
+                                              ? 'CONNECTED'
+                                              : t.status,
+                                      style: GoogleFonts.jetBrainsMono(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        color: isShiftOpen
+                                            ? Colors.green
+                                            : isLiveConnected
+                                                ? const Color(0xFF10B981)
+                                                : isActive
+                                                    ? Colors.blue
+                                                    : Colors.orange,
+                                      ),
+                                    ),
+                                  ),
+                                  PopupMenuButton<String>(
+                                    icon: const Icon(Icons.more_vert_rounded, size: 18, color: Colors.white54),
+                                    onSelected: (val) async {
+                                      if (val == 'report_pdf') {
+                                        _generateTillReport(context, t, matchingShift, printDirectly: false);
+                                      } else if (val == 'report_print') {
+                                        _generateTillReport(context, t, matchingShift, printDirectly: true);
+                                      } else if (val == 'edit') {
+                                        _showAddEditTerminalDialog(context, accentColor, branches, users, terminal: t);
+                                      } else if (val == 'toggle_status') {
+                                        await _toggleTerminalStatus(t);
+                                      } else if (val == 'delete') {
+                                        await _deleteTerminal(context, t);
+                                      }
+                                    },
+                                    itemBuilder: (context) => [
+                                      const PopupMenuItem(
+                                        value: 'report_pdf',
+                                        child: Row(
+                                          children: [
+                                            Icon(Icons.picture_as_pdf_rounded, color: Colors.redAccent, size: 16),
+                                            SizedBox(width: 8),
+                                            Text('Till Report (PDF)'),
+                                          ],
+                                        ),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 'report_print',
+                                        child: Row(
+                                          children: [
+                                            Icon(Icons.print_rounded, color: Colors.greenAccent, size: 16),
+                                            SizedBox(width: 8),
+                                            Text('Print Till Report'),
+                                          ],
+                                        ),
+                                      ),
+                                      const PopupMenuDivider(),
+                                      const PopupMenuItem(
+                                        value: 'edit',
+                                        child: Row(
+                                          children: [
+                                            Icon(Icons.edit_rounded, size: 16),
+                                            SizedBox(width: 8),
+                                            Text('Edit Till Details'),
+                                          ],
+                                        ),
+                                      ),
+                                      PopupMenuItem(
+                                        value: 'toggle_status',
+                                        child: Row(
+                                          children: [
+                                            Icon(Icons.toggle_on_rounded, size: 16),
+                                            SizedBox(width: 8),
+                                            Text(isActive ? 'Set Inactive' : 'Set Active'),
+                                          ],
+                                        ),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 'delete',
+                                        child: Row(
+                                          children: [
+                                            Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 16),
+                                            SizedBox(width: 8),
+                                            Text('Delete Till', style: TextStyle(color: Colors.redAccent)),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                          const Divider(color: Colors.white10, height: 16),
+
+                          // Branch & DigiTax bhfId Info
+                          Row(
+                            children: [
+                              const Icon(Icons.storefront_rounded, size: 14, color: Colors.white38),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  t.branchName,
+                                  style: GoogleFonts.inter(fontSize: 12, color: Colors.white70),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withAlpha(10),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  'ZRA bhfId: ${t.digitaxBhfId}',
+                                  style: GoogleFonts.jetBrainsMono(fontSize: 10, color: Colors.white54),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+
+                          // Assigned Cashier Info
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withAlpha(8),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              children: [
+                                CircleAvatar(
+                                  radius: 14,
+                                  backgroundColor: isShiftOpen ? Colors.green.withAlpha(40) : Colors.white.withAlpha(20),
+                                  child: Icon(Icons.person, size: 14, color: isShiftOpen ? Colors.green : Colors.white70),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        isShiftOpen
+                                            ? '${matchingShift.cashierName} (Active Shift)'
+                                            : (t.assignedCashierName != null && t.assignedCashierName!.isNotEmpty)
+                                                ? t.assignedCashierName!
+                                                : 'Unassigned Cashier',
+                                        style: GoogleFonts.inter(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: isShiftOpen ? Colors.green : Colors.white,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      Text(
+                                        isShiftOpen
+                                            ? 'Shift #: ${matchingShift.shiftNumber}'
+                                            : (t.assignedCashierId != null && t.assignedCashierId!.isNotEmpty)
+                                                ? 'Assigned ID: ${t.assignedCashierId}'
+                                                : 'Cashier can log in directly',
+                                        style: GoogleFonts.inter(fontSize: 10, color: Colors.white38),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Spacer(),
+
+                          // Bottom Row: Sales Today & Action Buttons
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('TILL REVENUE TODAY', style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w800, color: Colors.white38, letterSpacing: 1)),
+                                  Text(
+                                    CurrencyFormatter.format(t.salesToday, currency),
+                                    style: GoogleFonts.jetBrainsMono(fontSize: 14, fontWeight: FontWeight.bold, color: accentColor),
+                                  ),
+                                ],
+                              ),
+                              Row(
+                                children: [
+                                  IconButton(
+                                    onPressed: () => _generateTillReport(context, t, matchingShift, printDirectly: false),
+                                    icon: const Icon(Icons.picture_as_pdf_rounded, size: 16, color: Colors.redAccent),
+                                    tooltip: 'Generate Till Report (PDF)',
+                                    splashRadius: 18,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  ElevatedButton.icon(
+                                    onPressed: isShiftOpen
+                                        ? () => _showCloseShiftModal(context, matchingShift, currency)
+                                        : () => _openShiftForTerminal(context, t, users, accentColor),
+                                    icon: Icon(isShiftOpen ? Icons.calculate_rounded : Icons.login_rounded, size: 13),
+                                    label: Text(
+                                      isShiftOpen ? 'Reconcile' : 'Assign Shift',
+                                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: isShiftOpen ? Colors.redAccent.withAlpha(40) : accentColor,
+                                      foregroundColor: isShiftOpen ? Colors.redAccent : Colors.black,
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                      elevation: 0,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+
+  // =========================================================================
+  // TAB 2: TILL & SHIFT BALANCING
+  // =========================================================================
+  Widget _buildShiftBalancingTab({
+    required BuildContext context,
+    required List<PosTerminal> terminals,
+    required List<User> users,
+    required List<CashShift> activeShifts,
+    required String currency,
+    required Color accentColor,
+  }) {
+    final shifts = ref.watch(cashShiftsProvider).value ?? [];
+
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Active Tills Section Header
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('ACTIVE TILLS & CASHIER SHIFT BALANCING', style: GoogleFonts.manrope(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                  const SizedBox(height: 2),
+                  Text('${activeShifts.length} active cashier till${activeShifts.length == 1 ? "" : "s"} currently live on shift', style: GoogleFonts.inter(fontSize: 12, color: Colors.white54)),
+                ],
+              ),
+              ElevatedButton.icon(
+                onPressed: () => _showQuickAssignShiftModal(context, terminals, users, accentColor),
+                icon: const Icon(Icons.person_pin_circle_rounded, size: 16),
+                label: const Text('+ Assign Cashier to a Till'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: accentColor,
+                  foregroundColor: Colors.black,
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Active Tills List
+          if (activeShifts.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(28),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A1A1E),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white.withAlpha(15)),
+              ),
+              child: Center(
+                child: Column(
+                  children: [
+                    Icon(Icons.point_of_sale_rounded, size: 48, color: Colors.white.withAlpha(40)),
+                    const SizedBox(height: 12),
+                    Text('No Active Till Shifts Operating', style: GoogleFonts.manrope(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white70)),
+                    const SizedBox(height: 4),
+                    Text('Assign a cashier to a specific till and set their opening float to begin a shift.', style: GoogleFonts.inter(fontSize: 12, color: Colors.white38)),
+                  ],
+                ),
+              ),
+            )
+          else
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: activeShifts.length,
+              itemBuilder: (context, index) {
+                final shift = activeShifts[index];
+                final expectedInDrawer = shift.openingCash + shift.cashSales - shift.cashExpenses - shift.cashRefunds;
+
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF1E293B), Color(0xFF0F172A)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.green.withAlpha(80)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                decoration: BoxDecoration(
+                                  color: Colors.blue.withAlpha(40),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.point_of_sale_rounded, color: Colors.blue, size: 14),
+                                    const SizedBox(width: 6),
+                                    Text(shift.terminalId.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.blue)),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(color: Colors.green.withAlpha(30), borderRadius: BorderRadius.circular(6)),
+                                child: const Text('SHIFT ACTIVE', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: Colors.greenAccent)),
+                              ),
+                            ],
+                          ),
+                          Row(
+                            children: [
+                              IconButton(
+                                onPressed: () {
+                                  final config = ref.read(storeConfigProvider).value;
+                                  ref.read(exportServiceProvider).exportShiftZReportToPdf(shift, config: config, printDirectly: false);
+                                },
+                                icon: const Icon(Icons.picture_as_pdf_rounded, size: 18, color: Colors.redAccent),
+                                tooltip: 'Export Interim Z-Report PDF',
+                              ),
+                              IconButton(
+                                onPressed: () {
+                                  final config = ref.read(storeConfigProvider).value;
+                                  ref.read(exportServiceProvider).exportShiftZReportToPdf(shift, config: config, printDirectly: true);
+                                },
+                                icon: const Icon(Icons.print_rounded, size: 18, color: Colors.white70),
+                                tooltip: 'Print Interim Slip',
+                              ),
+                              const SizedBox(width: 8),
+                              ElevatedButton.icon(
+                                onPressed: () => _showCloseShiftModal(context, shift, currency),
+                                icon: const Icon(Icons.calculate_rounded, size: 16),
+                                label: const Text('Reconcile & Close Till'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.redAccent,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          CircleAvatar(
+                            backgroundColor: accentColor.withAlpha(40),
+                            radius: 18,
+                            child: Text(
+                              shift.cashierName.isNotEmpty ? shift.cashierName[0].toUpperCase() : 'C',
+                              style: TextStyle(color: accentColor, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Assigned Cashier: ${shift.cashierName} (ID: ${shift.cashierId ?? "1001"})',
+                                style: GoogleFonts.manrope(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white),
+                              ),
+                              Text(
+                                '${shift.branchName} • Opened at ${DateFormat('HH:mm, dd MMM yyyy').format(shift.openingTime)}',
+                                style: GoogleFonts.inter(fontSize: 11, color: Colors.white54),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      const Divider(color: Colors.white10),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          _buildShiftStat('Opening Float', '$currency ${shift.openingCash.toStringAsFixed(2)}'),
+                          const SizedBox(width: 24),
+                          _buildShiftStat('Cash Sales (+)', '$currency ${shift.cashSales.toStringAsFixed(2)}'),
+                          const SizedBox(width: 24),
+                          _buildShiftStat('Cash Expenses (-)', '$currency ${shift.cashExpenses.toStringAsFixed(2)}'),
+                          const SizedBox(width: 24),
+                          _buildShiftStat('Cash Refunds (-)', '$currency ${shift.cashRefunds.toStringAsFixed(2)}'),
+                          const SizedBox(width: 24),
+                          _buildShiftStat('Expected in Till Drawer', '$currency ${expectedInDrawer.toStringAsFixed(2)}', isHighlight: true),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          const SizedBox(height: 24),
+
+          // Shift History Table
+          Text('PAST SHIFTS & VARIANCE RECONCILIATION AUDIT', style: GoogleFonts.manrope(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+          const SizedBox(height: 12),
+
+          if (shifts.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(32),
+              decoration: BoxDecoration(color: const Color(0xFF1A1A1E), borderRadius: BorderRadius.circular(16)),
+              child: Center(child: Text('No past shift reconciliation records available', style: GoogleFonts.inter(color: Colors.white38))),
+            )
+          else
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: shifts.length,
+              itemBuilder: (context, index) {
+                final s = shifts[index];
+                final isOver = s.cashVariance > 0;
+
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1A1A1E),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.white.withAlpha(15)),
+                  ),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        backgroundColor: s.status == 'OPEN'
+                            ? Colors.green.withAlpha(30)
+                            : (s.cashVariance == 0 ? Colors.blue.withAlpha(30) : Colors.red.withAlpha(30)),
+                        child: Icon(
+                          s.status == 'OPEN'
+                              ? Icons.access_time_filled
+                              : (s.cashVariance == 0 ? Icons.check_circle : Icons.warning_rounded),
+                          color: s.status == 'OPEN'
+                              ? Colors.green
+                              : (s.cashVariance == 0 ? Colors.blue : Colors.redAccent),
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Text(s.shiftNumber, style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white)),
+                                const SizedBox(width: 10),
+                                Text('Cashier: ${s.cashierName} (${s.terminalId})', style: GoogleFonts.inter(fontSize: 12, color: Colors.white70)),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Opened: ${DateFormat('dd MMM yyyy, HH:mm').format(s.openingTime)} ${s.closingTime != null ? "• Closed: ${DateFormat('HH:mm').format(s.closingTime!)}" : ""}',
+                              style: GoogleFonts.inter(fontSize: 11, color: Colors.white38),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            'Expected: $currency ${s.expectedClosingCash.toStringAsFixed(2)} | Actual: $currency ${s.actualClosingCash.toStringAsFixed(2)}',
+                            style: GoogleFonts.inter(fontSize: 12, color: Colors.white70),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            s.status == 'OPEN'
+                                ? 'SHIFT ACTIVE'
+                                : (s.cashVariance == 0
+                                    ? 'PERFECT MATCH (K0.00)'
+                                    : (isOver
+                                        ? 'OVER: +$currency ${s.cashVariance.toStringAsFixed(2)}'
+                                        : 'SHORT: -$currency ${s.cashVariance.abs().toStringAsFixed(2)}')),
+                            style: GoogleFonts.inter(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                              color: s.status == 'OPEN'
+                                  ? Colors.green
+                                  : (s.cashVariance == 0 ? Colors.green : (isOver ? Colors.blue : Colors.redAccent)),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(width: 12),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            onPressed: () {
+                              final config = ref.read(storeConfigProvider).value;
+                              ref.read(exportServiceProvider).exportShiftZReportToPdf(s, config: config, printDirectly: true);
+                            },
+                            icon: const Icon(Icons.print_rounded, size: 18, color: Colors.white70),
+                            tooltip: 'Print Shift Z-Report',
+                          ),
+                          IconButton(
+                            onPressed: () {
+                              final config = ref.read(storeConfigProvider).value;
+                              ref.read(exportServiceProvider).exportShiftZReportToPdf(s, config: config, printDirectly: false);
+                            },
+                            icon: const Icon(Icons.picture_as_pdf_rounded, size: 18, color: Colors.redAccent),
+                            tooltip: 'Export Z-Report to PDF',
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildShiftStat(String label, String value, {bool isHighlight = false}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: GoogleFonts.inter(fontSize: 11, color: Colors.white54)),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: GoogleFonts.manrope(
+            fontSize: 15,
+            fontWeight: FontWeight.bold,
+            color: isHighlight ? Colors.greenAccent : Colors.white,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _generateTillReport(BuildContext context, PosTerminal terminal, CashShift? currentShift, {required bool printDirectly}) async {
+    final db = ref.read(databaseServiceProvider);
+    final export = ref.read(exportServiceProvider);
+    final config = ref.read(storeConfigProvider).value;
+
+    final todayTransactions = await db.getTodayTransactionsForTerminal(
+      terminal.terminalCode,
+      terminalName: terminal.name,
+      cashierId: terminal.assignedCashierId,
+    );
+
+    await export.exportTillReportToPdf(
+      terminal: terminal,
+      currentShift: currentShift,
+      todayTransactions: todayTransactions,
+      config: config,
+      printDirectly: printDirectly,
+    );
+
+    if (context.mounted && !printDirectly) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Till Report for ${terminal.terminalCode} exported to PDF!'),
+          backgroundColor: const Color(0xFF10B981),
+        ),
+      );
+    }
   }
 
   Widget _buildMasterHubBanner(
@@ -745,8 +1292,9 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Delete Till Register?'),
-        content: Text('Are you sure you want to permanently delete "${t.terminalCode} - ${t.name}"?'),
+        backgroundColor: const Color(0xFF1E1E24),
+        title: const Text('Delete Till Register?', style: TextStyle(color: Colors.white)),
+        content: Text('Are you sure you want to permanently delete "${t.terminalCode} - ${t.name}"?', style: const TextStyle(color: Colors.white70)),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
           ElevatedButton(
@@ -783,6 +1331,34 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> {
     );
   }
 
+  void _showQuickAssignShiftModal(BuildContext context, List<PosTerminal> terminals, List<User> users, Color accentColor) {
+    if (terminals.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please register or connect a till first.')),
+      );
+      return;
+    }
+    showDialog(
+      context: context,
+      builder: (context) => _AssignShiftModal(
+        terminal: terminals.first,
+        allTerminals: terminals,
+        users: users,
+        accentColor: accentColor,
+      ),
+    );
+  }
+
+  void _showCloseShiftModal(BuildContext context, CashShift shift, String currency) {
+    showDialog(
+      context: context,
+      builder: (context) => _CloseShiftModal(
+        shift: shift,
+        currency: currency,
+      ),
+    );
+  }
+
   void _showAddEditTerminalDialog(
     BuildContext context,
     Color accentColor,
@@ -806,7 +1382,7 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.amber.withValues(alpha: 0.15),
+                  color: Colors.amber.withAlpha(40),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Icon(Icons.lock_rounded, color: Colors.amber, size: 22),
@@ -836,9 +1412,9 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.amber.withValues(alpha: 0.08),
+                  color: Colors.amber.withAlpha(20),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.amber.withValues(alpha: 0.25)),
+                  border: Border.all(color: Colors.amber.withAlpha(60)),
                 ),
                 child: Text(
                   'To connect and register additional checkout terminals (Till #${allTills.length + 1} and beyond), please upgrade your system license or contact Beleka Support to activate more tills.',
@@ -891,7 +1467,6 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> {
 
     final Map<String, Map<String, String>> uniqueBranches = {};
     if (isOwner) {
-      // Always guarantee Main Store (HQ) is present
       uniqueBranches['00'] = {'code': '00', 'name': 'Main Store (HQ)', 'bhfId': '00'};
       for (final b in branches) {
         uniqueBranches[b.code] = {'code': b.code, 'name': b.name, 'bhfId': b.bhfId};
@@ -905,7 +1480,6 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> {
       }
     }
 
-    // If editing a terminal that has an existing branchCode not in the map, ensure it is safely represented
     if (terminal != null && terminal.branchCode.isNotEmpty) {
       if (!uniqueBranches.containsKey(terminal.branchCode)) {
         uniqueBranches[terminal.branchCode] = {
@@ -931,8 +1505,7 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> {
         : branchOptions.first['code']!;
     String selectedBranchName = uniqueBranches[selectedBranchCode]?['name'] ?? branchOptions.first['name']!;
     String selectedBhfId = uniqueBranches[selectedBranchCode]?['bhfId'] ?? branchOptions.first['bhfId']!;
-    
-    // Deduplicate user list for cashier dropdown
+
     final Map<String, User> uniqueUsersMap = {};
     for (final u in users) {
       if (u.numericId.isNotEmpty) {
@@ -1137,7 +1710,6 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> {
                     await isar.posTerminals.put(posTerminal);
                   });
 
-                  // Sync to local SQLite SQL
                   try {
                     await localSql.db.insert(
                       'pos_terminals',
@@ -1191,11 +1763,13 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> {
 
 class _AssignShiftModal extends ConsumerStatefulWidget {
   final PosTerminal terminal;
+  final List<PosTerminal>? allTerminals;
   final List<User> users;
   final Color accentColor;
 
   const _AssignShiftModal({
     required this.terminal,
+    this.allTerminals,
     required this.users,
     required this.accentColor,
   });
@@ -1206,11 +1780,13 @@ class _AssignShiftModal extends ConsumerStatefulWidget {
 
 class _AssignShiftModalState extends ConsumerState<_AssignShiftModal> {
   final _floatCtrl = TextEditingController(text: '1000.00');
+  late PosTerminal _currentTerminal;
   String? _selectedCashierId;
 
   @override
   void initState() {
     super.initState();
+    _currentTerminal = widget.terminal;
     _selectedCashierId = widget.terminal.assignedCashierId ??
         (widget.users.isNotEmpty ? widget.users.first.numericId : null);
   }
@@ -1233,8 +1809,8 @@ class _AssignShiftModalState extends ConsumerState<_AssignShiftModal> {
 
     final cashierName = selectedUser.name;
     final cashierId = selectedUser.numericId;
-    final tillName = '${widget.terminal.terminalCode} - ${widget.terminal.name}';
-    final branchName = widget.terminal.branchName;
+    final tillName = '${_currentTerminal.terminalCode} - ${_currentTerminal.name}';
+    final branchName = _currentTerminal.branchName;
 
     // Verify if already open
     final existingShift = await isar.cashShifts
@@ -1273,11 +1849,11 @@ class _AssignShiftModalState extends ConsumerState<_AssignShiftModal> {
       }
 
       // Update terminal last active and default cashier
-      widget.terminal
+      _currentTerminal
         ..assignedCashierId = cashierId
         ..assignedCashierName = cashierName
         ..lastActive = DateTime.now();
-      await isar.posTerminals.put(widget.terminal);
+      await isar.posTerminals.put(_currentTerminal);
     });
 
     ref.invalidate(posTerminalsProvider);
@@ -1295,7 +1871,7 @@ class _AssignShiftModalState extends ConsumerState<_AssignShiftModal> {
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Assigned $cashierName to ${widget.terminal.terminalCode} with K${floatVal.toStringAsFixed(2)} float!'),
+          content: Text('Assigned $cashierName to ${_currentTerminal.terminalCode} with K${floatVal.toStringAsFixed(2)} float!'),
           backgroundColor: Colors.green[800],
         ),
       );
@@ -1318,27 +1894,55 @@ class _AssignShiftModalState extends ConsumerState<_AssignShiftModal> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.white.withAlpha(8),
-                  borderRadius: BorderRadius.circular(10),
+              if (widget.allTerminals != null && widget.allTerminals!.length > 1) ...[
+                DropdownButtonFormField<PosTerminal>(
+                  initialValue: _currentTerminal,
+                  dropdownColor: const Color(0xFF222228),
+                  style: const TextStyle(color: Colors.white),
+                  decoration: const InputDecoration(
+                    labelText: 'Select Till Register *',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.point_of_sale_rounded, color: Colors.white60),
+                  ),
+                  items: widget.allTerminals!.map((t) => DropdownMenuItem(
+                    value: t,
+                    child: Text('${t.terminalCode} - ${t.name} (${t.branchName})'),
+                  )).toList(),
+                  onChanged: (t) {
+                    if (t != null) {
+                      setState(() {
+                        _currentTerminal = t;
+                        if (t.assignedCashierId != null && t.assignedCashierId!.isNotEmpty) {
+                          _selectedCashierId = t.assignedCashierId;
+                        }
+                      });
+                    }
+                  },
                 ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.point_of_sale_rounded, color: Colors.white70, size: 20),
-                    const SizedBox(width: 10),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('${widget.terminal.terminalCode} - ${widget.terminal.name}', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-                        Text('${widget.terminal.branchName} • ZRA: ${widget.terminal.digitaxBhfId}', style: const TextStyle(fontSize: 11, color: Colors.white54)),
-                      ],
-                    ),
-                  ],
+                const SizedBox(height: 14),
+              ] else ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withAlpha(8),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.point_of_sale_rounded, color: Colors.white70, size: 20),
+                      const SizedBox(width: 10),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('${_currentTerminal.terminalCode} - ${_currentTerminal.name}', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                          Text('${_currentTerminal.branchName} • ZRA: ${_currentTerminal.digitaxBhfId}', style: const TextStyle(fontSize: 11, color: Colors.white54)),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
+                const SizedBox(height: 16),
+              ],
 
               Builder(
                 builder: (context) {
@@ -1403,6 +2007,190 @@ class _AssignShiftModalState extends ConsumerState<_AssignShiftModal> {
           child: const Text('Start Shift & Log In', style: TextStyle(fontWeight: FontWeight.bold)),
         ),
       ],
+    );
+  }
+}
+
+class _CloseShiftModal extends ConsumerStatefulWidget {
+  final CashShift shift;
+  final String currency;
+  const _CloseShiftModal({required this.shift, required this.currency});
+
+  @override
+  ConsumerState<_CloseShiftModal> createState() => _CloseShiftModalState();
+}
+
+class _CloseShiftModalState extends ConsumerState<_CloseShiftModal> {
+  final _actualCashCtrl = TextEditingController();
+  double _expected = 0.0;
+  double _variance = 0.0;
+
+  @override
+  void initState() {
+    super.initState();
+    final totalExpected = widget.shift.openingCash +
+        widget.shift.cashSales +
+        widget.shift.cashDeposits -
+        widget.shift.cashExpenses -
+        widget.shift.cashRefunds -
+        widget.shift.cashWithdrawals;
+    _expected = double.parse(totalExpected.toStringAsFixed(2));
+    _actualCashCtrl.text = _expected.toStringAsFixed(2);
+    _variance = 0.0;
+  }
+
+  @override
+  void dispose() {
+    _actualCashCtrl.dispose();
+    super.dispose();
+  }
+
+  void _calcVariance(String val) {
+    final actual = double.tryParse(val) ?? 0.0;
+    setState(() {
+      _variance = double.parse((actual - _expected).toStringAsFixed(2));
+    });
+  }
+
+  Future<void> _close() async {
+    final actual = double.tryParse(_actualCashCtrl.text) ?? 0.0;
+    final cleanActual = double.parse(actual.toStringAsFixed(2));
+    final cleanVariance = double.parse((cleanActual - _expected).toStringAsFixed(2));
+    final isar = ref.read(isarProvider);
+
+    await isar.writeTxn(() async {
+      widget.shift.closingTime = DateTime.now();
+      widget.shift.expectedClosingCash = _expected;
+      widget.shift.actualClosingCash = cleanActual;
+      widget.shift.cashVariance = cleanVariance;
+      widget.shift.status = 'CLOSED';
+      await isar.cashShifts.put(widget.shift);
+    });
+
+    ref.invalidate(activeShiftProvider);
+    ref.invalidate(activeShiftsListProvider);
+    ref.invalidate(cashShiftsProvider);
+
+    if (mounted) {
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Till shift ${widget.shift.shiftNumber} closed! Cash variance: ${widget.currency}${_variance.toStringAsFixed(2)}'),
+          backgroundColor: _variance == 0 ? Colors.green : (_variance > 0 ? Colors.blue : Colors.redAccent),
+          action: SnackBarAction(
+            label: 'Print Z-Report',
+            textColor: Colors.white,
+            onPressed: () {
+              final config = ref.read(storeConfigProvider).value;
+              ref.read(exportServiceProvider).exportShiftZReportToPdf(widget.shift, config: config, printDirectly: true);
+            },
+          ),
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: const Color(0xFF1A1A1E),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: Text('RECONCILE & CLOSE TILL SHIFT', style: GoogleFonts.manrope(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
+      content: SizedBox(
+        width: 440,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: Colors.white.withAlpha(8), borderRadius: BorderRadius.circular(8)),
+              child: Column(
+                children: [
+                  _row('Shift Number:', widget.shift.shiftNumber),
+                  _row('Terminal / Till:', widget.shift.terminalId),
+                  _row('Cashier Name:', widget.shift.cashierName),
+                  _row('Opening Float:', '${widget.currency} ${widget.shift.openingCash.toStringAsFixed(2)}'),
+                  _row('Cash Sales (+):', '${widget.currency} ${widget.shift.cashSales.toStringAsFixed(2)}', color: Colors.greenAccent),
+                  _row('Cash Expenses (-):', '${widget.currency} ${widget.shift.cashExpenses.toStringAsFixed(2)}', color: Colors.redAccent),
+                  _row('Cash Refunds (-):', '${widget.currency} ${widget.shift.cashRefunds.toStringAsFixed(2)}', color: Colors.redAccent),
+                  const Divider(color: Colors.white24),
+                  _row('Expected in Drawer:', '${widget.currency} ${_expected.toStringAsFixed(2)}', isBold: true),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _actualCashCtrl,
+              keyboardType: TextInputType.number,
+              style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+              onChanged: _calcVariance,
+              decoration: InputDecoration(
+                labelText: 'Actual Cash Counted in Drawer (${widget.currency}) *',
+                labelStyle: const TextStyle(color: Colors.white70),
+                border: const OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: _variance == 0 ? Colors.green.withAlpha(20) : (_variance > 0 ? Colors.blue.withAlpha(20) : Colors.red.withAlpha(20)),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: _variance == 0 ? Colors.green.withAlpha(50) : (_variance > 0 ? Colors.blue.withAlpha(50) : Colors.red.withAlpha(50)),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Cash Variance / Reconciliation:', style: GoogleFonts.inter(fontSize: 12, color: Colors.white70)),
+                  Text(
+                    _variance == 0
+                        ? 'BALANCED (0.00)'
+                        : (_variance > 0
+                            ? 'OVER: +${widget.currency}${_variance.toStringAsFixed(2)}'
+                            : 'SHORT: -${widget.currency}${_variance.abs().toStringAsFixed(2)}'),
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: _variance == 0 ? Colors.greenAccent : (_variance > 0 ? Colors.blueAccent : Colors.redAccent),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel', style: TextStyle(color: Colors.white60))),
+        ElevatedButton(
+          onPressed: _close,
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white),
+          child: const Text('Confirm Reconciliation & Close Shift'),
+        ),
+      ],
+    );
+  }
+
+  Widget _row(String l, String v, {Color? color, bool isBold = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2.5),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(l, style: GoogleFonts.inter(fontSize: 12, color: Colors.white60)),
+          Text(
+            v,
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
+              color: color ?? Colors.white,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

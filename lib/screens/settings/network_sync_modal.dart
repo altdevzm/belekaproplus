@@ -145,12 +145,15 @@ class _NetworkSyncModalState extends ConsumerState<NetworkSyncModal> {
 
     return Dialog(
       backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       child: Container(
         width: 580,
-        constraints: const BoxConstraints(maxHeight: 780),
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.9,
+        ),
         decoration: BoxDecoration(
           color: const Color(0xFF141418),
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(20),
           border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
           boxShadow: [
             BoxShadow(
@@ -160,57 +163,66 @@ class _NetworkSyncModalState extends ConsumerState<NetworkSyncModal> {
             ),
           ],
         ),
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Header
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: accentColor.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Icon(Icons.hub_rounded, color: accentColor, size: 22),
-                    ),
-                    const SizedBox(width: 14),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+        padding: const EdgeInsets.all(16),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Header
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Row(
                       children: [
-                        Text(
-                          'NETWORK & MULTI-TILL SYNC',
-                          style: GoogleFonts.manrope(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 1.2,
-                            color: Colors.white,
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: accentColor.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(10),
                           ),
+                          child: const Icon(Icons.hub_rounded, color: accentColor, size: 20),
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Connect multiple cash registers together over local Wi-Fi / LAN',
-                          style: GoogleFonts.inter(fontSize: 12, color: Colors.white54),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'NETWORK & MULTI-TILL SYNC',
+                                style: GoogleFonts.manrope(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 1,
+                                  color: Colors.white,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Connect multiple cash registers over local Wi-Fi / LAN',
+                                style: GoogleFonts.inter(fontSize: 11, color: Colors.white54),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ),
-                  ],
-                ),
-                IconButton(
-                  onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.close_rounded, color: Colors.white54),
-                  splashRadius: 20,
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            const Divider(color: Colors.white10, height: 1),
-            const SizedBox(height: 20),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close_rounded, color: Colors.white54, size: 20),
+                    splashRadius: 20,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              const Divider(color: Colors.white10, height: 1),
+              const SizedBox(height: 16),
 
             // Mode Selector Toggle
             Container(
@@ -448,12 +460,11 @@ class _NetworkSyncModalState extends ConsumerState<NetworkSyncModal> {
               ),
             ),
 
-            const Spacer(),
             const SizedBox(height: 20),
 
             // Save Button
             SizedBox(
-              height: 52,
+              height: 48,
               child: ElevatedButton(
                 onPressed: _saveNetworkConfig,
                 style: ElevatedButton.styleFrom(
@@ -469,6 +480,7 @@ class _NetworkSyncModalState extends ConsumerState<NetworkSyncModal> {
               ),
             ),
           ],
+        ),
         ),
       ),
     );

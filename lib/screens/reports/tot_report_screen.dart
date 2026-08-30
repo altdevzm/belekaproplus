@@ -5,6 +5,8 @@ import 'package:intl/intl.dart';
 import 'package:beleka_pos/providers/store_provider.dart';
 import 'package:beleka_pos/services/tot_service.dart';
 
+import 'package:beleka_pos/services/database_service.dart';
+
 // ─── Providers ────────────────────────────────────────────────────────────────
 
 final _selectedYearProvider = StateProvider<int>((ref) => DateTime.now().year);
@@ -14,12 +16,71 @@ final _isLoadingProvider = StateProvider<bool>((ref) => false);
 final _totSummaryProvider = FutureProvider.family<TotMonthlySummary?, _SummaryKey>(
   (ref, key) async {
     final config = ref.watch(storeConfigProvider).value;
-    if (config == null || config.cloudApiUrl == null || config.cloudApiUrl!.isEmpty) return null;
-    final svc = TotService(baseUrl: config.cloudApiUrl!);
-    return svc.fetchMonthlySummary(
-      storeId: config.cloudStoreId ?? 1,
-      year: key.year,
-      month: key.month,
+    final db = ref.watch(databaseServiceProvider);
+
+    // 1. Try Cloud API if configured
+    if (config?.cloudApiUrl != null && config!.cloudApiUrl!.isNotEmpty) {
+      try {
+        final svc = TotService(baseUrl: config.cloudApiUrl!);
+        final cloudSummary = await svc.fetchMonthlySummary(
+          storeId: config.cloudStoreId ?? 1,
+          year: key.year,
+          month: key.month,
+        );
+        if (cloudSummary != null) return cloudSummary;
+      } catch (e) {
+        debugPrint('TotReport: Cloud fetch failed, falling back to local database: $e');
+      }
+    }
+
+    // 2. Compile directly from Local Database (Full Offline Support)
+    final startOfMonth = DateTime(key.year, key.month, 1, 0, 0, 0);
+    final endOfMonth = (key.month == 12)
+        ? DateTime(key.year, 12, 31, 23, 59, 59, 999)
+        : DateTime(key.year, key.month + 1, 0, 23, 59, 59, 999);
+
+    final monthTxs = await db.getTransactionsInRange(startOfMonth, endOfMonth);
+
+    double grossTurnover = monthTxs.fold(0.0, (sum, t) {
+      if (t.totalAmount.isNaN) return sum;
+      if (t.status == 'refunded' && !t.isCreditNote) return sum;
+      if (t.isCreditNote) return sum - t.totalAmount;
+      return sum + t.totalAmount;
+    });
+
+    // YTD calculation from Jan 1 to end of current month
+    final startOfYear = DateTime(key.year, 1, 1, 0, 0, 0);
+    final ytdTxs = await db.getTransactionsInRange(startOfYear, endOfMonth);
+    double ytdTurnover = ytdTxs.fold(0.0, (sum, t) {
+      if (t.totalAmount.isNaN) return sum;
+      if (t.status == 'refunded' && !t.isCreditNote) return sum;
+      if (t.isCreditNote) return sum - t.totalAmount;
+      return sum + t.totalAmount;
+    });
+
+    final totRate = grossTurnover <= 1000.0 ? 0.0 : 5.0;
+    final totAmount = grossTurnover <= 1000.0 ? 0.0 : double.parse((grossTurnover * 0.05).toStringAsFixed(2));
+    final nextMonth = key.month == 12 ? 1 : key.month + 1;
+    final nextYear = key.month == 12 ? key.year + 1 : key.year;
+    final dueDateStr = '$nextYear-${nextMonth.toString().padLeft(2, '0')}-14';
+
+    return TotMonthlySummary(
+      storeId: config?.cloudStoreId ?? 1,
+      storeName: config?.businessName ?? 'Local Store',
+      tpin: config?.tpin ?? '1000000000',
+      chargeYear: key.year,
+      chargeMonth: key.month,
+      monthName: DateFormat('MMMM').format(startOfMonth),
+      grossTurnover: double.parse(grossTurnover.toStringAsFixed(2)),
+      totRatePercent: totRate,
+      totAmount: totAmount,
+      dueDate: dueDateStr,
+      ytdTurnover: double.parse(ytdTurnover.toStringAsFixed(2)),
+      annualLimit: 5000000.0,
+      overAnnualLimit: ytdTurnover > 5000000.0,
+      thresholdWarning: ytdTurnover > 4000000.0,
+      alreadyFiled: false,
+      filedStatus: 'COMPILED LOCALLY (OFFLINE)',
     );
   },
 );
@@ -220,22 +281,53 @@ class _TotReportScreenState extends ConsumerState<TotReportScreen>
               // Month selector
               Expanded(
                 flex: 3,
-                child: _buildDropdown<int>(
-                  value: month,
-                  items: months,
-                  label: (m) => DateFormat('MMMM').format(DateTime(year, m)),
-                  onChanged: (v) => ref.read(_selectedMonthProvider.notifier).state = v,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.04),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<int>(
+                      value: month,
+                      isExpanded: true,
+                      dropdownColor: const Color(0xFF1E1E22),
+                      style: GoogleFonts.inter(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                      items: months.map((m) {
+                        final name = DateFormat('MMMM').format(DateTime(2024, m));
+                        return DropdownMenuItem(value: m, child: Text(name));
+                      }).toList(),
+                      onChanged: (v) {
+                        if (v != null) ref.read(_selectedMonthProvider.notifier).state = v;
+                      },
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
               // Year selector
               Expanded(
                 flex: 2,
-                child: _buildDropdown<int>(
-                  value: year,
-                  items: years,
-                  label: (y) => '$y',
-                  onChanged: (v) => ref.read(_selectedYearProvider.notifier).state = v,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.04),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<int>(
+                      value: year,
+                      isExpanded: true,
+                      dropdownColor: const Color(0xFF1E1E22),
+                      style: GoogleFonts.inter(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                      items: years.map((y) => DropdownMenuItem(value: y, child: Text('$y'))).toList(),
+                      onChanged: (v) {
+                        if (v != null) ref.read(_selectedYearProvider.notifier).state = v;
+                      },
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -245,41 +337,7 @@ class _TotReportScreenState extends ConsumerState<TotReportScreen>
     );
   }
 
-  Widget _buildDropdown<T>({
-    required T value,
-    required List<T> items,
-    required String Function(T) label,
-    required void Function(T) onChanged,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E1E25),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<T>(
-          value: value,
-          isExpanded: true,
-          dropdownColor: const Color(0xFF1E1E25),
-          style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white),
-          icon: Icon(Icons.expand_more_rounded, color: Colors.white.withValues(alpha: 0.4), size: 18),
-          items: items
-              .map((item) => DropdownMenuItem<T>(
-                    value: item,
-                    child: Text(label(item)),
-                  ))
-              .toList(),
-          onChanged: (v) {
-            if (v != null) onChanged(v);
-          },
-        ),
-      ),
-    );
-  }
-
-  // ── Summary Section (when cloud connected) ──────────────────────────────────
+  // ── Summary Section ─────────────────────────────────────────────────────────
 
   Widget _buildSummarySection(
     BuildContext context,
@@ -290,112 +348,239 @@ class _TotReportScreenState extends ConsumerState<TotReportScreen>
     int year,
     int month,
   ) {
-    final fmt = NumberFormat('#,##0.00');
-    final dueDate = summary.dueDate.isNotEmpty ? DateTime.tryParse(summary.dueDate) : null;
-    final dueFmt = dueDate != null ? DateFormat('dd MMMM yyyy').format(dueDate) : summary.dueDate;
-
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Eligibility status
-        if (summary.overAnnualLimit) _buildAlertBanner(
-          icon: Icons.warning_amber_rounded,
-          color: Colors.redAccent,
-          title: 'Annual Limit Exceeded — K5,000,000',
-          subtitle: 'You must notify the ZRA Commissioner General. You will move to Income Tax next charge year.',
-        ) else if (summary.thresholdWarning) _buildAlertBanner(
-          icon: Icons.info_outline_rounded,
-          color: Colors.orangeAccent,
-          title: 'Approaching K5,000,000 Annual Limit',
-          subtitle: 'YTD turnover is K${fmt.format(summary.ytdTurnover)}. Plan ahead for possible Income Tax transition.',
-        ),
-        if (summary.overAnnualLimit || summary.thresholdWarning) const SizedBox(height: 16),
-
-        // Main summary cards
-        Row(
-          children: [
-            _buildSummaryCard(
-              label: 'Gross Turnover',
-              value: '$currency ${fmt.format(summary.grossTurnover)}',
-              icon: Icons.store_rounded,
-              color: Colors.white,
-              subtitle: '${summary.monthName} ${summary.chargeYear}',
-            ),
-            const SizedBox(width: 16),
-            _buildSummaryCard(
-              label: 'TOT Owed',
-              value: '$currency ${fmt.format(summary.totAmount)}',
-              icon: Icons.account_balance_rounded,
-              color: summary.totAmount > 0 ? const Color(0xFFF5C842) : const Color(0xFF5DD39E),
-              subtitle: summary.totRatePercent == 0
-                  ? 'Below threshold — 0%'
-                  : '${summary.totRatePercent.toStringAsFixed(0)}% of gross turnover',
-            ),
-          ],
-        ),
+        _buildTurnoverHero(context, summary, currency),
         const SizedBox(height: 16),
-        Row(
-          children: [
-            _buildSummaryCard(
-              label: 'YTD Turnover',
-              value: '$currency ${fmt.format(summary.ytdTurnover)}',
-              icon: Icons.trending_up_rounded,
-              color: const Color(0xFFC6B4FF),
-              subtitle: 'Jan – ${summary.monthName} ${summary.chargeYear}',
-            ),
-            const SizedBox(width: 16),
-            _buildSummaryCard(
-              label: 'Return Due Date',
-              value: dueFmt,
-              icon: Icons.event_rounded,
-              color: _dueDateColor(dueDate),
-              subtitle: 'File by 14th of next month',
-              valueFontSize: 16,
-            ),
-          ],
-        ),
-        const SizedBox(height: 20),
-
-        // Action — submit or mark paid
+        _buildKeyMetricsRow(context, summary, currency),
+        const SizedBox(height: 16),
         if (summary.alreadyFiled)
-          _buildFiledBadge(summary)
+          _buildFiledBanner(context, summary)
         else
-          _buildSubmitButton(context, ref, summary, storeId, year, month),
+          _buildSubmitAction(context, ref, summary, storeId, year, month),
       ],
     );
   }
 
-  Color _dueDateColor(DateTime? due) {
-    if (due == null) return Colors.white70;
-    final today = DateTime.now();
-    if (due.isBefore(today)) return Colors.redAccent;
-    if (due.difference(today).inDays <= 3) return Colors.orangeAccent;
-    return const Color(0xFF5DD39E);
+  Widget _buildTurnoverHero(BuildContext context, TotMonthlySummary summary, String currency) {
+    final fmt = NumberFormat('#,##0.00');
+    final isNil = summary.totAmount == 0;
+
+    return Container(
+      padding: const EdgeInsets.all(28),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: isNil
+              ? [const Color(0xFF0F2015), const Color(0xFF161619)]
+              : [const Color(0xFF231C00), const Color(0xFF161619)],
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: isNil
+              ? const Color(0xFF5DD39E).withValues(alpha: 0.25)
+              : const Color(0xFFF5C842).withValues(alpha: 0.3),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '${summary.monthName.toUpperCase()} ${summary.chargeYear}',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.5,
+                  color: Colors.white.withValues(alpha: 0.5),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: (isNil ? const Color(0xFF5DD39E) : const Color(0xFFF5C842)).withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  isNil ? 'NIL RETURN (0%)' : 'TAX DUE: ${summary.totRatePercent.toStringAsFixed(0)}%',
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: isNil ? const Color(0xFF5DD39E) : const Color(0xFFF5C842),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Gross Turnover (Total Sales)',
+            style: GoogleFonts.inter(fontSize: 13, color: Colors.white.withValues(alpha: 0.6)),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '$currency${fmt.format(summary.grossTurnover)}',
+            style: GoogleFonts.inter(
+              fontSize: 34,
+              fontWeight: FontWeight.w900,
+              color: Colors.white,
+              letterSpacing: -0.5,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Divider(color: Colors.white.withValues(alpha: 0.08)),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('TOT Tax Owed to ZRA', style: GoogleFonts.inter(fontSize: 12, color: Colors.white.withValues(alpha: 0.5))),
+                  const SizedBox(height: 2),
+                  Text(
+                    '$currency${fmt.format(summary.totAmount)}',
+                    style: GoogleFonts.inter(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: isNil ? const Color(0xFF5DD39E) : const Color(0xFFF5C842),
+                    ),
+                  ),
+                ],
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text('Payment Deadline', style: GoogleFonts.inter(fontSize: 12, color: Colors.white.withValues(alpha: 0.5))),
+                  const SizedBox(height: 2),
+                  Text(
+                    summary.dueDate,
+                    style: GoogleFonts.jetBrainsMono(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
-  Widget _buildAlertBanner({
-    required IconData icon,
-    required Color color,
-    required String title,
-    required String subtitle,
-  }) {
+  Widget _buildKeyMetricsRow(BuildContext context, TotMonthlySummary summary, String currency) {
+    final fmt = NumberFormat('#,##0.00');
+    final ytdPct = ((summary.ytdTurnover / summary.annualLimit) * 100).clamp(0.0, 100.0);
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFF161619),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'YTD Turnover vs ZRA Limit',
+                style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white.withValues(alpha: 0.7)),
+              ),
+              Text(
+                '${ytdPct.toStringAsFixed(1)}% of K5.0M Limit',
+                style: GoogleFonts.jetBrainsMono(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: summary.overAnnualLimit
+                      ? Colors.redAccent
+                      : (summary.thresholdWarning ? const Color(0xFFF5C842) : const Color(0xFF5DD39E)),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: (summary.ytdTurnover / summary.annualLimit).clamp(0.0, 1.0),
+              backgroundColor: Colors.white.withValues(alpha: 0.06),
+              valueColor: AlwaysStoppedAnimation(
+                summary.overAnnualLimit
+                    ? Colors.redAccent
+                    : (summary.thresholdWarning ? const Color(0xFFF5C842) : const Color(0xFF5DD39E)),
+              ),
+              minHeight: 6,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('YTD Accumulated: $currency${fmt.format(summary.ytdTurnover)}', style: GoogleFonts.inter(fontSize: 12, color: Colors.white.withValues(alpha: 0.4))),
+              Text('Limit: ${currency}5,000,000', style: GoogleFonts.inter(fontSize: 12, color: Colors.white.withValues(alpha: 0.4))),
+            ],
+          ),
+          if (summary.overAnnualLimit) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.redAccent.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.redAccent.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Turnover exceeds K5,000,000 limit. Under ZRA rules, you must transition to Standard Income Tax / VAT.',
+                      style: GoogleFonts.inter(fontSize: 11, color: Colors.redAccent, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFiledBanner(BuildContext context, TotMonthlySummary summary) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
+        color: const Color(0xFF5DD39E).withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
+        border: Border.all(color: const Color(0xFF5DD39E).withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
-          Icon(icon, color: color, size: 22),
+          const Icon(Icons.check_circle_rounded, color: Color(0xFF5DD39E), size: 22),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: color)),
-                const SizedBox(height: 4),
-                Text(subtitle, style: GoogleFonts.inter(fontSize: 12, color: Colors.white.withValues(alpha: 0.6))),
+                Text(
+                  'Return Filed for this Period',
+                  style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: const Color(0xFF5DD39E)),
+                ),
+                Text(
+                  'Status: ${summary.filedStatus ?? "SUBMITTED"} • Return ID: #${summary.filedReturnId ?? "N/A"}',
+                  style: GoogleFonts.inter(fontSize: 11, color: Colors.white.withValues(alpha: 0.5)),
+                ),
               ],
             ),
           ),
@@ -404,94 +589,7 @@ class _TotReportScreenState extends ConsumerState<TotReportScreen>
     );
   }
 
-  Widget _buildSummaryCard({
-    required String label,
-    required String value,
-    required IconData icon,
-    required Color color,
-    String? subtitle,
-    double valueFontSize = 20,
-  }) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: const Color(0xFF161619),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, color: color, size: 20),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              label,
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: Colors.white.withValues(alpha: 0.4),
-                letterSpacing: 0.5,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              value,
-              style: GoogleFonts.jetBrainsMono(
-                fontSize: valueFontSize,
-                fontWeight: FontWeight.w800,
-                color: color,
-              ),
-            ),
-            if (subtitle != null) ...[
-              const SizedBox(height: 4),
-              Text(
-                subtitle,
-                style: GoogleFonts.inter(
-                  fontSize: 11,
-                  color: Colors.white.withValues(alpha: 0.3),
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFiledBadge(TotMonthlySummary summary) {
-    final isPaid = summary.filedStatus == 'paid';
-    final color = isPaid ? const Color(0xFF5DD39E) : const Color(0xFFF5C842);
-    final icon = isPaid ? Icons.check_circle_rounded : Icons.receipt_rounded;
-    final text = isPaid ? 'Return Paid ✓' : 'Return Filed — Awaiting Payment';
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, color: color, size: 20),
-          const SizedBox(width: 10),
-          Text(text, style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: color)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSubmitButton(
+  Widget _buildSubmitAction(
     BuildContext context,
     WidgetRef ref,
     TotMonthlySummary summary,
@@ -660,12 +758,12 @@ class _TotReportScreenState extends ConsumerState<TotReportScreen>
 
   Widget _buildZraRulesCard(BuildContext context) {
     final rules = [
-      ('≤ K2,500/month', '0% TOT — Nil return required'),
-      ('> K2,500/month', '5% of gross turnover'),
+      ('≤ K1,000/month', '0% TOT — NIL return required (K12,000/year exemption)'),
+      ('> K1,000/month', '5% of monthly gross sales / turnover'),
+      ('Purchase Orders', 'Input VAT cannot be deducted (forms part of inventory cost)'),
       ('Return deadline', '14th of the following month'),
-      ('Annual limit', 'K5,000,000 — switch to Income Tax'),
+      ('Annual limit', 'K5,000,000 — must switch to Income Tax'),
       ('Records', 'Must be kept for 6 years'),
-      ('Excluded', 'Partnerships, mining, consultancy, PSV < 50 seats'),
     ];
 
     return Container(

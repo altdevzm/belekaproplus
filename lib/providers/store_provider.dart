@@ -21,16 +21,39 @@ final categoriesProvider = StreamProvider<List<Category>>((ref) async* {
 
 final storeBranchesProvider = StreamProvider<List<StoreBranch>>((ref) async* {
   final db = ref.watch(databaseServiceProvider);
-  yield await db.isar.storeBranchs.where().sortByCode().findAll();
+
+  Future<List<StoreBranch>> loadWithLiveSales() async {
+    final branches = await db.isar.storeBranchs.where().sortByCode().findAll();
+    for (final b in branches) {
+      final liveSales = await db.getTodaySalesForBranch(b.code, branchBhfId: b.bhfId, branchName: b.name);
+      b.salesToday = liveSales;
+    }
+    return branches;
+  }
+
+  yield await loadWithLiveSales();
+
+  // Watch both storeBranchs collection and saleTransactions collection for real-time updates
   await for (final _ in db.isar.storeBranchs.watchLazy()) {
-    yield await db.isar.storeBranchs.where().sortByCode().findAll();
+    yield await loadWithLiveSales();
   }
 });
 
 final posTerminalsProvider = StreamProvider<List<PosTerminal>>((ref) async* {
   final db = ref.watch(databaseServiceProvider);
-  yield await db.isar.posTerminals.where().sortByTerminalCode().findAll();
+
+  Future<List<PosTerminal>> loadWithLiveSales() async {
+    final terminals = await db.isar.posTerminals.where().sortByTerminalCode().findAll();
+    for (final t in terminals) {
+      final liveSales = await db.getTodaySalesForTerminal(t.terminalCode, terminalName: t.name, cashierId: t.assignedCashierId);
+      t.salesToday = liveSales;
+    }
+    return terminals;
+  }
+
+  yield await loadWithLiveSales();
+
   await for (final _ in db.isar.posTerminals.watchLazy()) {
-    yield await db.isar.posTerminals.where().sortByTerminalCode().findAll();
+    yield await loadWithLiveSales();
   }
 });

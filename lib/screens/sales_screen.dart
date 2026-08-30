@@ -13,6 +13,7 @@ import 'package:beleka_pos/services/scale_service.dart';
 import 'package:beleka_pos/services/sync_service.dart';
 import 'package:beleka_pos/services/digitax_inventory_service.dart';
 import 'package:beleka_pos/screens/sales/weight_scale_modal.dart';
+import 'package:beleka_pos/widgets/camera_barcode_scanner_modal.dart';
 import 'package:beleka_pos/utils/formatters.dart';
 import 'package:beleka_pos/providers/auth_provider.dart';
 
@@ -214,119 +215,423 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFF0F0F12),
-      body: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // PANEL 1: Product Catalog & Touch Selection (Left)
-          Expanded(
-            flex: 5,
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                border: Border(right: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Top Header with View Mode Switcher
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      _buildPanelHeader(
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth >= 1050) {
+            return _buildDesktopSalesLayout(
+              context,
+              productsAsync,
+              filteredProducts,
+              allCategories,
+              cartState,
+              cartNotifier,
+              currency,
+            );
+          } else {
+            return _buildMobileSalesLayout(
+              context,
+              productsAsync,
+              filteredProducts,
+              allCategories,
+              cartState,
+              cartNotifier,
+              currency,
+            );
+          }
+        },
+      ),
+    );
+  }
+
+  // --- Adaptive Desktop / Tablet 3-Column POS Layout ---
+
+  Widget _buildDesktopSalesLayout(
+    BuildContext context,
+    AsyncValue<List<Product>> productsAsync,
+    List<Product> filteredProducts,
+    List<Category> allCategories,
+    CartState cartState,
+    CartNotifier cartNotifier,
+    String currency,
+  ) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // PANEL 1: Product Catalog & Touch Selection (Left)
+        Expanded(
+          flex: 5,
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              border: Border(right: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Top Header with View Mode Switcher
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      child: _buildPanelHeader(
                         Icons.grid_view_rounded,
                         'PRODUCT CATALOG',
                         const Color(0xFFC1F11D),
                       ),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // Cash Drawer Quick Kick Button
-                          Tooltip(
-                            message: 'Open Cash Drawer',
-                            child: InkWell(
-                              onTap: () async {
-                                final config = ref.read(storeConfigProvider).value;
-                                final ok = await ref.read(printerServiceProvider).openCashDrawer(config: config);
-                                if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Row(
-                                        children: [
-                                          Icon(
-                                            ok ? Icons.check_circle_rounded : Icons.warning_amber_rounded,
-                                            color: ok ? const Color(0xFFC1F11D) : Colors.orangeAccent,
-                                            size: 18,
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Text(ok ? '✓ Cash drawer opened' : '⚠️ Kick command sent (check printer connection)'),
-                                        ],
-                                      ),
-                                      duration: const Duration(seconds: 2),
-                                      behavior: SnackBarBehavior.floating,
-                                      backgroundColor: const Color(0xFF1E1E24),
-                                    ),
-                                  );
-                                }
-                              },
-                              borderRadius: BorderRadius.circular(10),
-                              child: Container(
-                                height: 34,
-                                padding: const EdgeInsets.symmetric(horizontal: 10),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.05),
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-                                ),
-                                child: const Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(Icons.point_of_sale_rounded, size: 16, color: Color(0xFFC1F11D)),
-                                    SizedBox(width: 6),
-                                    Text(
-                                      'DRAWER',
-                                      style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.5),
-                                    ),
-                                  ],
-                                ),
+                    ),
+                    const SizedBox(width: 8),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Camera Barcode / QR Scanner
+                        Tooltip(
+                          message: 'Scan Product Barcode / QR',
+                          child: InkWell(
+                            onTap: _openCameraScanner,
+                            borderRadius: BorderRadius.circular(10),
+                            child: Container(
+                              height: 34,
+                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFC1F11D).withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: const Color(0xFFC1F11D).withValues(alpha: 0.25)),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.qr_code_scanner_rounded, size: 16, color: Color(0xFFC1F11D)),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'SCAN',
+                                    style: TextStyle(color: Color(0xFFC1F11D), fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.5),
+                                  ),
+                                ],
                               ),
                             ),
                           ),
-                          const SizedBox(width: 8),
-                          // Grid / List View Toggle
-                          Container(
-                            height: 34,
-                            padding: const EdgeInsets.all(2),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.05),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                _buildViewModeBtn(
-                                  icon: Icons.grid_view_rounded,
-                                  tooltip: 'Grid View',
-                                  isSelected: _isGridView,
-                                  onTap: () => setState(() => _isGridView = true),
-                                ),
-                                _buildViewModeBtn(
-                                  icon: Icons.view_list_rounded,
-                                  tooltip: 'List View',
-                                  isSelected: !_isGridView,
-                                  onTap: () => setState(() => _isGridView = false),
-                                ),
-                              ],
+                        ),
+                        const SizedBox(width: 6),
+                        // Cash Drawer Quick Kick Button
+                        Tooltip(
+                          message: 'Open Cash Drawer',
+                          child: InkWell(
+                            onTap: () async {
+                              final config = ref.read(storeConfigProvider).value;
+                              final ok = await ref.read(printerServiceProvider).openCashDrawer(config: config);
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Row(
+                                      children: [
+                                        Icon(
+                                          ok ? Icons.check_circle_rounded : Icons.warning_amber_rounded,
+                                          color: ok ? const Color(0xFFC1F11D) : Colors.orangeAccent,
+                                          size: 18,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(ok ? '✓ Cash drawer opened' : '⚠️ Kick command sent (check printer connection)'),
+                                      ],
+                                    ),
+                                    duration: const Duration(seconds: 2),
+                                    behavior: SnackBarBehavior.floating,
+                                    backgroundColor: const Color(0xFF1E1E24),
+                                  ),
+                                );
+                              }
+                            },
+                            borderRadius: BorderRadius.circular(10),
+                            child: Container(
+                              height: 34,
+                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.05),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.point_of_sale_rounded, size: 16, color: Color(0xFFC1F11D)),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'DRAWER',
+                                    style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.5),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
+                        ),
+                        const SizedBox(width: 6),
+                        // Grid / List View Toggle
+                        Container(
+                          height: 34,
+                          padding: const EdgeInsets.all(2),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.05),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _buildViewModeBtn(
+                                icon: Icons.grid_view_rounded,
+                                tooltip: 'Grid View',
+                                isSelected: _isGridView,
+                                onTap: () => setState(() => _isGridView = true),
+                              ),
+                              _buildViewModeBtn(
+                                icon: Icons.view_list_rounded,
+                                tooltip: 'List View',
+                                isSelected: !_isGridView,
+                                onTap: () => setState(() => _isGridView = false),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+
+                // Search Bar with Instant Filter & Clear
+                TextField(
+                  controller: _searchController,
+                  focusNode: _searchFocusNode,
+                  onChanged: (_) => setState(() {}),
+                  onSubmitted: (_) {
+                    if (filteredProducts.length == 1) {
+                      _handleProductSelection(filteredProducts.first);
+                      _searchController.clear();
+                      setState(() {});
+                    }
+                  },
+                  style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white),
+                  decoration: _searchInputDecoration(),
+                ),
+                const SizedBox(height: 12),
+
+                // Category Filter Ribbon Chips (No stock counts, cleanly aligned)
+                _buildCategoryRibbon(allCategories),
+                const SizedBox(height: 14),
+
+                // Products Display Area
+                Expanded(
+                  child: productsAsync.when(
+                    data: (_) {
+                      if (filteredProducts.isEmpty) {
+                        return _buildEmptyCatalogState();
+                      }
+                      if (_isGridView) {
+                        return _buildProductsGrid(filteredProducts, currency);
+                      } else {
+                        return _buildProductsList(filteredProducts, currency);
+                      }
+                    },
+                    loading: () => const Center(
+                      child: CircularProgressIndicator(color: Color(0xFFC1F11D)),
+                    ),
+                    error: (err, _) => Center(
+                      child: Text('Error loading products: $err', style: const TextStyle(color: Colors.redAccent)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        // PANEL 2: Quick Tender (Middle)
+        Expanded(
+          flex: 4,
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            color: const Color(0xFF141418),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (!_isCheckoutActive) ...[
+                  _buildPanelHeader(Icons.payments_rounded, 'QUICK TENDER', const Color(0xFFC1F11D)),
+                  const SizedBox(height: 28),
+                  Expanded(
+                    child: Center(
+                      child: cartState.items.isEmpty 
+                        ? _buildEmptyState('No active transaction', icon: Icons.shopping_basket_outlined)
+                        : Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                'TOTAL DUE', 
+                                style: GoogleFonts.manrope(
+                                  fontSize: 12,
+                                  letterSpacing: 2,
+                                  fontWeight: FontWeight.w900,
+                                  color: Colors.white30,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                CurrencyFormatter.format(cartNotifier.total, currency), 
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 48,
+                                  fontWeight: FontWeight.w900,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              const SizedBox(height: 36),
+                              _buildMainPayButton(cartNotifier, currency),
+                            ],
+                          ),
+                    ),
+                  ),
+                ] else ...[
+                  // Payment Selector always at top during checkout
+                  _buildPaymentMethodSelector(),
+                  const SizedBox(height: 20),
+                  
+                  if (_selectedPaymentMethod.isNotEmpty) ...[
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (_selectedPaymentMethod == 'CASH')
+                            Expanded(
+                              child: Column(
+                                children: [
+                                  _buildTenderDisplay(currency),
+                                  const SizedBox(height: 16),
+                                  // Custom Numeric Keypad for exact tender
+                                  Expanded(
+                                    child: Row(
+                                      children: [
+                                        // Note Shortcuts
+                                        Expanded(
+                                          flex: 2,
+                                          child: Column(
+                                            children: [
+                                              Expanded(child: _buildQuickTenderButton(20, currency)),
+                                              const SizedBox(height: 8),
+                                              Expanded(child: _buildQuickTenderButton(50, currency)),
+                                              const SizedBox(height: 8),
+                                              Expanded(child: _buildQuickTenderButton(100, currency)),
+                                            ],
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          flex: 2,
+                                          child: Column(
+                                            children: [
+                                              Expanded(child: _buildQuickTenderButton(200, currency)),
+                                              const SizedBox(height: 8),
+                                              Expanded(child: _buildQuickTenderButton(500, currency)),
+                                              const SizedBox(height: 8),
+                                              Expanded(child: _buildExactAmountBtn(cartNotifier, currency)),
+                                            ],
+                                          ),
+                                        ),
+                                        const SizedBox(width: 14),
+                                        // Numeric Keypad
+                                        Expanded(
+                                          flex: 3,
+                                          child: _buildNumericKeypad(),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          else
+                            _buildDigitalPaymentPrompt(currency),
                         ],
+                      ),
+                    ),
+                  ] else ...[
+                     Expanded(child: _buildEmptyState('Select Payment Method', icon: Icons.payments_outlined)),
+                  ],
+                  
+                  const SizedBox(height: 16),
+                  _buildCheckoutActions(cartNotifier),
+                ],
+              ],
+            ),
+          ),
+        ),
+
+        // PANEL 3: Order Review (Right)
+        Expanded(
+          flex: 4,
+          child: Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFF0A0A0C),
+              border: Border(left: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
+            ),
+            child: Column(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text('ORDER REVIEW', style: _headerTextStyle()),
+                            if (cartState.items.isNotEmpty)
+                              Text(
+                                '${cartState.items.fold<int>(0, (sum, item) => sum + item.quantity)} items',
+                                style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: const Color(0xFFC1F11D)),
+                              ),
+                          ],
+                        ),
+                      ),
+                      Expanded(
+                        child: cartState.items.isEmpty
+                            ? _buildEmptyState('Cart is empty', icon: Icons.shopping_cart_outlined)
+                            : ListView.builder(
+                                itemCount: cartState.items.length,
+                                itemBuilder: (context, index) => _buildCartRow(cartState.items[index], cartNotifier, currency),
+                              ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 14),
+                ),
+                _buildOrderSummary(cartState, cartNotifier, currency),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 
-                  // Search Bar with Instant Filter & Clear
-                  TextField(
+  // --- Dedicated Adaptive Mobile Sales View ---
+
+  Widget _buildMobileSalesLayout(
+    BuildContext context,
+    AsyncValue<List<Product>> productsAsync,
+    List<Product> filteredProducts,
+    List<Category> allCategories,
+    CartState cartState,
+    CartNotifier cartNotifier,
+    String currency,
+  ) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Top Mobile Search & Quick Tools
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
                     controller: _searchController,
                     focusNode: _searchFocusNode,
                     onChanged: (_) => setState(() {}),
@@ -337,206 +642,742 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                         setState(() {});
                       }
                     },
-                    style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white),
-                    decoration: _searchInputDecoration(),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Category Filter Ribbon Chips (No stock counts, cleanly aligned)
-                  _buildCategoryRibbon(allCategories),
-                  const SizedBox(height: 14),
-
-                  // Products Display Area
-                  Expanded(
-                    child: productsAsync.when(
-                      data: (_) {
-                        if (filteredProducts.isEmpty) {
-                          return _buildEmptyCatalogState();
-                        }
-                        if (_isGridView) {
-                          return _buildProductsGrid(filteredProducts, currency);
-                        } else {
-                          return _buildProductsList(filteredProducts, currency);
-                        }
-                      },
-                      loading: () => const Center(
-                        child: CircularProgressIndicator(color: Color(0xFFC1F11D)),
+                    style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white),
+                    decoration: InputDecoration(
+                      hintText: 'Search product or SKU...',
+                      hintStyle: GoogleFonts.inter(fontSize: 12, color: Colors.white30),
+                      prefixIcon: const Icon(Icons.search_rounded, size: 18, color: Colors.white38),
+                      suffixIcon: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (_searchController.text.isNotEmpty)
+                            IconButton(
+                              icon: const Icon(Icons.close_rounded, size: 16, color: Colors.white54),
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() {});
+                              },
+                            ),
+                          IconButton(
+                            icon: const Icon(Icons.qr_code_scanner_rounded, color: Color(0xFFC1F11D), size: 20),
+                            tooltip: 'Scan Barcode / QR',
+                            onPressed: _openCameraScanner,
+                          ),
+                        ],
                       ),
-                      error: (err, _) => Center(
-                        child: Text('Error loading products: $err', style: const TextStyle(color: Colors.redAccent)),
-                      ),
+                      filled: true,
+                      fillColor: Colors.white.withValues(alpha: 0.04),
+                      contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                     ),
                   ),
-                ],
+                ),
+                const SizedBox(width: 8),
+                // Quick Cash Drawer button
+                IconButton(
+                  icon: const Icon(Icons.point_of_sale_rounded, color: Color(0xFFC1F11D), size: 20),
+                  tooltip: 'Open Drawer',
+                  style: IconButton.styleFrom(
+                    backgroundColor: Colors.white.withValues(alpha: 0.05),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  onPressed: () async {
+                    final config = ref.read(storeConfigProvider).value;
+                    final ok = await ref.read(printerServiceProvider).openCashDrawer(config: config);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(ok ? '✓ Cash drawer opened' : '⚠️ Kick signal sent'),
+                          behavior: SnackBarBehavior.floating,
+                          duration: const Duration(seconds: 2),
+                        ),
+                      );
+                    }
+                  },
+                ),
+                const SizedBox(width: 4),
+                // Grid / List toggle
+                IconButton(
+                  icon: Icon(_isGridView ? Icons.view_list_rounded : Icons.grid_view_rounded, color: Colors.white70, size: 20),
+                  tooltip: _isGridView ? 'Switch to List' : 'Switch to Grid',
+                  style: IconButton.styleFrom(
+                    backgroundColor: Colors.white.withValues(alpha: 0.05),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  onPressed: () => setState(() => _isGridView = !_isGridView),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+
+            // Category Filter Ribbon Chips
+            _buildCategoryRibbon(allCategories),
+            const SizedBox(height: 10),
+
+            // Products Display Area
+            Expanded(
+              child: productsAsync.when(
+                data: (_) {
+                  if (filteredProducts.isEmpty) {
+                    return _buildEmptyCatalogState();
+                  }
+                  if (_isGridView) {
+                    return _buildMobileProductsGrid(filteredProducts, currency);
+                  } else {
+                    return _buildProductsList(filteredProducts, currency);
+                  }
+                },
+                loading: () => const Center(
+                  child: CircularProgressIndicator(color: Color(0xFFC1F11D)),
+                ),
+                error: (err, _) => Center(
+                  child: Text('Error loading products: $err', style: const TextStyle(color: Colors.redAccent)),
+                ),
               ),
             ),
-          ),
 
-          // PANEL 2: Quick Tender (Middle)
+            const SizedBox(height: 8),
+
+            // Docked Floating Cart & Pay Bar
+            _buildMobileBottomBar(cartState, cartNotifier, currency),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMobileProductsGrid(List<Product> products, String currency) {
+    return GridView.builder(
+      itemCount: products.length,
+      padding: const EdgeInsets.only(bottom: 6),
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 220,
+        mainAxisExtent: 175,
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
+      ),
+      itemBuilder: (context, index) {
+        final product = products[index];
+        return _buildProductCard(product, currency);
+      },
+    );
+  }
+
+  Widget _buildMobileBottomBar(CartState cartState, CartNotifier cartNotifier, String currency) {
+    final totalItems = cartState.items.fold<int>(0, (sum, i) => sum + i.quantity);
+    final total = cartNotifier.total;
+    final hasItems = cartState.items.isNotEmpty;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF141418),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: hasItems ? const Color(0xFFC1F11D).withValues(alpha: 0.35) : Colors.white.withValues(alpha: 0.08),
+          width: 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.5),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // Cart Summary & Tap to View Sheet
           Expanded(
-            flex: 4,
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              color: const Color(0xFF141418),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            child: InkWell(
+              onTap: hasItems ? () => _showMobileCartSheet(context, cartState, cartNotifier, currency) : null,
+              borderRadius: BorderRadius.circular(10),
+              child: Row(
                 children: [
-                  if (!_isCheckoutActive) ...[
-                    _buildPanelHeader(Icons.payments_rounded, 'QUICK TENDER', const Color(0xFFC1F11D)),
-                    const SizedBox(height: 28),
-                    Expanded(
-                      child: Center(
-                        child: cartState.items.isEmpty 
-                          ? _buildEmptyState('No active transaction', icon: Icons.shopping_basket_outlined)
-                          : Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  'TOTAL DUE', 
-                                  style: GoogleFonts.manrope(
-                                    fontSize: 12,
-                                    letterSpacing: 2,
-                                    fontWeight: FontWeight.w900,
-                                    color: Colors.white30,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  CurrencyFormatter.format(cartNotifier.total, currency), 
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 48,
-                                    fontWeight: FontWeight.w900,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                                const SizedBox(height: 36),
-                                _buildMainPayButton(cartNotifier, currency),
-                              ],
-                            ),
-                      ),
-                    ),
-                  ] else ...[
-                    // Payment Selector always at top during checkout
-                    _buildPaymentMethodSelector(),
-                    const SizedBox(height: 20),
-                    
-                    if (_selectedPaymentMethod.isNotEmpty) ...[
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (_selectedPaymentMethod == 'CASH')
-                              Expanded(
-                                child: Column(
-                                  children: [
-                                    _buildTenderDisplay(currency),
-                                    const SizedBox(height: 16),
-                                    // Custom Numeric Keypad for exact tender
-                                    Expanded(
-                                      child: Row(
-                                        children: [
-                                          // Note Shortcuts
-                                          Expanded(
-                                            flex: 2,
-                                            child: Column(
-                                              children: [
-                                                Expanded(child: _buildQuickTenderButton(20, currency)),
-                                                const SizedBox(height: 8),
-                                                Expanded(child: _buildQuickTenderButton(50, currency)),
-                                                const SizedBox(height: 8),
-                                                Expanded(child: _buildQuickTenderButton(100, currency)),
-                                              ],
-                                            ),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Expanded(
-                                            flex: 2,
-                                            child: Column(
-                                              children: [
-                                                Expanded(child: _buildQuickTenderButton(200, currency)),
-                                                const SizedBox(height: 8),
-                                                Expanded(child: _buildQuickTenderButton(500, currency)),
-                                                const SizedBox(height: 8),
-                                                Expanded(child: _buildExactAmountBtn(cartNotifier, currency)),
-                                              ],
-                                            ),
-                                          ),
-                                          const SizedBox(width: 14),
-                                          // Numeric Keypad
-                                          Expanded(
-                                            flex: 3,
-                                            child: _buildNumericKeypad(),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              )
-                            else
-                              _buildDigitalPaymentPrompt(currency),
-                          ],
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: hasItems ? const Color(0xFFC1F11D).withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.05),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(
+                          Icons.shopping_bag_outlined,
+                          color: hasItems ? const Color(0xFFC1F11D) : Colors.white38,
+                          size: 20,
                         ),
                       ),
-                    ] else ...[
-                       Expanded(child: _buildEmptyState('Select Payment Method', icon: Icons.payments_outlined)),
+                      if (totalItems > 0)
+                        Positioned(
+                          top: -4,
+                          right: -4,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFC1F11D),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              '$totalItems',
+                              style: GoogleFonts.manrope(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.black,
+                              ),
+                            ),
+                          ),
+                        ),
                     ],
-                    
-                    const SizedBox(height: 16),
-                    _buildCheckoutActions(cartNotifier),
-                  ],
-                ],
-              ),
-            ),
-          ),
-
-          // PANEL 3: Order Review (Right)
-          Expanded(
-            flex: 4,
-            child: Container(
-              decoration: BoxDecoration(
-                color: const Color(0xFF0A0A0C),
-                border: Border(left: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
-              ),
-              child: Column(
-                children: [
+                  ),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Padding(
-                          padding: const EdgeInsets.all(20),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text('ORDER REVIEW', style: _headerTextStyle()),
-                              if (cartState.items.isNotEmpty)
-                                Text(
-                                  '${cartState.items.fold<int>(0, (sum, item) => sum + item.quantity)} items',
-                                  style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: const Color(0xFFC1F11D)),
-                                ),
-                            ],
+                        Text(
+                          hasItems ? CurrencyFormatter.format(total, currency) : 'Cart is Empty',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w900,
+                            color: hasItems ? Colors.white : Colors.white38,
                           ),
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        Expanded(
-                          child: cartState.items.isEmpty
-                              ? _buildEmptyState('Cart is empty', icon: Icons.shopping_cart_outlined)
-                              : ListView.builder(
-                                  itemCount: cartState.items.length,
-                                  itemBuilder: (context, index) => _buildCartRow(cartState.items[index], cartNotifier, currency),
-                                ),
+                        Text(
+                          hasItems ? '$totalItems item${totalItems > 1 ? "s" : ""} • Tap to view' : 'Tap item or scan',
+                          style: GoogleFonts.inter(
+                            fontSize: 10.5,
+                            color: hasItems ? const Color(0xFFC1F11D) : Colors.white30,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ],
                     ),
                   ),
-                  _buildOrderSummary(cartState, cartNotifier, currency),
                 ],
               ),
+            ),
+          ),
+
+          const SizedBox(width: 10),
+
+          // Pay Button
+          ElevatedButton(
+            onPressed: hasItems ? () => _showMobileCheckoutSheet(context, cartNotifier, currency) : null,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFC1F11D),
+              disabledBackgroundColor: Colors.white.withValues(alpha: 0.05),
+              foregroundColor: Colors.black,
+              disabledForegroundColor: Colors.white24,
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              elevation: hasItems ? 4 : 0,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.payments_rounded, size: 18),
+                const SizedBox(width: 6),
+                Text(
+                  'PAY NOW',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
       ),
     );
+  }
+
+  void _showMobileCartSheet(
+    BuildContext context,
+    CartState cartState,
+    CartNotifier cartNotifier,
+    String currency,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return Consumer(
+          builder: (context, ref, _) {
+            final activeCartState = ref.watch(cartProvider);
+            final activeCartNotifier = ref.watch(cartProvider.notifier);
+            final media = MediaQuery.of(context);
+
+            return Container(
+              height: media.size.height * 0.85,
+              decoration: const BoxDecoration(
+                color: Color(0xFF141418),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: Column(
+                children: [
+                  // Handle
+                  Container(
+                    margin: const EdgeInsets.only(top: 12, bottom: 8),
+                    width: 44,
+                    height: 4,
+                    decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2)),
+                  ),
+                  // Header
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.shopping_cart_outlined, color: Color(0xFFC1F11D), size: 20),
+                            const SizedBox(width: 8),
+                            Text(
+                              'ORDER REVIEW',
+                              style: GoogleFonts.manrope(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.white),
+                            ),
+                          ],
+                        ),
+                        if (activeCartState.items.isNotEmpty)
+                          TextButton(
+                            onPressed: () {
+                              activeCartNotifier.clearCart();
+                              Navigator.pop(ctx);
+                            },
+                            child: const Text('Clear All', style: TextStyle(color: Colors.redAccent, fontSize: 12)),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const Divider(color: Colors.white10, height: 1),
+
+                  // Cart Items
+                  Expanded(
+                    child: activeCartState.items.isEmpty
+                        ? Center(
+                            child: Text('Cart is empty', style: GoogleFonts.inter(color: Colors.white38)),
+                          )
+                        : ListView.builder(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            itemCount: activeCartState.items.length,
+                            itemBuilder: (context, index) =>
+                                _buildCartRow(activeCartState.items[index], activeCartNotifier, currency),
+                          ),
+                  ),
+
+                  // Order Summary & Checkout Trigger
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1B1B20),
+                      border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.08))),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _buildOrderSummary(activeCartState, activeCartNotifier, currency),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 52,
+                          child: ElevatedButton(
+                            onPressed: activeCartState.items.isEmpty
+                                ? null
+                                : () {
+                                    Navigator.pop(ctx);
+                                    _showMobileCheckoutSheet(context, activeCartNotifier, currency);
+                                  },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFC1F11D),
+                              foregroundColor: Colors.black,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            ),
+                            child: Text(
+                              'PROCEED TO PAY (${CurrencyFormatter.format(activeCartNotifier.total, currency)})',
+                              style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 0.5),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showMobileCheckoutSheet(
+    BuildContext context,
+    CartNotifier cartNotifier,
+    String currency,
+  ) {
+    setState(() {
+      _isCheckoutActive = true;
+      _selectedPaymentMethod = 'CASH';
+      _tenderedAmount = 0.0;
+    });
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (modalContext, setModalState) {
+            final total = cartNotifier.total;
+            final isCash = _selectedPaymentMethod == 'CASH';
+            final canComplete = !isCash || (_tenderedAmount >= total);
+
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.9,
+              decoration: const BoxDecoration(
+                color: Color(0xFF141418),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: Column(
+                children: [
+                  // Handle
+                  Container(
+                    margin: const EdgeInsets.only(top: 12, bottom: 8),
+                    width: 44,
+                    height: 4,
+                    decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2)),
+                  ),
+                  // Header
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFC1F11D).withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Icon(Icons.payments_rounded, color: Color(0xFFC1F11D), size: 18),
+                            ),
+                            const SizedBox(width: 10),
+                            Text(
+                              'PAYMENT CHECKOUT',
+                              style: GoogleFonts.manrope(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.white),
+                            ),
+                          ],
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close_rounded, color: Colors.white70),
+                          onPressed: () => Navigator.pop(ctx),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(color: Colors.white10, height: 1),
+
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        children: [
+                          // Payment Method Selector
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildMobileMethodBtn(
+                                  'CASH',
+                                  Icons.payments_rounded,
+                                  const Color(0xFFC1F11D),
+                                  _selectedPaymentMethod == 'CASH',
+                                  () => setModalState(() {
+                                    _selectedPaymentMethod = 'CASH';
+                                    _tenderedAmount = 0.0;
+                                  }),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: _buildMobileMethodBtn(
+                                  'MOBILE MONEY',
+                                  Icons.phone_android_rounded,
+                                  Colors.orangeAccent,
+                                  _selectedPaymentMethod == 'MOBILE MONEY',
+                                  () => setModalState(() {
+                                    _selectedPaymentMethod = 'MOBILE MONEY';
+                                    _tenderedAmount = total;
+                                  }),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: _buildMobileMethodBtn(
+                                  'CARD',
+                                  Icons.credit_card_rounded,
+                                  Colors.blueAccent,
+                                  _selectedPaymentMethod == 'CARD',
+                                  () => setModalState(() {
+                                    _selectedPaymentMethod = 'CARD';
+                                    _tenderedAmount = total;
+                                  }),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+
+                          if (_selectedPaymentMethod == 'CASH') ...[
+                            _buildTenderDisplay(currency),
+                            const SizedBox(height: 14),
+
+                            // Note shortcuts
+                            SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Row(
+                                children: [
+                                  _buildNoteChip(20, currency, () => setModalState(() => _tenderedAmount += 20)),
+                                  const SizedBox(width: 6),
+                                  _buildNoteChip(50, currency, () => setModalState(() => _tenderedAmount += 50)),
+                                  const SizedBox(width: 6),
+                                  _buildNoteChip(100, currency, () => setModalState(() => _tenderedAmount += 100)),
+                                  const SizedBox(width: 6),
+                                  _buildNoteChip(200, currency, () => setModalState(() => _tenderedAmount += 200)),
+                                  const SizedBox(width: 6),
+                                  _buildNoteChip(500, currency, () => setModalState(() => _tenderedAmount += 500)),
+                                  const SizedBox(width: 6),
+                                  InkWell(
+                                    onTap: () => setModalState(() => _tenderedAmount = total),
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFC1F11D).withValues(alpha: 0.15),
+                                        borderRadius: BorderRadius.circular(10),
+                                        border: Border.all(color: const Color(0xFFC1F11D).withValues(alpha: 0.4)),
+                                      ),
+                                      child: Text(
+                                        'EXACT (${CurrencyFormatter.format(total, currency)})',
+                                        style: GoogleFonts.manrope(fontSize: 11, fontWeight: FontWeight.bold, color: const Color(0xFFC1F11D)),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+
+                            // Numeric Keypad
+                            SizedBox(
+                              height: 220,
+                              child: _buildMobileKeypad((key) {
+                                setModalState(() {
+                                  if (key == 'C') {
+                                    _tenderedAmount = 0.0;
+                                  } else if (key == '⌫') {
+                                    String digits = _tenderedAmount.toStringAsFixed(2).replaceAll('.', '');
+                                    if (digits.length > 3) {
+                                      digits = digits.substring(0, digits.length - 1);
+                                      _tenderedAmount = double.parse(digits) / 100;
+                                    } else {
+                                      _tenderedAmount = 0.0;
+                                    }
+                                  } else {
+                                    String digits = _tenderedAmount.toStringAsFixed(2).replaceAll('.', '');
+                                    if (digits == '000') digits = '';
+                                    digits += key;
+                                    if (digits.length <= 10) {
+                                      _tenderedAmount = double.parse(digits) / 100;
+                                    }
+                                  }
+                                });
+                              }),
+                            ),
+                          ] else ...[
+                            _buildDigitalPaymentPrompt(currency),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // Complete Sale Button
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: SizedBox(
+                      width: double.infinity,
+                      height: 54,
+                      child: ElevatedButton(
+                        onPressed: (canComplete && !_isProcessingPayment)
+                            ? () async {
+                                Navigator.pop(ctx);
+                                await _finalizeSale(cartNotifier);
+                              }
+                            : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFC1F11D),
+                          disabledBackgroundColor: Colors.white.withValues(alpha: 0.05),
+                          foregroundColor: Colors.black,
+                          disabledForegroundColor: Colors.white24,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        ),
+                        child: _isProcessingPayment
+                            ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2))
+                            : Text(
+                                'COMPLETE SALE & PRINT RECEIPT',
+                                style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 0.5),
+                              ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildMobileMethodBtn(
+    String method,
+    IconData icon,
+    Color color,
+    bool isSelected,
+    VoidCallback onTap,
+  ) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected ? color : Colors.white.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? color : Colors.white.withValues(alpha: 0.1),
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: isSelected ? Colors.black : Colors.white70, size: 18),
+            const SizedBox(height: 4),
+            Text(
+              method == 'MOBILE MONEY' ? 'M-MONEY' : method,
+              style: GoogleFonts.manrope(
+                fontSize: 10,
+                fontWeight: FontWeight.w900,
+                color: isSelected ? Colors.black : Colors.white70,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNoteChip(double amount, String currency, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+        ),
+        child: Text(
+          '+${CurrencyFormatter.format(amount, currency)}',
+          style: GoogleFonts.manrope(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.white),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMobileKeypad(ValueChanged<String> onKeyPress) {
+    Widget buildBtn(String label, {Color? textColor, Color? bgColor}) {
+      return Expanded(
+        child: Material(
+          color: bgColor ?? Colors.white.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(10),
+          child: InkWell(
+            onTap: () => onKeyPress(label),
+            borderRadius: BorderRadius.circular(10),
+            child: Center(
+              child: Text(
+                label,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: textColor ?? Colors.white,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        Expanded(
+          child: Row(
+            children: [
+              buildBtn('1'), const SizedBox(width: 6),
+              buildBtn('2'), const SizedBox(width: 6),
+              buildBtn('3'),
+            ],
+          ),
+        ),
+        const SizedBox(height: 6),
+        Expanded(
+          child: Row(
+            children: [
+              buildBtn('4'), const SizedBox(width: 6),
+              buildBtn('5'), const SizedBox(width: 6),
+              buildBtn('6'),
+            ],
+          ),
+        ),
+        const SizedBox(height: 6),
+        Expanded(
+          child: Row(
+            children: [
+              buildBtn('7'), const SizedBox(width: 6),
+              buildBtn('8'), const SizedBox(width: 6),
+              buildBtn('9'),
+            ],
+          ),
+        ),
+        const SizedBox(height: 6),
+        Expanded(
+          child: Row(
+            children: [
+              buildBtn('C', textColor: Colors.redAccent), const SizedBox(width: 6),
+              buildBtn('0'), const SizedBox(width: 6),
+              buildBtn('⌫', textColor: Colors.amberAccent),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _openCameraScanner() async {
+    final scannedCode = await CameraBarcodeScannerModal.show(context);
+    if (scannedCode != null && scannedCode.isNotEmpty) {
+      _lookupProduct(scannedCode);
+    }
   }
 
   // --- Clean Category Filter Ribbon (Aligned without stock numbers) ---
@@ -607,9 +1448,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
   Widget _buildProductsGrid(List<Product> products, String currency) {
     return GridView.builder(
       itemCount: products.length,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 1.45,
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 220,
+        mainAxisExtent: 175,
         crossAxisSpacing: 10,
         mainAxisSpacing: 10,
       ),

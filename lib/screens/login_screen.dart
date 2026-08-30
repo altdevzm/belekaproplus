@@ -337,36 +337,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 );
               }
 
-              // Compact layout for smaller screens / vertical displays
-              return SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    SizedBox(
-                      height: 240,
-                      child: _buildHeroImageSection(isCompact: true),
-                    ),
-                    Container(
-                      color: const Color(0xFF111115),
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-                      child: Center(
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 500),
-                          child: _buildRightConsole(),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              );
+              // Dedicated Mobile / Compact Layout
+              return _buildMobileLoginLayout(context);
             },
           ),
 
-          // Bottom Right Corner Floating Backup Restore Action Button
+          // Bottom Right Corner Floating Backup Restore Action Button (Desktop only)
           Positioned(
             bottom: 20,
             right: 24,
-            child: _buildBottomRightRestoreButton(),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                if (MediaQuery.of(context).size.width < 900) return const SizedBox.shrink();
+                return _buildBottomRightRestoreButton();
+              },
+            ),
           ),
         ],
       ),
@@ -596,6 +581,365 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  // --- Mobile Adaptive Login Layout ---
+
+  Widget _buildMobileLoginLayout(BuildContext context) {
+    return SafeArea(
+      child: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 440),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Top Mobile App Bar / Header
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 38,
+                          height: 38,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFC1F11D).withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFFC1F11D).withValues(alpha: 0.3)),
+                          ),
+                          child: const Icon(Icons.point_of_sale_rounded, color: Color(0xFFC1F11D), size: 20),
+                        ),
+                        const SizedBox(width: 10),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'BELEKA POS',
+                              style: GoogleFonts.manrope(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.white,
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                            Text(
+                              'CASHIER TERMINAL',
+                              style: GoogleFonts.ibmPlexMono(
+                                fontSize: 8.5,
+                                fontWeight: FontWeight.bold,
+                                color: const Color(0xFFC1F11D),
+                                letterSpacing: 1.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    InkWell(
+                      onTap: () => showDialog(
+                        context: context,
+                        builder: (context) => const NetworkSyncModal(),
+                      ),
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.05),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.lan_rounded, size: 13, color: Color(0xFFC1F11D)),
+                            const SizedBox(width: 5),
+                            Text(
+                              'LAN TILL',
+                              style: GoogleFonts.ibmPlexMono(
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white70,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+
+                // Terminal & Network Mode Status Indicator
+                _buildTerminalBadge(),
+                const SizedBox(height: 14),
+
+                // Staff Identification Banner
+                if (_recognizedName != null) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFC1F11D).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFC1F11D).withValues(alpha: 0.3)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.check_circle_rounded, color: Color(0xFFC1F11D), size: 16),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'STAFF IDENTIFIED: ${_recognizedName!.toUpperCase()}',
+                            style: GoogleFonts.manrope(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: const Color(0xFFC1F11D),
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+
+                // Staff ID Field
+                _buildInputField('EMPLOYEE ID', _idController, Icons.person_outline, 'Staff ID (e.g. 1001)'),
+                const SizedBox(height: 10),
+
+                // PIN Dots Display
+                _buildPinDotsDisplay(),
+                const SizedBox(height: 10),
+
+                // Error message
+                if (_errorMessage != null) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.red.withValues(alpha: 0.25)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.error_outline, color: Colors.redAccent, size: 14),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _errorMessage!,
+                            style: GoogleFonts.inter(
+                              color: Colors.redAccent,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+
+                // Touch PIN Pad for Mobile
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.25),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+                  ),
+                  child: GridView.count(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    crossAxisCount: 3,
+                    mainAxisSpacing: 8,
+                    crossAxisSpacing: 8,
+                    childAspectRatio: 1.6,
+                    children: [
+                      ...List.generate(9, (index) => _buildKeyItem((index + 1).toString())),
+                      _buildKeyItem('backspace', isIcon: true),
+                      _buildKeyItem('0'),
+                      _buildKeyItem('check', isIcon: true),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // Clock In / Clock Out Buttons
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildAuxButton(
+                        Icons.login_rounded,
+                        'Clock In',
+                        onTap: () => _handleClockAction('clock_in'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _buildAuxButton(
+                        Icons.logout_rounded,
+                        'Clock Out',
+                        onTap: () => _handleClockAction('clock_out'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+
+                // Submit / Login Action Button
+                Material(
+                  color: const Color(0xFFC1F11D),
+                  borderRadius: BorderRadius.circular(12),
+                  child: InkWell(
+                    onTap: _isLoading ? null : _handleLogin,
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      alignment: Alignment.center,
+                      child: _isLoading
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
+                            )
+                          : Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.login_rounded, size: 18, color: Colors.black),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'SIGN IN TO REGISTER',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 1.2,
+                                    color: Colors.black,
+                                  ),
+                                ),
+                              ],
+                            ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+
+                // Footer Links
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _buildTextLink('RESET PIN', onTap: () {
+                      _showInfoDialog(
+                        'CREDENTIAL_RECOVERY',
+                        'Staff PINs: Must be reset by a Manager in Settings > User Management.\n\nAdmin Reset: If you are the owner and forgot your Admin PIN, use the "ADMIN RECOVERY" button below to enter your 8-digit terminal recovery code.',
+                      );
+                    }),
+                    const SizedBox(width: 16),
+                    _buildTextLink('RESTORE DATA', onTap: () {
+                      showDialog(
+                        context: context,
+                        builder: (context) => const BackupRestoreModal(),
+                      );
+                    }),
+                    const SizedBox(width: 16),
+                    _buildTextLink('SUPPORT', onTap: () {
+                      _showInfoDialog(
+                        'SYSTEM_SUPPORT',
+                        'If you are having trouble accessing the terminal, please contact your store administrator.',
+                      );
+                    }),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPinDotsDisplay() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.lock_outline, size: 16, color: Color(0xFFCFBDFF)),
+              const SizedBox(width: 8),
+              Text(
+                'PIN:',
+                style: GoogleFonts.ibmPlexMono(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white60,
+                  letterSpacing: 1.2,
+                ),
+              ),
+            ],
+          ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: List.generate(6, (index) {
+              final isFilled = index < _pin.length;
+              return Container(
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                width: 12,
+                height: 12,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: isFilled ? const Color(0xFFC1F11D) : Colors.white.withValues(alpha: 0.1),
+                  border: Border.all(
+                    color: isFilled ? const Color(0xFFC1F11D) : Colors.white.withValues(alpha: 0.2),
+                    width: 1.2,
+                  ),
+                  boxShadow: isFilled
+                      ? [
+                          BoxShadow(
+                            color: const Color(0xFFC1F11D).withValues(alpha: 0.5),
+                            blurRadius: 6,
+                            spreadRadius: 1,
+                          )
+                        ]
+                      : null,
+                ),
+              );
+            }),
+          ),
+          if (_pin.isNotEmpty)
+            GestureDetector(
+              onTap: () => setState(() {
+                _pin = '';
+                _pinController.text = '';
+                _errorMessage = null;
+              }),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Text(
+                  'CLEAR',
+                  style: GoogleFonts.ibmPlexMono(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.redAccent,
+                  ),
+                ),
+              ),
+            )
+          else
+            const SizedBox(width: 40),
+        ],
+      ),
     );
   }
 

@@ -9,7 +9,6 @@ import 'package:beleka_pos/screens/settings_screen.dart';
 import 'package:beleka_pos/screens/reports_screen.dart';
 import 'package:beleka_pos/screens/terminals_screen.dart';
 import 'package:beleka_pos/screens/purchases_screen.dart';
-import 'package:beleka_pos/screens/accounts_screen.dart';
 import 'package:beleka_pos/screens/branches_screen.dart';
 import 'package:beleka_pos/providers/auth_provider.dart';
 import 'package:beleka_pos/providers/theme_provider.dart';
@@ -21,8 +20,11 @@ import 'package:beleka_pos/services/network_client.dart';
 import 'package:beleka_pos/core/core.dart';
 import 'package:beleka_pos/widgets/update_banner.dart';
 import 'package:beleka_pos/widgets/tax_reminder_banner.dart';
+import 'package:beleka_pos/widgets/camera_barcode_scanner_modal.dart';
+import 'package:beleka_pos/providers/cart_provider.dart';
+import 'package:beleka_pos/services/database_service.dart';
 
-enum ScreenType { dashboard, sales, inventory, purchases, accounts, branches, terminals, settings, reports }
+enum ScreenType { dashboard, sales, inventory, purchases, branches, terminals, settings, reports }
 
 final navigationProvider = StateProvider<ScreenType>((ref) {
   // Cashiers default to Sales screen
@@ -44,7 +46,7 @@ class ShellScreen extends ConsumerWidget {
       backgroundColor: theme.scaffoldBackgroundColor,
       body: AdaptiveLayout(
         compact: (ctx) => _buildMobileLayout(context, ref, currentScreen, isManager, isCompact: true),
-        mobile: (ctx) => _buildMobileLayout(context, ref, currentScreen, isManager, isCompact: false),
+        mobile: (ctx) => _buildMobileLayout(context, ref, currentScreen, isManager, isCompact: true),
         tablet: (ctx) => _buildTabletLayout(context, ref, currentScreen, isManager),
         desktop: (ctx) => _buildDesktopLayout(context, ref, currentScreen, isManager, isUltraWide: false),
         ultraWide: (ctx) => _buildDesktopLayout(context, ref, currentScreen, isManager, isUltraWide: true),
@@ -60,37 +62,292 @@ class ShellScreen extends ConsumerWidget {
     required bool isCompact,
   }) {
     final user = ref.watch(authProvider);
-    final destinations = _getNavigationDestinations(user);
-    final selectedIndex = _getSelectedIndex(current, destinations);
+    final accentColor = ref.watch(accentColorProvider);
+    final role = user?.role.toLowerCase().trim() ?? 'cashier';
+    final isCashier = role == 'cashier';
 
     return Column(
       children: [
         _buildStatusBar(ref, isCompact: isCompact),
         const UpdateBanner(),
         Expanded(child: _buildMainContent(current)),
-        NavigationBar(
-          selectedIndex: selectedIndex.clamp(0, destinations.length - 1),
-          height: 64,
-          backgroundColor: const Color(0xFF111114),
-          indicatorColor: ref.watch(accentColorProvider).withValues(alpha: 0.18),
-          labelBehavior: isCompact
-              ? NavigationDestinationLabelBehavior.alwaysHide
-              : NavigationDestinationLabelBehavior.onlyShowSelected,
-          onDestinationSelected: (i) {
-            HapticFeedback.mediumImpact();
-            ref.read(navigationProvider.notifier).state = destinations[i].type;
-          },
-          destinations: destinations
-              .map(
-                (d) => NavigationDestination(
-                  icon: Icon(d.icon, color: Colors.white.withValues(alpha: 0.4), size: 22),
-                  selectedIcon: Icon(d.icon, color: ref.watch(accentColorProvider), size: 24),
-                  label: d.label,
-                ),
-              )
-              .toList(),
+        
+        // Ergonomic Mobile Lower Navigation Bar
+        Container(
+          height: 68,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: const Color(0xFF111115),
+            border: Border(
+              top: BorderSide(color: Colors.white.withValues(alpha: 0.08), width: 1),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.5),
+                blurRadius: 16,
+                offset: const Offset(0, -4),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: isCashier
+                ? [
+                    // Cashier Tab 1: Sales
+                    _buildMobileNavItem(
+                      icon: Icons.point_of_sale_rounded,
+                      label: 'Sales',
+                      isSelected: current == ScreenType.sales,
+                      accentColor: accentColor,
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        ref.read(navigationProvider.notifier).state = ScreenType.sales;
+                      },
+                    ),
+
+                    // Cashier Center Action: Camera Scanner
+                    _buildCenterScanButton(context, ref, accentColor),
+
+                    // Cashier Tab 2: Settings
+                    _buildMobileNavItem(
+                      icon: Icons.settings_rounded,
+                      label: 'Settings',
+                      isSelected: current == ScreenType.settings,
+                      accentColor: accentColor,
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        ref.read(navigationProvider.notifier).state = ScreenType.settings;
+                      },
+                    ),
+
+                    // Cashier Tab 3: Logout
+                    _buildMobileNavItem(
+                      icon: Icons.logout_rounded,
+                      label: 'Logout',
+                      isSelected: false,
+                      accentColor: Colors.redAccent,
+                      iconColor: Colors.redAccent.withValues(alpha: 0.8),
+                      onTap: () => _confirmLogout(context, ref),
+                    ),
+                  ]
+                : [
+                    // Admin/Manager Tab 1: Overview
+                    _buildMobileNavItem(
+                      icon: Icons.dashboard_rounded,
+                      label: 'Overview',
+                      isSelected: current == ScreenType.dashboard,
+                      accentColor: accentColor,
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        ref.read(navigationProvider.notifier).state = ScreenType.dashboard;
+                      },
+                    ),
+
+                    // Admin/Manager Tab 2: Stock
+                    _buildMobileNavItem(
+                      icon: Icons.inventory_2_rounded,
+                      label: 'Stock',
+                      isSelected: current == ScreenType.inventory,
+                      accentColor: accentColor,
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        ref.read(navigationProvider.notifier).state = ScreenType.inventory;
+                      },
+                    ),
+
+                    // Admin/Manager Center: Scanner
+                    _buildCenterScanButton(context, ref, accentColor),
+
+                    // Admin/Manager Tab 3: Reports
+                    _buildMobileNavItem(
+                      icon: Icons.assessment_rounded,
+                      label: 'Reports',
+                      isSelected: current == ScreenType.reports,
+                      accentColor: accentColor,
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        ref.read(navigationProvider.notifier).state = ScreenType.reports;
+                      },
+                    ),
+
+                    // Admin/Manager Tab 4: Settings
+                    _buildMobileNavItem(
+                      icon: Icons.settings_rounded,
+                      label: 'Settings',
+                      isSelected: current == ScreenType.settings,
+                      accentColor: accentColor,
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        ref.read(navigationProvider.notifier).state = ScreenType.settings;
+                      },
+                    ),
+                  ],
+          ),
         ),
       ],
+    );
+  }
+
+  Widget _buildMobileNavItem({
+    required IconData icon,
+    required String label,
+    required bool isSelected,
+    required Color accentColor,
+    Color? iconColor,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 22,
+              color: isSelected ? accentColor : (iconColor ?? Colors.white54),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              label,
+              style: GoogleFonts.inter(
+                fontSize: 10.5,
+                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
+                color: isSelected ? accentColor : Colors.white60,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCenterScanButton(BuildContext context, WidgetRef ref, Color accentColor) {
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.heavyImpact();
+        _handleGlobalScan(context, ref);
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: accentColor,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: accentColor.withValues(alpha: 0.4),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.qr_code_scanner_rounded, color: Colors.black, size: 20),
+            const SizedBox(width: 6),
+            Text(
+              'SCAN',
+              style: GoogleFonts.manrope(
+                fontSize: 12,
+                fontWeight: FontWeight.w900,
+                color: Colors.black,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleGlobalScan(BuildContext context, WidgetRef ref) async {
+    final scannedCode = await CameraBarcodeScannerModal.show(context);
+    if (scannedCode != null && scannedCode.isNotEmpty) {
+      ref.read(navigationProvider.notifier).state = ScreenType.sales;
+
+      final db = ref.read(databaseServiceProvider);
+      final product = await db.getProductBySku(scannedCode);
+
+      if (product != null) {
+        ref.read(cartProvider.notifier).addProduct(product);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle_rounded, color: Color(0xFFC1F11D), size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text('Added "${product.name}" to cart (K${product.price.toStringAsFixed(2)})'),
+                  ),
+                ],
+              ),
+              backgroundColor: const Color(0xFF1E1E24),
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      } else {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.warning_amber_rounded, color: Colors.orangeAccent, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text('No product found matching code "$scannedCode"'),
+                  ),
+                ],
+              ),
+              backgroundColor: const Color(0xFF1E1E24),
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  void _confirmLogout(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E24),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          'Sign Out Cashier?',
+          style: GoogleFonts.manrope(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+        ),
+        content: Text(
+          'Are you sure you want to end your session and log out?',
+          style: GoogleFonts.inter(fontSize: 13, color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              HapticFeedback.heavyImpact();
+              ref.read(authProvider.notifier).logout(ref);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Sign Out', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
     );
   }
 
@@ -155,7 +412,6 @@ class ShellScreen extends ConsumerWidget {
         _NavDestination(ScreenType.dashboard, Icons.dashboard_rounded, 'Overview'),
         _NavDestination(ScreenType.inventory, Icons.inventory_2_rounded, 'Stock'),
         _NavDestination(ScreenType.purchases, Icons.shopping_bag_rounded, 'Purchases'),
-        _NavDestination(ScreenType.accounts, Icons.account_balance_wallet_rounded, 'Accounts'),
         _NavDestination(ScreenType.branches, Icons.store_rounded, 'Branches'),
         _NavDestination(ScreenType.terminals, Icons.monitor_rounded, 'Terminals'),
         _NavDestination(ScreenType.reports, Icons.assessment_rounded, 'Reports'),
@@ -167,7 +423,6 @@ class ShellScreen extends ConsumerWidget {
         _NavDestination(ScreenType.dashboard, Icons.dashboard_rounded, 'Overview'),
         _NavDestination(ScreenType.inventory, Icons.inventory_2_rounded, 'Stock'),
         _NavDestination(ScreenType.purchases, Icons.shopping_bag_rounded, 'Purchases'),
-        _NavDestination(ScreenType.accounts, Icons.account_balance_wallet_rounded, 'Accounts'),
         _NavDestination(ScreenType.terminals, Icons.monitor_rounded, 'Terminals'),
         _NavDestination(ScreenType.reports, Icons.assessment_rounded, 'Reports'),
         _NavDestination(ScreenType.settings, Icons.settings_rounded, 'Settings'),
@@ -179,11 +434,6 @@ class ShellScreen extends ConsumerWidget {
         _NavDestination(ScreenType.settings, Icons.settings_rounded, 'Settings'),
       ];
     }
-  }
-
-  int _getSelectedIndex(ScreenType current, List<_NavDestination> list) {
-    final idx = list.indexWhere((e) => e.type == current);
-    return idx >= 0 ? idx : 0;
   }
 
   Widget _buildSidebar(
@@ -365,9 +615,10 @@ class ShellScreen extends ConsumerWidget {
 
   Widget _buildStatusBar(WidgetRef ref, {required bool isCompact}) {
     final user = ref.watch(authProvider);
+    final accentColor = ref.watch(accentColorProvider);
 
     return Container(
-      height: 54,
+      height: isCompact ? 48 : 54,
       padding: EdgeInsets.symmetric(horizontal: isCompact ? 12 : 20),
       decoration: BoxDecoration(
         color: const Color(0xFF111114),
@@ -403,14 +654,14 @@ class ShellScreen extends ConsumerWidget {
                     '${now.day}/${now.month}/${now.year}  ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}',
                     style: GoogleFonts.jetBrainsMono(
                       fontSize: 12,
-                      color: ref.watch(accentColorProvider).withValues(alpha: 0.7),
+                      color: accentColor.withValues(alpha: 0.7),
                     ),
                   ),
                 );
               },
             ),
           ],
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
           // Connection Status
           Consumer(
             builder: (context, ref, child) {
@@ -421,7 +672,7 @@ class ShellScreen extends ConsumerWidget {
                 return _buildStatusChip(
                   icon: Icons.lan_rounded,
                   label: isCompact ? 'SRV' : 'SERVER ACTIVE',
-                  color: ref.watch(accentColorProvider),
+                  color: accentColor,
                 );
               }
 
@@ -446,43 +697,54 @@ class ShellScreen extends ConsumerWidget {
             },
           ),
           const Spacer(),
-          // Tax reminder — shown when deadlines are within 14 days
-          const TaxReminderBanner(),
-          const SizedBox(width: 8),
+          if (!isCompact) ...[
+            // Tax reminder — shown when deadlines are within 14 days
+            const TaxReminderBanner(),
+            const SizedBox(width: 8),
+          ],
           // Staff
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: ref.watch(accentColorProvider).withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: ref.watch(accentColorProvider).withValues(alpha: 0.2)),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.person_outline_rounded, size: 14, color: ref.watch(accentColorProvider)),
-                const SizedBox(width: 8),
-                Text(
-                  (user?.name ?? 'STAFF').toUpperCase(),
-                  style: GoogleFonts.inter(
-                    fontSize: 11,
-                    letterSpacing: 0.5,
-                    fontWeight: FontWeight.w800,
-                    color: ref.watch(accentColorProvider),
+          Flexible(
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: isCompact ? 8 : 12, vertical: 5),
+              decoration: BoxDecoration(
+                color: accentColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: accentColor.withValues(alpha: 0.2)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.person_outline_rounded, size: 14, color: accentColor),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      (user?.name ?? 'STAFF').toUpperCase(),
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        letterSpacing: 0.5,
+                        fontWeight: FontWeight.w800,
+                        color: accentColor,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-          const SizedBox(width: 12),
-          // Logout
-          IconButton(
-            icon: const Icon(Icons.logout_rounded, color: Colors.redAccent, size: 20),
-            onPressed: () {
-              HapticFeedback.heavyImpact();
-              ref.read(authProvider.notifier).logout(ref);
-            },
-            tooltip: 'Sign Out',
-          ),
+          if (!isCompact) ...[
+            const SizedBox(width: 12),
+            // Logout
+            IconButton(
+              icon: const Icon(Icons.logout_rounded, color: Colors.redAccent, size: 20),
+              onPressed: () {
+                HapticFeedback.heavyImpact();
+                ref.read(authProvider.notifier).logout(ref);
+              },
+              tooltip: 'Sign Out',
+            ),
+          ],
         ],
       ),
     );
@@ -498,8 +760,6 @@ class ShellScreen extends ConsumerWidget {
         return const InventoryScreen();
       case ScreenType.purchases:
         return const PurchasesScreen();
-      case ScreenType.accounts:
-        return const AccountsScreen();
       case ScreenType.branches:
         return const BranchesScreen();
       case ScreenType.terminals:

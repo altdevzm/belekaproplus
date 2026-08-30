@@ -5,10 +5,11 @@ import 'package:flutter/foundation.dart';
 /// Turnover Tax (TOT) — ZRA Zambia
 ///
 /// ZRA TOT Rules:
-///  - Monthly turnover ≤ K2,500  → 0%
-///  - Monthly turnover > K2,500  → 5% of gross turnover
+///  - Monthly turnover ≤ K1,000 (K12,000/year exemption threshold) → 0% (NIL Return)
+///  - Monthly turnover > K1,000 → 5% of gross turnover
 ///  - Annual turnover > K5,000,000 → must switch to Income Tax
 ///  - Returns due by 14th of the following month
+///  - Input VAT on purchases cannot be deducted (forms part of inventory cost)
 ///  - Records must be kept for 6 years
 class TotService {
   final Dio _dio;

@@ -13,7 +13,7 @@ import 'package:beleka_pos/providers/auth_provider.dart';
 import 'package:beleka_pos/widgets/manager_auth_dialog.dart';
 import 'package:beleka_pos/screens/dashboard_screen.dart';
 import 'package:beleka_pos/screens/sales_screen.dart';
-import 'package:beleka_pos/screens/accounts_screen.dart';
+import 'package:beleka_pos/screens/terminals_screen.dart';
 import 'package:beleka_pos/screens/reports_screen.dart';
 
 class ReceiptDetailModal extends ConsumerStatefulWidget {

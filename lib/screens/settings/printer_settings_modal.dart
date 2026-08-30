@@ -204,7 +204,7 @@ class _PrinterSettingsModalState extends ConsumerState<PrinterSettingsModal> {
 
     return Dialog(
       backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       child: Container(
         width: 660,
         constraints: BoxConstraints(
@@ -212,7 +212,7 @@ class _PrinterSettingsModalState extends ConsumerState<PrinterSettingsModal> {
         ),
         decoration: BoxDecoration(
           color: const Color(0xFF141418),
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(20),
           border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
           boxShadow: [
             BoxShadow(
@@ -222,7 +222,7 @@ class _PrinterSettingsModalState extends ConsumerState<PrinterSettingsModal> {
             ),
           ],
         ),
-        padding: const EdgeInsets.fromLTRB(28, 24, 28, 20),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -230,41 +230,49 @@ class _PrinterSettingsModalState extends ConsumerState<PrinterSettingsModal> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFC1F11D).withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(10),
+                Expanded(
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFC1F11D).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(Icons.print_rounded, color: Color(0xFFC1F11D), size: 20),
                       ),
-                      child: const Icon(Icons.print_rounded, color: Color(0xFFC1F11D), size: 20),
-                    ),
-                    const SizedBox(width: 12),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'HARDWARE & PERIPHERALS',
-                          style: GoogleFonts.manrope(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 1.5,
-                            color: Colors.white,
-                          ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'HARDWARE & PERIPHERALS',
+                              style: GoogleFonts.manrope(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 1.2,
+                                color: Colors.white,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              'AUTO-LOAD PRINTER DRIVERS & SCANNERS',
+                              style: GoogleFonts.ibmPlexMono(
+                                fontSize: 8.5,
+                                fontWeight: FontWeight.bold,
+                                color: const Color(0xFFC1F11D),
+                                letterSpacing: 0.5,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
                         ),
-                        Text(
-                          'AUTO-LOAD PRINTER DRIVERS & BARCODE SCANNERS',
-                          style: GoogleFonts.ibmPlexMono(
-                            fontSize: 9,
-                            fontWeight: FontWeight.bold,
-                            color: const Color(0xFFC1F11D),
-                            letterSpacing: 1,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                      ),
+                    ],
+                  ),
                 ),
                 IconButton(
                   onPressed: () => Navigator.pop(context),
@@ -272,7 +280,7 @@ class _PrinterSettingsModalState extends ConsumerState<PrinterSettingsModal> {
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
             
             // Scrollable Settings Content
             Expanded(
@@ -285,29 +293,22 @@ class _PrinterSettingsModalState extends ConsumerState<PrinterSettingsModal> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Expanded(
-                              flex: 3,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'PRINTER DRIVER ENGINE',
-                                    style: GoogleFonts.ibmPlexMono(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white.withValues(alpha: 0.4), letterSpacing: 1),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Row(
-                                    children: [
-                                      _buildModelChip('ESC/POS', PrinterModel.generic),
-                                      const SizedBox(width: 8),
-                                      _buildModelChip('STAR', PrinterModel.star),
-                                      const SizedBox(width: 8),
-                                      _buildModelChip('CUPS / OS', PrinterModel.system),
-                                    ],
-                                  ),
-                                ],
-                              ),
+                            Text(
+                              'PRINTER DRIVER ENGINE',
+                              style: GoogleFonts.ibmPlexMono(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white.withValues(alpha: 0.4), letterSpacing: 1),
+                            ),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                _buildModelChip('ESC/POS', PrinterModel.generic),
+                                _buildModelChip('STAR', PrinterModel.star),
+                                _buildModelChip('CUPS / OS', PrinterModel.system),
+                              ],
                             ),
                           ],
                         ),
@@ -370,14 +371,14 @@ class _PrinterSettingsModalState extends ConsumerState<PrinterSettingsModal> {
                         style: GoogleFonts.ibmPlexMono(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white.withValues(alpha: 0.4), letterSpacing: 1),
                       ),
                       const SizedBox(height: 8),
-                      Row(
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
                           _buildTypeChip('USB / DIRECT', PrinterType.usb),
-                          const SizedBox(width: 8),
                           _buildTypeChip('NETWORK TCP/IP', PrinterType.network),
-                          const SizedBox(width: 8),
                           _buildTypeChip('BLUETOOTH', PrinterType.bluetooth),
-                          const Spacer(),
                           _buildRefreshButton(),
                         ],
                       ),
@@ -872,9 +873,13 @@ class _PrinterSettingsModalState extends ConsumerState<PrinterSettingsModal> {
                   children: [
                     const Icon(Icons.receipt_long_rounded, size: 18, color: Colors.black),
                     const SizedBox(width: 8),
-                    Text(
-                      'TEST PRINT THERMAL RECEIPT', 
-                      style: GoogleFonts.manrope(fontWeight: FontWeight.w900, letterSpacing: 1, color: Colors.black),
+                    Flexible(
+                      child: Text(
+                        'TEST PRINT THERMAL RECEIPT', 
+                        style: GoogleFonts.manrope(fontWeight: FontWeight.w900, fontSize: 11.5, letterSpacing: 0.8, color: Colors.black),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                   ],
                 ),

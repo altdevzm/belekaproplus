@@ -4004,4 +4004,604 @@ class ExportService {
     final monthStr = DateFormat('MMM_yyyy').format(now);
     await _saveFile(bytes, 'ZRA_Tax_Remittance_${tpin}_$monthStr.pdf', extensions: ['pdf']);
   }
+
+  // ==========================================================================
+  // --- TILL FINANCIAL & HANDOVER REPORT (PER TILL PDF) ---
+  // ==========================================================================
+
+  /// Generates a Per-Till Revenue & Float Handover Report (PDF / Print)
+  Future<void> exportTillReportToPdf({
+    required PosTerminal terminal,
+    CashShift? currentShift,
+    required List<SaleTransaction> todayTransactions,
+    StoreConfig? config,
+    bool printDirectly = false,
+  }) async {
+    final pdf = pw.Document();
+    final brandColor = _getBrandColor(config);
+    final logoImage = await _loadLogoImage(config);
+    final currency = config?.currencySymbol ?? 'K';
+    final now = DateTime.now();
+
+    // Calculations
+    double totalGrossSales = 0.0;
+    double cashSales = 0.0;
+    double airtelSales = 0.0;
+    double mtnSales = 0.0;
+    double cardBankSales = 0.0;
+    double otherSales = 0.0;
+    int transactionCount = 0;
+
+    for (final tx in todayTransactions) {
+      if (tx.status == 'refunded') continue;
+      final amount = tx.isCreditNote ? -tx.totalAmount : tx.totalAmount;
+      totalGrossSales += amount;
+      transactionCount++;
+
+      final method = tx.paymentMethod.toLowerCase();
+      if (method.contains('cash')) {
+        cashSales += amount;
+      } else if (method.contains('airtel')) {
+        airtelSales += amount;
+      } else if (method.contains('mtn')) {
+        mtnSales += amount;
+      } else if (method.contains('card') || method.contains('bank') || method.contains('visa')) {
+        cardBankSales += amount;
+      } else {
+        otherSales += amount;
+      }
+    }
+
+    final double openingFloat = currentShift?.openingCash ?? 0.0;
+    final double cashExpenses = currentShift?.cashExpenses ?? 0.0;
+    final double cashRefunds = currentShift?.cashRefunds ?? 0.0;
+    final double totalCashToHandIn = openingFloat + cashSales - cashExpenses - cashRefunds;
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(32),
+        build: (pw.Context context) {
+          return [
+            _buildDocumentHeader(
+              config,
+              title: 'TILL FINANCIAL & HANDOVER REPORT',
+              brandColor: brandColor,
+              logoImage: logoImage,
+            ),
+            pw.SizedBox(height: 14),
+
+            // Till & Shift Metadata Box
+            pw.Container(
+              padding: const pw.EdgeInsets.all(12),
+              decoration: pw.BoxDecoration(
+                color: PdfColors.grey100,
+                borderRadius: const pw.BorderRadius.all(pw.Radius.circular(6)),
+                border: pw.Border.all(color: PdfColors.grey300),
+              ),
+              child: pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text('TILL CODE: ${terminal.terminalCode}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11)),
+                      pw.Text('Till Name: ${terminal.name}', style: const pw.TextStyle(fontSize: 9.5)),
+                      pw.Text('Branch: ${terminal.branchName} (ZRA bhfId: ${terminal.digitaxBhfId})', style: const pw.TextStyle(fontSize: 9)),
+                      pw.Text('Assigned Cashier: ${currentShift?.cashierName ?? terminal.assignedCashierName ?? "Open Access Cashier"}', style: pw.TextStyle(fontSize: 9.5, fontWeight: pw.FontWeight.bold, color: brandColor)),
+                    ],
+                  ),
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.end,
+                    children: [
+                      pw.Text('Report Date: ${DateFormat('dd MMMM yyyy').format(now)}', style: pw.TextStyle(fontSize: 9.5, fontWeight: pw.FontWeight.bold)),
+                      pw.Text('Generated At: ${DateFormat('HH:mm:ss').format(now)}', style: const pw.TextStyle(fontSize: 8.5)),
+                      pw.Text('Shift Status: ${currentShift != null ? currentShift.status : "NO OPEN SHIFT"}', style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: currentShift?.status == 'OPEN' ? PdfColors.green700 : PdfColors.grey700)),
+                      if (currentShift != null)
+                        pw.Text('Shift #: ${currentShift.shiftNumber}', style: const pw.TextStyle(fontSize: 8.5)),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            pw.SizedBox(height: 16),
+
+            // Financial Summary Cards
+            pw.Row(
+              children: [
+                pw.Expanded(
+                  child: pw.Container(
+                    padding: const pw.EdgeInsets.all(10),
+                    decoration: pw.BoxDecoration(
+                      color: PdfColors.blue50,
+                      borderRadius: const pw.BorderRadius.all(pw.Radius.circular(6)),
+                      border: pw.Border.all(color: PdfColors.blue200),
+                    ),
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text('TOTAL TILL SALES TODAY', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800)),
+                        pw.SizedBox(height: 4),
+                        pw.Text('$currency ${totalGrossSales.toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
+                        pw.Text('$transactionCount Completed Transactions', style: const pw.TextStyle(fontSize: 7.5, color: PdfColors.grey700)),
+                      ],
+                    ),
+                  ),
+                ),
+                pw.SizedBox(width: 12),
+                pw.Expanded(
+                  child: pw.Container(
+                    padding: const pw.EdgeInsets.all(10),
+                    decoration: pw.BoxDecoration(
+                      color: PdfColors.amber50,
+                      borderRadius: const pw.BorderRadius.all(pw.Radius.circular(6)),
+                      border: pw.Border.all(color: PdfColors.amber200),
+                    ),
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text('OPENING CASH FLOAT', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: PdfColors.amber900)),
+                        pw.SizedBox(height: 4),
+                        pw.Text('$currency ${openingFloat.toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: PdfColors.amber900)),
+                        pw.Text('Issued Float at Start of Shift', style: const pw.TextStyle(fontSize: 7.5, color: PdfColors.grey700)),
+                      ],
+                    ),
+                  ),
+                ),
+                pw.SizedBox(width: 12),
+                pw.Expanded(
+                  child: pw.Container(
+                    padding: const pw.EdgeInsets.all(10),
+                    decoration: pw.BoxDecoration(
+                      color: PdfColors.green50,
+                      borderRadius: const pw.BorderRadius.all(pw.Radius.circular(6)),
+                      border: pw.Border.all(color: PdfColors.green300),
+                    ),
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text('TOTAL CASH TO HAND IN', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: PdfColors.green900)),
+                        pw.SizedBox(height: 4),
+                        pw.Text('$currency ${totalCashToHandIn.toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: PdfColors.green900)),
+                        pw.Text('Float + Cash Inflow (- Outflows)', style: const pw.TextStyle(fontSize: 7.5, color: PdfColors.grey700)),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            pw.SizedBox(height: 16),
+
+            // Cash Drawer Flow & Handover Breakdown
+            pw.Text('CASH DRAWER RECONCILIATION & HANDOVER AUDIT', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10, color: brandColor)),
+            pw.SizedBox(height: 6),
+            pw.Table(
+              border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
+              children: [
+                pw.TableRow(
+                  decoration: const pw.BoxDecoration(color: PdfColors.grey100),
+                  children: [
+                    pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('CASH ITEM / RECONCILIATION LINE', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8.5))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('TYPE', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8.5))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('AMOUNT ($currency)', textAlign: pw.TextAlign.right, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8.5))),
+                  ],
+                ),
+                pw.TableRow(
+                  children: [
+                    pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('Opening Till Float (Starting Balance)', style: const pw.TextStyle(fontSize: 8.5))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('Starting Base', style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('$currency ${openingFloat.toStringAsFixed(2)}', textAlign: pw.TextAlign.right, style: const pw.TextStyle(fontSize: 8.5))),
+                  ],
+                ),
+                pw.TableRow(
+                  children: [
+                    pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('Cash Sales Collected Today (+)', style: const pw.TextStyle(fontSize: 8.5))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('Inflow', style: const pw.TextStyle(fontSize: 8, color: PdfColors.green700))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('+$currency ${cashSales.toStringAsFixed(2)}', textAlign: pw.TextAlign.right, style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: PdfColors.green700))),
+                  ],
+                ),
+                if (cashExpenses > 0)
+                  pw.TableRow(
+                    children: [
+                      pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('Cash Paid Out / Expenses (-)', style: const pw.TextStyle(fontSize: 8.5))),
+                      pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('Outflow', style: const pw.TextStyle(fontSize: 8, color: PdfColors.red700))),
+                      pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('-$currency ${cashExpenses.toStringAsFixed(2)}', textAlign: pw.TextAlign.right, style: pw.TextStyle(fontSize: 8.5, color: PdfColors.red700))),
+                    ],
+                  ),
+                if (cashRefunds > 0)
+                  pw.TableRow(
+                    children: [
+                      pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('Customer Cash Refunds (-)', style: const pw.TextStyle(fontSize: 8.5))),
+                      pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('Outflow', style: const pw.TextStyle(fontSize: 8, color: PdfColors.red700))),
+                      pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('-$currency ${cashRefunds.toStringAsFixed(2)}', textAlign: pw.TextAlign.right, style: pw.TextStyle(fontSize: 8.5, color: PdfColors.red700))),
+                    ],
+                  ),
+                pw.TableRow(
+                  decoration: const pw.BoxDecoration(color: PdfColors.grey200),
+                  children: [
+                    pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('EXACT CASH TO HAND IN TO MANAGER', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('TOTAL DUE', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8.5))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('$currency ${totalCashToHandIn.toStringAsFixed(2)}', textAlign: pw.TextAlign.right, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9.5, color: PdfColors.green900))),
+                  ],
+                ),
+              ],
+            ),
+            pw.SizedBox(height: 16),
+
+            // Payment Methods Breakdown Table
+            pw.Text('ALL PAYMENT METHODS REVENUE BREAKDOWN', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10, color: brandColor)),
+            pw.SizedBox(height: 6),
+            pw.Table(
+              border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
+              children: [
+                pw.TableRow(
+                  decoration: const pw.BoxDecoration(color: PdfColors.grey100),
+                  children: [
+                    pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('PAYMENT METHOD', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8.5))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('CATEGORY', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8.5))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('TOTAL SALES ($currency)', textAlign: pw.TextAlign.right, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8.5))),
+                  ],
+                ),
+                pw.TableRow(
+                  children: [
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Cash Payment', style: const pw.TextStyle(fontSize: 8.5))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Cash in Drawer', style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('$currency ${cashSales.toStringAsFixed(2)}', textAlign: pw.TextAlign.right, style: const pw.TextStyle(fontSize: 8.5))),
+                  ],
+                ),
+                pw.TableRow(
+                  children: [
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Airtel Money', style: const pw.TextStyle(fontSize: 8.5))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Mobile Money Wallet', style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('$currency ${airtelSales.toStringAsFixed(2)}', textAlign: pw.TextAlign.right, style: const pw.TextStyle(fontSize: 8.5))),
+                  ],
+                ),
+                pw.TableRow(
+                  children: [
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('MTN MoMo', style: const pw.TextStyle(fontSize: 8.5))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Mobile Money Wallet', style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('$currency ${mtnSales.toStringAsFixed(2)}', textAlign: pw.TextAlign.right, style: const pw.TextStyle(fontSize: 8.5))),
+                  ],
+                ),
+                pw.TableRow(
+                  children: [
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Debit / Credit Card & Bank POS', style: const pw.TextStyle(fontSize: 8.5))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Direct Banking / Card POS', style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('$currency ${cardBankSales.toStringAsFixed(2)}', textAlign: pw.TextAlign.right, style: const pw.TextStyle(fontSize: 8.5))),
+                  ],
+                ),
+                if (otherSales > 0)
+                  pw.TableRow(
+                    children: [
+                      pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Other Tender Methods', style: const pw.TextStyle(fontSize: 8.5))),
+                      pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Miscellaneous', style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700))),
+                      pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('$currency ${otherSales.toStringAsFixed(2)}', textAlign: pw.TextAlign.right, style: const pw.TextStyle(fontSize: 8.5))),
+                    ],
+                  ),
+                pw.TableRow(
+                  decoration: const pw.BoxDecoration(color: PdfColors.grey200),
+                  children: [
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('TOTAL TILL REVENUE TODAY', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8.5))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('ALL METHODS', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8.5))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('$currency ${totalGrossSales.toStringAsFixed(2)}', textAlign: pw.TextAlign.right, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8.5))),
+                  ],
+                ),
+              ],
+            ),
+            pw.SizedBox(height: 24),
+
+            // Signatures Section
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Container(width: 180, height: 1, color: PdfColors.grey600),
+                    pw.SizedBox(height: 4),
+                    pw.Text('Cashier Handover Signature', style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold)),
+                    pw.Text('Name: ${currentShift?.cashierName ?? terminal.assignedCashierName ?? "Cashier"}', style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700)),
+                    pw.Text('Date: ________________________', style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700)),
+                  ],
+                ),
+                pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Container(width: 180, height: 1, color: PdfColors.grey600),
+                    pw.SizedBox(height: 4),
+                    pw.Text('Manager / Receiver Signature', style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold)),
+                    pw.Text('Verified Cash Float & Handover', style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700)),
+                    pw.Text('Date: ________________________', style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700)),
+                  ],
+                ),
+              ],
+            ),
+          ];
+        },
+      ),
+    );
+
+    if (printDirectly) {
+      await Printing.layoutPdf(
+        onLayout: (PdfPageFormat format) async => pdf.save(),
+        name: 'Till_Report_${terminal.terminalCode}_${DateFormat('ddMMyyyy').format(now)}.pdf',
+      );
+    } else {
+      final bytes = await pdf.save();
+      await _saveFile(bytes, 'Till_Report_${terminal.terminalCode}_${DateFormat('ddMMyyyy').format(now)}.pdf', extensions: ['pdf']);
+    }
+  }
+
+  // ==========================================================================
+  // --- DAILY BRANCH PERFORMANCE REPORT (HQ / OWNER PDF) ---
+  // ==========================================================================
+
+  /// Generates a Daily Branch Performance Report for Corporate Headquarters & Business Owner
+  Future<void> exportBranchDailyReportToPdf({
+    required StoreBranch branch,
+    required List<SaleTransaction> branchTodayTransactions,
+    required List<PosTerminal> branchTerminals,
+    StoreConfig? config,
+    bool printDirectly = false,
+  }) async {
+    final pdf = pw.Document();
+    final brandColor = _getBrandColor(config);
+    final logoImage = await _loadLogoImage(config);
+    final currency = config?.currencySymbol ?? 'K';
+    final now = DateTime.now();
+
+    double totalRevenue = 0.0;
+    double totalTax = 0.0;
+    double totalProfit = 0.0;
+    double cashSales = 0.0;
+    double momoSales = 0.0;
+    double cardSales = 0.0;
+    int transactionCount = 0;
+
+    for (final tx in branchTodayTransactions) {
+      if (tx.status == 'refunded') continue;
+      final factor = tx.isCreditNote ? -1.0 : 1.0;
+      final amt = (tx.totalAmount.isNaN ? 0.0 : tx.totalAmount) * factor;
+      totalRevenue += amt;
+      totalTax += (tx.taxAmount.isNaN ? 0.0 : tx.taxAmount) * factor;
+      totalProfit += (tx.grossProfit.isNaN ? 0.0 : tx.grossProfit) * factor;
+      transactionCount++;
+
+      final method = tx.paymentMethod.toLowerCase();
+      if (method.contains('cash')) {
+        cashSales += amt;
+      } else if (method.contains('airtel') || method.contains('mtn') || method.contains('momo') || method.contains('money')) {
+        momoSales += amt;
+      } else {
+        cardSales += amt;
+      }
+    }
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(32),
+        build: (pw.Context context) {
+          return [
+            _buildDocumentHeader(
+              config,
+              title: 'DAILY BRANCH PERFORMANCE REPORT',
+              brandColor: brandColor,
+              logoImage: logoImage,
+            ),
+            pw.SizedBox(height: 14),
+
+            // Branch Details Box
+            pw.Container(
+              padding: const pw.EdgeInsets.all(12),
+              decoration: pw.BoxDecoration(
+                color: PdfColors.grey100,
+                borderRadius: const pw.BorderRadius.all(pw.Radius.circular(6)),
+                border: pw.Border.all(color: PdfColors.grey300),
+              ),
+              child: pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text('STORE BRANCH: ${branch.name.toUpperCase()}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11)),
+                      pw.Text('Branch Code: ${branch.code} • ZRA bhfId: ${branch.bhfId}', style: const pw.TextStyle(fontSize: 9.5)),
+                      pw.Text('Manager: ${branch.managerName ?? "Unassigned"} ${branch.managerPhone != null ? "(${branch.managerPhone})" : ""}', style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: brandColor)),
+                      pw.Text('Physical Location: ${branch.address ?? "Location not specified"}', style: const pw.TextStyle(fontSize: 8.5, color: PdfColors.grey700)),
+                    ],
+                  ),
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.end,
+                    children: [
+                      pw.Text('Date: ${DateFormat('dd MMMM yyyy').format(now)}', style: pw.TextStyle(fontSize: 9.5, fontWeight: pw.FontWeight.bold)),
+                      pw.Text('Reporting Entity: Corporate HQ', style: const pw.TextStyle(fontSize: 8.5)),
+                      pw.Text('Status: ${branch.status} • Fiscal: ${branch.zraStatus}', style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: PdfColors.green800)),
+                      pw.Text('${branchTerminals.length} Configured Till Registers', style: const pw.TextStyle(fontSize: 8.5, color: PdfColors.grey700)),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            pw.SizedBox(height: 16),
+
+            // KPI Grid
+            pw.Row(
+              children: [
+                pw.Expanded(
+                  child: pw.Container(
+                    padding: const pw.EdgeInsets.all(10),
+                    decoration: pw.BoxDecoration(
+                      color: PdfColors.green50,
+                      borderRadius: const pw.BorderRadius.all(pw.Radius.circular(6)),
+                      border: pw.Border.all(color: PdfColors.green300),
+                    ),
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text('TOTAL BRANCH SALES TODAY', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: PdfColors.green900)),
+                        pw.SizedBox(height: 4),
+                        pw.Text('$currency ${totalRevenue.toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: PdfColors.green900)),
+                        pw.Text('$transactionCount Transactions', style: const pw.TextStyle(fontSize: 7.5, color: PdfColors.grey700)),
+                      ],
+                    ),
+                  ),
+                ),
+                pw.SizedBox(width: 10),
+                pw.Expanded(
+                  child: pw.Container(
+                    padding: const pw.EdgeInsets.all(10),
+                    decoration: pw.BoxDecoration(
+                      color: PdfColors.purple50,
+                      borderRadius: const pw.BorderRadius.all(pw.Radius.circular(6)),
+                      border: pw.Border.all(color: PdfColors.purple200),
+                    ),
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text('ESTIMATED GROSS PROFIT', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: PdfColors.purple900)),
+                        pw.SizedBox(height: 4),
+                        pw.Text('$currency ${totalProfit.toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: PdfColors.purple900)),
+                        pw.Text('Revenue minus costs', style: const pw.TextStyle(fontSize: 7.5, color: PdfColors.grey700)),
+                      ],
+                    ),
+                  ),
+                ),
+                pw.SizedBox(width: 10),
+                pw.Expanded(
+                  child: pw.Container(
+                    padding: const pw.EdgeInsets.all(10),
+                    decoration: pw.BoxDecoration(
+                      color: PdfColors.blue50,
+                      borderRadius: const pw.BorderRadius.all(pw.Radius.circular(6)),
+                      border: pw.Border.all(color: PdfColors.blue200),
+                    ),
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text('TAX / VAT COLLECTED', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
+                        pw.SizedBox(height: 4),
+                        pw.Text('$currency ${totalTax.toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
+                        pw.Text('ZRA Smart Invoice Tax', style: const pw.TextStyle(fontSize: 7.5, color: PdfColors.grey700)),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            pw.SizedBox(height: 16),
+
+            // Tills Performance Table for this Branch
+            pw.Text('BRANCH TILL REGISTERS PERFORMANCE', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10, color: brandColor)),
+            pw.SizedBox(height: 6),
+            pw.Table(
+              border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
+              children: [
+                pw.TableRow(
+                  decoration: const pw.BoxDecoration(color: PdfColors.grey100),
+                  children: [
+                    pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('TILL REGISTER', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8.5))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('ASSIGNED CASHIER', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8.5))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('STATUS', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8.5))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('SALES TODAY ($currency)', textAlign: pw.TextAlign.right, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8.5))),
+                  ],
+                ),
+                if (branchTerminals.isEmpty)
+                  pw.TableRow(
+                    children: [
+                      pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('Default Checkout Counter', style: const pw.TextStyle(fontSize: 8.5))),
+                      pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('Branch Cashiers', style: const pw.TextStyle(fontSize: 8.5))),
+                      pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('ACTIVE', style: const pw.TextStyle(fontSize: 8.5, color: PdfColors.green700))),
+                      pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('$currency ${totalRevenue.toStringAsFixed(2)}', textAlign: pw.TextAlign.right, style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold))),
+                    ],
+                  )
+                else
+                  ...branchTerminals.map((t) => pw.TableRow(
+                    children: [
+                      pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('${t.terminalCode} - ${t.name}', style: const pw.TextStyle(fontSize: 8.5))),
+                      pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text(t.assignedCashierName ?? "Unassigned", style: const pw.TextStyle(fontSize: 8.5))),
+                      pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text(t.status, style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: t.status == 'ACTIVE' ? PdfColors.green700 : PdfColors.grey700))),
+                      pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('$currency ${t.salesToday.toStringAsFixed(2)}', textAlign: pw.TextAlign.right, style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold))),
+                    ],
+                  )),
+              ],
+            ),
+            pw.SizedBox(height: 16),
+
+            // Payment Methods Summary
+            pw.Text('PAYMENT TENDER METHODS AT BRANCH', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10, color: brandColor)),
+            pw.SizedBox(height: 6),
+            pw.Table(
+              border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
+              children: [
+                pw.TableRow(
+                  decoration: const pw.BoxDecoration(color: PdfColors.grey100),
+                  children: [
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('METHOD', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8.5))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('TOTAL AMOUNT ($currency)', textAlign: pw.TextAlign.right, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8.5))),
+                  ],
+                ),
+                pw.TableRow(
+                  children: [
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Cash', style: const pw.TextStyle(fontSize: 8.5))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('$currency ${cashSales.toStringAsFixed(2)}', textAlign: pw.TextAlign.right, style: const pw.TextStyle(fontSize: 8.5))),
+                  ],
+                ),
+                pw.TableRow(
+                  children: [
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Mobile Money (Airtel / MTN)', style: const pw.TextStyle(fontSize: 8.5))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('$currency ${momoSales.toStringAsFixed(2)}', textAlign: pw.TextAlign.right, style: const pw.TextStyle(fontSize: 8.5))),
+                  ],
+                ),
+                pw.TableRow(
+                  children: [
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Card & Bank Transfers', style: const pw.TextStyle(fontSize: 8.5))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('$currency ${cardSales.toStringAsFixed(2)}', textAlign: pw.TextAlign.right, style: const pw.TextStyle(fontSize: 8.5))),
+                  ],
+                ),
+              ],
+            ),
+            pw.SizedBox(height: 24),
+
+            // Signatures
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Container(width: 180, height: 1, color: PdfColors.grey600),
+                    pw.SizedBox(height: 4),
+                    pw.Text('Branch Manager Sign-off', style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold)),
+                    pw.Text('Manager: ${branch.managerName ?? "Branch Manager"}', style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700)),
+                    pw.Text('Date: ________________________', style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700)),
+                  ],
+                ),
+                pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Container(width: 180, height: 1, color: PdfColors.grey600),
+                    pw.SizedBox(height: 4),
+                    pw.Text('Corporate HQ / Owner Acceptance', style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold)),
+                    pw.Text('Headquarters Audit & Approval', style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700)),
+                    pw.Text('Date: ________________________', style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700)),
+                  ],
+                ),
+              ],
+            ),
+          ];
+        },
+      ),
+    );
+
+    if (printDirectly) {
+      await Printing.layoutPdf(
+        onLayout: (PdfPageFormat format) async => pdf.save(),
+        name: 'Branch_Daily_${branch.code}_${DateFormat('ddMMyyyy').format(now)}.pdf',
+      );
+    } else {
+      final bytes = await pdf.save();
+      await _saveFile(bytes, 'Branch_Daily_${branch.code}_${DateFormat('ddMMyyyy').format(now)}.pdf', extensions: ['pdf']);
+    }
+  }
 }

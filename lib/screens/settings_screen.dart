@@ -14,8 +14,6 @@ import 'package:beleka_pos/widgets/zra_tax_config_modal.dart';
 import 'package:beleka_pos/screens/settings/scale_settings_modal.dart';
 import 'package:beleka_pos/providers/auth_provider.dart';
 
-import 'package:beleka_pos/core/core.dart';
-
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
@@ -56,24 +54,13 @@ class SettingsScreen extends ConsumerWidget {
           Expanded(
             child: LayoutBuilder(
               builder: (context, constraints) {
-                final sc = getScreenClass(constraints.maxWidth);
-                final cols = switch (sc) {
-                  ScreenClass.compact || ScreenClass.mobile => 1,
-                  ScreenClass.tablet => 2,
-                  ScreenClass.desktop => 3,
-                  ScreenClass.ultraWide => 4,
-                };
-                final ratio = switch (sc) {
-                  ScreenClass.compact || ScreenClass.mobile => 2.2,
-                  ScreenClass.tablet => 1.5,
-                  _ => 1.3,
-                };
-
-                return GridView.count(
-                  crossAxisCount: cols,
-                  mainAxisSpacing: 14,
-                  crossAxisSpacing: 14,
-                  childAspectRatio: ratio,
+                return GridView(
+                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                    maxCrossAxisExtent: 380,
+                    mainAxisExtent: 200,
+                    mainAxisSpacing: 14,
+                    crossAxisSpacing: 14,
+                  ),
                   children: [
                     // Printers & Hardware (Accessible to Cashiers & Managers)
                     _buildSettingsCard(
@@ -162,10 +149,10 @@ class SettingsScreen extends ConsumerWidget {
                       ),
                       _buildSettingsCard(
                         context,
-                        'Loyalty Programs',
-                        'Setup customer rewards and discount points',
-                        Icons.card_giftcard_rounded,
-                        Colors.amber,
+                        'Loyalty & Rewards',
+                        'Setup customer points, tiers and discounts',
+                        Icons.loyalty_rounded,
+                        const Color(0xFFFFC078),
                         onPressed: () => showDialog(
                           context: context,
                           builder: (context) => const LoyaltySettingsModal(),
@@ -173,10 +160,10 @@ class SettingsScreen extends ConsumerWidget {
                       ),
                       _buildSettingsCard(
                         context,
-                        'Backup & Security',
-                        'Configure automated database backups and storage',
-                        Icons.security_rounded,
-                        Colors.orangeAccent,
+                        'Backup & Reset',
+                        'Export database snapshots and manage recovery',
+                        Icons.backup_rounded,
+                        const Color(0xFF4ADE80),
                         onPressed: () => showDialog(
                           context: context,
                           builder: (context) => const BackupSettingsModal(),
@@ -196,7 +183,7 @@ class SettingsScreen extends ConsumerWidget {
                       ),
                       _buildSettingsCard(
                         context,
-                        'Network & Multi-Till Sync',
+                        'Master Hub & Multi-POS Sync',
                         'Configure Master Server IP, Cashier Client Tills & Live LAN Sync',
                         Icons.hub_rounded,
                         const Color(0xFF6366F1),
@@ -226,7 +213,7 @@ class SettingsScreen extends ConsumerWidget {
     String buttonLabel = 'Configure',
   }) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: const Color(0xFF1A1A1E),
         borderRadius: BorderRadius.circular(12),
@@ -236,18 +223,18 @@ class SettingsScreen extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: const EdgeInsets.all(10),
+            padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
               color: accent.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(icon, color: accent, size: 22),
+            child: Icon(icon, color: accent, size: 20),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
           Text(
             title,
             style: GoogleFonts.inter(
-              fontSize: 15,
+              fontSize: 14,
               fontWeight: FontWeight.w700,
               color: Colors.white,
             ),
@@ -256,9 +243,9 @@ class SettingsScreen extends ConsumerWidget {
           Text(
             description,
             style: GoogleFonts.inter(
-              fontSize: 12,
-              color: Colors.white.withValues(alpha: 0.35),
-              height: 1.4,
+              fontSize: 11.5,
+              color: Colors.white.withValues(alpha: 0.4),
+              height: 1.3,
             ),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
@@ -271,7 +258,7 @@ class SettingsScreen extends ConsumerWidget {
               style: ElevatedButton.styleFrom(
                 backgroundColor: accent,
                 foregroundColor: const Color(0xFF1A1A1E),
-                minimumSize: const Size(double.infinity, 42),
+                minimumSize: const Size(double.infinity, 38),
                 padding: EdgeInsets.zero,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 elevation: 0,

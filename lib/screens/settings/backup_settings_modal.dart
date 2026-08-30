@@ -89,41 +89,49 @@ class _BackupSettingsModalState extends ConsumerState<BackupSettingsModal> {
 
     return Dialog(
       backgroundColor: const Color(0xFF111114),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Container(
         width: 500,
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.9,
+        ),
+        padding: const EdgeInsets.all(16),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.security_rounded, color: Colors.orange, size: 20),
                   ),
-                  child: const Icon(Icons.security_rounded, color: Colors.orange, size: 20),
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  'Backup & Security',
-                  style: GoogleFonts.inter(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Backup & Security',
+                      style: GoogleFonts.inter(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                ),
-                const Spacer(),
-                IconButton(
-                  onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.close, color: Colors.white24),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close, color: Colors.white24, size: 20),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
             
             // Backup Path Section
             Text(
@@ -234,6 +242,7 @@ class _BackupSettingsModalState extends ConsumerState<BackupSettingsModal> {
               ),
             ),
           ],
+        ),
         ),
       ),
     );

@@ -287,7 +287,11 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
                                       icon: const Icon(Icons.more_vert_rounded, size: 18, color: Colors.white54),
                                       padding: EdgeInsets.zero,
                                       onSelected: (val) async {
-                                        if (val == 'edit') {
+                                        if (val == 'daily_report_pdf') {
+                                          _generateBranchDailyReport(context, b, printDirectly: false);
+                                        } else if (val == 'daily_report_print') {
+                                          _generateBranchDailyReport(context, b, printDirectly: true);
+                                        } else if (val == 'edit') {
                                           _showAddEditBranchDialog(context, accentColor, users, branch: b);
                                         } else if (val == 'toggle_status') {
                                           final isar = ref.read(isarProvider);
@@ -301,6 +305,27 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
                                         }
                                       },
                                       itemBuilder: (context) => [
+                                        const PopupMenuItem(
+                                          value: 'daily_report_pdf',
+                                          child: Row(
+                                            children: [
+                                              Icon(Icons.picture_as_pdf_rounded, color: Colors.redAccent, size: 16),
+                                              SizedBox(width: 8),
+                                              Text('Daily Branch Report (PDF)'),
+                                            ],
+                                          ),
+                                        ),
+                                        const PopupMenuItem(
+                                          value: 'daily_report_print',
+                                          child: Row(
+                                            children: [
+                                              Icon(Icons.print_rounded, color: Colors.greenAccent, size: 16),
+                                              SizedBox(width: 8),
+                                              Text('Print Daily Report'),
+                                            ],
+                                          ),
+                                        ),
+                                        const PopupMenuDivider(),
                                         const PopupMenuItem(
                                           value: 'edit',
                                           child: Row(children: [Icon(Icons.edit_rounded, size: 16), SizedBox(width: 8), Text('Edit Branch')]),
@@ -371,11 +396,20 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
                                     Text('$currency ${b.salesToday.toStringAsFixed(2)}', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold, color: accentColor)),
                                   ],
                                 ),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                Row(
                                   children: [
-                                    Text('ZRA SDC ID', style: GoogleFonts.inter(fontSize: 10, color: Colors.white38)),
-                                    Text(b.sdcId ?? 'SDC-ZM-AUTO', style: GoogleFonts.inter(fontSize: 11, color: Colors.white70)),
+                                    IconButton(
+                                      onPressed: () => _generateBranchDailyReport(context, b, printDirectly: false),
+                                      icon: const Icon(Icons.picture_as_pdf_rounded, size: 16, color: Colors.redAccent),
+                                      tooltip: 'Generate Daily Report (PDF)',
+                                      splashRadius: 18,
+                                    ),
+                                    IconButton(
+                                      onPressed: () => _generateBranchDailyReport(context, b, printDirectly: true),
+                                      icon: const Icon(Icons.print_rounded, size: 16, color: Colors.white70),
+                                      tooltip: 'Print Daily Report',
+                                      splashRadius: 18,
+                                    ),
                                   ],
                                 ),
                               ],
@@ -389,6 +423,43 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _generateBranchDailyReport(BuildContext context, StoreBranch branch, {required bool printDirectly}) async {
+    final db = ref.read(databaseServiceProvider);
+    final export = ref.read(exportServiceProvider);
+    final config = ref.read(storeConfigProvider).value;
+
+    final branchTransactions = await db.getTodayTransactionsForBranch(
+      branch.code,
+      branchBhfId: branch.bhfId,
+      branchName: branch.name,
+    );
+
+    final allTerminals = ref.read(posTerminalsProvider).value ?? [];
+    final branchTerminals = allTerminals.where((t) =>
+      t.branchCode == branch.code ||
+      t.digitaxBhfId == branch.bhfId ||
+      t.branchCode == branch.bhfId ||
+      t.branchName.trim().toUpperCase() == branch.name.trim().toUpperCase()
+    ).toList();
+
+    await export.exportBranchDailyReportToPdf(
+      branch: branch,
+      branchTodayTransactions: branchTransactions,
+      branchTerminals: branchTerminals,
+      config: config,
+      printDirectly: printDirectly,
+    );
+
+    if (context.mounted && !printDirectly) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Daily Performance Report for ${branch.name} exported to PDF!'),
+          backgroundColor: const Color(0xFF10B981),
+        ),
+      );
+    }
   }
 
   Future<void> _deleteBranch(BuildContext context, StoreBranch branch) async {
@@ -431,7 +502,7 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
   }) {
     final isEditing = branch != null;
     final nameCtrl = TextEditingController(text: branch?.name ?? '');
-    final bhfIdCtrl = TextEditingController(text: branch?.bhfId ?? '0${(ref.read(storeBranchesProvider).value?.length ?? 0) + 1}');
+    final bhfIdCtrl = TextEditingController(text: branch?.bhfId ?? '${(ref.read(storeBranchesProvider).value?.length ?? 0) + 1}'.padLeft(2, '0'));
     final addressCtrl = TextEditingController(text: branch?.address ?? '');
     final phoneCtrl = TextEditingController(text: branch?.phone ?? '');
     final emailCtrl = TextEditingController(text: branch?.email ?? '');
@@ -803,10 +874,11 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
 
                             // Save or Update Branch
                             final targetBranch = branch ?? StoreBranch();
+                            final formattedBhfId = bhfId.padLeft(2, '0');
                             await isar.writeTxn(() async {
-                              targetBranch.code = 'BR-00$bhfId';
+                              targetBranch.code = 'BR-$formattedBhfId';
                               targetBranch.name = branchName;
-                              targetBranch.bhfId = bhfId;
+                              targetBranch.bhfId = formattedBhfId;
                               targetBranch.address = addressCtrl.text.trim();
                               targetBranch.phone = phoneCtrl.text.trim();
                               targetBranch.email = emailCtrl.text.trim();

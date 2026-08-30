@@ -22,7 +22,7 @@ router = APIRouter(prefix="/api/v1/tax-statement", tags=["ZRA Tax Statement"])
 # ── ZRA Constants ──────────────────────────────────────────────────────────────
 VAT_RATE = 16.0          # %
 TOT_RATE = 5.0           # %
-TOT_THRESHOLD = 2500.00  # monthly
+TOT_THRESHOLD = 1000.00  # monthly (K12,000 annual exemption limit)
 SDL_RATE = 0.005         # 0.5% of gross payroll
 WHT_RATE = 0.15          # 15% on eligible service/rental payments
 

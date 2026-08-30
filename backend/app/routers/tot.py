@@ -19,13 +19,13 @@ logger = logging.getLogger("tot_zra")
 router = APIRouter(prefix="/api/v1/tot", tags=["Turnover Tax (TOT)"])
 
 # ZRA TOT constants
-TOT_MONTHLY_THRESHOLD = 2500.00
+TOT_MONTHLY_THRESHOLD = 1000.00  # K1,000/month (K12,000 annual exemption limit)
 TOT_RATE_PERCENT = 5.0
 ANNUAL_REGISTRATION_LIMIT = 5_000_000.00
 
 
 def _compute_tot(gross_turnover: float) -> tuple:
-    """Returns (rate_percent, amount). 0% if <=K2,500/month, else 5%."""
+    """Returns (rate_percent, amount). 0% if <=K1,000/month (K12,000/year), else 5%."""
     if gross_turnover <= TOT_MONTHLY_THRESHOLD:
         return 0.0, 0.0
     return TOT_RATE_PERCENT, round(gross_turnover * (TOT_RATE_PERCENT / 100.0), 2)

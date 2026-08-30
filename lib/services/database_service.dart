@@ -171,7 +171,11 @@ class DatabaseService {
   }
 
   Future<Product?> getProductBySku(String sku) async {
-    return await isar.products.filter().isArchivedEqualTo(false).skuEqualTo(sku).findFirst();
+    return await isar.products
+        .filter()
+        .isArchivedEqualTo(false)
+        .skuEqualTo(sku, caseSensitive: false)
+        .findFirst();
   }
 
   Future<List<Product>> searchProducts(String query, {bool includeArchived = false}) async {
@@ -381,6 +385,48 @@ class DatabaseService {
         if (bankAccount != null) {
           bankAccount.balance += transaction.totalAmount;
           await isar.paymentAccounts.put(bankAccount);
+        }
+      }
+
+      // 7. Update PosTerminal and StoreBranch salesToday & live activity
+      final tName = transaction.terminalName;
+      PosTerminal? matchedTerminal;
+      if (tName != null && tName.isNotEmpty) {
+        matchedTerminal = await isar.posTerminals
+            .filter()
+            .terminalCodeEqualTo(tName, caseSensitive: false)
+            .or()
+            .nameEqualTo(tName, caseSensitive: false)
+            .findFirst();
+      }
+      if (matchedTerminal == null && transaction.cashierId != null) {
+        matchedTerminal = await isar.posTerminals
+            .filter()
+            .assignedCashierIdEqualTo(transaction.cashierId)
+            .findFirst();
+      }
+      if (matchedTerminal != null) {
+        matchedTerminal.salesToday += transaction.totalAmount;
+        matchedTerminal.lastActive = DateTime.now();
+        await isar.posTerminals.put(matchedTerminal);
+
+        final bCode = matchedTerminal.branchCode;
+        final matchedBranch = await isar.storeBranchs
+            .filter()
+            .codeEqualTo(bCode, caseSensitive: false)
+            .or()
+            .bhfIdEqualTo(bCode)
+            .findFirst();
+        if (matchedBranch != null) {
+          matchedBranch.salesToday += transaction.totalAmount;
+          await isar.storeBranchs.put(matchedBranch);
+        }
+      } else {
+        // Default to HQ branch if no specific terminal matched
+        final hqBranch = await isar.storeBranchs.filter().bhfIdEqualTo('00').or().isHQEqualTo(true).findFirst();
+        if (hqBranch != null) {
+          hqBranch.salesToday += transaction.totalAmount;
+          await isar.storeBranchs.put(hqBranch);
         }
       }
     });
@@ -628,6 +674,109 @@ class DatabaseService {
     await for (final _ in isar.saleTransactions.watchLazy()) {
       yield await getDashboardStats();
     }
+  }
+
+  Future<List<SaleTransaction>> getTodayTransactionsForTerminal(String terminalCode, {String? terminalName, String? cashierId}) async {
+    final now = DateTime.now();
+    final startOfToday = DateTime(now.year, now.month, now.day);
+    final endOfToday = startOfToday.add(const Duration(days: 1));
+
+    final todaySales = await isar.saleTransactions
+        .filter()
+        .timestampBetween(startOfToday, endOfToday)
+        .findAll();
+
+    final codeUpper = terminalCode.trim().toUpperCase();
+    final nameUpper = terminalName?.trim().toUpperCase();
+
+    final results = <SaleTransaction>[];
+    for (final t in todaySales) {
+      final tTerm = t.terminalName?.trim().toUpperCase();
+      bool matched = false;
+
+      if (tTerm != null && tTerm.isNotEmpty) {
+        if (tTerm == codeUpper || tTerm == nameUpper || tTerm.contains(codeUpper)) {
+          matched = true;
+        }
+      }
+      if (!matched && cashierId != null && cashierId.isNotEmpty && t.cashierId == cashierId) {
+        matched = true;
+      }
+      if (matched) {
+        await t.items.load();
+        results.add(t);
+      }
+    }
+    return results;
+  }
+
+  Future<double> getTodaySalesForTerminal(String terminalCode, {String? terminalName, String? cashierId}) async {
+    final transactions = await getTodayTransactionsForTerminal(terminalCode, terminalName: terminalName, cashierId: cashierId);
+    return transactions.fold<double>(0.0, (double sum, SaleTransaction t) {
+      if (t.totalAmount.isNaN) return sum;
+      if (t.status == 'refunded') return sum;
+      if (t.isCreditNote) return sum - t.totalAmount;
+      return sum + t.totalAmount;
+    });
+  }
+
+  Future<List<SaleTransaction>> getTodayTransactionsForBranch(String branchCode, {String? branchBhfId, String? branchName}) async {
+    final now = DateTime.now();
+    final startOfToday = DateTime(now.year, now.month, now.day);
+    final endOfToday = startOfToday.add(const Duration(days: 1));
+
+    final todaySales = await isar.saleTransactions
+        .filter()
+        .timestampBetween(startOfToday, endOfToday)
+        .findAll();
+
+    final branchTerminals = await isar.posTerminals
+        .filter()
+        .branchCodeEqualTo(branchCode, caseSensitive: false)
+        .or()
+        .digitaxBhfIdEqualTo(branchBhfId ?? branchCode)
+        .findAll();
+
+    final terminalIdentifiers = branchTerminals
+        .expand((t) => [t.terminalCode.trim().toUpperCase(), t.name.trim().toUpperCase()])
+        .where((s) => s.isNotEmpty)
+        .toSet();
+
+    final bNameUpper = branchName?.trim().toUpperCase();
+    final results = <SaleTransaction>[];
+
+    for (final t in todaySales) {
+      final tTerm = t.terminalName?.trim().toUpperCase();
+      bool matched = false;
+
+      if (tTerm != null && tTerm.isNotEmpty) {
+        if (terminalIdentifiers.any((id) => tTerm == id || tTerm.contains(id))) {
+          matched = true;
+        } else if (bNameUpper != null && bNameUpper.isNotEmpty && tTerm.contains(bNameUpper)) {
+          matched = true;
+        }
+      }
+      // If HQ / default single branch and no other terminals are registered
+      if (!matched && (branchCode == '00' || branchBhfId == '00') && branchTerminals.isEmpty) {
+        matched = true;
+      }
+
+      if (matched) {
+        await t.items.load();
+        results.add(t);
+      }
+    }
+    return results;
+  }
+
+  Future<double> getTodaySalesForBranch(String branchCode, {String? branchBhfId, String? branchName}) async {
+    final transactions = await getTodayTransactionsForBranch(branchCode, branchBhfId: branchBhfId, branchName: branchName);
+    return transactions.fold<double>(0.0, (double sum, SaleTransaction t) {
+      if (t.totalAmount.isNaN) return sum;
+      if (t.status == 'refunded') return sum;
+      if (t.isCreditNote) return sum - t.totalAmount;
+      return sum + t.totalAmount;
+    });
   }
 
   Future<Map<String, double>> getCashierDashboardStats(String cashierName) async {
