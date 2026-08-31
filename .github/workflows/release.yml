@@ -2,8 +2,6 @@ name: Release Beleka POS (Windows & Android)
 
 on:
   push:
-    branches:
-      - main
     tags:
       - 'v*.*.*'
       - 'v*.*'
@@ -12,9 +10,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version (e.g. 2.0.1)'
+        description: 'Release version (e.g. 2.0.7)'
         required: true
-        default: '2.0.1'
+        default: '2.0.7'
 
 permissions:
   contents: write
@@ -34,16 +32,12 @@ jobs:
       - name: Resolve version & tag
         id: meta
         run: |
-          if [[ "${{ github.ref_name }}" == "main" ]]; then
-            VER="2.0.1"
-            TAG="v2.0.1"
-
-          elif [[ "${{ github.event_name }}" == "push" ]]; then
-            TAG="${{ github.ref_name }}"
-            VER="${TAG#v}"
-          else
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             VER="${{ inputs.version }}"
             TAG="v${VER}"
+          else
+            TAG="${{ github.ref_name }}"
+            VER="${TAG#v}"
           fi
           echo "version=$VER" >> $GITHUB_OUTPUT
           echo "tag=$TAG"     >> $GITHUB_OUTPUT
