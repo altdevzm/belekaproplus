@@ -3118,6 +3118,15 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
 
       await db.saveTransaction(transaction, saleItems);
       
+      // Clear cart & reset payment state immediately so sale is marked done and cart is ready for next sale
+      cartNotifier.clear();
+      if (mounted) {
+        setState(() {
+          _tenderedAmount = 0;
+          _selectedPaymentMethod = '';
+        });
+      }
+
       // Fiscalize with DigiTax VSDC Cloud (Live ZRA Smart Invoice & Server-Side Tax Calculations)
       final hasDigitax = config?.digitaxApiKey != null && config!.digitaxApiKey!.trim().isNotEmpty;
       final fiscalized = await ref.read(digitaxInventoryServiceProvider).fiscalizeSaleTransaction(transaction, saleItems);
@@ -3139,12 +3148,28 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       }
 
       // Option A: Print receipt immediately so customer always leaves with proof of purchase.
-      // If online/fiscalized -> prints Tax Invoice with live ZRA QR code.
-      // If offline/pending -> prints Customer Sales Slip and syncs fiscal data in the background.
+      // Handled inside try-catch so printer hardware disconnection (e.g. Bluetooth error) does not abort completed sale flow
+      bool printSuccess = true;
+      String? printErrorMessage;
       if (config?.autoPrintReceipt != false) {
-        await printer.printReceipt(transaction, saleItems, config: config);
-        if (hasDigitax && !fiscalized) {
-          _scheduleDigitaxFiscalRefreshAndPrint(transaction, saleItems);
+        try {
+          await printer.printReceipt(transaction, saleItems, config: config);
+          if (hasDigitax && !fiscalized) {
+            _scheduleDigitaxFiscalRefreshAndPrint(transaction, saleItems);
+          }
+        } catch (e) {
+          printSuccess = false;
+          printErrorMessage = e.toString().replaceAll("Exception: ", "");
+          debugPrint('Receipt print error notice: $e');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Sale saved! Receipt print error: $printErrorMessage'),
+                backgroundColor: const Color(0xFFD97706),
+                duration: const Duration(seconds: 4),
+              ),
+            );
+          }
         }
       }
 
@@ -3170,6 +3195,29 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                   'Change Due: ${CurrencyFormatter.format(change, config?.currencySymbol ?? "ZK")}', 
                   style: GoogleFonts.inter(color: const Color(0xFF059669), fontSize: 22, fontWeight: FontWeight.w900),
                 ),
+                if (!printSuccess && printErrorMessage != null) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFDC2626).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFFDC2626).withValues(alpha: 0.25)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.print_disabled_rounded, color: Color(0xFFDC2626), size: 16),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Print Failed: $printErrorMessage',
+                            style: GoogleFonts.inter(color: const Color(0xFFDC2626), fontSize: 11, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 if (hasDigitax && !fiscalized) ...[
                   const SizedBox(height: 12),
                   Container(
@@ -3195,14 +3243,31 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
               ],
             ),
             actions: [
+              if (!printSuccess) ...[
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    try {
+                      await printer.printReceipt(transaction, saleItems, config: config);
+                      if (ctx.mounted) {
+                        ScaffoldMessenger.of(ctx).showSnackBar(
+                          const SnackBar(content: Text('Receipt printed successfully!'), backgroundColor: Color(0xFF059669)),
+                        );
+                      }
+                    } catch (err) {
+                      if (ctx.mounted) {
+                        ScaffoldMessenger.of(ctx).showSnackBar(
+                          SnackBar(content: Text('Print retry failed: ${err.toString().replaceAll("Exception: ", "")}'), backgroundColor: const Color(0xFFDC2626)),
+                        );
+                      }
+                    }
+                  },
+                  icon: const Icon(Icons.print_rounded, size: 16),
+                  label: Text('RETRY PRINT', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 11)),
+                ),
+              ],
               ElevatedButton(
                 onPressed: () {
                   Navigator.pop(ctx);
-                  cartNotifier.clear();
-                  setState(() {
-                    _tenderedAmount = 0;
-                    _selectedPaymentMethod = '';
-                  });
                   _searchFocusNode.requestFocus();
                 },
                 style: ElevatedButton.styleFrom(

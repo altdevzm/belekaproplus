@@ -862,9 +862,12 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
   }
 
   @override
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 600;
 
     final bgColor = isDark ? const Color(0xFF0B1220) : const Color(0xFFF5F7FA);
     final cardBg = isDark ? const Color(0xFF151F32) : Colors.white;
@@ -876,8 +879,8 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       body: Center(
         child: Container(
           width: 640,
-          margin: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
-          padding: const EdgeInsets.all(32),
+          margin: EdgeInsets.symmetric(vertical: isMobile ? 8 : 24, horizontal: isMobile ? 8 : 16),
+          padding: EdgeInsets.all(isMobile ? 16 : 32),
           decoration: BoxDecoration(
             color: cardBg,
             borderRadius: BorderRadius.circular(16),
@@ -980,6 +983,37 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     final tabBg = isDark ? const Color(0xFF0B1220) : const Color(0xFFF8FAFC);
     final borderColor = isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0);
     const primaryAccent = Color(0xFF1D4ED8);
+    final isMobile = MediaQuery.of(context).size.width < 520;
+
+    if (isMobile) {
+      return Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: tabBg,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: borderColor),
+        ),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Expanded(child: _buildTabButton(context, 0, 'OWNER LOGIN', Icons.admin_panel_settings_rounded, primaryAccent)),
+                const SizedBox(width: 4),
+                Expanded(child: _buildTabButton(context, 1, 'NEW STORE', Icons.storefront_rounded, primaryAccent)),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Expanded(child: _buildTabButton(context, 2, 'BRANCH', Icons.cloud_sync_rounded, primaryAccent)),
+                const SizedBox(width: 4),
+                Expanded(child: _buildTabButton(context, 3, 'LINK TILL', Icons.lan_rounded, primaryAccent)),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
 
     return Container(
       padding: const EdgeInsets.all(4),
@@ -990,173 +1024,57 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       ),
       child: Row(
         children: [
-          // Tab 0: Owner Login
-          Expanded(
-            child: InkWell(
-              onTap: () => setState(() {
-                _activeTab = 0;
-                _errorMessage = null;
-              }),
-              borderRadius: BorderRadius.circular(8),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 4),
-                decoration: BoxDecoration(
-                  color: _activeTab == 0 ? primaryAccent : Colors.transparent,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.admin_panel_settings_rounded,
-                      size: 14,
-                      color: _activeTab == 0 ? Colors.white : theme.colorScheme.onSurfaceVariant,
-                    ),
-                    const SizedBox(width: 5),
-                    Flexible(
-                      child: Text(
-                        'OWNER LOGIN',
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.inter(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                          color: _activeTab == 0 ? Colors.white : theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
+          Expanded(child: _buildTabButton(context, 0, 'OWNER LOGIN', Icons.admin_panel_settings_rounded, primaryAccent)),
           const SizedBox(width: 2),
-
-          // Tab 1: New Store Setup
-          Expanded(
-            child: InkWell(
-              onTap: () => setState(() {
-                _activeTab = 1;
-                _errorMessage = null;
-              }),
-              borderRadius: BorderRadius.circular(8),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 4),
-                decoration: BoxDecoration(
-                  color: _activeTab == 1 ? primaryAccent : Colors.transparent,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.storefront_rounded,
-                      size: 14,
-                      color: _activeTab == 1 ? Colors.white : theme.colorScheme.onSurfaceVariant,
-                    ),
-                    const SizedBox(width: 5),
-                    Flexible(
-                      child: Text(
-                        'NEW STORE',
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.inter(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                          color: _activeTab == 1 ? Colors.white : theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
+          Expanded(child: _buildTabButton(context, 1, 'NEW STORE', Icons.storefront_rounded, primaryAccent)),
           const SizedBox(width: 2),
-
-          // Tab 2: Cloud Branch
-          Expanded(
-            child: InkWell(
-              onTap: () => setState(() {
-                _activeTab = 2;
-                _errorMessage = null;
-              }),
-              borderRadius: BorderRadius.circular(8),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 4),
-                decoration: BoxDecoration(
-                  color: _activeTab == 2 ? primaryAccent : Colors.transparent,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.cloud_sync_rounded,
-                      size: 14,
-                      color: _activeTab == 2 ? Colors.white : theme.colorScheme.onSurfaceVariant,
-                    ),
-                    const SizedBox(width: 5),
-                    Flexible(
-                      child: Text(
-                        'BRANCH',
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.inter(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                          color: _activeTab == 2 ? Colors.white : theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
+          Expanded(child: _buildTabButton(context, 2, 'BRANCH', Icons.cloud_sync_rounded, primaryAccent)),
           const SizedBox(width: 2),
-
-          // Tab 3: LAN Till Link
-          Expanded(
-            child: InkWell(
-              onTap: () => setState(() {
-                _activeTab = 3;
-                _errorMessage = null;
-              }),
-              borderRadius: BorderRadius.circular(8),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 4),
-                decoration: BoxDecoration(
-                  color: _activeTab == 3 ? primaryAccent : Colors.transparent,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.lan_rounded,
-                      size: 14,
-                      color: _activeTab == 3 ? Colors.white : theme.colorScheme.onSurfaceVariant,
-                    ),
-                    const SizedBox(width: 5),
-                    Flexible(
-                      child: Text(
-                        'LINK TILL',
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.inter(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                          color: _activeTab == 3 ? Colors.white : theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
+          Expanded(child: _buildTabButton(context, 3, 'LINK TILL', Icons.lan_rounded, primaryAccent)),
         ],
+      ),
+    );
+  }
+
+  Widget _buildTabButton(BuildContext context, int index, String label, IconData icon, Color primaryAccent) {
+    final theme = Theme.of(context);
+    final isSelected = _activeTab == index;
+
+    return InkWell(
+      onTap: () => setState(() {
+        _activeTab = index;
+        _errorMessage = null;
+      }),
+      borderRadius: BorderRadius.circular(8),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 4),
+        decoration: BoxDecoration(
+          color: isSelected ? primaryAccent : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 14,
+              color: isSelected ? Colors.white : theme.colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(width: 5),
+            Flexible(
+              child: Text(
+                label,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.inter(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  color: isSelected ? Colors.white : theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1735,6 +1653,31 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     final isDark = theme.brightness == Brightness.dark;
     final bg = isDark ? const Color(0xFF0B1220) : const Color(0xFFF8FAFC);
     final borderColor = isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0);
+    final isMobile = MediaQuery.of(context).size.width < 500;
+
+    if (isMobile) {
+      return Column(
+        children: [
+          _buildRoleButton(
+            context: context,
+            title: 'STANDALONE / MANAGER',
+            subtitle: 'Main Master Terminal',
+            icon: Icons.store_rounded,
+            isSelected: _isManagerMode,
+            onTap: () => setState(() => _isManagerMode = true),
+          ),
+          const SizedBox(height: 8),
+          _buildRoleButton(
+            context: context,
+            title: 'CASHIER TERMINAL',
+            subtitle: 'Client LAN Till',
+            icon: Icons.point_of_sale_rounded,
+            isSelected: !_isManagerMode,
+            onTap: () => setState(() => _isManagerMode = false),
+          ),
+        ],
+      );
+    }
 
     return Container(
       padding: const EdgeInsets.all(4),
@@ -1780,6 +1723,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     required VoidCallback onTap,
   }) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     const primaryAccent = Color(0xFF1D4ED8);
 
     return InkWell(
@@ -1787,37 +1731,45 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       borderRadius: BorderRadius.circular(8),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
         decoration: BoxDecoration(
           color: isSelected ? primaryAccent.withValues(alpha: 0.12) : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: isSelected ? primaryAccent : Colors.transparent,
+            color: isSelected ? primaryAccent : (isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
           ),
         ),
         child: Row(
+          mainAxisSize: MainAxisSize.max,
           children: [
             Icon(icon, color: isSelected ? primaryAccent : theme.colorScheme.onSurfaceVariant, size: 18),
             const SizedBox(width: 10),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: GoogleFonts.inter(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    color: isSelected ? primaryAccent : theme.colorScheme.onSurface,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: isSelected ? primaryAccent : theme.colorScheme.onSurface,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
                   ),
-                ),
-                Text(
-                  subtitle,
-                  style: GoogleFonts.inter(
-                    fontSize: 9.5,
-                    color: isSelected ? primaryAccent.withValues(alpha: 0.8) : theme.colorScheme.onSurfaceVariant,
+                  Text(
+                    subtitle,
+                    style: GoogleFonts.inter(
+                      fontSize: 9.5,
+                      color: isSelected ? primaryAccent.withValues(alpha: 0.8) : theme.colorScheme.onSurfaceVariant,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ],
         ),

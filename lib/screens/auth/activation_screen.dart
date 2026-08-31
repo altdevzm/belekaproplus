@@ -185,8 +185,14 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 600;
+    const primaryBlue = Color(0xFF2563EB);
+    const accentBlue = Color(0xFF3B82F6);
+    const highlightBlue = Color(0xFF60A5FA);
+
     return Scaffold(
-      backgroundColor: const Color(0xFF0D0D11),
+      backgroundColor: const Color(0xFF0B1220),
       body: Stack(
         children: [
           // Background subtle ambient lights
@@ -198,7 +204,7 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
               height: 400,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: const Color(0xFFC1F11D).withValues(alpha: 0.04),
+                color: accentBlue.withValues(alpha: 0.08),
               ),
             ),
           ),
@@ -210,7 +216,7 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
               height: 500,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: Colors.blueAccent.withValues(alpha: 0.03),
+                color: const Color(0xFF1D4ED8).withValues(alpha: 0.06),
               ),
             ),
           ),
@@ -218,22 +224,25 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
           // Main Center Content
           Center(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+              padding: EdgeInsets.symmetric(
+                horizontal: isMobile ? 12 : 24, 
+                vertical: isMobile ? 16 : 32,
+              ),
               child: Container(
                 constraints: const BoxConstraints(maxWidth: 680),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF141418),
+                  color: const Color(0xFF151F32),
                   borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                  border: Border.all(color: const Color(0xFF293548)),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.7),
+                      color: Colors.black.withValues(alpha: 0.6),
                       blurRadius: 40,
                       offset: const Offset(0, 16),
                     ),
                   ],
                 ),
-                padding: const EdgeInsets.all(36),
+                padding: EdgeInsets.all(isMobile ? 18 : 36),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -244,62 +253,65 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFC1F11D).withValues(alpha: 0.12),
+                            color: accentBlue.withValues(alpha: 0.14),
                             borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: const Color(0xFFC1F11D).withValues(alpha: 0.3)),
+                            border: Border.all(color: accentBlue.withValues(alpha: 0.35)),
                           ),
                           child: const Icon(
                             Icons.shield_outlined,
-                            color: Color(0xFFC1F11D),
+                            color: accentBlue,
                             size: 26,
                           ),
                         ),
-                        const SizedBox(width: 16),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'BELEKA POS ACTIVATION',
-                              style: GoogleFonts.manrope(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w900,
-                                color: Colors.white,
-                                letterSpacing: 1.5,
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'BELEKA POS ACTIVATION',
+                                style: GoogleFonts.manrope(
+                                  fontSize: isMobile ? 15 : 18,
+                                  fontWeight: FontWeight.w900,
+                                  color: Colors.white,
+                                  letterSpacing: 1.2,
+                                ),
                               ),
-                            ),
-                            Text(
-                              'HARDWARE-BOUND CRYPTOGRAPHIC LICENSE',
-                              style: GoogleFonts.ibmPlexMono(
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                color: const Color(0xFFC1F11D),
-                                letterSpacing: 1.5,
+                              Text(
+                                'HARDWARE-BOUND CRYPTOGRAPHIC LICENSE',
+                                style: GoogleFonts.ibmPlexMono(
+                                  fontSize: isMobile ? 8.5 : 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: highlightBlue,
+                                  letterSpacing: 1.0,
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 28),
+                    const SizedBox(height: 24),
 
                     // Explanation Notice
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.02),
+                        color: Colors.white.withValues(alpha: 0.03),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
                       ),
                       child: Text(
                         'This POS installation is cryptographically locked to this physical machine. To activate, provide your Hardware ID to your vendor to receive your genuine license.',
                         style: GoogleFonts.inter(
-                          fontSize: 13,
-                          color: Colors.white.withValues(alpha: 0.65),
+                          fontSize: 12.5,
+                          color: Colors.white.withValues(alpha: 0.7),
                           height: 1.5,
                         ),
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 20),
 
                     // Hardware ID Card
                     Text(
@@ -313,27 +325,34 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
                     ),
                     const SizedBox(height: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                      padding: EdgeInsets.symmetric(horizontal: isMobile ? 12 : 18, vertical: 12),
                       decoration: BoxDecoration(
                         color: Colors.black.withValues(alpha: 0.4),
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: const Color(0xFFC1F11D).withValues(alpha: 0.35)),
+                        border: Border.all(color: accentBlue.withValues(alpha: 0.4)),
                       ),
-                      child: Row(
+                      child: Flex(
+                        direction: isMobile ? Axis.vertical : Axis.horizontal,
+                        cross: isMobile ? CrossAxisAlignment.stretch : CrossAlignment.center,
                         children: [
-                          const Icon(Icons.memory_rounded, color: Color(0xFFC1F11D), size: 20),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: SelectableText(
-                              _currentHwid,
-                              style: GoogleFonts.ibmPlexMono(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w800,
-                                color: Colors.white,
-                                letterSpacing: 2,
+                          Row(
+                            children: [
+                              const Icon(Icons.memory_rounded, color: accentBlue, size: 20),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: SelectableText(
+                                  _currentHwid,
+                                  style: GoogleFonts.ibmPlexMono(
+                                    fontSize: isMobile ? 13 : 16,
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.white,
+                                    letterSpacing: 1.5,
+                                  ),
+                                ),
                               ),
-                            ),
+                            ],
                           ),
+                          if (isMobile) const SizedBox(height: 10),
                           ElevatedButton.icon(
                             onPressed: () {
                               final durationStr = _selectedMonths == 0 ? 'Permanent / Lifetime' : '$_selectedMonths Month${_selectedMonths > 1 ? 's' : ''}';
@@ -345,10 +364,11 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
                               });
                             },
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: _hasCopied ? const Color(0xFF4ADE80) : const Color(0xFFC1F11D),
-                              foregroundColor: Colors.black,
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                              backgroundColor: _hasCopied ? const Color(0xFF10B981) : primaryBlue,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              elevation: 0,
                             ),
                             icon: Icon(_hasCopied ? Icons.check_rounded : Icons.copy_rounded, size: 14),
                             label: Text(
@@ -379,7 +399,7 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
                           style: GoogleFonts.ibmPlexMono(
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
-                            color: const Color(0xFFC1F11D),
+                            color: highlightBlue,
                           ),
                         ),
                       ],
@@ -394,15 +414,15 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.calendar_month_rounded, color: Color(0xFFC1F11D), size: 18),
+                          const Icon(Icons.calendar_month_rounded, color: accentBlue, size: 18),
                           const SizedBox(width: 12),
                           Expanded(
                             child: DropdownButtonHideUnderline(
                               child: DropdownButton<int>(
                                 value: _selectedMonths,
-                                dropdownColor: const Color(0xFF1A1A22),
+                                dropdownColor: const Color(0xFF151F32),
                                 isExpanded: true,
-                                icon: const Icon(Icons.arrow_drop_down, color: Color(0xFFC1F11D)),
+                                icon: const Icon(Icons.arrow_drop_down, color: accentBlue),
                                 style: GoogleFonts.inter(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
                                 items: [
                                   for (int m = 1; m <= 12; m++)
@@ -424,7 +444,7 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 28),
+                    const SizedBox(height: 24),
 
                     // Success / Error Feedback Alert
                     if (_errorMessage != null) ...[
@@ -456,13 +476,13 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
                       Container(
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF4ADE80).withValues(alpha: 0.15),
+                          color: const Color(0xFF10B981).withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFF4ADE80).withValues(alpha: 0.4)),
+                          border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.4)),
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.check_circle_rounded, color: Color(0xFF4ADE80), size: 22),
+                            const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 22),
                             const SizedBox(width: 12),
                             Expanded(
                               child: Column(
@@ -476,7 +496,7 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
                                     const SizedBox(height: 4),
                                     Text(
                                       'Plan: ${_activatedLicense!.term} • Tills Allowed: ${_activatedLicense!.maxTills} • Branches: ${_activatedLicense!.branches}',
-                                      style: GoogleFonts.ibmPlexMono(color: const Color(0xFF4ADE80), fontSize: 11),
+                                      style: GoogleFonts.ibmPlexMono(color: const Color(0xFF34D399), fontSize: 11),
                                     ),
                                   ],
                                 ],
@@ -494,20 +514,20 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
                       child: ElevatedButton.icon(
                         onPressed: _isLoading ? null : _handleImportFile,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFC1F11D),
-                          foregroundColor: Colors.black,
+                          backgroundColor: primaryBlue,
+                          foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           elevation: 0,
                         ),
                         icon: _isLoading 
-                          ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
+                          ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                           : const Icon(Icons.file_upload_outlined, size: 20),
                         label: Text(
                           'IMPORT LICENSE FILE (.LIC)',
                           style: GoogleFonts.inter(
                             fontWeight: FontWeight.w900,
-                            fontSize: 13,
-                            letterSpacing: 1,
+                            fontSize: isMobile ? 12 : 13,
+                            letterSpacing: 0.8,
                           ),
                         ),
                       ),
@@ -520,8 +540,8 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
                         child: OutlinedButton.icon(
                           onPressed: _isLoading ? null : _handleAutoScanStorage,
                           style: OutlinedButton.styleFrom(
-                            foregroundColor: const Color(0xFFC1F11D),
-                            side: const BorderSide(color: Color(0xFFC1F11D), width: 1.2),
+                            foregroundColor: accentBlue,
+                            side: const BorderSide(color: accentBlue, width: 1.2),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
                           icon: const Icon(Icons.search_rounded, size: 18),
@@ -587,7 +607,7 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
                                 tooltip: 'Paste from Clipboard',
                               ),
                               IconButton(
-                                icon: const Icon(Icons.arrow_forward_rounded, color: Color(0xFFC1F11D)),
+                                icon: const Icon(Icons.arrow_forward_rounded, color: accentBlue),
                                 onPressed: _isLoading ? null : _handleTokenSubmit,
                                 tooltip: 'Activate Code',
                               ),
@@ -639,7 +659,7 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
                                 children: [
                                   Text(
                                     '${e.key}: ',
-                                    style: GoogleFonts.ibmPlexMono(fontSize: 10, color: const Color(0xFFC1F11D), fontWeight: FontWeight.bold),
+                                    style: GoogleFonts.ibmPlexMono(fontSize: 10, color: highlightBlue, fontWeight: FontWeight.bold),
                                   ),
                                   Expanded(
                                     child: Text(
@@ -661,10 +681,10 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
             ),
           ),
 
-          // Bottom-Right Corner: Backup Restore Action
+          // Bottom Restore System Backup Link
           Positioned(
-            bottom: 20,
-            right: 20,
+            bottom: isMobile ? 10 : 20,
+            right: isMobile ? 10 : 20,
             child: Material(
               color: Colors.transparent,
               child: InkWell(
@@ -676,9 +696,9 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
                 },
                 borderRadius: BorderRadius.circular(12),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF141418),
+                    color: const Color(0xFF151F32),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
                     boxShadow: [
@@ -692,15 +712,15 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.settings_backup_restore_rounded, color: Color(0xFFC1F11D), size: 16),
-                      const SizedBox(width: 8),
+                      const Icon(Icons.settings_backup_restore_rounded, color: accentBlue, size: 16),
+                      const SizedBox(width: 6),
                       Text(
                         'RESTORE SYSTEM BACKUP',
                         style: GoogleFonts.ibmPlexMono(
-                          fontSize: 10,
+                          fontSize: 9.5,
                           fontWeight: FontWeight.bold,
                           color: Colors.white70,
-                          letterSpacing: 1,
+                          letterSpacing: 0.5,
                         ),
                       ),
                     ],
