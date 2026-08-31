@@ -758,20 +758,39 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
   }
 
   Future<void> _showRecoveryDialog(String code) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    const primaryAccent = Color(0xFF1D4ED8);
+
     return showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF141418),
+        backgroundColor: isDark ? const Color(0xFF151F32) : Colors.white,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
         ),
         title: Row(
           children: [
-            const Icon(Icons.warning_amber_rounded, color: Color(0xFFC1F11D), size: 28),
-            const SizedBox(width: 16),
-            Text('SAVE RECOVERY CODE', style: GoogleFonts.manrope(fontWeight: FontWeight.w900, color: Colors.white, fontSize: 18)),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFD97706).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.shield_rounded, color: Color(0xFFD97706), size: 22),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'SAVE RECOVERY CODE',
+              style: GoogleFonts.inter(
+                fontWeight: FontWeight.w800,
+                color: theme.colorScheme.onSurface,
+                fontSize: 16,
+                letterSpacing: 0.5,
+              ),
+            ),
           ],
         ),
         content: Column(
@@ -780,34 +799,41 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
           children: [
             Text(
               'This code is the ONLY way to reset your Admin PIN if you forget it. Store it safely - it will not be shown again.',
-              style: GoogleFonts.inter(color: Colors.white70, fontSize: 13, height: 1.5),
+              style: GoogleFonts.inter(
+                color: theme.colorScheme.onSurfaceVariant,
+                fontSize: 12.5,
+                height: 1.5,
+              ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 24),
+              padding: const EdgeInsets.symmetric(vertical: 20),
               decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.3),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFC1F11D).withValues(alpha: 0.2)),
+                color: isDark ? const Color(0xFF0B1220) : const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: primaryAccent.withValues(alpha: 0.3)),
               ),
               child: Center(
                 child: SelectableText(
                   code,
-                  style: GoogleFonts.ibmPlexMono(
-                    fontSize: 32,
-                    fontWeight: FontWeight.w900,
+                  style: GoogleFonts.jetBrainsMono(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w800,
                     letterSpacing: 4,
-                    color: const Color(0xFFC1F11D),
+                    color: isDark ? const Color(0xFF60A5FA) : const Color(0xFF1D4ED8),
                   ),
                 ),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             Center(
               child: Text(
                 'Long-press code to copy',
-                style: GoogleFonts.inter(color: Colors.white24, fontSize: 11),
+                style: GoogleFonts.inter(
+                  color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                  fontSize: 11,
+                ),
               ),
             ),
           ],
@@ -815,15 +841,19 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
         actions: [
           SizedBox(
             width: double.infinity,
-            height: 50,
+            height: 44,
             child: ElevatedButton(
               onPressed: () => Navigator.pop(context),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFC1F11D),
-                foregroundColor: Colors.black,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                backgroundColor: primaryAccent,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
-              child: Text('I HAVE SAVED IT', style: GoogleFonts.manrope(fontWeight: FontWeight.w900, fontSize: 14)),
+              child: Text(
+                'I HAVE SAVED IT',
+                style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 13, letterSpacing: 0.5),
+              ),
             ),
           ),
         ],
@@ -833,22 +863,31 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    final bgColor = isDark ? const Color(0xFF0B1220) : const Color(0xFFF5F7FA);
+    final cardBg = isDark ? const Color(0xFF151F32) : Colors.white;
+    final borderColor = isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0);
+    const primaryAccent = Color(0xFF1D4ED8);
+
     return Scaffold(
-      backgroundColor: const Color(0xFF141418),
+      backgroundColor: bgColor,
       body: Center(
         child: Container(
-          width: 620,
-          padding: const EdgeInsets.all(36),
+          width: 640,
+          margin: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+          padding: const EdgeInsets.all(32),
           decoration: BoxDecoration(
-            color: const Color(0xFF1A1A1E),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+            color: cardBg,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: borderColor),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.4),
-                blurRadius: 40,
-                offset: const Offset(0, 20),
-              )
+                color: Colors.black.withValues(alpha: isDark ? 0.4 : 0.06),
+                blurRadius: 24,
+                offset: const Offset(0, 12),
+              ),
             ],
           ),
           child: SingleChildScrollView(
@@ -860,53 +899,53 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(12),
+                      padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFC1F11D).withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(12),
+                        color: primaryAccent.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(10),
                       ),
-                      child: const Icon(Icons.security_rounded, color: Color(0xFFC1F11D), size: 30),
+                      child: const Icon(Icons.security_rounded, color: primaryAccent, size: 26),
                     ),
-                    const SizedBox(width: 16),
+                    const SizedBox(width: 14),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           'TERMINAL INITIALIZATION',
-                          style: GoogleFonts.manrope(
-                            fontSize: 11,
-                            letterSpacing: 2,
-                            fontWeight: FontWeight.w900,
-                            color: const Color(0xFFC1F11D),
+                          style: GoogleFonts.inter(
+                            fontSize: 10.5,
+                            letterSpacing: 1.5,
+                            fontWeight: FontWeight.w800,
+                            color: primaryAccent,
                           ),
                         ),
                         Text(
-                          'BELEKA PRO POS',
-                          style: GoogleFonts.manrope(
-                            fontSize: 22,
+                          'BELEKA POS',
+                          style: GoogleFonts.inter(
+                            fontSize: 20,
                             fontWeight: FontWeight.w800,
-                            color: Colors.white,
+                            color: theme.colorScheme.onSurface,
                           ),
                         ),
                       ],
                     ),
                   ],
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 20),
 
                 // Mode Tabs (Owner Login vs New Store vs Cloud Branch vs LAN Till)
-                _buildTabSwitcher(),
-                const SizedBox(height: 24),
+                _buildTabSwitcher(context),
+                const SizedBox(height: 20),
 
                 // Form based on active tab
                 if (_activeTab == 0)
-                  _buildOwnerLoginForm()
+                  _buildOwnerLoginForm(context)
                 else if (_activeTab == 1) 
-                  _buildNewStoreForm() 
+                  _buildNewStoreForm(context) 
                 else if (_activeTab == 2) 
-                  _buildCloudLoginForm() 
+                  _buildCloudLoginForm(context) 
                 else 
-                  _buildLanTillForm(),
+                  _buildLanTillForm(context),
 
                 const SizedBox(height: 16),
                 Center(
@@ -915,14 +954,14 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                       context: context,
                       builder: (context) => const BackupRestoreModal(),
                     ),
-                    icon: const Icon(Icons.settings_backup_restore_rounded, size: 16, color: Color(0xFFC1F11D)),
+                    icon: const Icon(Icons.settings_backup_restore_rounded, size: 15, color: primaryAccent),
                     label: Text(
                       'OR RESTORE AN EXISTING BACKUP',
-                      style: GoogleFonts.ibmPlexMono(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: const Color(0xFFC1F11D),
-                        letterSpacing: 1,
+                      style: GoogleFonts.jetBrainsMono(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w700,
+                        color: primaryAccent,
+                        letterSpacing: 0.5,
                       ),
                     ),
                   ),
@@ -935,14 +974,19 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     );
   }
 
-  Widget _buildTabSwitcher() {
-    const accentColor = Color(0xFFC1F11D);
+  Widget _buildTabSwitcher(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final tabBg = isDark ? const Color(0xFF0B1220) : const Color(0xFFF8FAFC);
+    final borderColor = isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0);
+    const primaryAccent = Color(0xFF1D4ED8);
+
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        color: tabBg,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: borderColor),
       ),
       child: Row(
         children: [
@@ -953,16 +997,13 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                 _activeTab = 0;
                 _errorMessage = null;
               }),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(8),
               child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 2),
+                duration: const Duration(milliseconds: 150),
+                padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 4),
                 decoration: BoxDecoration(
-                  color: _activeTab == 0 ? accentColor.withValues(alpha: 0.15) : Colors.transparent,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: _activeTab == 0 ? accentColor.withValues(alpha: 0.4) : Colors.transparent,
-                  ),
+                  color: _activeTab == 0 ? primaryAccent : Colors.transparent,
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -970,17 +1011,17 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                     Icon(
                       Icons.admin_panel_settings_rounded,
                       size: 14,
-                      color: _activeTab == 0 ? accentColor : Colors.white38,
+                      color: _activeTab == 0 ? Colors.white : theme.colorScheme.onSurfaceVariant,
                     ),
-                    const SizedBox(width: 4),
+                    const SizedBox(width: 5),
                     Flexible(
                       child: Text(
                         'OWNER LOGIN',
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.manrope(
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w900,
-                          color: _activeTab == 0 ? Colors.white : Colors.white38,
+                        style: GoogleFonts.inter(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: _activeTab == 0 ? Colors.white : theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ),
@@ -989,7 +1030,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
               ),
             ),
           ),
-          const SizedBox(width: 3),
+          const SizedBox(width: 2),
 
           // Tab 1: New Store Setup
           Expanded(
@@ -998,16 +1039,13 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                 _activeTab = 1;
                 _errorMessage = null;
               }),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(8),
               child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 2),
+                duration: const Duration(milliseconds: 150),
+                padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 4),
                 decoration: BoxDecoration(
-                  color: _activeTab == 1 ? accentColor.withValues(alpha: 0.15) : Colors.transparent,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: _activeTab == 1 ? accentColor.withValues(alpha: 0.4) : Colors.transparent,
-                  ),
+                  color: _activeTab == 1 ? primaryAccent : Colors.transparent,
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -1015,17 +1053,17 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                     Icon(
                       Icons.storefront_rounded,
                       size: 14,
-                      color: _activeTab == 1 ? accentColor : Colors.white38,
+                      color: _activeTab == 1 ? Colors.white : theme.colorScheme.onSurfaceVariant,
                     ),
-                    const SizedBox(width: 4),
+                    const SizedBox(width: 5),
                     Flexible(
                       child: Text(
                         'NEW STORE',
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.manrope(
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w900,
-                          color: _activeTab == 1 ? Colors.white : Colors.white38,
+                        style: GoogleFonts.inter(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: _activeTab == 1 ? Colors.white : theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ),
@@ -1034,7 +1072,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
               ),
             ),
           ),
-          const SizedBox(width: 3),
+          const SizedBox(width: 2),
 
           // Tab 2: Cloud Branch
           Expanded(
@@ -1043,16 +1081,13 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                 _activeTab = 2;
                 _errorMessage = null;
               }),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(8),
               child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 2),
+                duration: const Duration(milliseconds: 150),
+                padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 4),
                 decoration: BoxDecoration(
-                  color: _activeTab == 2 ? accentColor.withValues(alpha: 0.15) : Colors.transparent,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: _activeTab == 2 ? accentColor.withValues(alpha: 0.4) : Colors.transparent,
-                  ),
+                  color: _activeTab == 2 ? primaryAccent : Colors.transparent,
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -1060,17 +1095,17 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                     Icon(
                       Icons.cloud_sync_rounded,
                       size: 14,
-                      color: _activeTab == 2 ? accentColor : Colors.white38,
+                      color: _activeTab == 2 ? Colors.white : theme.colorScheme.onSurfaceVariant,
                     ),
-                    const SizedBox(width: 4),
+                    const SizedBox(width: 5),
                     Flexible(
                       child: Text(
                         'BRANCH',
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.manrope(
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w900,
-                          color: _activeTab == 2 ? Colors.white : Colors.white38,
+                        style: GoogleFonts.inter(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: _activeTab == 2 ? Colors.white : theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ),
@@ -1079,7 +1114,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
               ),
             ),
           ),
-          const SizedBox(width: 3),
+          const SizedBox(width: 2),
 
           // Tab 3: LAN Till Link
           Expanded(
@@ -1088,16 +1123,13 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                 _activeTab = 3;
                 _errorMessage = null;
               }),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(8),
               child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 2),
+                duration: const Duration(milliseconds: 150),
+                padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 4),
                 decoration: BoxDecoration(
-                  color: _activeTab == 3 ? accentColor.withValues(alpha: 0.15) : Colors.transparent,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: _activeTab == 3 ? accentColor.withValues(alpha: 0.4) : Colors.transparent,
-                  ),
+                  color: _activeTab == 3 ? primaryAccent : Colors.transparent,
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -1105,17 +1137,17 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                     Icon(
                       Icons.lan_rounded,
                       size: 14,
-                      color: _activeTab == 3 ? accentColor : Colors.white38,
+                      color: _activeTab == 3 ? Colors.white : theme.colorScheme.onSurfaceVariant,
                     ),
-                    const SizedBox(width: 4),
+                    const SizedBox(width: 5),
                     Flexible(
                       child: Text(
                         'LINK TILL',
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.manrope(
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w900,
-                          color: _activeTab == 3 ? Colors.white : Colors.white38,
+                        style: GoogleFonts.inter(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: _activeTab == 3 ? Colors.white : theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ),
@@ -1129,8 +1161,13 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     );
   }
 
-  Widget _buildLanTillForm() {
-    const accentColor = Color(0xFFC1F11D);
+  Widget _buildLanTillForm(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final infoBg = isDark ? const Color(0xFF1E283D) : const Color(0xFFF0F9FF);
+    final infoBorder = isDark ? const Color(0xFF293548) : const Color(0xFFBAE6FD);
+    const primaryAccent = Color(0xFF1D4ED8);
+
     return Form(
       key: _tillFormKey,
       child: Column(
@@ -1139,38 +1176,40 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: accentColor.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: accentColor.withValues(alpha: 0.2)),
+              color: infoBg,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: infoBorder),
             ),
             child: Row(
               children: [
-                const Icon(Icons.info_outline_rounded, color: accentColor, size: 20),
+                const Icon(Icons.info_outline_rounded, color: Color(0xFF0284C7), size: 18),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     'Link this computer as a Cashier Till to the Master POS terminal running in your branch.',
-                    style: GoogleFonts.inter(color: Colors.white70, fontSize: 11, height: 1.4),
+                    style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontSize: 11.5, height: 1.4),
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 16),
 
           _buildField(
+            context: context,
             label: 'TILL CODE / IDENTIFIER',
             controller: _tillNameController,
             hint: 'e.g. TILL-01, CHECKOUT-2',
             validator: (v) => (v == null || v.isEmpty) ? 'Enter till identifier' : null,
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
 
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Expanded(
                 child: _buildField(
+                  context: context,
                   label: 'MASTER POS IP ADDRESS',
                   controller: _tillServerIpController,
                   hint: 'e.g. 192.168.1.100',
@@ -1179,17 +1218,18 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
               ),
               const SizedBox(width: 10),
               SizedBox(
-                height: 48,
+                height: 44,
                 child: ElevatedButton.icon(
                   onPressed: _isTestingTillLink ? null : _handleTestTillLink,
                   icon: _isTestingTillLink 
-                      ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2))
+                      ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                       : const Icon(Icons.network_check_rounded, size: 16),
-                  label: Text('TEST LINK', style: GoogleFonts.manrope(fontWeight: FontWeight.w900, fontSize: 11)),
+                  label: Text('TEST LINK', style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 11)),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white12,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    backgroundColor: isDark ? const Color(0xFF1C283D) : const Color(0xFFE2E8F0),
+                    foregroundColor: theme.colorScheme.onSurface,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   ),
                 ),
               ),
@@ -1202,20 +1242,20 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
                 color: _tillTestSuccess == true 
-                    ? const Color(0xFF10B981).withValues(alpha: 0.12)
-                    : Colors.red.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(10),
+                    ? const Color(0xFFECFDF5)
+                    : const Color(0xFFFEF2F2),
+                borderRadius: BorderRadius.circular(8),
                 border: Border.all(
                   color: _tillTestSuccess == true 
-                      ? const Color(0xFF10B981).withValues(alpha: 0.3)
-                      : Colors.red.withValues(alpha: 0.3),
+                      ? const Color(0xFFA7F3D0)
+                      : const Color(0xFFFECACA),
                 ),
               ),
               child: Row(
                 children: [
                   Icon(
                     _tillTestSuccess == true ? Icons.check_circle_rounded : Icons.error_outline_rounded,
-                    color: _tillTestSuccess == true ? const Color(0xFF10B981) : Colors.redAccent,
+                    color: _tillTestSuccess == true ? const Color(0xFF059669) : const Color(0xFFDC2626),
                     size: 16,
                   ),
                   const SizedBox(width: 8),
@@ -1223,8 +1263,8 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                     child: Text(
                       _tillTestMessage!,
                       style: GoogleFonts.inter(
-                        color: _tillTestSuccess == true ? const Color(0xFF10B981) : Colors.redAccent,
-                        fontSize: 11,
+                        color: _tillTestSuccess == true ? const Color(0xFF047857) : const Color(0xFFB91C1C),
+                        fontSize: 11.5,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -1234,80 +1274,34 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
             ),
           ],
 
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
 
           if (_statusMessage != null) ...[
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: accentColor.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: accentColor.withValues(alpha: 0.2)),
-              ),
-              child: Row(
-                children: [
-                  const SizedBox(
-                    width: 14,
-                    height: 14,
-                    child: CircularProgressIndicator(color: accentColor, strokeWidth: 2),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      _statusMessage!,
-                      style: GoogleFonts.ibmPlexMono(
-                        color: accentColor,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
+            _buildStatusMessage(context),
+            const SizedBox(height: 14),
           ],
 
           if (_errorMessage != null) ...[
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: Colors.red.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 16),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      _errorMessage!,
-                      style: GoogleFonts.inter(color: Colors.redAccent, fontSize: 11, fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
+            _buildErrorMessage(context),
+            const SizedBox(height: 14),
           ],
 
           SizedBox(
             width: double.infinity,
-            height: 52,
+            height: 48,
             child: ElevatedButton(
               onPressed: _isLoading ? null : _handleLinkClientTill,
               style: ElevatedButton.styleFrom(
-                backgroundColor: accentColor,
-                foregroundColor: Colors.black,
+                backgroundColor: primaryAccent,
+                foregroundColor: Colors.white,
                 elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
               child: _isLoading
                   ? const SizedBox(
                       width: 20,
                       height: 20,
-                      child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2.5),
+                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
                     )
                   : Row(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -1316,9 +1310,9 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                         const SizedBox(width: 8),
                         Text(
                           'LINK THIS TILL & LAUNCH POS',
-                          style: GoogleFonts.manrope(
+                          style: GoogleFonts.inter(
                             fontSize: 13,
-                            fontWeight: FontWeight.w900,
+                            fontWeight: FontWeight.w800,
                             letterSpacing: 0.5,
                           ),
                         ),
@@ -1331,7 +1325,13 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     );
   }
 
-  Widget _buildOwnerLoginForm() {
+  Widget _buildOwnerLoginForm(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final infoBg = isDark ? const Color(0xFF1E283D) : const Color(0xFFF0F9FF);
+    final infoBorder = isDark ? const Color(0xFF293548) : const Color(0xFFBAE6FD);
+    const primaryAccent = Color(0xFF1D4ED8);
+
     return Form(
       key: _ownerFormKey,
       child: Column(
@@ -1341,35 +1341,37 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
             padding: const EdgeInsets.all(12),
             margin: const EdgeInsets.only(bottom: 16),
             decoration: BoxDecoration(
-              color: const Color(0xFFC1F11D).withValues(alpha: 0.08),
+              color: infoBg,
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFFC1F11D).withValues(alpha: 0.2)),
+              border: Border.all(color: infoBorder),
             ),
             child: Row(
               children: [
-                const Icon(Icons.admin_panel_settings_rounded, color: Color(0xFFC1F11D), size: 20),
+                const Icon(Icons.admin_panel_settings_rounded, color: Color(0xFF0284C7), size: 18),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     'Log in with your existing Owner / Master account to restore your store profile, DigiTax ZRA settings, staff users, and product catalog.',
-                    style: GoogleFonts.inter(color: Colors.white70, fontSize: 11.5, height: 1.4),
+                    style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontSize: 11.5, height: 1.4),
                   ),
                 ),
               ],
             ),
           ),
           _buildField(
+            context: context,
             label: 'CLOUD API SERVER URL',
             controller: _ownerUrlController,
             hint: 'http://23.139.36.20:8003',
             validator: (v) => (v == null || v.isEmpty) ? 'Cloud Server URL is required' : null,
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
           Row(
             children: [
               Expanded(
                 flex: 3,
                 child: _buildField(
+                  context: context,
                   label: 'OWNER USER / STAFF ID',
                   controller: _ownerIdController,
                   hint: 'e.g. 1001 or admin',
@@ -1377,10 +1379,11 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                   validator: (v) => (v == null || v.isEmpty) ? 'Enter Owner ID' : null,
                 ),
               ),
-              const SizedBox(width: 14),
+              const SizedBox(width: 12),
               Expanded(
                 flex: 3,
                 child: _buildField(
+                  context: context,
                   label: 'STORE CODE (OPTIONAL)',
                   controller: _ownerStoreCodeController,
                   hint: 'Auto-detects HQ',
@@ -1388,39 +1391,40 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
           _buildField(
+            context: context,
             label: 'OWNER PASSWORD / PIN',
             controller: _ownerPinController,
             hint: '****',
             isPin: true,
             validator: (v) => (v == null || v.isEmpty) ? 'Enter Owner Password or PIN' : null,
           ),
-          const SizedBox(height: 24),
-          if (_errorMessage != null) _buildErrorMessage(),
-          if (_statusMessage != null) _buildStatusMessage(),
+          const SizedBox(height: 20),
+          if (_errorMessage != null) _buildErrorMessage(context),
+          if (_statusMessage != null) _buildStatusMessage(context),
           SizedBox(
             width: double.infinity,
-            height: 52,
+            height: 48,
             child: ElevatedButton.icon(
               onPressed: _isLoading ? null : _handleOwnerLogin,
               icon: _isLoading
                   ? const SizedBox.shrink()
-                  : const Icon(Icons.cloud_download_rounded, color: Colors.black, size: 20),
+                  : const Icon(Icons.cloud_download_rounded, color: Colors.white, size: 18),
               label: _isLoading
                   ? const SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2.5),
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
                     )
                   : Text(
                       'RESTORE & LOG IN AS OWNER',
-                      style: GoogleFonts.manrope(fontWeight: FontWeight.w900, letterSpacing: 1),
+                      style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 13, letterSpacing: 0.5),
                     ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFC1F11D),
-                foregroundColor: Colors.black,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                backgroundColor: primaryAccent,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 elevation: 0,
               ),
             ),
@@ -1430,20 +1434,24 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     );
   }
 
-  Widget _buildNewStoreForm() {
+  Widget _buildNewStoreForm(BuildContext context) {
+    const primaryAccent = Color(0xFF1D4ED8);
+
     return Form(
       key: _formKey,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildField(
+            context: context,
             label: 'BUSINESS NAME',
             controller: _businessNameController,
             hint: 'e.g. Beleka Boutique',
             validator: (v) => v!.isEmpty ? 'Enter business name' : null,
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
           _buildField(
+            context: context,
             label: 'ADMIN STAFF ID (MAX 4 DIGITS)',
             controller: _adminIdController,
             hint: 'e.g. 1001',
@@ -1454,11 +1462,12 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
               return null;
             },
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
           Row(
             children: [
               Expanded(
                 child: _buildField(
+                  context: context,
                   label: 'SECURITY PIN (4-6 DIGITS)',
                   controller: _pinController,
                   hint: '****',
@@ -1471,9 +1480,10 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                   },
                 ),
               ),
-              const SizedBox(width: 14),
+              const SizedBox(width: 12),
               Expanded(
                 child: _buildField(
+                  context: context,
                   label: 'CONFIRM PIN',
                   controller: _confirmPinController,
                   hint: '****',
@@ -1483,42 +1493,43 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 24),
-          _buildSectionHeader('NETWORK TERMINAL ROLE'),
-          const SizedBox(height: 12),
-          _buildRoleSwitcher(),
+          const SizedBox(height: 20),
+          _buildSectionHeader(context, 'NETWORK TERMINAL ROLE'),
+          const SizedBox(height: 10),
+          _buildRoleSwitcher(context),
           if (!_isManagerMode) ...[
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
             _buildField(
+              context: context,
               label: 'MANAGER SERVER IP ADDRESS',
               controller: _serverIpController,
               hint: 'e.g. 192.168.1.100',
               validator: (v) => v!.isEmpty ? 'Manager IP is required for cashier terminals' : null,
             ),
           ],
-          const SizedBox(height: 28),
-          if (_errorMessage != null) _buildErrorMessage(),
-          if (_statusMessage != null) _buildStatusMessage(),
+          const SizedBox(height: 20),
+          if (_errorMessage != null) _buildErrorMessage(context),
+          if (_statusMessage != null) _buildStatusMessage(context),
           SizedBox(
             width: double.infinity,
-            height: 52,
+            height: 48,
             child: ElevatedButton(
               onPressed: _isLoading ? null : _handleSetup,
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFC1F11D),
-                foregroundColor: Colors.black,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                backgroundColor: primaryAccent,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 elevation: 0,
               ),
               child: _isLoading
                   ? const SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2.5),
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
                     )
                   : Text(
                       'INITIALIZE STORE & ADMIN',
-                      style: GoogleFonts.manrope(fontWeight: FontWeight.w900, letterSpacing: 1),
+                      style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 13, letterSpacing: 0.5),
                     ),
             ),
           ),
@@ -1527,7 +1538,13 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     );
   }
 
-  Widget _buildCloudLoginForm() {
+  Widget _buildCloudLoginForm(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final infoBg = isDark ? const Color(0xFF1E283D) : const Color(0xFFF0F9FF);
+    final infoBorder = isDark ? const Color(0xFF293548) : const Color(0xFFBAE6FD);
+    const primaryAccent = Color(0xFF1D4ED8);
+
     return Form(
       key: _cloudFormKey,
       child: Column(
@@ -1537,45 +1554,48 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
             padding: const EdgeInsets.all(12),
             margin: const EdgeInsets.only(bottom: 16),
             decoration: BoxDecoration(
-              color: const Color(0xFFC1F11D).withValues(alpha: 0.08),
+              color: infoBg,
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFFC1F11D).withValues(alpha: 0.2)),
+              border: Border.all(color: infoBorder),
             ),
             child: Row(
               children: [
-                const Icon(Icons.info_outline_rounded, color: Color(0xFFC1F11D), size: 18),
+                const Icon(Icons.info_outline_rounded, color: Color(0xFF0284C7), size: 18),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     'Log in with your existing Branch Manager credentials to download store settings & inventory.',
-                    style: GoogleFonts.inter(color: Colors.white70, fontSize: 12),
+                    style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontSize: 11.5, height: 1.4),
                   ),
                 ),
               ],
             ),
           ),
           _buildField(
+            context: context,
             label: 'CLOUD API SERVER URL',
             controller: _cloudUrlController,
             hint: 'http://23.139.36.20:8003',
             validator: (v) => v!.isEmpty ? 'Cloud Server URL is required' : null,
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
           Row(
             children: [
               Expanded(
                 flex: 3,
                 child: _buildField(
+                  context: context,
                   label: 'BRANCH CODE',
                   controller: _cloudStoreCodeController,
                   hint: 'STORE-001',
                   validator: (v) => v!.isEmpty ? 'Enter branch code' : null,
                 ),
               ),
-              const SizedBox(width: 14),
+              const SizedBox(width: 12),
               Expanded(
                 flex: 3,
                 child: _buildField(
+                  context: context,
                   label: 'STAFF / USER ID',
                   controller: _cloudStaffIdController,
                   hint: 'e.g. 1001',
@@ -1585,39 +1605,40 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
           _buildField(
+            context: context,
             label: 'PASSWORD / PIN',
             controller: _cloudPinController,
             hint: '****',
             isPin: true,
             validator: (v) => (v == null || v.isEmpty) ? 'Enter password or PIN' : null,
           ),
-          const SizedBox(height: 28),
-          if (_errorMessage != null) _buildErrorMessage(),
-          if (_statusMessage != null) _buildStatusMessage(),
+          const SizedBox(height: 20),
+          if (_errorMessage != null) _buildErrorMessage(context),
+          if (_statusMessage != null) _buildStatusMessage(context),
           SizedBox(
             width: double.infinity,
-            height: 52,
+            height: 48,
             child: ElevatedButton.icon(
               onPressed: _isLoading ? null : _handleCloudLogin,
               icon: _isLoading
                   ? const SizedBox.shrink()
-                  : const Icon(Icons.cloud_download_rounded, color: Colors.black, size: 20),
+                  : const Icon(Icons.cloud_download_rounded, color: Colors.white, size: 18),
               label: _isLoading
                   ? const SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2.5),
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
                     )
                   : Text(
                       'CONNECT & LOG IN TO BRANCH',
-                      style: GoogleFonts.manrope(fontWeight: FontWeight.w900, letterSpacing: 1),
+                      style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 13, letterSpacing: 0.5),
                     ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFC1F11D),
-                foregroundColor: Colors.black,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                backgroundColor: primaryAccent,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 elevation: 0,
               ),
             ),
@@ -1627,24 +1648,24 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     );
   }
 
-  Widget _buildErrorMessage() {
+  Widget _buildErrorMessage(BuildContext context) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
-        color: Colors.redAccent.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.redAccent.withValues(alpha: 0.3)),
+        color: const Color(0xFFFEF2F2),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFFECACA)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 18),
+          const Icon(Icons.error_outline_rounded, color: Color(0xFFDC2626), size: 18),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               _errorMessage!,
-              style: GoogleFonts.inter(color: Colors.redAccent, fontSize: 12),
+              style: GoogleFonts.inter(color: const Color(0xFFB91C1C), fontSize: 11.5, fontWeight: FontWeight.w600),
             ),
           ),
         ],
@@ -1652,28 +1673,34 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     );
   }
 
-  Widget _buildStatusMessage() {
+  Widget _buildStatusMessage(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final infoBg = isDark ? const Color(0xFF1E283D) : const Color(0xFFF0F9FF);
+    final infoBorder = isDark ? const Color(0xFF293548) : const Color(0xFFBAE6FD);
+    const primaryAccent = Color(0xFF1D4ED8);
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
-        color: const Color(0xFFC1F11D).withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFC1F11D).withValues(alpha: 0.2)),
+        color: infoBg,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: infoBorder),
       ),
       child: Row(
         children: [
           const SizedBox(
             width: 14,
             height: 14,
-            child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFC1F11D)),
+            child: CircularProgressIndicator(strokeWidth: 2, color: primaryAccent),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               _statusMessage!,
-              style: GoogleFonts.inter(color: Colors.white, fontSize: 12),
+              style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontSize: 11.5, fontWeight: FontWeight.w600),
             ),
           ),
         ],
@@ -1681,36 +1708,46 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     );
   }
 
-  Widget _buildSectionHeader(String title) {
+  Widget _buildSectionHeader(BuildContext context, String title) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final dividerColor = isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0);
+
     return Row(
       children: [
         Text(
           title,
-          style: GoogleFonts.manrope(
+          style: GoogleFonts.inter(
             fontSize: 10,
-            fontWeight: FontWeight.w900,
-            color: Colors.white.withValues(alpha: 0.3),
+            fontWeight: FontWeight.w800,
+            color: theme.colorScheme.onSurfaceVariant,
             letterSpacing: 1,
           ),
         ),
         const SizedBox(width: 12),
-        Expanded(child: Divider(color: Colors.white.withValues(alpha: 0.05))),
+        Expanded(child: Divider(color: dividerColor)),
       ],
     );
   }
 
-  Widget _buildRoleSwitcher() {
+  Widget _buildRoleSwitcher(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final bg = isDark ? const Color(0xFF0B1220) : const Color(0xFFF8FAFC);
+    final borderColor = isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0);
+
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        color: bg,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: borderColor),
       ),
       child: Row(
         children: [
           Expanded(
             child: _buildRoleButton(
+              context: context,
               title: 'STANDALONE / MANAGER',
               subtitle: 'Main Terminal',
               icon: Icons.store_rounded,
@@ -1721,6 +1758,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
           const SizedBox(width: 4),
           Expanded(
             child: _buildRoleButton(
+              context: context,
               title: 'CASHIER',
               subtitle: 'Terminal',
               icon: Icons.point_of_sale_rounded,
@@ -1734,46 +1772,49 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
   }
 
   Widget _buildRoleButton({
+    required BuildContext context,
     required String title,
     required String subtitle,
     required IconData icon,
     required bool isSelected,
     required VoidCallback onTap,
   }) {
-    final accentColor = const Color(0xFFC1F11D);
+    final theme = Theme.of(context);
+    const primaryAccent = Color(0xFF1D4ED8);
+
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(8),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
         decoration: BoxDecoration(
-          color: isSelected ? accentColor.withValues(alpha: 0.1) : Colors.transparent,
-          borderRadius: BorderRadius.circular(10),
+          color: isSelected ? primaryAccent.withValues(alpha: 0.12) : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: isSelected ? accentColor.withValues(alpha: 0.3) : Colors.transparent,
+            color: isSelected ? primaryAccent : Colors.transparent,
           ),
         ),
         child: Row(
           children: [
-            Icon(icon, color: isSelected ? accentColor : Colors.white24, size: 20),
-            const SizedBox(width: 12),
+            Icon(icon, color: isSelected ? primaryAccent : theme.colorScheme.onSurfaceVariant, size: 18),
+            const SizedBox(width: 10),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   title,
-                  style: GoogleFonts.manrope(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w900,
-                    color: isSelected ? Colors.white : Colors.white38,
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: isSelected ? primaryAccent : theme.colorScheme.onSurface,
                   ),
                 ),
                 Text(
                   subtitle,
                   style: GoogleFonts.inter(
-                    fontSize: 10,
-                    color: isSelected ? accentColor.withValues(alpha: 0.7) : Colors.white24,
+                    fontSize: 9.5,
+                    color: isSelected ? primaryAccent.withValues(alpha: 0.8) : theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
               ],
@@ -1785,6 +1826,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
   }
 
   Widget _buildField({
+    required BuildContext context,
     required String label,
     required TextEditingController controller,
     required String hint,
@@ -1792,8 +1834,14 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     bool isStaffId = false,
     String? Function(String?)? validator,
   }) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final int? maxDigits = isStaffId ? 4 : (isPin ? 6 : null);
     final String errorLabel = isStaffId ? "Staff ID cannot exceed 4 digits" : "PIN cannot exceed 6 digits";
+
+    final fieldBg = isDark ? const Color(0xFF0B1220) : const Color(0xFFF8FAFC);
+    final borderColor = isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0);
+    const primaryAccent = Color(0xFF1D4ED8);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1803,26 +1851,26 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
           children: [
             Text(
               label,
-              style: GoogleFonts.manrope(
+              style: GoogleFonts.inter(
                 fontSize: 10,
-                fontWeight: FontWeight.w900,
-                color: Colors.white.withValues(alpha: 0.4),
-                letterSpacing: 1,
+                fontWeight: FontWeight.w800,
+                color: theme.colorScheme.onSurfaceVariant,
+                letterSpacing: 0.5,
               ),
             ),
             if (maxDigits != null)
               Text(
                 'MAX $maxDigits DIGITS',
-                style: GoogleFonts.ibmPlexMono(
-                  fontSize: 8,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white.withValues(alpha: 0.25),
-                  letterSpacing: 1,
+                style: GoogleFonts.jetBrainsMono(
+                  fontSize: 8.5,
+                  fontWeight: FontWeight.w700,
+                  color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                  letterSpacing: 0.5,
                 ),
               ),
           ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         TextFormField(
           controller: controller,
           obscureText: isPin,
@@ -1836,7 +1884,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(errorLabel),
-                    backgroundColor: Colors.orange,
+                    backgroundColor: const Color(0xFFD97706),
                     duration: const Duration(seconds: 1),
                     behavior: SnackBarBehavior.floating,
                   ),
@@ -1848,23 +1896,24 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
             if (isStaffId && v != null && v.length > 4) return 'Maximum 4 digits allowed';
             return validator?.call(v);
           },
-          style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
+          style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontSize: 14),
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: GoogleFonts.inter(color: Colors.white.withValues(alpha: 0.1), fontSize: 15),
+            hintStyle: GoogleFonts.inter(color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4), fontSize: 14),
             filled: true,
-            fillColor: Colors.black.withValues(alpha: 0.2),
+            fillColor: fieldBg,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: borderColor),
             ),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: borderColor),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: Color(0xFFC1F11D), width: 1.5),
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: primaryAccent, width: 1.5),
             ),
           ),
         ),

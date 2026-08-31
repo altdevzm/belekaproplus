@@ -5,7 +5,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:beleka_pos/services/database_service.dart';
 import 'package:beleka_pos/services/scale_service.dart';
 import 'package:beleka_pos/providers/store_provider.dart';
-import 'package:beleka_pos/providers/theme_provider.dart';
 
 class ScaleSettingsModal extends ConsumerStatefulWidget {
   const ScaleSettingsModal({super.key});
@@ -124,30 +123,24 @@ class _ScaleSettingsModalState extends ConsumerState<ScaleSettingsModal> {
 
   @override
   Widget build(BuildContext context) {
-    final accentColor = ref.watch(accentColorProvider);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
 
     return Dialog(
-      backgroundColor: Colors.transparent,
+      backgroundColor: isDark ? const Color(0xFF151F32) : Colors.white,
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+      ),
       child: Container(
         width: 540,
         constraints: BoxConstraints(
           maxHeight: MediaQuery.of(context).size.height * 0.9,
         ),
-        decoration: BoxDecoration(
-          color: const Color(0xFF141418),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.6),
-              blurRadius: 50,
-              spreadRadius: 10,
-            ),
-          ],
-        ),
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(18),
+          padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -162,19 +155,19 @@ class _ScaleSettingsModalState extends ConsumerState<ScaleSettingsModal> {
                         Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFC1F11D).withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(10),
+                            color: isDark ? primaryColor.withValues(alpha: 0.15) : primaryColor.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(8),
                           ),
-                          child: const Icon(Icons.scale_rounded, color: Color(0xFFC1F11D), size: 20),
+                          child: Icon(Icons.scale_rounded, color: primaryColor, size: 20),
                         ),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
-                            'Electronic Scale Settings',
-                            style: GoogleFonts.manrope(
+                            'Electronic Scale Configuration',
+                            style: GoogleFonts.inter(
                               fontSize: 16,
                               fontWeight: FontWeight.w800,
-                              color: Colors.white,
+                              color: theme.colorScheme.onSurface,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -185,20 +178,22 @@ class _ScaleSettingsModalState extends ConsumerState<ScaleSettingsModal> {
                   ),
                   IconButton(
                     onPressed: () => Navigator.pop(context),
-                    icon: Icon(Icons.close_rounded, color: Colors.white.withValues(alpha: 0.4), size: 20),
+                    icon: Icon(Icons.close_rounded, color: theme.colorScheme.onSurfaceVariant, size: 20),
                   ),
                 ],
               ),
 
               const SizedBox(height: 16),
+              Divider(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0), height: 1),
+              const SizedBox(height: 16),
 
               // Enable Scale Switch Card
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.04),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                  color: isDark ? const Color(0xFF1C283D) : const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
                 ),
                 child: Row(
                   children: [
@@ -207,13 +202,13 @@ class _ScaleSettingsModalState extends ConsumerState<ScaleSettingsModal> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Enable Scale Hardware Integration',
-                            style: GoogleFonts.manrope(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white),
+                            'Enable Electronic Scale Integration',
+                            style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurface),
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            'Auto-read weight on selecting weighted products',
-                            style: GoogleFonts.inter(fontSize: 11, color: Colors.white54),
+                            'Auto-read weight on selecting weighted products at checkout',
+                            style: GoogleFonts.inter(fontSize: 11, color: theme.colorScheme.onSurfaceVariant),
                           ),
                         ],
                       ),
@@ -221,14 +216,14 @@ class _ScaleSettingsModalState extends ConsumerState<ScaleSettingsModal> {
                     const SizedBox(width: 8),
                     Switch(
                       value: _scaleEnabled,
-                      activeThumbColor: const Color(0xFFC1F11D),
+                      activeThumbColor: primaryColor,
                       onChanged: (val) => setState(() => _scaleEnabled = val),
                     ),
                   ],
                 ),
               ),
 
-              const SizedBox(height: 14),
+              const SizedBox(height: 16),
 
               // Port & Baud Rate Row
               Row(
@@ -236,21 +231,21 @@ class _ScaleSettingsModalState extends ConsumerState<ScaleSettingsModal> {
                   Expanded(
                     flex: 3,
                     child: _buildTextField(
+                      context: context,
                       controller: _portController,
                       label: 'SERIAL PORT / SOCKET BRIDGE',
                       hint: 'e.g. COM1, COM3, /dev/ttyUSB0',
-                      accentColor: accentColor,
                     ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
                     flex: 2,
                     child: _buildTextField(
+                      context: context,
                       controller: _baudRateController,
                       label: 'BAUD RATE',
                       hint: '9600',
                       keyboardType: TextInputType.number,
-                      accentColor: accentColor,
                     ),
                   ),
                 ],
@@ -269,14 +264,15 @@ class _ScaleSettingsModalState extends ConsumerState<ScaleSettingsModal> {
                         onTap: () => setState(() => _portController.text = p),
                         borderRadius: BorderRadius.circular(6),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.06),
+                            color: isDark ? const Color(0xFF1C283D) : const Color(0xFFF8FAFC),
                             borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
                           ),
                           child: Text(
                             p,
-                            style: GoogleFonts.robotoMono(fontSize: 10, color: Colors.white70),
+                            style: GoogleFonts.inter(fontSize: 11, color: theme.colorScheme.onSurfaceVariant, fontWeight: FontWeight.w600),
                           ),
                         ),
                       ),
@@ -285,7 +281,7 @@ class _ScaleSettingsModalState extends ConsumerState<ScaleSettingsModal> {
                 ),
               ),
 
-              const SizedBox(height: 14),
+              const SizedBox(height: 16),
 
               // Scale Protocol Selector
               Column(
@@ -293,32 +289,32 @@ class _ScaleSettingsModalState extends ConsumerState<ScaleSettingsModal> {
                 children: [
                   Text(
                     'SCALE PROTOCOL / DRIVER FORMAT',
-                    style: GoogleFonts.manrope(
-                      fontSize: 10,
+                    style: GoogleFonts.inter(
+                      fontSize: 10.5,
                       fontWeight: FontWeight.w800,
-                      letterSpacing: 0.8,
-                      color: Colors.white.withValues(alpha: 0.4),
+                      letterSpacing: 0.5,
+                      color: primaryColor,
                     ),
                   ),
                   const SizedBox(height: 6),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 14),
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.04),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                      color: isDark ? const Color(0xFF1C283D) : const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
                     ),
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<String>(
                         value: _protocols.any((p) => p['id'] == _scaleProtocol) ? _scaleProtocol : 'generic',
                         isExpanded: true,
-                        dropdownColor: const Color(0xFF1A1A20),
+                        dropdownColor: isDark ? const Color(0xFF151F32) : Colors.white,
                         items: _protocols.map((p) {
                           return DropdownMenuItem<String>(
                             value: p['id'],
                             child: Text(
                               p['name']!,
-                              style: GoogleFonts.inter(fontSize: 12, color: Colors.white),
+                              style: GoogleFonts.inter(fontSize: 13, color: theme.colorScheme.onSurface),
                               overflow: TextOverflow.ellipsis,
                             ),
                           );
@@ -332,15 +328,15 @@ class _ScaleSettingsModalState extends ConsumerState<ScaleSettingsModal> {
                 ],
               ),
 
-              const SizedBox(height: 14),
+              const SizedBox(height: 16),
 
               // Test Scale Connection Card
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: Colors.black,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                  color: isDark ? const Color(0xFF1C283D) : const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
                 ),
                 child: Row(
                   children: [
@@ -352,10 +348,10 @@ class _ScaleSettingsModalState extends ConsumerState<ScaleSettingsModal> {
                             _testReading != null
                                 ? 'LIVE: ${_testReading!.netWeight.toStringAsFixed(3)} ${_testReading!.unit.toUpperCase()}'
                                 : 'SCALE TEST & DIAGNOSTIC',
-                            style: GoogleFonts.manrope(
-                              fontSize: 11,
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
                               fontWeight: FontWeight.w800,
-                              color: _testReading != null ? const Color(0xFFC1F11D) : Colors.white70,
+                              color: _testReading != null ? const Color(0xFF059669) : theme.colorScheme.onSurface,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -363,7 +359,7 @@ class _ScaleSettingsModalState extends ConsumerState<ScaleSettingsModal> {
                           const SizedBox(height: 2),
                           Text(
                             _testReading != null ? 'Status: Stable • Connected' : 'Verify communication with scale driver',
-                            style: GoogleFonts.inter(fontSize: 10, color: Colors.white38),
+                            style: GoogleFonts.inter(fontSize: 11, color: theme.colorScheme.onSurfaceVariant),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -374,35 +370,37 @@ class _ScaleSettingsModalState extends ConsumerState<ScaleSettingsModal> {
                     ElevatedButton.icon(
                       onPressed: _isTesting ? null : _testScale,
                       icon: _isTesting
-                          ? const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
+                          ? const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                           : const Icon(Icons.play_arrow_rounded, size: 16),
-                      label: Text(_isTesting ? 'Testing...' : 'Test Scale', style: const TextStyle(fontSize: 11)),
+                      label: Text(_isTesting ? 'Testing...' : 'Test Scale', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold)),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFC1F11D),
-                        foregroundColor: Colors.black,
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        backgroundColor: primaryColor,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        elevation: 0,
                       ),
                     ),
                   ],
                 ),
               ),
 
-              const SizedBox(height: 18),
+              const SizedBox(height: 20),
 
               // Save Button
               SizedBox(
-                height: 46,
+                height: 44,
                 child: ElevatedButton(
                   onPressed: _save,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFC1F11D),
-                    foregroundColor: Colors.black,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    backgroundColor: primaryColor,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    elevation: 0,
                   ),
                   child: Text(
                     'SAVE SCALE CONFIGURATION',
-                    style: GoogleFonts.manrope(fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 0.8),
+                    style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w800, letterSpacing: 0.5),
                   ),
                 ),
               ),
@@ -414,39 +412,43 @@ class _ScaleSettingsModalState extends ConsumerState<ScaleSettingsModal> {
   }
 
   Widget _buildTextField({
+    required BuildContext context,
     required TextEditingController controller,
     required String label,
     required String hint,
-    required Color accentColor,
     TextInputType? keyboardType,
   }) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
-          style: GoogleFonts.manrope(
-            fontSize: 10,
+          style: GoogleFonts.inter(
+            fontSize: 10.5,
             fontWeight: FontWeight.w800,
-            letterSpacing: 0.8,
-            color: Colors.white.withValues(alpha: 0.4),
+            letterSpacing: 0.5,
+            color: primaryColor,
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         Container(
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.04),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            color: isDark ? const Color(0xFF1C283D) : const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
           ),
           child: TextFormField(
             controller: controller,
             keyboardType: keyboardType,
-            style: GoogleFonts.inter(color: Colors.white, fontSize: 13),
+            style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontSize: 13),
             decoration: InputDecoration(
               hintText: hint,
-              hintStyle: GoogleFonts.inter(color: Colors.white24, fontSize: 13),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              hintStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5), fontSize: 13),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               border: InputBorder.none,
             ),
           ),

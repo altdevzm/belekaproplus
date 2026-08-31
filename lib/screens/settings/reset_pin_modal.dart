@@ -71,23 +71,19 @@ class _ResetPinModalState extends ConsumerState<ResetPinModal> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
+
     return Dialog(
-      backgroundColor: Colors.transparent,
+      backgroundColor: isDark ? const Color(0xFF151F32) : Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+      ),
       child: Container(
-        width: 400,
-        decoration: BoxDecoration(
-          color: const Color(0xFF141418),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.4),
-              blurRadius: 40,
-              offset: const Offset(0, 10),
-            ),
-          ],
-        ),
-        padding: const EdgeInsets.all(40),
+        width: 420,
+        padding: const EdgeInsets.all(28),
         child: Form(
           key: _formKey,
           child: Column(
@@ -100,36 +96,40 @@ class _ResetPinModalState extends ConsumerState<ResetPinModal> {
                   Expanded(
                     child: Text(
                       widget.title.toUpperCase(),
-                      style: GoogleFonts.manrope(
+                      style: GoogleFonts.inter(
                         fontSize: 14,
                         fontWeight: FontWeight.w800,
-                        letterSpacing: 2,
-                        color: const Color(0xFFC1F11D),
+                        letterSpacing: 0.5,
+                        color: theme.colorScheme.onSurface,
                       ),
                     ),
                   ),
                   IconButton(
                     onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close, color: Colors.white24, size: 20),
+                    icon: Icon(Icons.close, color: theme.colorScheme.onSurfaceVariant, size: 20),
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 4),
               Text(
                 'Staff: ${widget.user.name} (${widget.user.numericId})',
                 style: GoogleFonts.inter(
                   fontSize: 12,
-                  color: Colors.white38,
+                  color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 20),
+              Divider(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0), height: 1),
+              const SizedBox(height: 20),
               _buildPinField(
+                context: context,
                 controller: _pinController,
                 label: 'NEW SECURITY PIN',
                 hint: '4-6 digits',
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
               _buildPinField(
+                context: context,
                 controller: _confirmPinController,
                 label: 'CONFIRM NEW PIN',
                 hint: 'Repeat PIN',
@@ -138,25 +138,25 @@ class _ResetPinModalState extends ConsumerState<ResetPinModal> {
                   return null;
                 },
               ),
-              const SizedBox(height: 48),
+              const SizedBox(height: 24),
               SizedBox(
-                height: 56,
+                height: 44,
                 child: ElevatedButton(
                   onPressed: _isLoading ? null : _handleReset,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFC1F11D),
-                    foregroundColor: Colors.black,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    backgroundColor: primaryColor,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     elevation: 0,
                   ),
                   child: _isLoading 
-                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
+                    ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                     : Text(
                         'UPDATE SECURITY PIN',
-                        style: GoogleFonts.manrope(
+                        style: GoogleFonts.inter(
                           fontWeight: FontWeight.w800,
-                          letterSpacing: 1,
-                          fontSize: 13,
+                          letterSpacing: 0.5,
+                          fontSize: 12,
                         ),
                       ),
                 ),
@@ -169,24 +169,29 @@ class _ResetPinModalState extends ConsumerState<ResetPinModal> {
   }
 
   Widget _buildPinField({
+    required BuildContext context,
     required TextEditingController controller,
     required String label,
     required String hint,
     String? Function(String?)? validator,
   }) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
-          style: GoogleFonts.manrope(
-            fontSize: 10,
+          style: GoogleFonts.inter(
+            fontSize: 10.5,
             fontWeight: FontWeight.w800,
-            color: Colors.white.withValues(alpha: 0.4),
-            letterSpacing: 1,
+            color: primaryColor,
+            letterSpacing: 0.5,
           ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 6),
         TextFormField(
           controller: controller,
           obscureText: _obscure,
@@ -205,32 +210,33 @@ class _ResetPinModalState extends ConsumerState<ResetPinModal> {
               );
             }),
           ],
-          style: GoogleFonts.ibmPlexMono(
-            color: Colors.white, 
-            fontSize: 18, 
+          style: GoogleFonts.inter(
+            color: theme.colorScheme.onSurface, 
+            fontSize: 16, 
             fontWeight: FontWeight.bold,
-            letterSpacing: 8,
+            letterSpacing: 6,
           ),
           decoration: InputDecoration(
+            counterText: '',
             hintText: hint,
-            hintStyle: GoogleFonts.ibmPlexMono(color: Colors.white10, fontSize: 14, letterSpacing: 2),
-            prefixIcon: const Icon(Icons.lock_outline_rounded, color: Colors.white24, size: 18),
+            hintStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5), fontSize: 13, letterSpacing: 1),
+            prefixIcon: Icon(Icons.lock_outline_rounded, color: theme.colorScheme.onSurfaceVariant, size: 18),
             suffixIcon: IconButton(
-              icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility, color: Colors.white10),
+              icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility, color: theme.colorScheme.onSurfaceVariant),
               onPressed: () => setState(() => _obscure = !_obscure),
             ),
             filled: true,
-            fillColor: Colors.white.withValues(alpha: 0.02),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            fillColor: isDark ? const Color(0xFF1C283D) : const Color(0xFFF8FAFC),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: const Color(0xFFC1F11D).withValues(alpha: 0.3)),
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: primaryColor),
             ),
-            errorStyle: const TextStyle(color: Colors.redAccent, fontSize: 11),
+            errorStyle: const TextStyle(color: Color(0xFFDC2626), fontSize: 11),
           ),
           validator: (v) {
             if (v == null || v.isEmpty) return 'Required';

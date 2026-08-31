@@ -133,6 +133,7 @@ class _TotReportScreenState extends ConsumerState<TotReportScreen>
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final config = ref.watch(storeConfigProvider).value;
     final storeId = config?.cloudStoreId ?? 1;
     final currency = config?.currencySymbol ?? 'K';
@@ -142,7 +143,7 @@ class _TotReportScreenState extends ConsumerState<TotReportScreen>
     final returnsAsync = ref.watch(_totReturnsProvider(storeId));
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0D0D10),
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: FadeTransition(
         opacity: _fadeAnim,
         child: CustomScrollView(
@@ -178,18 +179,18 @@ class _TotReportScreenState extends ConsumerState<TotReportScreen>
   // ── App Bar ─────────────────────────────────────────────────────────────────
 
   Widget _buildAppBar(BuildContext context, String currency) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return SliverAppBar(
-      backgroundColor: const Color(0xFF0D0D10),
+      backgroundColor: isDark ? const Color(0xFF151F32) : Colors.white,
       expandedHeight: 120,
       pinned: true,
       flexibleSpace: FlexibleSpaceBar(
         background: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF1A1500), Color(0xFF0D0D10)],
-            ),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF151F32) : Colors.white,
+            border: Border(bottom: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0))),
           ),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(24, 48, 24, 16),
@@ -202,29 +203,31 @@ class _TotReportScreenState extends ConsumerState<TotReportScreen>
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF5C842).withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(12),
+                        color: const Color(0xFFFFFBEB),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFFDE68A)),
                       ),
-                      child: const Icon(Icons.receipt_long_rounded, color: Color(0xFFF5C842), size: 22),
+                      child: const Icon(Icons.receipt_long_rounded, color: Color(0xFFD97706), size: 22),
                     ),
                     const SizedBox(width: 12),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Turnover Tax (TOT)',
+                          'Turnover Tax (TOT) Return',
                           style: GoogleFonts.inter(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -0.3,
+                            color: theme.colorScheme.onSurface,
                           ),
                         ),
                         Text(
-                          'ZRA Monthly Return Compiler',
+                          'ZRA Monthly Return Compiler & DigiTax Filing',
                           style: GoogleFonts.inter(
                             fontSize: 12,
-                            color: const Color(0xFFF5C842).withValues(alpha: 0.7),
-                            fontWeight: FontWeight.w500,
+                            color: const Color(0xFFD97706),
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ],
@@ -237,7 +240,7 @@ class _TotReportScreenState extends ConsumerState<TotReportScreen>
         ),
       ),
       leading: IconButton(
-        icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+        icon: Icon(Icons.arrow_back_rounded, color: theme.colorScheme.onSurface),
         onPressed: () => Navigator.of(context).pop(),
       ),
     );
@@ -246,6 +249,8 @@ class _TotReportScreenState extends ConsumerState<TotReportScreen>
   // ── Month Picker ─────────────────────────────────────────────────────────────
 
   Widget _buildMonthPicker(BuildContext context, WidgetRef ref, int year, int month) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final now = DateTime.now();
     final months = List.generate(12, (i) => i + 1);
     final years = List.generate(5, (i) => now.year - i);
@@ -253,24 +258,24 @@ class _TotReportScreenState extends ConsumerState<TotReportScreen>
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFF161619),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
+        color: isDark ? const Color(0xFF151F32) : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.calendar_month_rounded, size: 16, color: Colors.white.withValues(alpha: 0.4)),
+              Icon(Icons.calendar_month_rounded, size: 16, color: theme.colorScheme.onSurfaceVariant),
               const SizedBox(width: 8),
               Text(
-                'Reporting Period',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white.withValues(alpha: 0.5),
-                  letterSpacing: 0.8,
+                'REPORTING TAX PERIOD',
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  color: theme.colorScheme.onSurfaceVariant,
+                  letterSpacing: 0.5,
                 ),
               ),
             ],
@@ -284,16 +289,16 @@ class _TotReportScreenState extends ConsumerState<TotReportScreen>
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.04),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                    color: isDark ? const Color(0xFF1C283D) : const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
                   ),
                   child: DropdownButtonHideUnderline(
                     child: DropdownButton<int>(
                       value: month,
                       isExpanded: true,
-                      dropdownColor: const Color(0xFF1E1E22),
-                      style: GoogleFonts.inter(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                      dropdownColor: isDark ? const Color(0xFF151F32) : Colors.white,
+                      style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontSize: 13, fontWeight: FontWeight.w600),
                       items: months.map((m) {
                         final name = DateFormat('MMMM').format(DateTime(2024, m));
                         return DropdownMenuItem(value: m, child: Text(name));
@@ -312,16 +317,16 @@ class _TotReportScreenState extends ConsumerState<TotReportScreen>
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.04),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                    color: isDark ? const Color(0xFF1C283D) : const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
                   ),
                   child: DropdownButtonHideUnderline(
                     child: DropdownButton<int>(
                       value: year,
                       isExpanded: true,
-                      dropdownColor: const Color(0xFF1E1E22),
-                      style: GoogleFonts.inter(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                      dropdownColor: isDark ? const Color(0xFF151F32) : Colors.white,
+                      style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontSize: 13, fontWeight: FontWeight.w600),
                       items: years.map((y) => DropdownMenuItem(value: y, child: Text('$y'))).toList(),
                       onChanged: (v) {
                         if (v != null) ref.read(_selectedYearProvider.notifier).state = v;
@@ -364,25 +369,18 @@ class _TotReportScreenState extends ConsumerState<TotReportScreen>
   }
 
   Widget _buildTurnoverHero(BuildContext context, TotMonthlySummary summary, String currency) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     final fmt = NumberFormat('#,##0.00');
     final isNil = summary.totAmount == 0;
 
     return Container(
-      padding: const EdgeInsets.all(28),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: isNil
-              ? [const Color(0xFF0F2015), const Color(0xFF161619)]
-              : [const Color(0xFF231C00), const Color(0xFF161619)],
-        ),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: isNil
-              ? const Color(0xFF5DD39E).withValues(alpha: 0.25)
-              : const Color(0xFFF5C842).withValues(alpha: 0.3),
-        ),
+        color: isDark ? const Color(0xFF151F32) : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -394,23 +392,24 @@ class _TotReportScreenState extends ConsumerState<TotReportScreen>
                 '${summary.monthName.toUpperCase()} ${summary.chargeYear}',
                 style: GoogleFonts.inter(
                   fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.5,
-                  color: Colors.white.withValues(alpha: 0.5),
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.5,
+                  color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: (isNil ? const Color(0xFF5DD39E) : const Color(0xFFF5C842)).withValues(alpha: 0.15),
+                  color: isNil ? const Color(0xFFECFDF5) : const Color(0xFFFFFBEB),
                   borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: isNil ? const Color(0xFFA7F3D0) : const Color(0xFFFDE68A)),
                 ),
                 child: Text(
                   isNil ? 'NIL RETURN (0%)' : 'TAX DUE: ${summary.totRatePercent.toStringAsFixed(0)}%',
                   style: GoogleFonts.inter(
                     fontSize: 11,
                     fontWeight: FontWeight.w800,
-                    color: isNil ? const Color(0xFF5DD39E) : const Color(0xFFF5C842),
+                    color: isNil ? const Color(0xFF059669) : const Color(0xFFD97706),
                   ),
                 ),
               ),
@@ -418,21 +417,21 @@ class _TotReportScreenState extends ConsumerState<TotReportScreen>
           ),
           const SizedBox(height: 16),
           Text(
-            'Gross Turnover (Total Sales)',
-            style: GoogleFonts.inter(fontSize: 13, color: Colors.white.withValues(alpha: 0.6)),
+            'Gross Turnover (Total Taxable Sales)',
+            style: GoogleFonts.inter(fontSize: 12.5, color: theme.colorScheme.onSurfaceVariant, fontWeight: FontWeight.w500),
           ),
           const SizedBox(height: 4),
           Text(
             '$currency${fmt.format(summary.grossTurnover)}',
             style: GoogleFonts.inter(
-              fontSize: 34,
+              fontSize: 32,
               fontWeight: FontWeight.w900,
-              color: Colors.white,
+              color: theme.colorScheme.onSurface,
               letterSpacing: -0.5,
             ),
           ),
           const SizedBox(height: 16),
-          Divider(color: Colors.white.withValues(alpha: 0.08)),
+          Divider(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
           const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -440,14 +439,14 @@ class _TotReportScreenState extends ConsumerState<TotReportScreen>
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('TOT Tax Owed to ZRA', style: GoogleFonts.inter(fontSize: 12, color: Colors.white.withValues(alpha: 0.5))),
+                  Text('TOT Tax Owed to ZRA', style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurfaceVariant)),
                   const SizedBox(height: 2),
                   Text(
                     '$currency${fmt.format(summary.totAmount)}',
                     style: GoogleFonts.inter(
                       fontSize: 20,
                       fontWeight: FontWeight.w800,
-                      color: isNil ? const Color(0xFF5DD39E) : const Color(0xFFF5C842),
+                      color: isNil ? const Color(0xFF059669) : const Color(0xFFD97706),
                     ),
                   ),
                 ],
@@ -455,14 +454,14 @@ class _TotReportScreenState extends ConsumerState<TotReportScreen>
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text('Payment Deadline', style: GoogleFonts.inter(fontSize: 12, color: Colors.white.withValues(alpha: 0.5))),
+                  Text('ZRA Payment Deadline', style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurfaceVariant)),
                   const SizedBox(height: 2),
                   Text(
                     summary.dueDate,
-                    style: GoogleFonts.jetBrainsMono(
+                    style: GoogleFonts.inter(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
-                      color: Colors.white,
+                      color: theme.colorScheme.onSurface,
                     ),
                   ),
                 ],
@@ -475,15 +474,17 @@ class _TotReportScreenState extends ConsumerState<TotReportScreen>
   }
 
   Widget _buildKeyMetricsRow(BuildContext context, TotMonthlySummary summary, String currency) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final fmt = NumberFormat('#,##0.00');
     final ytdPct = ((summary.ytdTurnover / summary.annualLimit) * 100).clamp(0.0, 100.0);
 
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFF161619),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
+        color: isDark ? const Color(0xFF151F32) : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -493,16 +494,16 @@ class _TotReportScreenState extends ConsumerState<TotReportScreen>
             children: [
               Text(
                 'YTD Turnover vs ZRA Limit',
-                style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white.withValues(alpha: 0.7)),
+                style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurface),
               ),
               Text(
                 '${ytdPct.toStringAsFixed(1)}% of K5.0M Limit',
-                style: GoogleFonts.jetBrainsMono(
+                style: GoogleFonts.inter(
                   fontSize: 11,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w800,
                   color: summary.overAnnualLimit
-                      ? Colors.redAccent
-                      : (summary.thresholdWarning ? const Color(0xFFF5C842) : const Color(0xFF5DD39E)),
+                      ? const Color(0xFFDC2626)
+                      : (summary.thresholdWarning ? const Color(0xFFD97706) : const Color(0xFF059669)),
                 ),
               ),
             ],
@@ -512,11 +513,11 @@ class _TotReportScreenState extends ConsumerState<TotReportScreen>
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
               value: (summary.ytdTurnover / summary.annualLimit).clamp(0.0, 1.0),
-              backgroundColor: Colors.white.withValues(alpha: 0.06),
+              backgroundColor: isDark ? const Color(0xFF1C283D) : const Color(0xFFE2E8F0),
               valueColor: AlwaysStoppedAnimation(
                 summary.overAnnualLimit
-                    ? Colors.redAccent
-                    : (summary.thresholdWarning ? const Color(0xFFF5C842) : const Color(0xFF5DD39E)),
+                    ? const Color(0xFFDC2626)
+                    : (summary.thresholdWarning ? const Color(0xFFD97706) : const Color(0xFF059669)),
               ),
               minHeight: 6,
             ),
@@ -525,8 +526,8 @@ class _TotReportScreenState extends ConsumerState<TotReportScreen>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('YTD Accumulated: $currency${fmt.format(summary.ytdTurnover)}', style: GoogleFonts.inter(fontSize: 12, color: Colors.white.withValues(alpha: 0.4))),
-              Text('Limit: ${currency}5,000,000', style: GoogleFonts.inter(fontSize: 12, color: Colors.white.withValues(alpha: 0.4))),
+              Text('YTD Accumulated: $currency${fmt.format(summary.ytdTurnover)}', style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurfaceVariant)),
+              Text('Limit: ${currency}5,000,000', style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurfaceVariant)),
             ],
           ),
           if (summary.overAnnualLimit) ...[
@@ -534,18 +535,18 @@ class _TotReportScreenState extends ConsumerState<TotReportScreen>
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.redAccent.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.redAccent.withValues(alpha: 0.3)),
+                color: const Color(0xFFFEF2F2),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFFCA5A5)),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 18),
+                  const Icon(Icons.warning_amber_rounded, color: Color(0xFFDC2626), size: 18),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       'Turnover exceeds K5,000,000 limit. Under ZRA rules, you must transition to Standard Income Tax / VAT.',
-                      style: GoogleFonts.inter(fontSize: 11, color: Colors.redAccent, fontWeight: FontWeight.w600),
+                      style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFFDC2626), fontWeight: FontWeight.w600),
                     ),
                   ),
                 ],
@@ -561,13 +562,13 @@ class _TotReportScreenState extends ConsumerState<TotReportScreen>
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF5DD39E).withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF5DD39E).withValues(alpha: 0.3)),
+        color: const Color(0xFFECFDF5),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFA7F3D0)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.check_circle_rounded, color: Color(0xFF5DD39E), size: 22),
+          const Icon(Icons.check_circle_rounded, color: Color(0xFF059669), size: 22),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -575,11 +576,11 @@ class _TotReportScreenState extends ConsumerState<TotReportScreen>
               children: [
                 Text(
                   'Return Filed for this Period',
-                  style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: const Color(0xFF5DD39E)),
+                  style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: const Color(0xFF059669)),
                 ),
                 Text(
                   'Status: ${summary.filedStatus ?? "SUBMITTED"} • Return ID: #${summary.filedReturnId ?? "N/A"}',
-                  style: GoogleFonts.inter(fontSize: 11, color: Colors.white.withValues(alpha: 0.5)),
+                  style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF047857)),
                 ),
               ],
             ),
@@ -597,12 +598,15 @@ class _TotReportScreenState extends ConsumerState<TotReportScreen>
     int year,
     int month,
   ) {
+    final theme = Theme.of(context);
+    final primaryColor = theme.colorScheme.primary;
+
     return SizedBox(
       width: double.infinity,
-      height: 56,
+      height: 48,
       child: ElevatedButton.icon(
         onPressed: () => _submitReturn(context, ref, summary, storeId, year, month),
-        icon: const Icon(Icons.send_rounded, size: 20),
+        icon: const Icon(Icons.send_rounded, size: 18),
         label: Text(
           summary.totAmount == 0
               ? 'File NIL Return (K0.00 TOT)'
@@ -610,9 +614,9 @@ class _TotReportScreenState extends ConsumerState<TotReportScreen>
           style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w800),
         ),
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFFF5C842),
-          foregroundColor: Colors.black,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          backgroundColor: primaryColor,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           elevation: 0,
         ),
       ),
@@ -627,6 +631,10 @@ class _TotReportScreenState extends ConsumerState<TotReportScreen>
     int year,
     int month,
   ) async {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
+
     final config = ref.read(storeConfigProvider).value;
     if (config?.cloudApiUrl == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -639,42 +647,42 @@ class _TotReportScreenState extends ConsumerState<TotReportScreen>
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A1E),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('Submit TOT Return', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w800)),
+        backgroundColor: isDark ? const Color(0xFF151F32) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Submit TOT Return', style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontWeight: FontWeight.w800)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Period: ${summary.monthName} ${summary.chargeYear}',
-                style: GoogleFonts.inter(color: Colors.white70, fontSize: 14)),
+                style: GoogleFonts.inter(color: theme.colorScheme.onSurfaceVariant, fontSize: 13)),
             const SizedBox(height: 8),
             Text('Gross Turnover: K${NumberFormat('#,##0.00').format(summary.grossTurnover)}',
-                style: GoogleFonts.inter(color: Colors.white70, fontSize: 14)),
+                style: GoogleFonts.inter(color: theme.colorScheme.onSurfaceVariant, fontSize: 13)),
             const SizedBox(height: 4),
             Text(
               'TOT Amount: K${NumberFormat('#,##0.00').format(summary.totAmount)} (${summary.totRatePercent.toStringAsFixed(0)}%)',
               style: GoogleFonts.inter(
-                color: const Color(0xFFF5C842),
+                color: primaryColor,
                 fontSize: 15,
-                fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.w800,
               ),
             ),
             const SizedBox(height: 12),
             Text('This return will be submitted to ZRA via DigiTax.',
-                style: GoogleFonts.inter(color: Colors.white38, fontSize: 12)),
+                style: GoogleFonts.inter(color: theme.colorScheme.onSurfaceVariant, fontSize: 12)),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text('Cancel', style: GoogleFonts.inter(color: Colors.white54)),
+            child: Text('Cancel', style: GoogleFonts.inter(color: theme.colorScheme.onSurfaceVariant)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFF5C842),
-              foregroundColor: Colors.black,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              backgroundColor: primaryColor,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
             onPressed: () => Navigator.of(ctx).pop(true),
             child: Text('Confirm & Submit', style: GoogleFonts.inter(fontWeight: FontWeight.w800)),
@@ -703,7 +711,7 @@ class _TotReportScreenState extends ConsumerState<TotReportScreen>
                 ? result.message
                 : 'Return submitted locally. Ref: ${result?.digitaxReference ?? 'N/A'}',
           ),
-          backgroundColor: const Color(0xFF5DD39E),
+          backgroundColor: const Color(0xFF059669),
           duration: const Duration(seconds: 5),
         ),
       );
@@ -720,34 +728,37 @@ class _TotReportScreenState extends ConsumerState<TotReportScreen>
     int month,
     String currency,
   ) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Container(
       padding: const EdgeInsets.all(28),
       decoration: BoxDecoration(
-        color: const Color(0xFF161619),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+        color: isDark ? const Color(0xFF151F32) : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
       ),
       child: Column(
         children: [
           Container(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.03),
+              color: isDark ? const Color(0xFF1C283D) : const Color(0xFFF8FAFC),
               shape: BoxShape.circle,
             ),
-            child: Icon(Icons.cloud_off_rounded, size: 48, color: Colors.white.withValues(alpha: 0.1)),
+            child: Icon(Icons.cloud_off_rounded, size: 40, color: theme.colorScheme.onSurfaceVariant),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
           Text(
             'Cloud Connection Required',
-            style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white),
+            style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurface),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
             'TOT reports are compiled from your cloud sales database.\n'
             'Configure the Cloud API URL in Settings to proceed.',
             textAlign: TextAlign.center,
-            style: GoogleFonts.inter(fontSize: 13, color: Colors.white38, height: 1.5),
+            style: GoogleFonts.inter(fontSize: 13, color: theme.colorScheme.onSurfaceVariant, height: 1.5),
           ),
         ],
       ),
@@ -757,6 +768,9 @@ class _TotReportScreenState extends ConsumerState<TotReportScreen>
   // ── ZRA Rules Card ──────────────────────────────────────────────────────────
 
   Widget _buildZraRulesCard(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     final rules = [
       ('≤ K1,000/month', '0% TOT — NIL return required (K12,000/year exemption)'),
       ('> K1,000/month', '5% of monthly gross sales / turnover'),
@@ -769,23 +783,23 @@ class _TotReportScreenState extends ConsumerState<TotReportScreen>
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFF161619),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFF5C842).withValues(alpha: 0.12)),
+        color: isDark ? const Color(0xFF151F32) : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.gavel_rounded, size: 16, color: const Color(0xFFF5C842).withValues(alpha: 0.7)),
+              const Icon(Icons.gavel_rounded, size: 16, color: Color(0xFFD97706)),
               const SizedBox(width: 8),
               Text(
                 'ZRA TOT Rules at a Glance',
                 style: GoogleFonts.inter(
                   fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: const Color(0xFFF5C842).withValues(alpha: 0.8),
+                  fontWeight: FontWeight.w800,
+                  color: theme.colorScheme.onSurface,
                 ),
               ),
             ],
@@ -800,8 +814,8 @@ class _TotReportScreenState extends ConsumerState<TotReportScreen>
                       width: 6,
                       height: 6,
                       margin: const EdgeInsets.only(top: 6, right: 12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF5C842).withValues(alpha: 0.6),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFD97706),
                         shape: BoxShape.circle,
                       ),
                     ),
@@ -810,17 +824,17 @@ class _TotReportScreenState extends ConsumerState<TotReportScreen>
                         text: TextSpan(children: [
                           TextSpan(
                             text: '${r.$1}  ',
-                            style: GoogleFonts.jetBrainsMono(
+                            style: GoogleFonts.inter(
                               fontSize: 12,
                               fontWeight: FontWeight.w700,
-                              color: Colors.white,
+                              color: theme.colorScheme.onSurface,
                             ),
                           ),
                           TextSpan(
                             text: r.$2,
                             style: GoogleFonts.inter(
                               fontSize: 12,
-                              color: Colors.white.withValues(alpha: 0.5),
+                              color: theme.colorScheme.onSurfaceVariant,
                             ),
                           ),
                         ]),
@@ -843,45 +857,50 @@ class _TotReportScreenState extends ConsumerState<TotReportScreen>
     String currency,
     int storeId,
   ) {
+    final theme = Theme.of(context);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            Icon(Icons.history_rounded, size: 18, color: Colors.white.withValues(alpha: 0.4)),
+            Icon(Icons.history_rounded, size: 18, color: theme.colorScheme.onSurfaceVariant),
             const SizedBox(width: 8),
             Text(
               'Filing History — ${DateTime.now().year}',
-              style: GoogleFonts.plusJakartaSans(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white),
+              style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w800, color: theme.colorScheme.onSurface),
             ),
           ],
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
         returnsAsync.when(
           data: (records) => records.isEmpty
-              ? _buildEmptyHistory()
+              ? _buildEmptyHistory(context)
               : Column(
                   children: records.map((r) => _buildReturnRow(context, ref, r, currency, storeId)).toList(),
                 ),
           loading: () => const _LoadingCard(),
-          error: (e, _) => _buildEmptyHistory(),
+          error: (e, _) => _buildEmptyHistory(context),
         ),
       ],
     );
   }
 
-  Widget _buildEmptyHistory() {
+  Widget _buildEmptyHistory(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Container(
-      padding: const EdgeInsets.all(32),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF161619),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        color: isDark ? const Color(0xFF151F32) : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
       ),
       child: Center(
         child: Text(
-          'No TOT returns filed this year yet.',
-          style: GoogleFonts.inter(fontSize: 13, color: Colors.white24),
+          'No TOT returns filed for this year yet.',
+          style: GoogleFonts.inter(fontSize: 13, color: theme.colorScheme.onSurfaceVariant),
         ),
       ),
     );
@@ -894,45 +913,48 @@ class _TotReportScreenState extends ConsumerState<TotReportScreen>
     String currency,
     int storeId,
   ) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     final (statusColor, statusLabel, statusIcon) = switch (record.status) {
-      'paid' => (const Color(0xFF5DD39E), 'Paid', Icons.check_circle_rounded),
-      'submitted' => (const Color(0xFFF5C842), 'Submitted', Icons.receipt_rounded),
-      _ => (Colors.white38, 'Draft', Icons.edit_note_rounded),
+      'paid' => (const Color(0xFF059669), 'Paid', Icons.check_circle_rounded),
+      'submitted' => (const Color(0xFFD97706), 'Submitted', Icons.receipt_rounded),
+      _ => (theme.colorScheme.onSurfaceVariant, 'Draft', Icons.edit_note_rounded),
     };
     final fmt = NumberFormat('#,##0.00');
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFF161619),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+        color: isDark ? const Color(0xFF151F32) : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
       ),
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         child: InkWell(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(12),
           onTap: record.status == 'submitted'
               ? () => _showMarkPaidDialog(context, ref, record, storeId)
               : null,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             child: Row(
               children: [
                 // Month badge
                 Container(
-                  width: 48,
-                  height: 48,
+                  width: 44,
+                  height: 44,
                   decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
+                    color: isDark ? statusColor.withValues(alpha: 0.15) : statusColor.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                   child: Center(
                     child: Text(
                       record.monthName.substring(0, 3).toUpperCase(),
-                      style: GoogleFonts.jetBrainsMono(
-                        fontSize: 10,
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
                         fontWeight: FontWeight.w900,
                         color: statusColor,
                       ),
@@ -946,12 +968,12 @@ class _TotReportScreenState extends ConsumerState<TotReportScreen>
                     children: [
                       Text(
                         '${record.monthName} ${record.chargeYear}',
-                        style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white),
+                        style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurface),
                       ),
                       const SizedBox(height: 3),
                       Text(
                         'Turnover: $currency ${fmt.format(record.grossTurnover)}',
-                        style: GoogleFonts.inter(fontSize: 12, color: Colors.white38),
+                        style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
                       ),
                     ],
                   ),
@@ -961,17 +983,17 @@ class _TotReportScreenState extends ConsumerState<TotReportScreen>
                   children: [
                     Text(
                       '$currency ${fmt.format(record.totAmount)}',
-                      style: GoogleFonts.jetBrainsMono(
+                      style: GoogleFonts.inter(
                         fontSize: 15,
                         fontWeight: FontWeight.w800,
-                        color: record.totAmount > 0 ? Colors.white : Colors.white38,
+                        color: record.totAmount > 0 ? theme.colorScheme.onSurface : theme.colorScheme.onSurfaceVariant,
                       ),
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 4),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
-                        color: statusColor.withValues(alpha: 0.12),
+                        color: isDark ? statusColor.withValues(alpha: 0.15) : statusColor.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Row(
@@ -982,7 +1004,7 @@ class _TotReportScreenState extends ConsumerState<TotReportScreen>
                           Text(
                             statusLabel,
                             style: GoogleFonts.inter(
-                              fontSize: 11,
+                              fontSize: 10.5,
                               fontWeight: FontWeight.w700,
                               color: statusColor,
                             ),
@@ -1006,29 +1028,32 @@ class _TotReportScreenState extends ConsumerState<TotReportScreen>
     TotReturnRecord record,
     int storeId,
   ) async {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     final config = ref.read(storeConfigProvider).value;
     if (config?.cloudApiUrl == null) return;
 
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A1E),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('Mark as Paid?', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w800)),
+        backgroundColor: isDark ? const Color(0xFF151F32) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Mark as Paid?', style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontWeight: FontWeight.w800)),
         content: Text(
           'Confirm payment of K${NumberFormat('#,##0.00').format(record.totAmount)} TOT for ${record.monthName} ${record.chargeYear}.',
-          style: GoogleFonts.inter(color: Colors.white70),
+          style: GoogleFonts.inter(color: theme.colorScheme.onSurfaceVariant),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text('Cancel', style: GoogleFonts.inter(color: Colors.white54)),
+            child: Text('Cancel', style: GoogleFonts.inter(color: theme.colorScheme.onSurfaceVariant)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF5DD39E),
-              foregroundColor: Colors.black,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              backgroundColor: const Color(0xFF059669),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
             onPressed: () => Navigator.of(ctx).pop(true),
             child: Text('Confirm Paid', style: GoogleFonts.inter(fontWeight: FontWeight.w800)),
@@ -1047,7 +1072,7 @@ class _TotReportScreenState extends ConsumerState<TotReportScreen>
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(ok ? 'Return marked as paid!' : 'Failed to update status. Please try again.'),
-          backgroundColor: ok ? const Color(0xFF5DD39E) : Colors.redAccent,
+          backgroundColor: ok ? const Color(0xFF059669) : const Color(0xFFDC2626),
         ),
       );
     }
@@ -1061,19 +1086,24 @@ class _LoadingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
+
     return Container(
-      height: 120,
+      height: 100,
       decoration: BoxDecoration(
-        color: const Color(0xFF161619),
-        borderRadius: BorderRadius.circular(20),
+        color: isDark ? const Color(0xFF151F32) : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
       ),
-      child: const Center(
+      child: Center(
         child: SizedBox(
-          width: 28,
-          height: 28,
+          width: 24,
+          height: 24,
           child: CircularProgressIndicator(
             strokeWidth: 2.5,
-            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFF5C842)),
+            valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
           ),
         ),
       ),

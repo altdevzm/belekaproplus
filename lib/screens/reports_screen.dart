@@ -150,6 +150,8 @@ class ReportsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final primaryColor = theme.colorScheme.primary;
     final range = ref.watch(reportDateRangeProvider);
     final activePeriod = ref.watch(reportPeriodProvider);
     final transactionsAsync = ref.watch(reportTransactionsProvider);
@@ -157,8 +159,9 @@ class ReportsScreen extends ConsumerWidget {
     final topProducts = ref.watch(reportTopProductsProvider);
     final currency = ref.watch(storeConfigProvider).value?.currencySymbol ?? '\$';
 
-    return Padding(
-      padding: const EdgeInsets.all(24),
+    return Container(
+      color: theme.scaffoldBackgroundColor,
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -172,18 +175,18 @@ class ReportsScreen extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildSummaryCards(context, ref, stats, currency, activePeriod, range),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 24),
                   if (topProducts.isNotEmpty) ...[
                     _buildTopProductsSection(context, topProducts),
-                    const SizedBox(height: 32),
+                    const SizedBox(height: 24),
                   ],
                   transactionsAsync.when(
                     data: (transactions) => SizedBox(
                       height: 500,
                       child: _buildTransactionList(context, ref, transactions, currency),
                     ),
-                    loading: () => const Center(child: CircularProgressIndicator(color: Color(0xFFC1F11D))),
-                    error: (e, _) => Center(child: Text('Error: $e')),
+                    loading: () => Center(child: CircularProgressIndicator(color: primaryColor)),
+                    error: (e, _) => Center(child: Text('Error: $e', style: const TextStyle(color: Color(0xFFDC2626)))),
                   ),
                 ],
               ),
@@ -195,20 +198,24 @@ class ReportsScreen extends ConsumerWidget {
   }
 
   Widget _buildPeriodSelector(BuildContext context, WidgetRef ref, ReportPeriod activePeriod, DateTimeRange range) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
+
     final options = [
-      {'period': ReportPeriod.daily, 'label': '📅 Daily (Today)'},
-      {'period': ReportPeriod.weekly, 'label': '📆 Weekly (This Week)'},
-      {'period': ReportPeriod.monthly, 'label': '📊 Monthly (This Month)'},
-      {'period': ReportPeriod.yearly, 'label': '📈 Yearly (This Year)'},
-      {'period': ReportPeriod.custom, 'label': '🗓️ Custom Range'},
+      {'period': ReportPeriod.daily, 'label': 'Daily (Today)'},
+      {'period': ReportPeriod.weekly, 'label': 'Weekly (This Week)'},
+      {'period': ReportPeriod.monthly, 'label': 'Monthly (This Month)'},
+      {'period': ReportPeriod.yearly, 'label': 'Yearly (This Year)'},
+      {'period': ReportPeriod.custom, 'label': 'Custom Range'},
     ];
 
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: const Color(0xFF161619),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        color: isDark ? const Color(0xFF151F32) : const Color(0xFFFFFFFF),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
       ),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
@@ -231,15 +238,15 @@ class ReportsScreen extends ConsumerWidget {
                   duration: const Duration(milliseconds: 150),
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   decoration: BoxDecoration(
-                    color: isSelected ? const Color(0xFFC1F11D) : Colors.transparent,
+                    color: isSelected ? primaryColor : Colors.transparent,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
                     opt['label'] as String,
-                    style: GoogleFonts.manrope(
+                    style: GoogleFonts.inter(
                       fontSize: 12,
-                      fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
-                      color: isSelected ? Colors.black : Colors.white70,
+                      fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                      color: isSelected ? Colors.white : theme.colorScheme.onSurface,
                     ),
                   ),
                 ),
@@ -252,6 +259,9 @@ class ReportsScreen extends ConsumerWidget {
   }
 
   Future<void> _openCustomDatePicker(BuildContext context, WidgetRef ref, DateTimeRange range) async {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     final picked = await showDateRangePicker(
       context: context,
       initialDateRange: range,
@@ -260,11 +270,11 @@ class ReportsScreen extends ConsumerWidget {
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.dark(
-              primary: Color(0xFFC1F11D),
-              onPrimary: Colors.black,
-              surface: Color(0xFF1A1A1E),
-              onSurface: Colors.white,
+            colorScheme: ColorScheme.dark(
+              primary: theme.colorScheme.primary,
+              onPrimary: Colors.white,
+              surface: isDark ? const Color(0xFF151F32) : Colors.white,
+              onSurface: isDark ? Colors.white : const Color(0xFF172033),
             ),
           ),
           child: child!,
@@ -288,52 +298,108 @@ class ReportsScreen extends ConsumerWidget {
     Map<String, double> stats,
     List<Map<String, dynamic>> topProducts,
   ) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
     final dateFormat = DateFormat('MMM d, yyyy');
-    
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    final todayStr = DateFormat('EEE, dd MMM yyyy').format(DateTime.now());
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        // Top Enterprise Breadcrumb Bar
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              'Sales Reports',
-              style: GoogleFonts.inter(
-                fontSize: 24,
-                fontWeight: FontWeight.w800,
-                color: Colors.white,
-              ),
+            Row(
+              children: [
+                Text('Workspace', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w500, color: theme.colorScheme.onSurfaceVariant)),
+                Icon(Icons.chevron_right_rounded, size: 14, color: theme.colorScheme.onSurfaceVariant),
+                Text('Financial Reports & ZRA Compliance', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: primaryColor)),
+              ],
             ),
-            const SizedBox(height: 4),
-            Text(
-              '${dateFormat.format(range.start)} - ${dateFormat.format(range.end)}',
-              style: GoogleFonts.inter(
-                fontSize: 14,
-                color: Colors.white.withValues(alpha: 0.4),
-              ),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFECFDF5),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: const Color(0xFFA7F3D0)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(width: 6, height: 6, decoration: const BoxDecoration(color: Color(0xFF059669), shape: BoxShape.circle)),
+                      const SizedBox(width: 6),
+                      Text('ZRA DigiTax Audit & Fiscal Reporting Active', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: const Color(0xFF059669))),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF151F32) : Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+                  ),
+                  child: Text(todayStr, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurfaceVariant)),
+                ),
+              ],
             ),
           ],
         ),
-        Consumer(
-          builder: (context, ref, child) {
-            final config = ref.watch(storeConfigProvider).value;
-            final isTot = config?.businessTaxType == 'TURNOVER_TAX' || config?.businessTaxType == 'COMPOSITE';
-            return Row(
+        const SizedBox(height: 14),
+
+        // Main Header Title and Action Menus Row
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildFinancialSummaryMenu(context, ref, range, activePeriod, stats, topProducts),
-                const SizedBox(width: 10),
-                _buildStockAdjustmentReportMenu(context, ref, range),
-                const SizedBox(width: 10),
-                _buildZraZReportMenu(context, ref, range),
-                if (isTot) ...[
-                  const SizedBox(width: 10),
-                  _buildTotReturnButton(context),
-                ],
-                const SizedBox(width: 10),
-                _buildExportMenu(context, ref),
+                Text(
+                  'FINANCIAL & FISCAL REPORTS MANAGEMENT',
+                  style: GoogleFonts.inter(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.3,
+                    color: theme.colorScheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Audit range: ${dateFormat.format(range.start)} - ${dateFormat.format(range.end)}',
+                  style: GoogleFonts.inter(
+                    fontSize: 12.5,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
               ],
-            );
-          },
+            ),
+            Consumer(
+              builder: (context, ref, child) {
+                final config = ref.watch(storeConfigProvider).value;
+                final isTot = config?.businessTaxType == 'TURNOVER_TAX' || config?.businessTaxType == 'COMPOSITE';
+                return Row(
+                  children: [
+                    _buildFinancialSummaryMenu(context, ref, range, activePeriod, stats, topProducts),
+                    const SizedBox(width: 10),
+                    _buildStockAdjustmentReportMenu(context, ref, range),
+                    const SizedBox(width: 10),
+                    _buildZraZReportMenu(context, ref, range),
+                    if (isTot) ...[
+                      const SizedBox(width: 10),
+                      _buildTotReturnButton(context),
+                    ],
+                    const SizedBox(width: 10),
+                    _buildExportMenu(context, ref),
+                  ],
+                );
+              },
+            ),
+          ],
         ),
       ],
     );
@@ -347,6 +413,10 @@ class ReportsScreen extends ConsumerWidget {
     Map<String, double> stats,
     List<Map<String, dynamic>> topProducts,
   ) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
+
     final df = DateFormat('dd MMM yyyy');
     final dateSubtitle = (range.start.year == range.end.year && range.start.month == range.end.month && range.start.day == range.end.day)
         ? df.format(range.start)
@@ -356,10 +426,10 @@ class ReportsScreen extends ConsumerWidget {
     return PopupMenuButton<String>(
       tooltip: 'Financial Summary Actions',
       offset: const Offset(0, 52),
-      color: const Color(0xFF1E1E24),
+      color: isDark ? const Color(0xFF151F32) : Colors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+        side: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
       ),
       onSelected: (value) async {
         final printer = ref.read(printerServiceProvider);
@@ -380,7 +450,7 @@ class ReportsScreen extends ConsumerWidget {
                   content: Text(printed
                       ? '$title printed successfully!'
                       : 'Print command sent (check printer connection).'),
-                  backgroundColor: printed ? const Color(0xFF10B981) : Colors.orangeAccent,
+                  backgroundColor: printed ? const Color(0xFF059669) : Colors.orangeAccent,
                 ),
               );
             }
@@ -397,7 +467,7 @@ class ReportsScreen extends ConsumerWidget {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text('$title Slip (80mm) saved as PDF!'),
-                  backgroundColor: const Color(0xFF10B981),
+                  backgroundColor: const Color(0xFF059669),
                 ),
               );
             }
@@ -415,7 +485,7 @@ class ReportsScreen extends ConsumerWidget {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text('$title Executive Report (A4) saved as PDF!'),
-                  backgroundColor: const Color(0xFF10B981),
+                  backgroundColor: const Color(0xFF059669),
                 ),
               );
             }
@@ -427,9 +497,9 @@ class ReportsScreen extends ConsumerWidget {
           value: 'print',
           child: Row(
             children: [
-              const Icon(Icons.print_rounded, size: 18, color: Color(0xFFC1F11D)),
+              Icon(Icons.print_rounded, size: 18, color: primaryColor),
               const SizedBox(width: 10),
-              Text('Print Financial Slip', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white)),
+              Text('Print Financial Slip', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface)),
             ],
           ),
         ),
@@ -437,9 +507,9 @@ class ReportsScreen extends ConsumerWidget {
           value: 'pdf_slip',
           child: Row(
             children: [
-              const Icon(Icons.receipt_rounded, size: 18, color: Colors.cyanAccent),
+              const Icon(Icons.receipt_rounded, size: 18, color: Color(0xFF0284C7)),
               const SizedBox(width: 10),
-              Text('Save as PDF Slip (80mm)', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white)),
+              Text('Save as PDF Slip (80mm)', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface)),
             ],
           ),
         ),
@@ -447,9 +517,9 @@ class ReportsScreen extends ConsumerWidget {
           value: 'pdf_report',
           child: Row(
             children: [
-              const Icon(Icons.picture_as_pdf_rounded, size: 18, color: Color(0xFFC6B4FF)),
+              const Icon(Icons.picture_as_pdf_rounded, size: 18, color: Color(0xFFDC2626)),
               const SizedBox(width: 10),
-              Text('Save as PDF Report (A4)', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white)),
+              Text('Save as PDF Report (A4)', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface)),
             ],
           ),
         ),
@@ -463,13 +533,17 @@ class ReportsScreen extends ConsumerWidget {
   }
 
   Widget _buildZraZReportMenu(BuildContext context, WidgetRef ref, DateTimeRange range) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
+
     return PopupMenuButton<String>(
       tooltip: 'ZRA Fiscal Z-Report Actions',
       offset: const Offset(0, 52),
-      color: const Color(0xFF1E1E24),
+      color: isDark ? const Color(0xFF151F32) : Colors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+        side: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
       ),
       onSelected: (value) async {
         final digitaxService = ref.read(digitaxInventoryServiceProvider);
@@ -491,7 +565,7 @@ class ReportsScreen extends ConsumerWidget {
                   content: Text(printed
                       ? 'ZRA Fiscal Z-Report printed successfully!'
                       : 'ZRA Fiscal Z-Report generated (Check printer connection).'),
-                  backgroundColor: printed ? const Color(0xFF10B981) : Colors.orangeAccent,
+                  backgroundColor: printed ? const Color(0xFF059669) : Colors.orangeAccent,
                 ),
               );
             }
@@ -506,7 +580,7 @@ class ReportsScreen extends ConsumerWidget {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text('ZRA Fiscal Z-Report Slip (80mm) saved as PDF!'),
-                  backgroundColor: Color(0xFF10B981),
+                  backgroundColor: Color(0xFF059669),
                 ),
               );
             }
@@ -521,7 +595,7 @@ class ReportsScreen extends ConsumerWidget {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text('Official ZRA Fiscal Z-Report (A4) saved as PDF!'),
-                  backgroundColor: Color(0xFF10B981),
+                  backgroundColor: Color(0xFF059669),
                 ),
               );
             }
@@ -533,9 +607,9 @@ class ReportsScreen extends ConsumerWidget {
           value: 'print',
           child: Row(
             children: [
-              const Icon(Icons.print_rounded, size: 18, color: Color(0xFFC1F11D)),
+              Icon(Icons.print_rounded, size: 18, color: primaryColor),
               const SizedBox(width: 10),
-              Text('Print Z-Report (Thermal)', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white)),
+              Text('Print Z-Report (Thermal)', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface)),
             ],
           ),
         ),
@@ -543,9 +617,9 @@ class ReportsScreen extends ConsumerWidget {
           value: 'pdf_slip',
           child: Row(
             children: [
-              const Icon(Icons.receipt_rounded, size: 18, color: Colors.cyanAccent),
+              const Icon(Icons.receipt_rounded, size: 18, color: Color(0xFF0284C7)),
               const SizedBox(width: 10),
-              Text('Save as PDF Slip (80mm)', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white)),
+              Text('Save as PDF Slip (80mm)', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface)),
             ],
           ),
         ),
@@ -553,9 +627,9 @@ class ReportsScreen extends ConsumerWidget {
           value: 'pdf_report',
           child: Row(
             children: [
-              const Icon(Icons.picture_as_pdf_rounded, size: 18, color: Color(0xFFC6B4FF)),
+              const Icon(Icons.picture_as_pdf_rounded, size: 18, color: Color(0xFFDC2626)),
               const SizedBox(width: 10),
-              Text('Save Official ZRA PDF (A4)', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white)),
+              Text('Save Official ZRA PDF (A4)', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface)),
             ],
           ),
         ),
@@ -568,13 +642,16 @@ class ReportsScreen extends ConsumerWidget {
   }
 
   Widget _buildStockAdjustmentReportMenu(BuildContext context, WidgetRef ref, DateTimeRange range) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return PopupMenuButton<String>(
       tooltip: 'Stock Adjustments & ZRA SAR Report',
       offset: const Offset(0, 52),
-      color: const Color(0xFF1E1E24),
+      color: isDark ? const Color(0xFF151F32) : Colors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+        side: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
       ),
       onSelected: (value) async {
         final db = ref.read(databaseServiceProvider);
@@ -624,9 +701,9 @@ class ReportsScreen extends ConsumerWidget {
           value: 'print',
           child: Row(
             children: [
-              const Icon(Icons.print_rounded, size: 18, color: Color(0xFF10B981)),
+              const Icon(Icons.print_rounded, size: 18, color: Color(0xFF059669)),
               const SizedBox(width: 10),
-              Text('Print SAR Audit Report', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white)),
+              Text('Print SAR Audit Report', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface)),
             ],
           ),
         ),
@@ -634,9 +711,9 @@ class ReportsScreen extends ConsumerWidget {
           value: 'pdf',
           child: Row(
             children: [
-              const Icon(Icons.picture_as_pdf_rounded, size: 18, color: Colors.redAccent),
+              const Icon(Icons.picture_as_pdf_rounded, size: 18, color: Color(0xFFDC2626)),
               const SizedBox(width: 10),
-              Text('Save as PDF Document (A4)', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white)),
+              Text('Save as PDF Document (A4)', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface)),
             ],
           ),
         ),
@@ -644,9 +721,9 @@ class ReportsScreen extends ConsumerWidget {
           value: 'excel',
           child: Row(
             children: [
-              const Icon(Icons.table_chart_rounded, size: 18, color: Colors.greenAccent),
+              const Icon(Icons.table_chart_rounded, size: 18, color: Color(0xFF059669)),
               const SizedBox(width: 10),
-              Text('Export to Excel (.xlsx)', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white)),
+              Text('Export to Excel (.xlsx)', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface)),
             ],
           ),
         ),
@@ -654,9 +731,9 @@ class ReportsScreen extends ConsumerWidget {
           value: 'csv',
           child: Row(
             children: [
-              const Icon(Icons.text_snippet_rounded, size: 18, color: Colors.amberAccent),
+              const Icon(Icons.text_snippet_rounded, size: 18, color: Color(0xFFD97706)),
               const SizedBox(width: 10),
-              Text('Export to CSV (.csv)', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white)),
+              Text('Export to CSV (.csv)', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface)),
             ],
           ),
         ),
@@ -670,24 +747,24 @@ class ReportsScreen extends ConsumerWidget {
 
   Widget _buildTotReturnButton(BuildContext context) {
     return SizedBox(
-      height: 48,
+      height: 44,
       child: ElevatedButton.icon(
         onPressed: () {
           Navigator.of(context).push(
             MaterialPageRoute(builder: (_) => const TotReportScreen()),
           );
         },
-        icon: const Icon(Icons.receipt_long_rounded, size: 18),
+        icon: const Icon(Icons.receipt_long_rounded, size: 16),
         label: Text(
           'TOT Return',
           style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13),
         ),
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFFF5C842).withValues(alpha: 0.12),
-          foregroundColor: const Color(0xFFF5C842),
+          backgroundColor: const Color(0xFFFFFBEB),
+          foregroundColor: const Color(0xFFD97706),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-            side: BorderSide(color: const Color(0xFFF5C842).withValues(alpha: 0.3)),
+            borderRadius: BorderRadius.circular(8),
+            side: const BorderSide(color: Color(0xFFFDE68A)),
           ),
           elevation: 0,
         ),
@@ -696,13 +773,16 @@ class ReportsScreen extends ConsumerWidget {
   }
 
   Widget _buildExportMenu(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return PopupMenuButton<String>(
       tooltip: 'Export Transactions Data',
       offset: const Offset(0, 52),
-      color: const Color(0xFF1E1E24),
+      color: isDark ? const Color(0xFF151F32) : Colors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+        side: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
       ),
       onSelected: (value) async {
         final transactions = ref.read(reportTransactionsProvider).value;
@@ -732,9 +812,9 @@ class ReportsScreen extends ConsumerWidget {
           value: 'pdf',
           child: Row(
             children: [
-              const Icon(Icons.picture_as_pdf_rounded, size: 18, color: Colors.redAccent),
+              const Icon(Icons.picture_as_pdf_rounded, size: 18, color: Color(0xFFDC2626)),
               const SizedBox(width: 10),
-              Text('Export PDF Report', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white)),
+              Text('Export PDF Report', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface)),
             ],
           ),
         ),
@@ -742,9 +822,9 @@ class ReportsScreen extends ConsumerWidget {
           value: 'excel',
           child: Row(
             children: [
-              const Icon(Icons.table_chart_rounded, size: 18, color: Colors.greenAccent),
+              const Icon(Icons.table_chart_rounded, size: 18, color: Color(0xFF059669)),
               const SizedBox(width: 10),
-              Text('Export Excel (.xlsx)', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white)),
+              Text('Export Excel (.xlsx)', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface)),
             ],
           ),
         ),
@@ -752,9 +832,9 @@ class ReportsScreen extends ConsumerWidget {
           value: 'csv',
           child: Row(
             children: [
-              const Icon(Icons.description_rounded, size: 18, color: Colors.blueAccent),
+              const Icon(Icons.description_rounded, size: 18, color: Color(0xFF0284C7)),
               const SizedBox(width: 10),
-              Text('Export CSV (.csv)', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white)),
+              Text('Export CSV (.csv)', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface)),
             ],
           ),
         ),
@@ -774,6 +854,9 @@ class ReportsScreen extends ConsumerWidget {
     ReportPeriod activePeriod,
     DateTimeRange range,
   ) {
+    final theme = Theme.of(context);
+    final primaryColor = theme.colorScheme.primary;
+
     return Column(
       children: [
         Column(
@@ -781,18 +864,20 @@ class ReportsScreen extends ConsumerWidget {
             Row(
               children: [
                 _buildStatCard(
+                  context,
                   'Total Revenue',
                   CurrencyFormatter.format(stats['revenue'] ?? 0.0, currency),
                   Icons.payments_rounded,
-                  const Color(0xFFC1F11D),
+                  primaryColor,
                   subtitle: 'Gross sales amount',
                 ),
                 const SizedBox(width: 16),
                 _buildStatCard(
+                  context,
                   'Gross Profit',
                   CurrencyFormatter.format(stats['profit'] ?? 0.0, currency),
                   (stats['profit'] ?? 0) >= 0 ? Icons.trending_up_rounded : Icons.trending_down_rounded,
-                  (stats['profit'] ?? 0) >= 0 ? const Color(0xFFC6B4FF) : Colors.redAccent,
+                  (stats['profit'] ?? 0) >= 0 ? const Color(0xFF059669) : const Color(0xFFDC2626),
                   subtitle: 'Revenue minus costs',
                 ),
               ],
@@ -801,19 +886,21 @@ class ReportsScreen extends ConsumerWidget {
             Row(
               children: [
                 _buildStatCard(
-                  'Actual Tax',
+                  context,
+                  'Actual Tax (VAT/TOT)',
                   CurrencyFormatter.format(stats['tax'] ?? 0.0, currency),
                   Icons.account_balance_wallet_rounded,
-                  const Color(0xFF5DD39E),
-                  subtitle: 'Total VAT collected',
+                  const Color(0xFF0284C7),
+                  subtitle: 'Total tax collected',
                 ),
                 const SizedBox(width: 16),
                 _buildStatCard(
+                  context,
                   'Transactions',
                   (stats['count'] ?? 0).toInt().toString(),
                   Icons.receipt_long_rounded,
-                  Colors.orangeAccent,
-                  subtitle: 'Number of completed sales',
+                  const Color(0xFFD97706),
+                  subtitle: 'Completed sales count',
                 ),
               ],
             ),
@@ -826,38 +913,42 @@ class ReportsScreen extends ConsumerWidget {
   }
 
   Widget _buildPaymentBreakdown(BuildContext context, Map<String, double> stats, String currency) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFF161619),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        color: isDark ? const Color(0xFF151F32) : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.pie_chart_outline_rounded, size: 20, color: Colors.white.withValues(alpha: 0.5)),
+              Icon(Icons.pie_chart_outline_rounded, size: 18, color: theme.colorScheme.onSurfaceVariant),
               const SizedBox(width: 8),
               Text(
-                'Payment Distribution',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
+                'PAYMENT METHOD DISTRIBUTION',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: theme.colorScheme.onSurface,
+                  letterSpacing: 0.5,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
           Row(
             children: [
-              _buildPaymentMethodItem('Cash', stats['cash'] ?? 0.0, currency, Colors.greenAccent),
-              _buildVerticalDivider(),
-              _buildPaymentMethodItem('Card', stats['card'] ?? 0.0, currency, Colors.blueAccent),
-              _buildVerticalDivider(),
-              _buildPaymentMethodItem('Mobile Money', stats['mobile_money'] ?? 0.0, currency, Colors.orangeAccent),
+              _buildPaymentMethodItem(context, 'Cash Sales', stats['cash'] ?? 0.0, currency, const Color(0xFF059669)),
+              _buildVerticalDivider(context),
+              _buildPaymentMethodItem(context, 'Card Payments', stats['card'] ?? 0.0, currency, const Color(0xFF0284C7)),
+              _buildVerticalDivider(context),
+              _buildPaymentMethodItem(context, 'Mobile Money', stats['mobile_money'] ?? 0.0, currency, const Color(0xFFD97706)),
             ],
           ),
         ],
@@ -865,36 +956,41 @@ class ReportsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildVerticalDivider() {
+  Widget _buildVerticalDivider(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Container(
-      height: 40,
+      height: 36,
       width: 1,
-      margin: const EdgeInsets.symmetric(horizontal: 24),
-      color: Colors.white.withValues(alpha: 0.05),
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0),
     );
   }
 
-  Widget _buildPaymentMethodItem(String label, double amount, String currency, Color color) {
+  Widget _buildPaymentMethodItem(BuildContext context, String label, double amount, String currency, Color color) {
+    final theme = Theme.of(context);
+
     return Expanded(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             label.toUpperCase(),
-            style: GoogleFonts.plusJakartaSans(
+            style: GoogleFonts.inter(
               fontSize: 10,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.0,
-              color: Colors.white.withValues(alpha: 0.3),
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.5,
+              color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: 4),
           Text(
             CurrencyFormatter.format(amount, currency),
-            style: GoogleFonts.jetBrainsMono(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: amount > 0 ? color : Colors.white.withValues(alpha: 0.1),
+            style: GoogleFonts.inter(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: amount > 0 ? color : theme.colorScheme.onSurfaceVariant,
             ),
           ),
         ],
@@ -902,57 +998,67 @@ class ReportsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildStatCard(String label, String value, IconData icon, Color color, {String? subtitle}) {
+  Widget _buildStatCard(BuildContext context, String label, String value, IconData icon, Color color, {String? subtitle}) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: const Color(0xFF161619),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.2),
-              blurRadius: 20,
-              offset: const Offset(0, 10),
-            ),
-          ],
+          color: isDark ? const Color(0xFF151F32) : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(icon, color: color, size: 24),
-                ),
-                if (subtitle != null)
-                  Icon(Icons.info_outline_rounded, size: 16, color: Colors.white.withValues(alpha: 0.1)),
-              ],
-            ),
-            const SizedBox(height: 20),
-            Text(
-              label,
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: Colors.white.withValues(alpha: 0.4),
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: isDark ? color.withValues(alpha: 0.15) : color.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(10),
               ),
+              child: Icon(icon, color: color, size: 22),
             ),
-            const SizedBox(height: 6),
-            Text(
-              value,
-              style: GoogleFonts.jetBrainsMono(
-                fontSize: 26,
-                fontWeight: FontWeight.w800,
-                color: Colors.white,
-                letterSpacing: -0.5,
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    label.toUpperCase(),
+                    style: GoogleFonts.inter(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w700,
+                      color: theme.colorScheme.onSurfaceVariant,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    value,
+                    style: GoogleFonts.inter(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: theme.colorScheme.onSurface,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ],
               ),
             ),
           ],
@@ -962,29 +1068,38 @@ class ReportsScreen extends ConsumerWidget {
   }
 
   Widget _buildTransactionList(BuildContext context, WidgetRef ref, List<SaleTransaction> transactions, String currency) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     if (transactions.isEmpty) {
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(32),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.02),
-                shape: BoxShape.circle,
+        child: Container(
+          padding: const EdgeInsets.all(32),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF151F32) : Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.receipt_long_rounded, size: 48, color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.3)),
+              const SizedBox(height: 12),
+              Text(
+                'No Transaction Records Found',
+                style: GoogleFonts.inter(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.onSurface,
+                ),
               ),
-              child: Icon(Icons.receipt_long_rounded, size: 64, color: Colors.white.withValues(alpha: 0.05)),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              'No records found for this period',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: Colors.white.withValues(alpha: 0.2),
+              const SizedBox(height: 4),
+              Text(
+                'No sale transactions recorded in the selected period range.',
+                style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       );
     }
@@ -994,23 +1109,28 @@ class ReportsScreen extends ConsumerWidget {
       children: [
         Row(
           children: [
-            Icon(Icons.history_rounded, size: 20, color: Colors.white.withValues(alpha: 0.5)),
+            Icon(Icons.history_rounded, size: 18, color: theme.colorScheme.onSurfaceVariant),
             const SizedBox(width: 8),
             Text(
-              'Detailed Transaction History',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: Colors.white,
+              'DETAILED TRANSACTION HISTORY',
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                color: theme.colorScheme.onSurface,
               ),
+            ),
+            const Spacer(),
+            Text(
+              '${transactions.length} Total Records',
+              style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurfaceVariant),
             ),
           ],
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
         Expanded(
           child: ListView.separated(
             itemCount: transactions.length,
-            separatorBuilder: (context, index) => const SizedBox(height: 12),
+            separatorBuilder: (context, index) => const SizedBox(height: 10),
             itemBuilder: (context, index) {
               final tx = transactions[index];
               return _buildTransactionCard(context, ref, tx, currency);
@@ -1022,13 +1142,16 @@ class ReportsScreen extends ConsumerWidget {
   }
 
   Widget _buildTransactionCard(BuildContext context, WidgetRef ref, SaleTransaction tx, String currency) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
     final itemNames = tx.items.map((i) => '${i.quantity}x ${i.productName}').join(', ');
 
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF161619),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        color: isDark ? const Color(0xFF151F32) : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
       ),
       child: Material(
         color: Colors.transparent,
@@ -1041,25 +1164,27 @@ class ReportsScreen extends ConsumerWidget {
               builder: (context) => ReceiptDetailModal(transaction: tx),
             );
           },
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(12),
           child: Padding(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             child: Row(
               children: [
                 Container(
-                  width: 48,
-                  height: 48,
+                  width: 40,
+                  height: 40,
                   decoration: BoxDecoration(
-                    color: _getPaymentColor(tx.paymentMethod).withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
+                    color: isDark
+                        ? _getPaymentColor(tx.paymentMethod).withValues(alpha: 0.15)
+                        : _getPaymentColor(tx.paymentMethod).withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(
                     _getPaymentIcon(tx.paymentMethod),
                     color: _getPaymentColor(tx.paymentMethod),
-                    size: 24,
+                    size: 20,
                   ),
                 ),
-                const SizedBox(width: 20),
+                const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1068,10 +1193,10 @@ class ReportsScreen extends ConsumerWidget {
                         children: [
                           Text(
                             '#${tx.id}',
-                            style: GoogleFonts.jetBrainsMono(
-                              fontSize: 14,
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
                               fontWeight: FontWeight.w700,
-                              color: tx.status == 'refunded' ? Colors.redAccent : Colors.white,
+                              color: tx.status == 'refunded' ? const Color(0xFFDC2626) : theme.colorScheme.onSurface,
                             ),
                           ),
                           if (tx.status == 'refunded') ...[
@@ -1079,85 +1204,74 @@ class ReportsScreen extends ConsumerWidget {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(
-                                color: Colors.redAccent.withValues(alpha: 0.1),
+                                color: const Color(0xFFFEF2F2),
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
                                 'REFUNDED',
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 8,
-                                  fontWeight: FontWeight.w800,
-                                  color: Colors.redAccent,
+                                style: GoogleFonts.inter(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.bold,
+                                  color: const Color(0xFFDC2626),
                                 ),
                               ),
                             ),
                           ],
                           const SizedBox(width: 8),
-                          Container(
-                            width: 4,
-                            height: 4,
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.2),
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
                           Text(
-                            DateFormat('MMM d, HH:mm').format(tx.timestamp),
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 13,
-                              color: Colors.white.withValues(alpha: 0.4),
+                            '•  ${DateFormat('dd MMM yyyy, HH:mm').format(tx.timestamp)}',
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              color: theme.colorScheme.onSurfaceVariant,
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 4),
                       Text(
                         itemNames.isEmpty ? 'No items recorded' : itemNames,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 14,
-                          color: Colors.white.withValues(alpha: 0.6),
-                          fontWeight: FontWeight.w500,
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(width: 20),
+                const SizedBox(width: 16),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
                       CurrencyFormatter.format(tx.totalAmount, currency),
-                      style: GoogleFonts.jetBrainsMono(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                        color: const Color(0xFFC1F11D),
+                      style: GoogleFonts.inter(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: tx.status == 'refunded' ? const Color(0xFFDC2626) : primaryColor,
                       ),
                     ),
                     if (tx.taxAmount > 0)
                       Text(
-                        'TAX: ${CurrencyFormatter.format(tx.taxAmount, currency)}',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white.withValues(alpha: 0.4),
+                        'VAT: ${CurrencyFormatter.format(tx.taxAmount, currency)}',
+                        style: GoogleFonts.inter(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w600,
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
                     Text(
                       tx.paymentMethod.toUpperCase(),
-                      style: GoogleFonts.plusJakartaSans(
+                      style: GoogleFonts.inter(
                         fontSize: 10,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.0,
-                        color: Colors.white.withValues(alpha: 0.2),
+                        fontWeight: FontWeight.w700,
+                        color: theme.colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 8),
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -1167,7 +1281,7 @@ class ReportsScreen extends ConsumerWidget {
                         final config = ref.read(storeConfigProvider).value;
                         ref.read(exportServiceProvider).exportReceiptToPdf(tx, items, config: config, printDirectly: true);
                       },
-                      icon: const Icon(Icons.print_rounded, size: 18, color: Colors.white70),
+                      icon: Icon(Icons.print_rounded, size: 18, color: theme.colorScheme.onSurfaceVariant),
                       tooltip: 'Print Tax Receipt',
                     ),
                     IconButton(
@@ -1176,7 +1290,7 @@ class ReportsScreen extends ConsumerWidget {
                         final config = ref.read(storeConfigProvider).value;
                         ref.read(exportServiceProvider).exportReceiptToPdf(tx, items, config: config, printDirectly: false);
                       },
-                      icon: const Icon(Icons.picture_as_pdf_rounded, size: 18, color: Colors.redAccent),
+                      icon: const Icon(Icons.picture_as_pdf_rounded, size: 18, color: Color(0xFFDC2626)),
                       tooltip: 'Export Receipt PDF',
                     ),
                   ],
@@ -1205,17 +1319,20 @@ class ReportsScreen extends ConsumerWidget {
   Color _getPaymentColor(String method) {
     switch (method.toLowerCase()) {
       case 'cash':
-        return Colors.greenAccent;
+        return const Color(0xFF059669);
       case 'card':
-        return Colors.blueAccent;
+        return const Color(0xFF0284C7);
       case 'mobile_money':
-        return Colors.orangeAccent;
+        return const Color(0xFFD97706);
       default:
-        return Colors.white;
+        return const Color(0xFF1D4ED8);
     }
   }
 
   Widget _buildTopProductsSection(BuildContext context, List<Map<String, dynamic>> products) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     if (products.isEmpty) return const SizedBox.shrink();
 
     return Column(
@@ -1223,51 +1340,55 @@ class ReportsScreen extends ConsumerWidget {
       children: [
         Row(
           children: [
-            Icon(Icons.star_rounded, size: 20, color: Colors.orangeAccent.withValues(alpha: 0.8)),
+            const Icon(Icons.star_rounded, size: 18, color: Color(0xFFD97706)),
             const SizedBox(width: 8),
             Text(
-              'Top Selling Products',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: Colors.white,
+              'TOP SELLING PRODUCTS IN PERIOD',
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                color: theme.colorScheme.onSurface,
               ),
             ),
           ],
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: const Color(0xFF161619),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+            color: isDark ? const Color(0xFF151F32) : Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
           ),
           child: Column(
-            children: products.map((p) => _buildTopProductItem(p)).toList(),
+            children: products.map((p) => _buildTopProductItem(context, p)).toList(),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildTopProductItem(Map<String, dynamic> product) {
+  Widget _buildTopProductItem(BuildContext context, Map<String, dynamic> product) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
+
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
-              color: const Color(0xFFC1F11D).withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
+              color: isDark ? const Color(0xFF1C283D) : const Color(0xFFEFF6FF),
+              borderRadius: BorderRadius.circular(6),
             ),
             child: Text(
               '${product['quantity']}x',
-              style: GoogleFonts.jetBrainsMono(
+              style: GoogleFonts.inter(
                 fontSize: 12,
                 fontWeight: FontWeight.w800,
-                color: const Color(0xFFC1F11D),
+                color: primaryColor,
               ),
             ),
           ),
@@ -1275,14 +1396,14 @@ class ReportsScreen extends ConsumerWidget {
           Expanded(
             child: Text(
               product['name'] ?? 'Unknown Product',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 14,
+              style: GoogleFonts.inter(
+                fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: Colors.white,
+                color: theme.colorScheme.onSurface,
               ),
             ),
           ),
-          Icon(Icons.arrow_forward_ios_rounded, size: 12, color: Colors.white.withValues(alpha: 0.1)),
+          Icon(Icons.arrow_forward_ios_rounded, size: 12, color: theme.colorScheme.onSurfaceVariant),
         ],
       ),
     );
@@ -1305,18 +1426,22 @@ class ActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
+
     return SizedBox(
-      height: 48,
+      height: 44,
       child: ElevatedButton.icon(
         onPressed: onPressed,
-        icon: Icon(icon, size: 18),
+        icon: Icon(icon, size: 16),
         label: Text(label, style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13)),
         style: ElevatedButton.styleFrom(
-          backgroundColor: isPrimary ? const Color(0xFFC1F11D) : const Color(0xFF1A1A1E),
-          foregroundColor: isPrimary ? Colors.black : Colors.white,
+          backgroundColor: isPrimary ? primaryColor : (isDark ? const Color(0xFF151F32) : Colors.white),
+          foregroundColor: isPrimary ? Colors.white : theme.colorScheme.onSurface,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-            side: isPrimary ? BorderSide.none : BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+            borderRadius: BorderRadius.circular(8),
+            side: isPrimary ? BorderSide.none : BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
           ),
           elevation: 0,
         ),

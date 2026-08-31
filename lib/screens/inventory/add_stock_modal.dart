@@ -137,22 +137,18 @@ class _StockAdjustmentModalState extends ConsumerState<StockAdjustmentModal> {
 
     final availableTypes = isAdd ? _addMovementTypes : _reduceMovementTypes;
 
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       child: Container(
-        width: 440,
+        width: 480,
         decoration: BoxDecoration(
-          color: const Color(0xFF18181D),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.7),
-              blurRadius: 40,
-              spreadRadius: 8,
-            ),
-          ],
+          color: isDark ? const Color(0xFF151F32) : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
         ),
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 22),
         child: Form(
@@ -191,7 +187,7 @@ class _StockAdjustmentModalState extends ConsumerState<StockAdjustmentModal> {
                     IconButton(
                       visualDensity: VisualDensity.compact,
                       onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close, color: Colors.white54, size: 20),
+                      icon: Icon(Icons.close_rounded, color: theme.colorScheme.onSurfaceVariant, size: 20),
                     ),
                   ],
                 ),
@@ -203,7 +199,7 @@ class _StockAdjustmentModalState extends ConsumerState<StockAdjustmentModal> {
                   style: GoogleFonts.inter(
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
-                    color: Colors.white,
+                    color: theme.colorScheme.onSurface,
                   ),
                 ),
                 const SizedBox(height: 18),
@@ -214,7 +210,7 @@ class _StockAdjustmentModalState extends ConsumerState<StockAdjustmentModal> {
                   style: GoogleFonts.inter(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
-                    color: Colors.white,
+                    color: theme.colorScheme.onSurface,
                   ),
                 ),
                 const SizedBox(height: 8),

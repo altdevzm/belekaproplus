@@ -6,7 +6,6 @@ import 'package:beleka_pos/models/models.dart';
 import 'package:beleka_pos/services/database_service.dart';
 import 'package:intl/intl.dart';
 import 'package:beleka_pos/screens/sales/receipt_detail_modal.dart';
-import 'package:beleka_pos/services/printer_service.dart';
 import 'package:beleka_pos/services/export_service.dart';
 import 'package:beleka_pos/providers/store_provider.dart';
 import 'package:beleka_pos/utils/formatters.dart';
@@ -93,174 +92,165 @@ class DashboardScreen extends ConsumerWidget {
     final transactionsAsync = ref.watch(recentTransactionsProvider);
     final velocityAsync = ref.watch(salesVelocityProvider);
     final topProductsAsync = ref.watch(topSellingProductsProvider);
-    final lowStockAsync = ref.watch(lowStockProductsProvider);
     final paymentDistAsync = ref.watch(paymentDistributionProvider);
-    final terminalsAsync = ref.watch(terminalsStreamProvider);
-    
-    final currency = ref.watch(storeConfigProvider).value?.currencySymbol ?? '\$';
+    final lowStockAsync = ref.watch(lowStockProductsProvider);
+    final currency = ref.watch(storeConfigProvider).value?.currencySymbol ?? 'K';
 
-    return Padding(
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Title + Actions
-          _buildHeader(context, ref),
+          // Breadcrumb & Status Bar
+          _buildTopBreadcrumbBar(context),
+          const SizedBox(height: 16),
+
+          // Greeting Header Bar
+          _buildGreetingHeader(context, ref),
           const SizedBox(height: 20),
-          // Stats row
+
+          // 4 Stats Cards Row
           statsAsync.when(
-            data: (stats) => _buildStatsRow(stats, currency),
-            loading: () => const SizedBox(height: 80, child: Center(child: CircularProgressIndicator(color: Color(0xFFC1F11D)))),
+            data: (stats) => _buildFourStatsRow(context, stats, currency),
+            loading: () => const SizedBox(height: 100, child: Center(child: CircularProgressIndicator())),
             error: (e, s) => Text('Error: $e'),
           ),
-          const SizedBox(height: 16),
-          // Main content area
-          Expanded(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Left: Chart + recent transactions
-                Expanded(
-                  flex: 3,
-                  child: Column(
-                    children: [
-                      // Sales chart (compact)
-                      Expanded(
-                        flex: 2,
-                        child: velocityAsync.when(
-                          data: (v) => _buildSalesChart(v),
-                          loading: () => const Center(child: CircularProgressIndicator(color: Color(0xFFC1F11D))),
-                          error: (e, _) => Text('$e'),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Expanded(
-                        child: transactionsAsync.when(
-                          data: (transactions) => _buildRecentTransactions(context, ref, transactions, currency),
-                          loading: () => const Center(child: CircularProgressIndicator()),
-                          error: (error, stack) => Center(child: Text('Error: $error')),
-                        ),
-                      ),
-                    ],
+          const SizedBox(height: 20),
+
+          // Middle Charts Section (Revenue Overview + Payment Methods)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Revenue Overview Chart (Flex 2)
+              Expanded(
+                flex: 2,
+                child: velocityAsync.when(
+                  data: (v) => _buildRevenueOverviewCard(context, v, statsAsync.valueOrNull, currency),
+                  loading: () => const SizedBox(height: 340, child: Center(child: CircularProgressIndicator())),
+                  error: (e, _) => Text('$e'),
+                ),
+              ),
+              const SizedBox(width: 16),
+
+              // Payment Methods Donut Chart (Flex 1)
+              Expanded(
+                flex: 1,
+                child: paymentDistAsync.when(
+                  data: (dist) => _buildPaymentMethodsDonutCard(context, dist, statsAsync.valueOrNull, currency),
+                  loading: () => const SizedBox(height: 340, child: Center(child: CircularProgressIndicator())),
+                  error: (_, _) => const SizedBox.shrink(),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // Bottom Row (Recent Transactions + Top Products)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Recent Transactions (Flex 2)
+              Expanded(
+                flex: 2,
+                child: SizedBox(
+                  height: 360,
+                  child: transactionsAsync.when(
+                    data: (transactions) => _buildRecentTransactionsCard(context, ref, transactions, currency),
+                    loading: () => const Center(child: CircularProgressIndicator()),
+                    error: (error, stack) => Center(child: Text('Error: $error')),
                   ),
                 ),
-                const SizedBox(width: 14),
-                // Right: Payment methods + top products + low stock
-                SizedBox(
-                  width: 280,
+              ),
+              const SizedBox(width: 16),
+
+              // Top Products (Flex 1)
+              Expanded(
+                flex: 1,
+                child: SizedBox(
+                  height: 360,
                   child: Column(
                     children: [
-                      // Terminal Monitoring
-                      terminalsAsync.when(
-                        data: (terminals) => _buildTerminalMonitoring(terminals, currency),
-                        loading: () => const SizedBox.shrink(),
-                        error: (_, _) => const SizedBox.shrink(),
-                      ),
-                      const SizedBox(height: 12),
-                      // Payment breakdown
-                      paymentDistAsync.when(
-                        data: (dist) => _buildPaymentBreakdown(dist),
-                        loading: () => const SizedBox.shrink(),
-                        error: (_, _) => const SizedBox.shrink(),
-                      ),
-                      const SizedBox(height: 12),
-                      // Top products
                       Expanded(
                         child: topProductsAsync.when(
-                          data: (products) => _buildTopProducts(products),
+                          data: (products) => _buildTopProductsCard(context, products),
                           loading: () => const SizedBox.shrink(),
                           error: (_, _) => const SizedBox.shrink(),
                         ),
                       ),
-                      const SizedBox(height: 12),
-                      // Low stock
-                      lowStockAsync.when(
-                        data: (products) => _buildLowStockAlert(products),
-                        loading: () => const SizedBox.shrink(),
-                        error: (_, _) => const SizedBox.shrink(),
-                      ),
+                      if (lowStockAsync.valueOrNull?.isNotEmpty ?? false) ...[
+                        const SizedBox(height: 12),
+                        lowStockAsync.when(
+                          data: (products) => _buildLowStockAlert(context, products),
+                          loading: () => const SizedBox.shrink(),
+                          error: (_, _) => const SizedBox.shrink(),
+                        ),
+                      ],
                     ],
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
+
   Widget _buildCashierDashboard(BuildContext context, WidgetRef ref) {
     final statsAsync = ref.watch(cashierDashboardStatsProvider);
     final transactionsAsync = ref.watch(cashierRecentTransactionsProvider);
     final velocityAsync = ref.watch(cashierSalesVelocityProvider);
     final topProductsAsync = ref.watch(topSellingProductsProvider);
-    final lowStockAsync = ref.watch(lowStockProductsProvider);
-    
     final user = ref.watch(authProvider);
-    final currency = ref.watch(storeConfigProvider).valueOrNull?.currencySymbol ?? '\$';
+    final currency = ref.watch(storeConfigProvider).valueOrNull?.currencySymbol ?? 'K';
 
-    return Padding(
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          _buildTopBreadcrumbBar(context),
+          const SizedBox(height: 16),
           _buildCashierHeader(context, ref, user?.name ?? 'Cashier'),
           const SizedBox(height: 20),
           statsAsync.when(
-            data: (stats) => _buildCashierStatsRow(stats, currency),
-            loading: () => const SizedBox(height: 80, child: Center(child: CircularProgressIndicator(color: Color(0xFFC1F11D)))),
+            data: (stats) => _buildFourStatsRow(context, stats, currency),
+            loading: () => const SizedBox(height: 100, child: Center(child: CircularProgressIndicator())),
             error: (e, s) => Text('Error: $e'),
           ),
-          const SizedBox(height: 16),
-          Expanded(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  flex: 3,
-                  child: Column(
-                    children: [
-                      Expanded(
-                        flex: 2,
-                        child: velocityAsync.when(
-                          data: (v) => _buildSalesChart(v),
-                          loading: () => const Center(child: CircularProgressIndicator(color: Color(0xFFC1F11D))),
-                          error: (e, _) => Text('$e'),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Expanded(
-                        child: transactionsAsync.when(
-                          data: (transactions) => _buildRecentTransactions(context, ref, transactions, currency),
-                          loading: () => const Center(child: CircularProgressIndicator()),
-                          error: (error, stack) => Center(child: Text('Error: $error')),
-                        ),
-                      ),
-                    ],
+          const SizedBox(height: 20),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                flex: 2,
+                child: velocityAsync.when(
+                  data: (v) => _buildRevenueOverviewCard(context, v, statsAsync.valueOrNull, currency),
+                  loading: () => const SizedBox(height: 340, child: Center(child: CircularProgressIndicator())),
+                  error: (e, _) => Text('$e'),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                flex: 1,
+                child: SizedBox(
+                  height: 340,
+                  child: topProductsAsync.when(
+                    data: (products) => _buildTopProductsCard(context, products),
+                    loading: () => const SizedBox.shrink(),
+                    error: (_, _) => const SizedBox.shrink(),
                   ),
                 ),
-                const SizedBox(width: 14),
-                SizedBox(
-                  width: 280,
-                  child: Column(
-                    children: [
-                      Expanded(
-                        child: topProductsAsync.when(
-                          data: (products) => _buildTopProducts(products),
-                          loading: () => const SizedBox.shrink(),
-                          error: (_, _) => const SizedBox.shrink(),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      lowStockAsync.when(
-                        data: (products) => _buildLowStockAlert(products),
-                        loading: () => const SizedBox.shrink(),
-                        error: (_, _) => const SizedBox.shrink(),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            height: 360,
+            child: transactionsAsync.when(
+              data: (transactions) => _buildRecentTransactionsCard(context, ref, transactions, currency),
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, stack) => Center(child: Text('Error: $error')),
             ),
           ),
         ],
@@ -268,7 +258,233 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 
+  Widget _buildTopBreadcrumbBar(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        // Left Breadcrumb
+        Row(
+          children: [
+            Text(
+              'Workspace',
+              style: GoogleFonts.inter(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w500,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Icon(Icons.chevron_right_rounded, size: 14, color: theme.colorScheme.onSurfaceVariant),
+            const SizedBox(width: 6),
+            Text(
+              'Dashboard',
+              style: GoogleFonts.inter(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+                color: theme.colorScheme.onSurface,
+              ),
+            ),
+          ],
+        ),
+        // Right Badges & Controls
+        Row(
+          children: [
+            // Status Badge
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF151F32) : Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 7,
+                    height: 7,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF059669),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'All systems operational',
+                    style: GoogleFonts.inter(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF059669),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            // Notification Bell
+            Container(
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF151F32) : Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+              ),
+              child: Icon(Icons.notifications_none_rounded, size: 16, color: theme.colorScheme.onSurfaceVariant),
+            ),
+            const SizedBox(width: 10),
+            // Date Indicator Badge
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF151F32) : Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.calendar_today_rounded, size: 13, color: theme.colorScheme.onSurfaceVariant),
+                  const SizedBox(width: 6),
+                  Text(
+                    DateFormat('E, MMM d, yyyy').format(DateTime.now()),
+                    style: GoogleFonts.inter(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildGreetingHeader(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
+    final userName = ref.watch(authProvider)?.name ?? 'User';
+
+    final hour = DateTime.now().hour;
+    final timeGreeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              DateFormat('EEEE, MMMM d, yyyy').format(DateTime.now()).toUpperCase(),
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.8,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '$timeGreeting, $userName',
+              style: GoogleFonts.inter(
+                fontSize: 26,
+                fontWeight: FontWeight.w800,
+                color: theme.colorScheme.onSurface,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Here is what is happening across your store today.',
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+        Row(
+          children: [
+            // Export report button
+            PopupMenuButton<String>(
+              onSelected: (value) async {
+                final stats = ref.read(dashboardStatsProvider).value;
+                final topProducts = ref.read(topSellingProductsProvider).value;
+                final paymentDist = ref.read(paymentDistributionProvider).value;
+                final config = ref.read(storeConfigProvider).value;
+                if (stats == null || topProducts == null || paymentDist == null) return;
+                if (value == 'pdf') {
+                  await ref.read(exportServiceProvider).exportDailySummaryToPdf(
+                    stats: stats, topProducts: topProducts, paymentDist: paymentDist, config: config);
+                } else if (value == 'excel') {
+                  await ref.read(exportServiceProvider).exportDailySummaryToExcel(
+                    stats: stats, topProducts: topProducts, paymentDist: paymentDist, config: config);
+                }
+              },
+              itemBuilder: (context) => const [
+                PopupMenuItem(value: 'pdf', child: Text('Export PDF')),
+                PopupMenuItem(value: 'excel', child: Text('Export Excel')),
+              ],
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF151F32) : Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.file_upload_outlined, size: 16, color: theme.colorScheme.onSurface),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Export report',
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: theme.colorScheme.onSurface,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            // New sale primary button
+            ElevatedButton.icon(
+              onPressed: () {
+                ref.read(navigationProvider.notifier).state = ScreenType.sales;
+              },
+              icon: const Icon(Icons.shopping_cart_outlined, size: 16, color: Colors.white),
+              label: Text(
+                'New sale',
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryColor,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                elevation: 0,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
   Widget _buildCashierHeader(BuildContext context, WidgetRef ref, String name) {
+    final theme = Theme.of(context);
+    final primaryColor = theme.colorScheme.primary;
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -278,273 +494,196 @@ class DashboardScreen extends ConsumerWidget {
             Text(
               'My Performance',
               style: GoogleFonts.inter(
-                fontSize: 22,
+                fontSize: 24,
                 fontWeight: FontWeight.w800,
-                color: Colors.white,
+                color: theme.colorScheme.onSurface,
               ),
             ),
-            const SizedBox(height: 2),
+            const SizedBox(height: 4),
             Text(
               "Welcome back, $name • Today's Activity",
               style: GoogleFonts.inter(
                 fontSize: 13,
-                color: Colors.white.withValues(alpha: 0.35),
+                color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
           ],
         ),
-        SizedBox(
-          height: 48,
-          child: ElevatedButton.icon(
-            onPressed: () {
-              ref.read(navigationProvider.notifier).state = ScreenType.sales;
-            },
-            icon: const Icon(Icons.send_rounded, size: 18),
-            label: Text('GO TO REGISTER', style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 13, letterSpacing: 1)),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFC1F11D),
-              foregroundColor: Colors.black,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              elevation: 0,
-            ),
+        ElevatedButton.icon(
+          onPressed: () {
+            ref.read(navigationProvider.notifier).state = ScreenType.sales;
+          },
+          icon: const Icon(Icons.shopping_cart_outlined, size: 16, color: Colors.white),
+          label: Text('GO TO REGISTER', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13, color: Colors.white)),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: primaryColor,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            elevation: 0,
           ),
         ),
       ],
     );
   }
 
-  Widget _buildCashierStatsRow(Map<String, double> stats, String currency) {
-    final todayRev = stats['todayRevenue'] ?? 0;
-    final yesterdayRev = stats['yesterdayRevenue'] ?? 0;
-    final todayCount = stats['todayCount'] ?? 0;
-    final todayItems = stats['todayItems'] ?? 0;
+  Widget _buildFourStatsRow(BuildContext context, Map<String, double> stats, String currency) {
+    final todayRev = stats['todayRevenue'] ?? 0.0;
+    final yesterdayRev = stats['yesterdayRevenue'] ?? 0.0;
+    final todayProfit = stats['todayProfit'] ?? 0.0;
+    final yesterdayProfit = stats['yesterdayProfit'] ?? 0.0;
+    final todayCount = (stats['todayCount'] ?? 0.0).toInt();
+    
+    double revGrowth = yesterdayRev > 0
+        ? ((todayRev - yesterdayRev) / yesterdayRev) * 100
+        : (todayRev > 0 ? 100.0 : 0.0);
+    if (revGrowth.isNaN || revGrowth.isInfinite) revGrowth = 0.0;
 
-    double revGrowth = yesterdayRev > 0 ? ((todayRev - yesterdayRev) / yesterdayRev) * 100 : 0;
-    if (revGrowth.isNaN || revGrowth.isInfinite) revGrowth = 0;
+    double profitGrowth = yesterdayProfit > 0
+        ? ((todayProfit - yesterdayProfit) / yesterdayProfit) * 100
+        : (todayProfit > 0 ? 100.0 : 0.0);
+    if (profitGrowth.isNaN || profitGrowth.isInfinite) profitGrowth = 0.0;
 
+    final marginPct = todayRev > 0 ? (todayProfit / todayRev * 100) : 0.0;
     final avgValue = todayCount > 0 ? todayRev / todayCount : 0.0;
 
     return Row(
       children: [
-        _buildStatCard('My Revenue', CurrencyFormatter.format(todayRev, currency),
-            '${revGrowth >= 0 ? '+' : ''}${revGrowth.toStringAsFixed(1)}%', revGrowth >= 0, false),
-        const SizedBox(width: 12),
-        _buildStatCard('My Transactions', todayCount.toInt().toString(), 'today', true, false),
-        const SizedBox(width: 12),
-        _buildStatCard('Items Sold', todayItems.toInt().toString(), 'today', true, false),
-        const SizedBox(width: 12),
-        _buildStatCard('Avg. Sale Value', CurrencyFormatter.format(avgValue, currency), 'per customer', true, false),
-      ],
-    );
-  }
-
-
-  Widget _buildHeader(BuildContext context, WidgetRef ref) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Dashboard',
-              style: GoogleFonts.inter(
-                fontSize: 22,
-                fontWeight: FontWeight.w800,
-                color: Colors.white,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              "Today's overview",
-              style: GoogleFonts.inter(
-                fontSize: 13,
-                color: Colors.white.withValues(alpha: 0.35),
-              ),
-            ),
-          ],
+        _buildSingleMetricCard(
+          context,
+          label: 'Total revenue',
+          value: CurrencyFormatter.format(todayRev, currency),
+          growthText: '${revGrowth >= 0 ? '↗' : '↘'} ${revGrowth.abs().toStringAsFixed(1)}%',
+          isPositive: revGrowth >= 0,
+          subtitle: 'vs. yesterday (${CurrencyFormatter.format(yesterdayRev, currency)})',
+          icon: Icons.attach_money_rounded,
+          iconBgColor: const Color(0xFFEFF6FF),
+          iconColor: const Color(0xFF1D4ED8),
         ),
-        Row(
-          children: [
-            // Start Selling shortcut - Hide for Managers
-            if (!ref.watch(isManagerProvider))
-              SizedBox(
-                height: 48,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    ref.read(navigationProvider.notifier).state = ScreenType.sales;
-                  },
-                  icon: const Icon(Icons.point_of_sale, size: 18),
-                  label: Text('Start Selling', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFC1F11D),
-                    foregroundColor: Colors.black,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    elevation: 0,
-                  ),
-                ),
-              ),
-            const SizedBox(width: 10),
-            PopupMenuButton<String>(
-              onSelected: (value) async {
-                final stats = ref.read(dashboardStatsProvider).value;
-                final topProducts = ref.read(topSellingProductsProvider).value;
-                final paymentDist = ref.read(paymentDistributionProvider).value;
-                final config = ref.read(storeConfigProvider).value;
-
-                if (stats == null || topProducts == null || paymentDist == null) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Wait for data to load...')));
-                  }
-                  return;
-                }
-
-                switch (value) {
-                  case 'print':
-                    final success = await ref.read(printerServiceProvider).printDailySummary(
-                          stats: stats,
-                          topProducts: topProducts,
-                          paymentDist: paymentDist,
-                          config: config,
-                        );
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(success ? 'Summary printed!' : 'Printing failed'),
-                          backgroundColor: success ? Colors.green : Colors.red,
-                        ),
-                      );
-                    }
-                    break;
-                  case 'pdf':
-                    await ref.read(exportServiceProvider).exportDailySummaryToPdf(
-                          stats: stats,
-                          topProducts: topProducts,
-                          paymentDist: paymentDist,
-                          config: config,
-                        );
-                    break;
-                  case 'excel':
-                    await ref.read(exportServiceProvider).exportDailySummaryToExcel(
-                          stats: stats,
-                          topProducts: topProducts,
-                          paymentDist: paymentDist,
-                          config: config,
-                        );
-                    break;
-                }
-              },
-              itemBuilder: (context) => [
-                const PopupMenuItem(value: 'print', child: Text('Print Summary')),
-                const PopupMenuItem(value: 'pdf', child: Text('Export PDF')),
-                const PopupMenuItem(value: 'excel', child: Text('Export Excel')),
-              ],
-              child: Container(
-                height: 48,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.summarize_outlined, size: 16, color: Colors.white.withValues(alpha: 0.5)),
-                    const SizedBox(width: 8),
-                    Text('Reports',
-                        style: GoogleFonts.inter(
-                            fontWeight: FontWeight.w600, fontSize: 13, color: Colors.white.withValues(alpha: 0.5))),
-                  ],
-                ),
-              ),
-            ),
-          ],
+        const SizedBox(width: 14),
+        _buildSingleMetricCard(
+          context,
+          label: 'Gross profit',
+          value: CurrencyFormatter.format(todayProfit, currency),
+          growthText: '${profitGrowth >= 0 ? '↗' : '↘'} ${profitGrowth.abs().toStringAsFixed(1)}%',
+          isPositive: profitGrowth >= 0,
+          subtitle: '${marginPct.toStringAsFixed(1)}% margin',
+          icon: Icons.trending_up_rounded,
+          iconBgColor: const Color(0xFFECFDF5),
+          iconColor: const Color(0xFF059669),
+        ),
+        const SizedBox(width: 14),
+        _buildSingleMetricCard(
+          context,
+          label: 'Total orders',
+          value: '$todayCount',
+          growthText: todayCount > 0 ? '↗ Active' : '0 today',
+          isPositive: todayCount > 0,
+          subtitle: '$todayCount orders today',
+          icon: Icons.shopping_bag_outlined,
+          iconBgColor: const Color(0xFFFFFBEB),
+          iconColor: const Color(0xFFD97706),
+        ),
+        const SizedBox(width: 14),
+        _buildSingleMetricCard(
+          context,
+          label: 'Average order value',
+          value: CurrencyFormatter.format(avgValue, currency),
+          growthText: avgValue > 0 ? '↗ Live' : '0.00',
+          isPositive: avgValue > 0,
+          subtitle: 'Based on $todayCount orders',
+          icon: Icons.bar_chart_rounded,
+          iconBgColor: const Color(0xFFF0F9FF),
+          iconColor: const Color(0xFF0284C7),
         ),
       ],
     );
   }
 
-  Widget _buildStatsRow(Map<String, double> stats, String currency) {
-    final todayRev = stats['todayRevenue'] ?? 0;
-    final yesterdayRev = stats['yesterdayRevenue'] ?? 0;
-    final todayProfit = stats['todayProfit'] ?? 0;
-    final yesterdayProfit = stats['yesterdayProfit'] ?? 0;
-    final todayTax = stats['todayTax'] ?? 0;
-    final yesterdayTax = stats['yesterdayTax'] ?? 0;
-    final todayCount = stats['todayCount'] ?? 0;
+  Widget _buildSingleMetricCard(
+    BuildContext context, {
+    required String label,
+    required String value,
+    required String growthText,
+    required bool isPositive,
+    required String subtitle,
+    required IconData icon,
+    required Color iconBgColor,
+    required Color iconColor,
+  }) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
-    double revGrowth = yesterdayRev > 0 ? ((todayRev - yesterdayRev) / yesterdayRev) * 100 : 0;
-    if (revGrowth.isNaN || revGrowth.isInfinite) revGrowth = 0;
-    
-    double profitGrowth = yesterdayProfit > 0 ? ((todayProfit - yesterdayProfit) / yesterdayProfit) * 100 : 0;
-    if (profitGrowth.isNaN || profitGrowth.isInfinite) profitGrowth = 0;
-
-    double taxGrowth = yesterdayTax > 0 ? ((todayTax - yesterdayTax) / yesterdayTax) * 100 : 0;
-    if (taxGrowth.isNaN || taxGrowth.isInfinite) taxGrowth = 0;
-
-    return Row(
-      children: [
-        _buildStatCard('Revenue', CurrencyFormatter.format(todayRev, currency),
-            '${revGrowth >= 0 ? '+' : ''}${revGrowth.toStringAsFixed(1)}%', revGrowth >= 0, false),
-        const SizedBox(width: 12),
-        _buildStatCard('Profit', CurrencyFormatter.format(todayProfit, currency),
-            '${profitGrowth >= 0 ? '+' : ''}${profitGrowth.toStringAsFixed(1)}%', profitGrowth >= 0, todayProfit < 0),
-        const SizedBox(width: 12),
-        _buildStatCard('VAT', CurrencyFormatter.format(todayTax, currency),
-            '${taxGrowth >= 0 ? '+' : ''}${taxGrowth.toStringAsFixed(1)}%', true, false),
-        const SizedBox(width: 12),
-        _buildStatCard('Sales', todayCount.toInt().toString(), 'today', true, false),
-      ],
-    );
-  }
-
-  Widget _buildStatCard(String label, String value, String change, bool isPositiveTrend, bool isLoss) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: const Color(0xFF1A1A1E),
+          color: isDark ? const Color(0xFF151F32) : Colors.white,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+          border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  label,
+                  style: GoogleFonts.inter(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: isDark ? iconColor.withValues(alpha: 0.15) : iconBgColor,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, size: 16, color: iconColor),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Text(
+                  value,
+                  style: GoogleFonts.inter(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    color: theme.colorScheme.onSurface,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: isPositive ? const Color(0xFFECFDF5) : const Color(0xFFFEF2F2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    growthText,
                     style: GoogleFonts.inter(
                       fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white.withValues(alpha: 0.4),
+                      fontWeight: FontWeight.w700,
+                      color: isPositive ? const Color(0xFF059669) : const Color(0xFFDC2626),
                     ),
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    value,
-                    style: GoogleFonts.manrope(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                      color: isLoss ? Colors.redAccent : Colors.white,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: (isPositiveTrend ? const Color(0xFFC1F11D) : Colors.red).withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(
-                change,
-                style: GoogleFonts.inter(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: isPositiveTrend ? const Color(0xFFC1F11D) : Colors.red,
                 ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              subtitle,
+              style: GoogleFonts.inter(
+                fontSize: 11.5,
+                color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
           ],
@@ -553,22 +692,39 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildSalesChart(List<Map<String, dynamic>> velocity) {
-    final spots = velocity.map((e) => FlSpot(e['hour'].toDouble(), e['revenue'].toDouble())).toList();
-    
-    // Ensure maxY is at least 10 to prevent crashes when all values are 0
-    double maxY = 10;
-    for (var spot in spots) {
-      if (spot.y > maxY) maxY = spot.y;
+  Widget _buildRevenueOverviewCard(
+    BuildContext context,
+    List<Map<String, dynamic>> velocity,
+    Map<String, double>? stats,
+    String currency,
+  ) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
+
+    List<FlSpot> spots = velocity.map((e) => FlSpot((e['hour'] as num).toDouble(), (e['revenue'] as num).toDouble())).toList();
+    if (spots.isEmpty) {
+      spots = List.generate(24, (i) => FlSpot(i.toDouble(), 0.0));
     }
-    maxY = maxY * 1.2; // Add 20% padding at top
+
+    double maxY = 10.0;
+    for (var s in spots) {
+      if (s.y > maxY) maxY = s.y * 1.2;
+    }
+
+    final totalRev = stats?['todayRevenue'] ?? 0.0;
+    final yesterdayRev = stats?['yesterdayRevenue'] ?? 0.0;
+    double revGrowth = yesterdayRev > 0
+        ? ((totalRev - yesterdayRev) / yesterdayRev) * 100
+        : (totalRev > 0 ? 100.0 : 0.0);
+    if (revGrowth.isNaN || revGrowth.isInfinite) revGrowth = 0.0;
 
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1A1E),
+        color: isDark ? const Color(0xFF151F32) : Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -576,21 +732,63 @@ class DashboardScreen extends ConsumerWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Sales Today',
-                  style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white)),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFC1F11D).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text('Live',
-                    style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: const Color(0xFFC1F11D))),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Revenue overview',
+                    style: GoogleFonts.inter(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: theme.colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Hourly sales performance today',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  // Revenue / Orders segmented indicator
+                  Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF1C283D) : const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF151F32) : Colors.white,
+                        borderRadius: BorderRadius.circular(6),
+                        boxShadow: [
+                          BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 2),
+                        ],
+                      ),
+                      child: Text(
+                        'Revenue (24h)',
+                        style: GoogleFonts.inter(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: primaryColor,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          Expanded(
+          const SizedBox(height: 20),
+          // Line Chart Area
+          SizedBox(
+            height: 220,
             child: LineChart(
               LineChartData(
                 maxY: maxY,
@@ -599,25 +797,65 @@ class DashboardScreen extends ConsumerWidget {
                   show: true,
                   drawVerticalLine: false,
                   getDrawingHorizontalLine: (value) => FlLine(
-                    color: Colors.white.withValues(alpha: 0.03),
+                    color: isDark ? const Color(0xFF293548) : const Color(0xFFF1F5F9),
                     strokeWidth: 1,
+                    dashArray: [4, 4],
                   ),
                 ),
-                titlesData: const FlTitlesData(show: false),
+                titlesData: FlTitlesData(
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 54,
+                      getTitlesWidget: (val, meta) {
+                        return Text(
+                          '$currency ${val.toInt()}',
+                          style: GoogleFonts.inter(
+                            fontSize: 10,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 24,
+                      interval: 4,
+                      getTitlesWidget: (val, meta) {
+                        final hour = val.toInt();
+                        if (hour < 0 || hour > 23) return const SizedBox.shrink();
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Text(
+                            '${hour.toString().padLeft(2, '0')}:00',
+                            style: GoogleFonts.inter(
+                              fontSize: 10,
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                ),
                 borderData: FlBorderData(show: false),
                 lineBarsData: [
                   LineChartBarData(
                     spots: spots,
                     isCurved: true,
-                    color: const Color(0xFFC1F11D),
-                    barWidth: 2.5,
+                    color: primaryColor,
+                    barWidth: 3,
                     dotData: const FlDotData(show: false),
                     belowBarData: BarAreaData(
                       show: true,
                       gradient: LinearGradient(
                         colors: [
-                          const Color(0xFFC1F11D).withValues(alpha: 0.12),
-                          const Color(0xFFC1F11D).withValues(alpha: 0.0),
+                          primaryColor.withValues(alpha: 0.25),
+                          primaryColor.withValues(alpha: 0.0),
                         ],
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
@@ -628,260 +866,373 @@ class DashboardScreen extends ConsumerWidget {
               ),
             ),
           ),
+          const SizedBox(height: 14),
+          const Divider(height: 1),
+          const SizedBox(height: 14),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(color: primaryColor, shape: BoxShape.circle),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Today Total',
+                    style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    CurrencyFormatter.format(totalRev, currency),
+                    style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w800, color: theme.colorScheme.onSurface),
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  Text(
+                    '${revGrowth >= 0 ? '↗' : '↘'} ${revGrowth.abs().toStringAsFixed(1)}%',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: revGrowth >= 0 ? const Color(0xFF059669) : const Color(0xFFDC2626),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'vs. yesterday',
+                    style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildRecentTransactions(BuildContext context, WidgetRef ref, List<SaleTransaction> transactions, String currency) {
+  Widget _buildPaymentMethodsDonutCard(
+    BuildContext context,
+    Map<String, double> distribution,
+    Map<String, double>? stats,
+    String currency,
+  ) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
+
+    final totalOrders = (stats?['todayCount'] ?? 0.0).toInt();
+    final cardAmt = distribution['card'] ?? 0.0;
+    final cashAmt = distribution['cash'] ?? 0.0;
+    final mobileAmt = distribution['mobile_money'] ?? distribution['mobile'] ?? 0.0;
+    final totalAmt = cardAmt + cashAmt + mobileAmt;
+
+    final cardPct = totalAmt > 0 ? ((cardAmt / totalAmt) * 100).round() : 0;
+    final cashPct = totalAmt > 0 ? ((cashAmt / totalAmt) * 100).round() : 0;
+    final mobilePct = totalAmt > 0 ? ((mobileAmt / totalAmt) * 100).round() : 0;
+
+    final pieSections = totalAmt > 0
+        ? [
+            if (cardAmt > 0) PieChartSectionData(color: primaryColor, value: cardPct.toDouble(), title: '', radius: 18),
+            if (cashAmt > 0) PieChartSectionData(color: const Color(0xFF059669), value: cashPct.toDouble(), title: '', radius: 18),
+            if (mobileAmt > 0) PieChartSectionData(color: const Color(0xFFD97706), value: mobilePct.toDouble(), title: '', radius: 18),
+          ]
+        : [
+            PieChartSectionData(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0), value: 100, title: '', radius: 18),
+          ];
+
     return Container(
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1A1E),
+        color: isDark ? const Color(0xFF151F32) : Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Recent Transactions',
-                          style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white)),
-                      const SizedBox(height: 12),
-                      // Search Bar for Receipts
-                      Container(
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.03),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-                        ),
-                        child: TextField(
-                          onChanged: (val) => ref.read(transactionSearchQueryProvider.notifier).state = val,
-                          style: GoogleFonts.inter(fontSize: 12, color: Colors.white),
-                          decoration: InputDecoration(
-                            hintText: 'Search by Receipt # or Cashier...',
-                            hintStyle: GoogleFonts.inter(fontSize: 12, color: Colors.white.withValues(alpha: 0.2)),
-                            prefixIcon: Icon(Icons.search, size: 16, color: Colors.white.withValues(alpha: 0.2)),
-                            border: InputBorder.none,
-                            contentPadding: const EdgeInsets.symmetric(vertical: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Payment methods',
+                    style: GoogleFonts.inter(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: theme.colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Sales by tender type today',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF1C283D) : const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.credit_card_rounded, size: 16, color: theme.colorScheme.onSurfaceVariant),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          // Donut Chart + Legend Side by Side
+          Row(
+            children: [
+              // Donut PieChart
+              SizedBox(
+                width: 140,
+                height: 140,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    PieChart(
+                      PieChartData(
+                        sectionsSpace: 3,
+                        centerSpaceRadius: 45,
+                        sections: pieSections,
+                      ),
+                    ),
+                    Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          '$totalOrders',
+                          style: GoogleFonts.inter(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            color: theme.colorScheme.onSurface,
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 20),
-                PopupMenuButton<String>(
-                  onSelected: (value) {
-                    switch (value) {
-                      case 'csv':
-                        ref.read(exportServiceProvider).exportTransactionsToCsv(transactions);
-                        break;
-                      case 'pdf':
-                        ref.read(exportServiceProvider).exportTransactionsToPdf(transactions);
-                        break;
-                      case 'excel':
-                        ref.read(exportServiceProvider).exportTransactionsToExcel(transactions);
-                        break;
-                    }
-                  },
-                  itemBuilder: (context) => [
-                    const PopupMenuItem(value: 'csv', child: Text('Export CSV')),
-                    const PopupMenuItem(value: 'pdf', child: Text('Export PDF')),
-                    const PopupMenuItem(value: 'excel', child: Text('Export Excel')),
-                  ],
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.download_rounded, size: 14, color: const Color(0xFFC1F11D)),
-                      const SizedBox(width: 4),
-                      Text('EXPORT',
+                        Text(
+                          'orders',
                           style: GoogleFonts.inter(
-                              fontSize: 11, fontWeight: FontWeight.w800, color: const Color(0xFFC1F11D))),
-                    ],
-                  ),
+                            fontSize: 11,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 16),
+              // Legend Column
+              Expanded(
+                child: Column(
+                  children: [
+                    _buildDonutLegendItem(context, 'Card', '$cardPct%', CurrencyFormatter.format(cardAmt, currency), primaryColor),
+                    const SizedBox(height: 12),
+                    _buildDonutLegendItem(context, 'Cash', '$cashPct%', CurrencyFormatter.format(cashAmt, currency), const Color(0xFF059669)),
+                    const SizedBox(height: 12),
+                    _buildDonutLegendItem(context, 'Mobile money', '$mobilePct%', CurrencyFormatter.format(mobileAmt, currency), const Color(0xFFD97706)),
+                  ],
+                ),
+              ),
+            ],
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDonutLegendItem(BuildContext context, String title, String percentage, String amount, Color color) {
+    final theme = Theme.of(context);
+
+    return Row(
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            title,
+            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w500, color: theme.colorScheme.onSurfaceVariant),
+          ),
+        ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(
+              percentage,
+              style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurface),
+            ),
+            Text(
+              amount,
+              style: GoogleFonts.inter(fontSize: 10, color: theme.colorScheme.onSurfaceVariant),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRecentTransactionsCard(
+    BuildContext context,
+    WidgetRef ref,
+    List<SaleTransaction> transactions,
+    String currency,
+  ) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF151F32) : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Recent transactions',
+                    style: GoogleFonts.inter(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: theme.colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Your latest completed sales',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+              InkWell(
+                onTap: () {
+                  ref.read(navigationProvider.notifier).state = ScreenType.reports;
+                },
+                borderRadius: BorderRadius.circular(6),
+                child: Row(
+                  children: [
+                    Text(
+                      'View all',
+                      style: GoogleFonts.inter(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: primaryColor,
+                      ),
+                    ),
+                    const SizedBox(width: 2),
+                    Icon(Icons.chevron_right_rounded, size: 16, color: primaryColor),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
           Expanded(
             child: transactions.isEmpty
                 ? Center(
-                    child: Text('No transactions yet',
-                        style: GoogleFonts.inter(fontSize: 13, color: Colors.white.withValues(alpha: 0.2))),
+                    child: Text(
+                      'No recent transactions',
+                      style: GoogleFonts.inter(fontSize: 13, color: theme.colorScheme.onSurfaceVariant),
+                    ),
                   )
-                : ListView.builder(
+                : ListView.separated(
                     itemCount: transactions.length,
+                    separatorBuilder: (_, _) => const Divider(height: 1, indent: 0, endIndent: 0),
                     itemBuilder: (context, index) {
                       final tx = transactions[index];
-                      return Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: () {
-                            showDialog(
-                              context: context,
-                              builder: (context) => ReceiptDetailModal(transaction: tx),
-                            );
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                            decoration: BoxDecoration(
-                              border: Border(
-                                bottom: BorderSide(color: Colors.white.withValues(alpha: 0.03)),
+                      return InkWell(
+                        onTap: () {
+                          showDialog(
+                            context: context,
+                            builder: (context) => ReceiptDetailModal(transaction: tx),
+                          );
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 36,
+                                height: 36,
+                                decoration: BoxDecoration(
+                                  color: isDark ? primaryColor.withValues(alpha: 0.15) : const Color(0xFFEFF6FF),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(Icons.receipt_long_rounded, size: 18, color: primaryColor),
                               ),
-                            ),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                // Time & Cashier
-                                SizedBox(
-                                  width: 80,
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
-                                        DateFormat('HH:mm').format(tx.timestamp),
-                                        style: GoogleFonts.jetBrainsMono(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w800,
-                                          color: const Color(0xFFC1F11D),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        tx.cashierName.toUpperCase(),
-                                        style: GoogleFonts.inter(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w900,
-                                          letterSpacing: 1,
-                                          color: Colors.white.withValues(alpha: 0.3),
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 16),
-                                // Items Sold
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
-                                        tx.items.isEmpty 
-                                            ? 'NO ITEMS' 
-                                            : tx.items.map((e) => '${e.quantity}x ${e.productName}').join(', '),
-                                        style: GoogleFonts.inter(
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.w700,
-                                          color: Colors.white.withValues(alpha: 0.9),
-                                          height: 1.4,
-                                        ),
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Row(
-                                        children: [
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                            decoration: BoxDecoration(
-                                              color: Colors.white.withValues(alpha: 0.05),
-                                              borderRadius: BorderRadius.circular(6),
-                                              border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-                                            ),
-                                            child: Text(
-                                              tx.paymentMethod.toUpperCase(),
-                                              style: GoogleFonts.inter(
-                                                fontSize: 11,
-                                                fontWeight: FontWeight.w900,
-                                                color: Colors.white.withValues(alpha: 0.4),
-                                                letterSpacing: 1,
-                                              ),
-                                            ),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          if (tx.status == 'refunded')
-                                            Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                              decoration: BoxDecoration(
-                                                color: Colors.redAccent.withValues(alpha: 0.1),
-                                                borderRadius: BorderRadius.circular(6),
-                                                border: Border.all(color: Colors.redAccent.withValues(alpha: 0.2)),
-                                              ),
-                                              child: Text(
-                                                'REFUNDED',
-                                                style: GoogleFonts.inter(
-                                                  fontSize: 11,
-                                                  fontWeight: FontWeight.w900,
-                                                  color: Colors.redAccent,
-                                                  letterSpacing: 1,
-                                                ),
-                                              ),
-                                            ),
-                                          const SizedBox(width: 8),
-                                          if (tx.pointsRedeemed > 0)
-                                            Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                              decoration: BoxDecoration(
-                                                color: const Color(0xFFFACC15).withValues(alpha: 0.1),
-                                                borderRadius: BorderRadius.circular(6),
-                                                border: Border.all(color: const Color(0xFFFACC15).withValues(alpha: 0.2)),
-                                              ),
-                                              child: Text(
-                                                '-%${tx.discountAmount.toStringAsFixed(0)} LOYALTY',
-                                                style: GoogleFonts.inter(
-                                                  fontSize: 10,
-                                                  fontWeight: FontWeight.w900,
-                                                  color: const Color(0xFFFACC15),
-                                                  letterSpacing: 0.5,
-                                                ),
-                                              ),
-                                            ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 20),
-                                // Amount
-                                Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  crossAxisAlignment: CrossAxisAlignment.end,
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      CurrencyFormatter.format(tx.totalAmount, currency),
-                                      style: GoogleFonts.manrope(
-                                        fontSize: 22,
-                                        fontWeight: FontWeight.w900,
-                                        color: const Color(0xFFC1F11D),
+                                      'Receipt #${tx.id}',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: theme.colorScheme.onSurface,
                                       ),
                                     ),
-                                    if (tx.taxAmount > 0)
-                                      Text(
-                                        'INC. TAX',
-                                        style: GoogleFonts.inter(
-                                          fontSize: 9,
-                                          fontWeight: FontWeight.w800,
-                                          color: Colors.white.withValues(alpha: 0.2),
-                                          letterSpacing: 1,
-                                        ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      '${tx.cashierName} • ${DateFormat('MMM d, HH:mm').format(tx.timestamp)}',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 11,
+                                        color: theme.colorScheme.onSurfaceVariant,
                                       ),
+                                    ),
                                   ],
                                 ),
-                              ],
-                            ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: isDark ? const Color(0xFF1C283D) : const Color(0xFFF1F5F9),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  tx.paymentMethod.toUpperCase(),
+                                  style: GoogleFonts.inter(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Text(
+                                CurrencyFormatter.format(tx.totalAmount, currency),
+                                style: GoogleFonts.inter(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w800,
+                                  color: theme.colorScheme.onSurface,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       );
@@ -893,203 +1244,17 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildPaymentBreakdown(Map<String, double> distribution) {
-    final total = distribution.values.fold(0.0, (sum, v) => sum + v);
+  Widget _buildTopProductsCard(BuildContext context, List<Map<String, dynamic>> products) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1A1E),
+        color: isDark ? const Color(0xFF151F32) : Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Payment Methods',
-              style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white)),
-          const SizedBox(height: 14),
-          ...distribution.entries.map((e) {
-            final pct = total > 0 ? (e.value / total) : 0.0;
-            final color = e.key == 'cash'
-                ? const Color(0xFFC6B4FF)
-                : e.key == 'card'
-                    ? const Color(0xFFC1F11D)
-                    : const Color(0xFFFFB3B5);
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(e.key.split('_').map((w) => w[0].toUpperCase() + w.substring(1)).join(' '),
-                          style: GoogleFonts.inter(fontSize: 12, color: Colors.white.withValues(alpha: 0.6))),
-                      Text('${(pct * 100).toStringAsFixed(0)}%',
-                          style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: color)),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(2),
-                    child: LinearProgressIndicator(
-                      value: pct,
-                      backgroundColor: Colors.white.withValues(alpha: 0.05),
-                      valueColor: AlwaysStoppedAnimation(color),
-                      minHeight: 4,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTopProducts(List<Map<String, dynamic>> products) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1A1A1E),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Top Products',
-              style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white)),
-          const SizedBox(height: 12),
-          if (products.isEmpty)
-            Expanded(
-              child: Center(
-                child: Text('No sales yet',
-                    style: GoogleFonts.inter(fontSize: 12, color: Colors.white.withValues(alpha: 0.2))),
-              ),
-            )
-          else
-            Expanded(
-              child: ListView.builder(
-                itemCount: products.length,
-                itemBuilder: (context, index) {
-                  final p = products[index];
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 22,
-                          height: 22,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.05),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            '${index + 1}',
-                            style: GoogleFonts.inter(
-                                fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white.withValues(alpha: 0.4)),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            p['name'],
-                            style: GoogleFonts.inter(
-                                fontSize: 12, fontWeight: FontWeight.w500, color: Colors.white.withValues(alpha: 0.75)),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        Text(
-                          '${p['quantity']} sold',
-                          style: GoogleFonts.inter(
-                              fontSize: 11, fontWeight: FontWeight.w600, color: const Color(0xFFC1F11D)),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLowStockAlert(List<Product> products) {
-    if (products.isEmpty) return const SizedBox.shrink();
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1A1A1E),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.red.withValues(alpha: 0.15)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.warning_amber_rounded, size: 16, color: Colors.orange.withValues(alpha: 0.7)),
-              const SizedBox(width: 8),
-              Text('Low Stock',
-                  style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.orange)),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.red.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  '${products.length}',
-                  style: GoogleFonts.inter(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.redAccent,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          ...products.take(3).map((p) => Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(p.name,
-                          style: GoogleFonts.inter(fontSize: 11, color: Colors.white.withValues(alpha: 0.6)),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis),
-                    ),
-                    Text('${p.stockLevel}',
-                        style: GoogleFonts.inter(
-                            fontSize: 11, fontWeight: FontWeight.w700, color: Colors.redAccent)),
-                  ],
-                ),
-              )),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTerminalMonitoring(List<TerminalInfo> terminals, String currency) {
-    if (terminals.isEmpty) return const SizedBox.shrink();
-    final activeTerminals = terminals.where((t) => DateTime.now().difference(t.lastHeartbeat).inMinutes < 5).toList();
-    final totalActiveSales = activeTerminals.fold(0.0, (sum, t) => sum + t.salesToday);
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1A1A1E),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1097,119 +1262,184 @@ class DashboardScreen extends ConsumerWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Live Terminals',
-                  style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white)),
-              Container(
-                width: 8,
-                height: 8,
-                decoration: const BoxDecoration(color: Color(0xFFC1F11D), shape: BoxShape.circle),
-              ),
-            ],
-          ),
-          if (activeTerminals.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [const Color(0xFFC1F11D).withValues(alpha: 0.15), const Color(0xFFC1F11D).withValues(alpha: 0.05)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFC1F11D).withValues(alpha: 0.2)),
-              ),
-              child: Row(
-                children: [
-                   Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: const BoxDecoration(color: Color(0xFFC1F11D), shape: BoxShape.circle),
-                    child: const Icon(Icons.bolt_rounded, color: Colors.black, size: 20),
-                  ),
-                  const SizedBox(width: 16),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('ACTIVE TOTAL REVENUE',
-                          style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w900, color: const Color(0xFFC1F11D), letterSpacing: 1)),
-                      Text(CurrencyFormatter.format(totalActiveSales, currency),
-                          style: GoogleFonts.plusJakartaSans(fontSize: 24, fontWeight: FontWeight.w900, color: Colors.white)),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-          const SizedBox(height: 14),
-          ...terminals.map((t) {
-            final isOnline = DateTime.now().difference(t.lastHeartbeat).inMinutes < 2;
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Column(
+              Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              t.terminalName.toUpperCase(),
-                              style: GoogleFonts.inter(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w900,
-                                color: isOnline ? Colors.white : Colors.white24,
-                                letterSpacing: 1,
-                              ),
-                            ),
-                            Text(
-                              '${t.cashierName} • ID: ${t.cashierId}',
-                              style: GoogleFonts.inter(
-                                fontSize: 10,
-                                color: Colors.white.withValues(alpha: 0.4),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(
-                            CurrencyFormatter.format(t.salesToday, currency),
-                            style: GoogleFonts.manrope(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w800,
-                              color: const Color(0xFFC1F11D),
-                            ),
-                          ),
-                          Text(
-                            '${t.transactionCount} entries',
-                            style: GoogleFonts.inter(
-                              fontSize: 9,
-                              color: Colors.white24,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                  Text(
+                    'Top products',
+                    style: GoogleFonts.inter(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: theme.colorScheme.onSurface,
+                    ),
                   ),
-                  const SizedBox(height: 4),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(1),
-                    child: LinearProgressIndicator(
-                      value: isOnline ? 1.0 : 0.0,
-                      backgroundColor: Colors.white.withValues(alpha: 0.05),
-                      valueColor: AlwaysStoppedAnimation(isOnline ? const Color(0xFFC1F11D) : Colors.redAccent),
-                      minHeight: 2,
+                  const SizedBox(height: 2),
+                  Text(
+                    'Best performers this week',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ],
               ),
-            );
-          }),
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF1C283D) : const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.chevron_right_rounded, size: 16, color: theme.colorScheme.onSurfaceVariant),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Expanded(
+            child: products.isEmpty
+                ? Center(
+                    child: Text(
+                      'No sales recorded',
+                      style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
+                    ),
+                  )
+                : ListView.separated(
+                    itemCount: products.length,
+                    separatorBuilder: (_, _) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final p = products[index];
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 24,
+                              height: 24,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: index == 0
+                                    ? primaryColor
+                                    : isDark
+                                        ? const Color(0xFF1C283D)
+                                        : const Color(0xFFF1F5F9),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                '${index + 1}',
+                                style: GoogleFonts.inter(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: index == 0 ? Colors.white : theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                p['name'] ?? 'Product',
+                                style: GoogleFonts.inter(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: theme.colorScheme.onSurface,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: isDark ? primaryColor.withValues(alpha: 0.15) : const Color(0xFFEFF6FF),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                '${p['quantity']} sold',
+                                style: GoogleFonts.inter(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: primaryColor,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLowStockAlert(BuildContext context, List<Product> products) {
+    if (products.isEmpty) return const SizedBox.shrink();
+
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final cardBg = isDark ? const Color(0xFF1E293B) : const Color(0xFFFFFFFF);
+    final borderColor = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.warning_amber_rounded, size: 16, color: Color(0xFFF59E0B)),
+              const SizedBox(width: 6),
+              Text(
+                'Low Stock Alert',
+                style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: const Color(0xFFF59E0B)),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEF4444).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  '${products.length}',
+                  style: GoogleFonts.inter(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFFEF4444),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ...products.take(3).map((p) => Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        p.name,
+                        style: GoogleFonts.inter(fontSize: 11, color: theme.colorScheme.onSurface),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Text(
+                      '${p.stockLevel}',
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFFEF4444),
+                      ),
+                    ),
+                  ],
+                ),
+              )),
         ],
       ),
     );

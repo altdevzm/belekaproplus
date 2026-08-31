@@ -6,7 +6,6 @@ import 'package:isar/isar.dart';
 import 'package:beleka_pos/models/models.dart';
 import 'package:beleka_pos/services/database_service.dart';
 import 'package:beleka_pos/services/export_service.dart';
-import 'package:beleka_pos/providers/theme_provider.dart';
 import 'package:beleka_pos/providers/store_provider.dart';
 import 'package:beleka_pos/services/local_sql_service.dart';
 import 'package:beleka_pos/services/digitax_inventory_service.dart';
@@ -71,13 +70,19 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
 
   @override
   Widget build(BuildContext context) {
-    final accentColor = ref.watch(accentColorProvider);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
+    final accentColor = primaryColor;
 
-    return Padding(
-      padding: const EdgeInsets.all(24),
+    return Container(
+      color: theme.scaffoldBackgroundColor,
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          _buildTopBreadcrumbBar(context),
+          const SizedBox(height: 16),
           // Header Bar
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -86,18 +91,17 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'PURCHASE & SUPPLY CHAIN MANAGEMENT',
-                    style: GoogleFonts.manrope(
+                    'SUPPLY CHAIN & PURCHASES',
+                    style: GoogleFonts.inter(
                       fontSize: 22,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1,
-                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      color: theme.colorScheme.onSurface,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     'Purchase orders, goods receipt (GRN), supplier billing, returns, and inventory restocking',
-                    style: GoogleFonts.inter(fontSize: 13, color: Colors.white54),
+                    style: GoogleFonts.inter(fontSize: 13, color: theme.colorScheme.onSurfaceVariant),
                   ),
                 ],
               ),
@@ -132,73 +136,74 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
                         }
                       },
                       itemBuilder: (context) => [
-                        const PopupMenuItem(value: 'po_pdf', child: Row(children: [Icon(Icons.picture_as_pdf, color: Colors.redAccent, size: 16), SizedBox(width: 8), Text('Export POs (PDF)')])),
-                        const PopupMenuItem(value: 'po_excel', child: Row(children: [Icon(Icons.table_chart_rounded, color: Colors.green, size: 16), SizedBox(width: 8), Text('Export POs (Excel)')])),
-                        const PopupMenuItem(value: 'grn_pdf', child: Row(children: [Icon(Icons.inventory_2_rounded, color: Colors.blue, size: 16), SizedBox(width: 8), Text('Export GRNs (PDF)')])),
-                        const PopupMenuItem(value: 'invoices_pdf', child: Row(children: [Icon(Icons.receipt_long_rounded, color: Colors.amber, size: 16), SizedBox(width: 8), Text('Export Invoices & Bills (PDF)')])),
-                        const PopupMenuItem(value: 'returns_pdf', child: Row(children: [Icon(Icons.assignment_return_rounded, color: Colors.purpleAccent, size: 16), SizedBox(width: 8), Text('Export Returns (PDF)')])),
+                        const PopupMenuItem(value: 'po_pdf', child: Row(children: [Icon(Icons.picture_as_pdf, color: Color(0xFFDC2626), size: 16), SizedBox(width: 8), Text('Export POs (PDF)')])),
+                        const PopupMenuItem(value: 'po_excel', child: Row(children: [Icon(Icons.table_chart_rounded, color: Color(0xFF059669), size: 16), SizedBox(width: 8), Text('Export POs (Excel)')])),
+                        const PopupMenuItem(value: 'grn_pdf', child: Row(children: [Icon(Icons.inventory_2_rounded, color: Color(0xFF0284C7), size: 16), SizedBox(width: 8), Text('Export GRNs (PDF)')])),
+                        const PopupMenuItem(value: 'invoices_pdf', child: Row(children: [Icon(Icons.receipt_long_rounded, color: Color(0xFFD97706), size: 16), SizedBox(width: 8), Text('Export Invoices & Bills (PDF)')])),
+                        const PopupMenuItem(value: 'returns_pdf', child: Row(children: [Icon(Icons.assignment_return_rounded, color: Color(0xFF0284C7), size: 16), SizedBox(width: 8), Text('Export Returns (PDF)')])),
                       ],
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                         decoration: BoxDecoration(
-                          color: Colors.white.withAlpha(15),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: Colors.white.withAlpha(20)),
+                          color: isDark ? const Color(0xFF151F32) : const Color(0xFFFFFFFF),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.download_rounded, size: 16, color: Colors.white70),
+                            Icon(Icons.download_rounded, size: 16, color: theme.colorScheme.onSurfaceVariant),
                             const SizedBox(width: 6),
-                            Text('Export & Print', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 12, color: Colors.white)),
+                            Text('Export & Print', style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 13, color: theme.colorScheme.onSurface)),
                           ],
                         ),
                       ),
                     ),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: 8),
                     ElevatedButton.icon(
                       onPressed: () => _showAddSupplierDialog(context, ref, accentColor),
                       icon: const Icon(Icons.person_add_alt_1_rounded, size: 16),
-                      label: Text('New Supplier', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 12)),
+                      label: Text('New Supplier', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13)),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white.withAlpha(20),
-                        foregroundColor: Colors.white,
+                        backgroundColor: isDark ? const Color(0xFF293548) : const Color(0xFFF1F5F9),
+                        foregroundColor: theme.colorScheme.onSurface,
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 8),
                     ElevatedButton.icon(
                       onPressed: () => _showCreatePoDialog(context, ref, accentColor),
-                      icon: const Icon(Icons.add_shopping_cart_rounded, size: 16),
-                      label: Text('Create Purchase Order', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 12)),
+                      icon: const Icon(Icons.add_shopping_cart_rounded, size: 16, color: Colors.white),
+                      label: Text('Create Purchase Order', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13, color: Colors.white)),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: accentColor,
-                        foregroundColor: Colors.black,
+                        backgroundColor: primaryColor,
+                        foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        elevation: 0,
                       ),
                     ),
                   ],
                 ),
               ],
             ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
 
           // Tab Bar
           Container(
             decoration: BoxDecoration(
-              color: const Color(0xFF141417),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white.withAlpha(15)),
+              color: isDark ? const Color(0xFF151F32) : const Color(0xFFFFFFFF),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
             ),
             child: TabBar(
               controller: _tabController,
               isScrollable: true,
               tabAlignment: TabAlignment.start,
-              indicatorColor: accentColor,
+              indicatorColor: primaryColor,
               indicatorWeight: 3,
-              labelColor: accentColor,
-              unselectedLabelColor: Colors.white60,
+              labelColor: primaryColor,
+              unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
               labelStyle: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13),
               tabs: const [
                 Tab(icon: Icon(Icons.dashboard_rounded, size: 18), text: 'Dashboard'),
@@ -211,7 +216,7 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
               ],
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
 
           // Tab View Content
           Expanded(
@@ -237,6 +242,9 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
   // TAB 1: DASHBOARD
   // ==========================================
   Widget _buildDashboardTab(Color accentColor) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
     final currency = ref.watch(storeConfigProvider).value?.currencySymbol ?? 'K';
     final pos = ref.watch(purchaseOrdersProvider).value ?? [];
     final suppliers = ref.watch(suppliersProvider).value ?? [];
@@ -283,9 +291,9 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
                 child: Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF1A1A1E),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.white.withAlpha(20)),
+                    color: isDark ? const Color(0xFF151F32) : Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -293,25 +301,25 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text('TOP SUPPLIERS', style: GoogleFonts.manrope(fontSize: 15, fontWeight: FontWeight.bold)),
-                          Icon(Icons.star_rounded, color: accentColor, size: 18),
+                          Text('TOP SUPPLIERS', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w800, color: theme.colorScheme.onSurface)),
+                          Icon(Icons.star_rounded, color: primaryColor, size: 18),
                         ],
                       ),
                       const SizedBox(height: 16),
                       if (suppliers.isEmpty)
                         Padding(
                           padding: const EdgeInsets.symmetric(vertical: 24),
-                          child: Center(child: Text('No suppliers recorded yet', style: GoogleFonts.inter(color: Colors.white38))),
+                          child: Center(child: Text('No suppliers recorded yet', style: GoogleFonts.inter(color: theme.colorScheme.onSurfaceVariant))),
                         )
                       else
                         ...suppliers.take(4).map((s) => ListTile(
                           contentPadding: EdgeInsets.zero,
                           leading: CircleAvatar(
-                            backgroundColor: accentColor.withAlpha(40),
-                            child: Text(s.name.isNotEmpty ? s.name[0].toUpperCase() : 'S', style: TextStyle(color: accentColor, fontWeight: FontWeight.bold)),
+                            backgroundColor: isDark ? primaryColor.withValues(alpha: 0.15) : const Color(0xFFEFF6FF),
+                            child: Text(s.name.isNotEmpty ? s.name[0].toUpperCase() : 'S', style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold)),
                           ),
-                          title: Text(s.name, style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13)),
-                          subtitle: Text('TPIN: ${s.tpin ?? "N/A"} • Balance: $currency ${s.balance.toStringAsFixed(2)}', style: GoogleFonts.inter(fontSize: 11, color: Colors.white54)),
+                          title: Text(s.name, style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: theme.colorScheme.onSurface)),
+                          subtitle: Text('TPIN: ${s.tpin ?? "N/A"} • Balance: $currency ${s.balance.toStringAsFixed(2)}', style: GoogleFonts.inter(fontSize: 11, color: theme.colorScheme.onSurfaceVariant)),
                         )),
                     ],
                   ),
@@ -325,9 +333,9 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
                 child: Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF1A1A1E),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.white.withAlpha(20)),
+                    color: isDark ? const Color(0xFF151F32) : Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -335,23 +343,24 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text('RECENT PURCHASE ORDERS', style: GoogleFonts.manrope(fontSize: 15, fontWeight: FontWeight.bold)),
-                          Text('View all in PO Tab', style: GoogleFonts.inter(fontSize: 11, color: accentColor)),
+                          Text('RECENT PURCHASE ORDERS', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w800, color: theme.colorScheme.onSurface)),
+                          Text('View all in PO Tab', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: primaryColor)),
                         ],
                       ),
                       const SizedBox(height: 16),
                       if (pos.isEmpty)
                         Padding(
                           padding: const EdgeInsets.symmetric(vertical: 24),
-                          child: Center(child: Text('No purchase orders created yet', style: GoogleFonts.inter(color: Colors.white38))),
+                          child: Center(child: Text('No purchase orders created yet', style: GoogleFonts.inter(color: theme.colorScheme.onSurfaceVariant))),
                         )
                       else
                         ...pos.take(4).map((po) => Container(
                           margin: const EdgeInsets.only(bottom: 8),
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: Colors.white.withAlpha(5),
+                            color: isDark ? const Color(0xFF1C283D) : const Color(0xFFF8FAFC),
                             borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
                           ),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -359,8 +368,8 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(po.poNumber, style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13)),
-                                  Text('${po.supplierName} • ${DateFormat('dd MMM yyyy').format(po.createdAt)}', style: GoogleFonts.inter(fontSize: 11, color: Colors.white54)),
+                                  Text(po.poNumber, style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: theme.colorScheme.onSurface)),
+                                  Text('${po.supplierName} • ${DateFormat('dd MMM yyyy').format(po.createdAt)}', style: GoogleFonts.inter(fontSize: 11, color: theme.colorScheme.onSurfaceVariant)),
                                 ],
                               ),
                               Row(
@@ -368,13 +377,20 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                     decoration: BoxDecoration(
-                                      color: po.status == 'approved' || po.status == 'received' ? Colors.green.withAlpha(40) : Colors.amber.withAlpha(40),
+                                      color: po.status == 'approved' || po.status == 'received' ? const Color(0xFFECFDF5) : const Color(0xFFFFFBEB),
                                       borderRadius: BorderRadius.circular(6),
                                     ),
-                                    child: Text(po.status.toUpperCase(), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: po.status == 'approved' || po.status == 'received' ? Colors.green : Colors.amber)),
+                                    child: Text(
+                                      po.status.toUpperCase(),
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        color: po.status == 'approved' || po.status == 'received' ? const Color(0xFF059669) : const Color(0xFFD97706),
+                                      ),
+                                    ),
                                   ),
                                   const SizedBox(width: 16),
-                                  Text('$currency ${po.totalAmount.toStringAsFixed(2)}', style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: accentColor)),
+                                  Text('$currency ${po.totalAmount.toStringAsFixed(2)}', style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: primaryColor)),
                                 ],
                               ),
                             ],
@@ -391,35 +407,151 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
     );
   }
 
+  Widget _buildTopBreadcrumbBar(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Row(
+          children: [
+            Text(
+              'Workspace',
+              style: GoogleFonts.inter(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w500,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Icon(Icons.chevron_right_rounded, size: 14, color: theme.colorScheme.onSurfaceVariant),
+            const SizedBox(width: 6),
+            Text(
+              'Supply Chain & Purchases',
+              style: GoogleFonts.inter(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+                color: theme.colorScheme.onSurface,
+              ),
+            ),
+          ],
+        ),
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF151F32) : Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 7,
+                    height: 7,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF059669),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'DigiTax Supplier Sync Active',
+                    style: GoogleFonts.inter(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF059669),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF151F32) : Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.calendar_today_rounded, size: 13, color: theme.colorScheme.onSurfaceVariant),
+                  const SizedBox(width: 6),
+                  Text(
+                    DateFormat('E, MMM d, yyyy').format(DateTime.now()),
+                    style: GoogleFonts.inter(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
   Widget _buildKpiCard(String label, String value, String subtitle, IconData icon, Color color) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1A1E),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withAlpha(15)),
+        color: isDark ? const Color(0xFF151F32) : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
       ),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(12),
+            width: 42,
+            height: 42,
             decoration: BoxDecoration(
-              color: color.withAlpha(30),
-              borderRadius: BorderRadius.circular(12),
+              color: isDark ? color.withValues(alpha: 0.15) : color.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(icon, color: color, size: 26),
+            child: Icon(icon, color: color, size: 22),
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(label, style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white38, letterSpacing: 0.5)),
-                const SizedBox(height: 4),
-                Text(value, style: GoogleFonts.manrope(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white)),
+                Text(
+                  label,
+                  style: GoogleFonts.inter(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                    color: theme.colorScheme.onSurfaceVariant,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  value,
+                  style: GoogleFonts.inter(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: theme.colorScheme.onSurface,
+                  ),
+                ),
                 const SizedBox(height: 2),
-                Text(subtitle, style: GoogleFonts.inter(fontSize: 11, color: Colors.white54)),
+                Text(
+                  subtitle,
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
               ],
             ),
           ),
@@ -432,6 +564,9 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
   // TAB 2: SUPPLIERS
   // ==========================================
   Widget _buildSuppliersTab(Color accentColor) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
     final currency = ref.watch(storeConfigProvider).value?.currencySymbol ?? 'K';
     final suppliersAsync = ref.watch(suppliersProvider);
 
@@ -442,13 +577,13 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.people_outline_rounded, size: 64, color: Colors.white.withAlpha(40)),
+                Icon(Icons.people_outline_rounded, size: 64, color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.3)),
                 const SizedBox(height: 16),
-                Text('No Suppliers Found', style: GoogleFonts.inter(fontSize: 16, color: Colors.white54)),
+                Text('No Suppliers Found', style: GoogleFonts.inter(fontSize: 16, color: theme.colorScheme.onSurfaceVariant)),
                 const SizedBox(height: 8),
                 ElevatedButton(
                   onPressed: () => _showAddSupplierDialog(context, ref, accentColor),
-                  style: ElevatedButton.styleFrom(backgroundColor: accentColor, foregroundColor: Colors.black),
+                  style: ElevatedButton.styleFrom(backgroundColor: primaryColor, foregroundColor: Colors.white),
                   child: const Text('Add First Supplier'),
                 ),
               ],
@@ -469,9 +604,9 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
             return Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: const Color(0xFF1A1A1E),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white.withAlpha(20)),
+                color: isDark ? const Color(0xFF151F32) : Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -479,34 +614,34 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
                   Row(
                     children: [
                       CircleAvatar(
-                        backgroundColor: accentColor.withAlpha(40),
+                        backgroundColor: isDark ? primaryColor.withValues(alpha: 0.15) : const Color(0xFFEFF6FF),
                         radius: 20,
-                        child: Text(s.name.isNotEmpty ? s.name[0].toUpperCase() : 'S', style: TextStyle(color: accentColor, fontWeight: FontWeight.bold, fontSize: 16)),
+                        child: Text(s.name.isNotEmpty ? s.name[0].toUpperCase() : 'S', style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold, fontSize: 16)),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(s.name, style: GoogleFonts.manrope(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.white)),
-                            Text('TPIN: ${s.tpin ?? "N/A"} • ${s.phoneNumber ?? "No Phone"}', style: GoogleFonts.inter(fontSize: 11, color: Colors.white54)),
+                            Text(s.name, style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 15, color: theme.colorScheme.onSurface)),
+                            Text('TPIN: ${s.tpin ?? "N/A"} • ${s.phoneNumber ?? "No Phone"}', style: GoogleFonts.inter(fontSize: 11, color: theme.colorScheme.onSurfaceVariant)),
                           ],
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 12),
-                  Text(s.address ?? 'Zambia Address', style: GoogleFonts.inter(fontSize: 12, color: Colors.white54), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  Text(s.address ?? 'Zambia Address', style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurfaceVariant), maxLines: 1, overflow: TextOverflow.ellipsis),
                   const Spacer(),
-                  const Divider(),
+                  Divider(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Outstanding Balance', style: GoogleFonts.inter(fontSize: 10, color: Colors.white38)),
-                          Text('$currency ${s.balance.toStringAsFixed(2)}', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold, color: s.balance > 0 ? Colors.redAccent : Colors.green)),
+                          Text('Outstanding Balance', style: GoogleFonts.inter(fontSize: 10, color: theme.colorScheme.onSurfaceVariant)),
+                          Text('$currency ${s.balance.toStringAsFixed(2)}', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold, color: s.balance > 0 ? const Color(0xFFDC2626) : const Color(0xFF059669))),
                         ],
                       ),
                       Row(
@@ -518,7 +653,7 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
                               final invoices = ref.read(purchaseInvoicesProvider).value ?? [];
                               ref.read(exportServiceProvider).exportSupplierStatementToPdf(s, invoices: invoices, config: config, printDirectly: true);
                             },
-                            icon: const Icon(Icons.print_rounded, size: 18, color: Colors.white70),
+                            icon: Icon(Icons.print_rounded, size: 18, color: theme.colorScheme.onSurfaceVariant),
                             tooltip: 'Print Statement',
                           ),
                           IconButton(
@@ -527,7 +662,7 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
                               final invoices = ref.read(purchaseInvoicesProvider).value ?? [];
                               ref.read(exportServiceProvider).exportSupplierStatementToPdf(s, invoices: invoices, config: config, printDirectly: false);
                             },
-                            icon: const Icon(Icons.picture_as_pdf_rounded, size: 18, color: Colors.redAccent),
+                            icon: const Icon(Icons.picture_as_pdf_rounded, size: 18, color: Color(0xFFDC2626)),
                             tooltip: 'Export Statement PDF',
                           ),
                           const SizedBox(width: 4),
@@ -555,6 +690,9 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
   // TAB 3: PURCHASE ORDERS
   // ==========================================
   Widget _buildPurchaseOrdersTab(Color accentColor) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
     final currency = ref.watch(storeConfigProvider).value?.currencySymbol ?? 'K';
     final poAsync = ref.watch(purchaseOrdersProvider);
 
@@ -565,9 +703,9 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.inventory_rounded, size: 64, color: Colors.white.withAlpha(40)),
+                Icon(Icons.inventory_rounded, size: 64, color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.3)),
                 const SizedBox(height: 16),
-                Text('No Purchase Orders Found', style: GoogleFonts.inter(fontSize: 16, color: Colors.white54)),
+                Text('No Purchase Orders Found', style: GoogleFonts.inter(fontSize: 16, color: theme.colorScheme.onSurfaceVariant)),
               ],
             ),
           );
@@ -583,22 +721,22 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
               margin: const EdgeInsets.only(bottom: 12),
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: const Color(0xFF1A1A1E),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white.withAlpha(20)),
+                color: isDark ? const Color(0xFF151F32) : Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
               ),
               child: Row(
                 children: [
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: isApproved ? Colors.green.withAlpha(30) : Colors.amber.withAlpha(30),
-                      borderRadius: BorderRadius.circular(12),
+                      color: isApproved ? const Color(0xFFECFDF5) : const Color(0xFFFFFBEB),
+                      borderRadius: BorderRadius.circular(10),
                     ),
                     child: Icon(
                       isApproved ? Icons.check_circle_rounded : Icons.pending_actions_rounded,
-                      color: isApproved ? Colors.green : Colors.amber,
-                      size: 28,
+                      color: isApproved ? const Color(0xFF059669) : const Color(0xFFD97706),
+                      size: 24,
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -608,12 +746,12 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
                       children: [
                         Row(
                           children: [
-                            Text(po.poNumber, style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                            Text(po.poNumber, style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface)),
                             const SizedBox(width: 12),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                               decoration: BoxDecoration(
-                                color: isApproved ? Colors.green.withAlpha(40) : Colors.amber.withAlpha(40),
+                                color: isApproved ? const Color(0xFFECFDF5) : const Color(0xFFFFFBEB),
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: Text(
@@ -621,7 +759,7 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
                                 style: TextStyle(
                                   fontSize: 10,
                                   fontWeight: FontWeight.bold,
-                                  color: isApproved ? Colors.green : Colors.amber[800],
+                                  color: isApproved ? const Color(0xFF059669) : const Color(0xFFD97706),
                                 ),
                               ),
                             ),
@@ -630,12 +768,12 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
                         const SizedBox(height: 6),
                         Text(
                           'Supplier: ${po.supplierName} ${po.supplierTpin != null ? "(TPIN: ${po.supplierTpin})" : ""}',
-                          style: GoogleFonts.inter(fontSize: 13, color: Colors.white70),
+                          style: GoogleFonts.inter(fontSize: 12.5, color: theme.colorScheme.onSurfaceVariant),
                         ),
                         const SizedBox(height: 4),
                         Text(
                           'Ordered on ${DateFormat('dd MMM yyyy, HH:mm').format(po.createdAt)} • ${po.items.length} Line Items',
-                          style: GoogleFonts.inter(fontSize: 11, color: Colors.white38),
+                          style: GoogleFonts.inter(fontSize: 11, color: theme.colorScheme.onSurfaceVariant),
                         ),
                       ],
                     ),
@@ -645,7 +783,7 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
                     children: [
                       Text(
                         '$currency ${po.totalAmount.toStringAsFixed(2)}',
-                        style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w900, color: accentColor),
+                        style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w800, color: primaryColor),
                       ),
                       const SizedBox(height: 10),
                       Row(
@@ -656,7 +794,7 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
                               final config = ref.read(storeConfigProvider).value;
                               ref.read(exportServiceProvider).exportPurchaseOrderToPdf(po, config: config, printDirectly: true);
                             },
-                            icon: const Icon(Icons.print_rounded, size: 18, color: Colors.white70),
+                            icon: Icon(Icons.print_rounded, size: 18, color: theme.colorScheme.onSurfaceVariant),
                             tooltip: 'Print PO Document',
                           ),
                           IconButton(
@@ -664,13 +802,13 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
                               final config = ref.read(storeConfigProvider).value;
                               ref.read(exportServiceProvider).exportPurchaseOrderToPdf(po, config: config, printDirectly: false);
                             },
-                            icon: const Icon(Icons.picture_as_pdf_rounded, size: 18, color: Colors.redAccent),
+                            icon: const Icon(Icons.picture_as_pdf_rounded, size: 18, color: Color(0xFFDC2626)),
                             tooltip: 'Export PO to PDF',
                           ),
                           const SizedBox(width: 6),
                           IconButton(
                             onPressed: () => _syncPoToDigitax(context, ref, po),
-                            icon: const Icon(Icons.cloud_upload_rounded, size: 18, color: Colors.blueAccent),
+                            icon: const Icon(Icons.cloud_upload_rounded, size: 18, color: Color(0xFF0284C7)),
                             tooltip: 'Sync PO to DigiTax VSDC Cloud',
                           ),
                           const SizedBox(width: 6),
@@ -680,7 +818,7 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
                               icon: const Icon(Icons.check_rounded, size: 16),
                               label: const Text('Approve PO'),
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.green,
+                                backgroundColor: const Color(0xFF059669),
                                 foregroundColor: Colors.white,
                                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -692,7 +830,7 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
                               icon: const Icon(Icons.move_to_inbox_rounded, size: 16),
                               label: const Text('Receive Goods (GRN)'),
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.blue,
+                                backgroundColor: primaryColor,
                                 foregroundColor: Colors.white,
                                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -701,9 +839,9 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
                           else
                             Row(
                               children: [
-                                const Icon(Icons.verified_rounded, color: Colors.green, size: 16),
+                                const Icon(Icons.verified_rounded, color: Color(0xFF059669), size: 16),
                                 const SizedBox(width: 4),
-                                Text('Fully Received', style: GoogleFonts.inter(fontSize: 12, color: Colors.green)),
+                                Text('Fully Received', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: const Color(0xFF059669))),
                               ],
                             ),
                         ],
@@ -725,6 +863,8 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
   // TAB 4: GOODS RECEIVED (GRN)
   // ==========================================
   Widget _buildGrnTab(Color accentColor) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final grnsAsync = ref.watch(grnListProvider);
 
     return grnsAsync.when(
@@ -734,11 +874,11 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.move_to_inbox_rounded, size: 64, color: Colors.white.withAlpha(40)),
+                Icon(Icons.move_to_inbox_rounded, size: 64, color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.3)),
                 const SizedBox(height: 16),
-                Text('No Goods Received Notes (GRN) Recorded', style: GoogleFonts.inter(fontSize: 16, color: Colors.white54)),
+                Text('No Goods Received Notes (GRN) Recorded', style: GoogleFonts.inter(fontSize: 16, color: theme.colorScheme.onSurfaceVariant)),
                 const SizedBox(height: 8),
-                Text('Approve a Purchase Order and click "Receive Goods (GRN)" to log arriving shipments.', style: GoogleFonts.inter(fontSize: 12, color: Colors.white38)),
+                Text('Approve a Purchase Order and click "Receive Goods (GRN)" to log arriving shipments.', style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurfaceVariant)),
               ],
             ),
           );
@@ -752,30 +892,30 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
               margin: const EdgeInsets.only(bottom: 12),
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: const Color(0xFF1A1A1E),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white.withAlpha(20)),
+                color: isDark ? const Color(0xFF151F32) : Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
               ),
               child: Row(
                 children: [
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.green.withAlpha(30),
-                      borderRadius: BorderRadius.circular(12),
+                      color: const Color(0xFFECFDF5),
+                      borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(Icons.check_box_rounded, color: Colors.green, size: 28),
+                    child: const Icon(Icons.check_box_rounded, color: Color(0xFF059669), size: 24),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(g.grnNumber, style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                        Text(g.grnNumber, style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface)),
                         const SizedBox(height: 4),
-                        Text('Linked PO: ${g.poNumber} • Supplier: ${g.supplierName}', style: GoogleFonts.inter(fontSize: 13, color: Colors.white70)),
+                        Text('Linked PO: ${g.poNumber} • Supplier: ${g.supplierName}', style: GoogleFonts.inter(fontSize: 12.5, color: theme.colorScheme.onSurfaceVariant)),
                         const SizedBox(height: 4),
-                        Text('Received at ${g.warehouseBranch} on ${DateFormat('dd MMM yyyy').format(g.receivedDate)} • ${g.totalItemsReceived} Units Restocked', style: GoogleFonts.inter(fontSize: 11, color: Colors.white38)),
+                        Text('Received at ${g.warehouseBranch} on ${DateFormat('dd MMM yyyy').format(g.receivedDate)} • ${g.totalItemsReceived} Units Restocked', style: GoogleFonts.inter(fontSize: 11, color: theme.colorScheme.onSurfaceVariant)),
                       ],
                     ),
                   ),
@@ -786,7 +926,7 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
                           final config = ref.read(storeConfigProvider).value;
                           ref.read(exportServiceProvider).exportGoodsReceivedNoteToPdf(g, config: config, printDirectly: true);
                         },
-                        icon: const Icon(Icons.print_rounded, size: 18, color: Colors.white70),
+                        icon: Icon(Icons.print_rounded, size: 18, color: theme.colorScheme.onSurfaceVariant),
                         tooltip: 'Print GRN',
                       ),
                       IconButton(
@@ -794,17 +934,17 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
                           final config = ref.read(storeConfigProvider).value;
                           ref.read(exportServiceProvider).exportGoodsReceivedNoteToPdf(g, config: config, printDirectly: false);
                         },
-                        icon: const Icon(Icons.picture_as_pdf_rounded, size: 18, color: Colors.redAccent),
+                        icon: const Icon(Icons.picture_as_pdf_rounded, size: 18, color: Color(0xFFDC2626)),
                         tooltip: 'Export GRN to PDF',
                       ),
                       const SizedBox(width: 8),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                         decoration: BoxDecoration(
-                          color: Colors.green.withAlpha(40),
-                          borderRadius: BorderRadius.circular(8),
+                          color: const Color(0xFFECFDF5),
+                          borderRadius: BorderRadius.circular(6),
                         ),
-                        child: const Text('STOCK UPDATED', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 11)),
+                        child: const Text('STOCK UPDATED', style: TextStyle(color: Color(0xFF059669), fontWeight: FontWeight.bold, fontSize: 10)),
                       ),
                     ],
                   ),
@@ -823,6 +963,8 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
   // TAB 5: INVOICES & BILLS
   // ==========================================
   Widget _buildInvoicesTab(Color accentColor) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final currency = ref.watch(storeConfigProvider).value?.currencySymbol ?? 'K';
     final invoicesAsync = ref.watch(purchaseInvoicesProvider);
 
@@ -833,9 +975,9 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.receipt_long_rounded, size: 64, color: Colors.white.withAlpha(40)),
+                Icon(Icons.receipt_long_rounded, size: 64, color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.3)),
                 const SizedBox(height: 16),
-                Text('No Supplier Invoices Recorded', style: GoogleFonts.inter(fontSize: 16, color: Colors.white54)),
+                Text('No Supplier Invoices Recorded', style: GoogleFonts.inter(fontSize: 16, color: theme.colorScheme.onSurfaceVariant)),
               ],
             ),
           );
@@ -851,38 +993,38 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
               margin: const EdgeInsets.only(bottom: 12),
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: const Color(0xFF1A1A1E),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white.withAlpha(20)),
+                color: isDark ? const Color(0xFF151F32) : Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
               ),
               child: Row(
                 children: [
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: isPaid ? Colors.green.withAlpha(30) : Colors.red.withAlpha(30),
-                      borderRadius: BorderRadius.circular(12),
+                      color: isPaid ? const Color(0xFFECFDF5) : const Color(0xFFFEF2F2),
+                      borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Icon(isPaid ? Icons.check_circle_outline : Icons.receipt_rounded, color: isPaid ? Colors.green : Colors.redAccent, size: 28),
+                    child: Icon(isPaid ? Icons.check_circle_outline : Icons.receipt_rounded, color: isPaid ? const Color(0xFF059669) : const Color(0xFFDC2626), size: 24),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(inv.invoiceNumber, style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                        Text(inv.invoiceNumber, style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface)),
                         const SizedBox(height: 4),
-                        Text('Supplier: ${inv.supplierName} • Ref: ${inv.supplierInvoiceNumber ?? "N/A"}', style: GoogleFonts.inter(fontSize: 13, color: Colors.white70)),
+                        Text('Supplier: ${inv.supplierName} • Ref: ${inv.supplierInvoiceNumber ?? "N/A"}', style: GoogleFonts.inter(fontSize: 12.5, color: theme.colorScheme.onSurfaceVariant)),
                         const SizedBox(height: 4),
-                        Text('PO: ${inv.poNumber} • Due: ${inv.dueDate != null ? DateFormat('dd MMM yyyy').format(inv.dueDate!) : "Upon Receipt"}', style: GoogleFonts.inter(fontSize: 11, color: Colors.white38)),
+                        Text('PO: ${inv.poNumber} • Due: ${inv.dueDate != null ? DateFormat('dd MMM yyyy').format(inv.dueDate!) : "Upon Receipt"}', style: GoogleFonts.inter(fontSize: 11, color: theme.colorScheme.onSurfaceVariant)),
                       ],
                     ),
                   ),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      Text('$currency ${inv.totalAmount.toStringAsFixed(2)}', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
-                      Text('Balance Due: $currency ${inv.balanceDue.toStringAsFixed(2)}', style: GoogleFonts.inter(fontSize: 12, color: inv.balanceDue > 0 ? Colors.redAccent : Colors.green)),
+                      Text('$currency ${inv.totalAmount.toStringAsFixed(2)}', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface)),
+                      Text('Balance Due: $currency ${inv.balanceDue.toStringAsFixed(2)}', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: inv.balanceDue > 0 ? const Color(0xFFDC2626) : const Color(0xFF059669))),
                       Row(
                         children: [
                           IconButton(
@@ -890,7 +1032,7 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
                               final config = ref.read(storeConfigProvider).value;
                               ref.read(exportServiceProvider).exportPurchaseInvoiceToPdf(inv, config: config, printDirectly: true);
                             },
-                            icon: const Icon(Icons.print_rounded, size: 18, color: Colors.white70),
+                            icon: Icon(Icons.print_rounded, size: 18, color: theme.colorScheme.onSurfaceVariant),
                             tooltip: 'Print Invoice / Bill',
                           ),
                           IconButton(
@@ -898,14 +1040,14 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
                               final config = ref.read(storeConfigProvider).value;
                               ref.read(exportServiceProvider).exportPurchaseInvoiceToPdf(inv, config: config, printDirectly: false);
                             },
-                            icon: const Icon(Icons.picture_as_pdf_rounded, size: 18, color: Colors.redAccent),
+                            icon: const Icon(Icons.picture_as_pdf_rounded, size: 18, color: Color(0xFFDC2626)),
                             tooltip: 'Export Invoice to PDF',
                           ),
                           if (inv.balanceDue > 0) ...[
                             const SizedBox(width: 6),
                             ElevatedButton(
                               onPressed: () => _showRecordPaymentModal(context, ref, inv),
-                              style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+                              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF059669), foregroundColor: Colors.white),
                               child: const Text('Record Payment'),
                             ),
                           ],
@@ -928,6 +1070,8 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
   // TAB 6: RETURNS
   // ==========================================
   Widget _buildReturnsTab(Color accentColor) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final currency = ref.watch(storeConfigProvider).value?.currencySymbol ?? 'K';
     final returnsAsync = ref.watch(purchaseReturnsProvider);
 
@@ -940,7 +1084,7 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
               onPressed: () => _showCreateReturnDialog(context, ref, accentColor),
               icon: const Icon(Icons.assignment_return_rounded, size: 16),
               label: const Text('Create Purchase Return'),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.purpleAccent, foregroundColor: Colors.white),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0284C7), foregroundColor: Colors.white),
             ),
           ],
         ),
@@ -953,9 +1097,9 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.assignment_return_rounded, size: 64, color: Colors.white.withAlpha(40)),
+                      Icon(Icons.assignment_return_rounded, size: 64, color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.3)),
                       const SizedBox(height: 16),
-                      Text('No Purchase Returns Recorded', style: GoogleFonts.inter(fontSize: 16, color: Colors.white54)),
+                      Text('No Purchase Returns Recorded', style: GoogleFonts.inter(fontSize: 16, color: theme.colorScheme.onSurfaceVariant)),
                     ],
                   ),
                 );
@@ -969,43 +1113,43 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
                     margin: const EdgeInsets.only(bottom: 12),
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF1A1A1E),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.white.withAlpha(20)),
+                      color: isDark ? const Color(0xFF151F32) : Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
                     ),
                     child: Row(
                       children: [
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: Colors.purple.withAlpha(30),
-                            borderRadius: BorderRadius.circular(12),
+                            color: const Color(0xFFF0F9FF),
+                            borderRadius: BorderRadius.circular(10),
                           ),
-                          child: const Icon(Icons.assignment_return_rounded, color: Colors.purpleAccent, size: 28),
+                          child: const Icon(Icons.assignment_return_rounded, color: Color(0xFF0284C7), size: 24),
                         ),
                         const SizedBox(width: 16),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(ret.returnNumber, style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                              Text(ret.returnNumber, style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface)),
                               const SizedBox(height: 4),
-                              Text('Supplier: ${ret.supplierName} • Reason: ${ret.reason}', style: GoogleFonts.inter(fontSize: 13, color: Colors.white70)),
+                              Text('Supplier: ${ret.supplierName} • Reason: ${ret.reason}', style: GoogleFonts.inter(fontSize: 12.5, color: theme.colorScheme.onSurfaceVariant)),
                               const SizedBox(height: 4),
-                              Text('Refund: ${ret.refundMethod} on ${DateFormat('dd MMM yyyy').format(ret.createdAt)}', style: GoogleFonts.inter(fontSize: 11, color: Colors.white38)),
+                              Text('Refund: ${ret.refundMethod} on ${DateFormat('dd MMM yyyy').format(ret.createdAt)}', style: GoogleFonts.inter(fontSize: 11, color: theme.colorScheme.onSurfaceVariant)),
                             ],
                           ),
                         ),
                         Row(
                           children: [
-                            Text('$currency ${ret.totalAmount.toStringAsFixed(2)}', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.purpleAccent)),
+                            Text('$currency ${ret.totalAmount.toStringAsFixed(2)}', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF0284C7))),
                             const SizedBox(width: 8),
                             IconButton(
                               onPressed: () {
                                 final config = ref.read(storeConfigProvider).value;
                                 ref.read(exportServiceProvider).exportPurchaseReturnToPdf(ret, config: config, printDirectly: true);
                               },
-                              icon: const Icon(Icons.print_rounded, size: 18, color: Colors.white70),
+                              icon: Icon(Icons.print_rounded, size: 18, color: theme.colorScheme.onSurfaceVariant),
                               tooltip: 'Print Debit Note',
                             ),
                             IconButton(
@@ -1013,7 +1157,7 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
                                 final config = ref.read(storeConfigProvider).value;
                                 ref.read(exportServiceProvider).exportPurchaseReturnToPdf(ret, config: config, printDirectly: false);
                               },
-                              icon: const Icon(Icons.picture_as_pdf_rounded, size: 18, color: Colors.redAccent),
+                              icon: const Icon(Icons.picture_as_pdf_rounded, size: 18, color: Color(0xFFDC2626)),
                               tooltip: 'Export Debit Note to PDF',
                             ),
                           ],
@@ -1036,6 +1180,8 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
   // TAB 7: REPORTS
   // ==========================================
   Widget _buildReportsTab(Color accentColor) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final currency = ref.watch(storeConfigProvider).value?.currencySymbol ?? 'K';
     final pos = ref.watch(purchaseOrdersProvider).value ?? [];
     final suppliers = ref.watch(suppliersProvider).value ?? [];
@@ -1044,31 +1190,31 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('PURCHASE ANALYTICS & TAX BREAKDOWN', style: GoogleFonts.manrope(fontSize: 16, fontWeight: FontWeight.bold)),
+          Text('PURCHASE ANALYTICS & TAX BREAKDOWN', style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w800, color: theme.colorScheme.onSurface)),
           const SizedBox(height: 16),
 
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: const Color(0xFF1A1A1E),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withAlpha(20)),
+              color: isDark ? const Color(0xFF151F32) : Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Purchases Summary by Supplier', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14)),
+                Text('Purchases Summary by Supplier', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14, color: theme.colorScheme.onSurface)),
                 const SizedBox(height: 12),
                 if (suppliers.isEmpty)
-                  Text('No purchase records available for report generation', style: GoogleFonts.inter(color: Colors.white38))
+                  Text('No purchase records available for report generation', style: GoogleFonts.inter(color: theme.colorScheme.onSurfaceVariant))
                 else
                   ...suppliers.map((s) {
                     final supPos = pos.where((p) => p.supplierName == s.name);
                     final totalVal = supPos.fold<double>(0.0, (sum, p) => sum + p.totalAmount);
                     return ListTile(
-                      title: Text(s.name, style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
-                      subtitle: Text('${supPos.length} Orders Placed • TPIN: ${s.tpin ?? "N/A"}'),
-                      trailing: Text('$currency ${totalVal.toStringAsFixed(2)}', style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: accentColor)),
+                      title: Text(s.name, style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface)),
+                      subtitle: Text('${supPos.length} Orders Placed • TPIN: ${s.tpin ?? "N/A"}', style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
+                      trailing: Text('$currency ${totalVal.toStringAsFixed(2)}', style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: theme.colorScheme.primary)),
                     );
                   }),
               ],
@@ -1174,19 +1320,24 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
   }
 
   void _showSupplierStatement(BuildContext context, Supplier s, String currency) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final invoices = ref.read(purchaseInvoicesProvider).value ?? [];
     final suppInvoices = invoices.where((i) => i.supplierName == s.name).toList();
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF16161A),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        backgroundColor: isDark ? const Color(0xFF151F32) : Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+        ),
         title: Row(
           children: [
-            const Icon(Icons.receipt_long_rounded, color: Color(0xFF10B981), size: 22),
+            const Icon(Icons.receipt_long_rounded, color: Color(0xFF059669), size: 20),
             const SizedBox(width: 10),
-            Expanded(child: Text('STATEMENT: ${s.name}', style: GoogleFonts.manrope(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white))),
+            Expanded(child: Text('STATEMENT: ${s.name}', style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 16, color: theme.colorScheme.onSurface))),
           ],
         ),
         content: SizedBox(
@@ -1198,15 +1349,16 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.04),
+                  color: isDark ? const Color(0xFF1C283D) : const Color(0xFFF8FAFC),
                   borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('TPIN: ${s.tpin ?? "N/A"} • Phone: ${s.phoneNumber ?? "N/A"}', style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                    Text('Email: ${s.email ?? "N/A"}', style: const TextStyle(color: Colors.white54, fontSize: 12)),
-                    Text('Address: ${s.address ?? "N/A"}', style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                    Text('TPIN: ${s.tpin ?? "N/A"} • Phone: ${s.phoneNumber ?? "N/A"}', style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 12)),
+                    Text('Email: ${s.email ?? "N/A"}', style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 12)),
+                    Text('Address: ${s.address ?? "N/A"}', style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 12)),
                   ],
                 ),
               ),
@@ -1214,30 +1366,30 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: s.balance > 0 ? Colors.redAccent.withValues(alpha: 0.15) : Colors.green.withValues(alpha: 0.15),
+                  color: s.balance > 0 ? const Color(0xFFFEF2F2) : const Color(0xFFECFDF5),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Outstanding Payable Balance:', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                    Text('$currency ${s.balance.toStringAsFixed(2)}', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: s.balance > 0 ? Colors.redAccent : Colors.greenAccent)),
+                    Text('Outstanding Payable Balance:', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: theme.colorScheme.onSurface)),
+                    Text('$currency ${s.balance.toStringAsFixed(2)}', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: s.balance > 0 ? const Color(0xFFDC2626) : const Color(0xFF059669))),
                   ],
                 ),
               ),
               const SizedBox(height: 12),
-              Text('Recent Invoices (${suppInvoices.length})', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.white70)),
+              Text('Recent Invoices (${suppInvoices.length})', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 12, color: theme.colorScheme.onSurface)),
               const SizedBox(height: 6),
               if (suppInvoices.isEmpty)
-                const Text('No invoices found.', style: TextStyle(fontSize: 11, color: Colors.white38))
+                Text('No invoices found.', style: TextStyle(fontSize: 11, color: theme.colorScheme.onSurfaceVariant))
               else
                 ...suppInvoices.take(3).map((inv) => Padding(
                   padding: const EdgeInsets.symmetric(vertical: 2),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(inv.invoiceNumber, style: const TextStyle(fontSize: 11, color: Colors.white70)),
-                      Text('$currency ${inv.totalAmount.toStringAsFixed(2)} (${inv.paymentStatus})', style: const TextStyle(fontSize: 11, color: Colors.white54)),
+                      Text(inv.invoiceNumber, style: TextStyle(fontSize: 11, color: theme.colorScheme.onSurface)),
+                      Text('$currency ${inv.totalAmount.toStringAsFixed(2)} (${inv.paymentStatus})', style: TextStyle(fontSize: 11, color: theme.colorScheme.onSurfaceVariant)),
                     ],
                   ),
                 )),
@@ -1245,15 +1397,15 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close', style: TextStyle(color: Colors.white54))),
+          TextButton(onPressed: () => Navigator.pop(context), child: Text('Close', style: TextStyle(color: theme.colorScheme.onSurfaceVariant))),
           OutlinedButton.icon(
             onPressed: () {
               final config = ref.read(storeConfigProvider).value;
               ref.read(exportServiceProvider).exportSupplierStatementToPdf(s, invoices: invoices, config: config, printDirectly: false);
             },
-            icon: const Icon(Icons.picture_as_pdf_rounded, size: 16, color: Colors.redAccent),
+            icon: const Icon(Icons.picture_as_pdf_rounded, size: 16, color: Color(0xFFDC2626)),
             label: const Text('Export PDF'),
-            style: OutlinedButton.styleFrom(foregroundColor: Colors.white),
+            style: OutlinedButton.styleFrom(foregroundColor: theme.colorScheme.onSurface),
           ),
           ElevatedButton.icon(
             onPressed: () {
@@ -1262,7 +1414,7 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
             },
             icon: const Icon(Icons.print_rounded, size: 16),
             label: const Text('Print Statement'),
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981), foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF059669), foregroundColor: Colors.white),
           ),
         ],
       ),
@@ -1334,8 +1486,17 @@ class _AddSupplierModalState extends ConsumerState<_AddSupplierModal> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
+
     return AlertDialog(
-      title: Text('ADD NEW SUPPLIER', style: GoogleFonts.manrope(fontWeight: FontWeight.bold, fontSize: 16)),
+      backgroundColor: isDark ? const Color(0xFF151F32) : Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+      ),
+      title: Text('ADD NEW SUPPLIER', style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 16, color: theme.colorScheme.onSurface)),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1355,10 +1516,10 @@ class _AddSupplierModalState extends ConsumerState<_AddSupplierModal> {
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        TextButton(onPressed: () => Navigator.pop(context), child: Text('Cancel', style: TextStyle(color: theme.colorScheme.onSurfaceVariant))),
         ElevatedButton(
           onPressed: _save,
-          style: ElevatedButton.styleFrom(backgroundColor: widget.accentColor, foregroundColor: Colors.black),
+          style: ElevatedButton.styleFrom(backgroundColor: primaryColor, foregroundColor: Colors.white),
           child: const Text('Save Supplier'),
         ),
       ],
@@ -1547,16 +1708,23 @@ class _CreatePoModalState extends ConsumerState<_CreatePoModal> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
     final productsAsync = ref.watch(purchasesProductsProvider);
     final suppliersAsync = ref.watch(suppliersProvider);
     final currency = ref.watch(storeConfigProvider).value?.currencySymbol ?? 'K';
 
     return Dialog(
-      backgroundColor: const Color(0xFF16161A),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      backgroundColor: Colors.transparent,
       child: Container(
         padding: const EdgeInsets.all(24),
         constraints: const BoxConstraints(maxWidth: 680, maxHeight: 820),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF151F32) : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+        ),
         child: Form(
           key: _formKey,
           child: Column(
@@ -1572,26 +1740,26 @@ class _CreatePoModalState extends ConsumerState<_CreatePoModal> {
                       Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: widget.accentColor.withValues(alpha: 0.15),
+                          color: isDark ? primaryColor.withValues(alpha: 0.15) : const Color(0xFFEFF6FF),
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: Icon(Icons.add_shopping_cart_rounded, color: widget.accentColor, size: 22),
+                        child: Icon(Icons.add_shopping_cart_rounded, color: primaryColor, size: 20),
                       ),
                       const SizedBox(width: 12),
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('CREATE PURCHASE ORDER', style: GoogleFonts.manrope(fontSize: 17, fontWeight: FontWeight.bold, color: Colors.white)),
-                          Text('Issue official restocking order to vendor', style: GoogleFonts.inter(fontSize: 12, color: Colors.white54)),
+                          Text('CREATE PURCHASE ORDER', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w800, color: theme.colorScheme.onSurface)),
+                          Text('Issue official restocking order to vendor', style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurfaceVariant)),
                         ],
                       ),
                     ],
                   ),
-                  IconButton(icon: const Icon(Icons.close, color: Colors.white54), onPressed: () => Navigator.pop(context)),
+                  IconButton(icon: Icon(Icons.close_rounded, size: 18, color: theme.colorScheme.onSurfaceVariant), onPressed: () => Navigator.pop(context)),
                 ],
               ),
               const SizedBox(height: 14),
-              const Divider(color: Colors.white12),
+              Divider(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
               const SizedBox(height: 10),
 
               Expanded(
@@ -2011,25 +2179,33 @@ class _ReceiveGrnModalState extends ConsumerState<_ReceiveGrnModal> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return AlertDialog(
-      title: Text('RECEIVE GOODS (GRN): ${widget.po.poNumber}', style: GoogleFonts.manrope(fontWeight: FontWeight.bold, fontSize: 16)),
+      backgroundColor: isDark ? const Color(0xFF151F32) : Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+      ),
+      title: Text('RECEIVE GOODS (GRN): ${widget.po.poNumber}', style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 16, color: theme.colorScheme.onSurface)),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Supplier: ${widget.po.supplierName}'),
-          Text('Line Items to Receive: ${widget.po.items.length}'),
+          Text('Supplier: ${widget.po.supplierName}', style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
+          Text('Line Items to Receive: ${widget.po.items.length}', style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
           const SizedBox(height: 12),
           TextField(controller: _branchCtrl, decoration: const InputDecoration(labelText: 'Receiving Branch / Warehouse', border: OutlineInputBorder())),
           const SizedBox(height: 12),
-          const Text('All ordered quantities will be automatically incremented into product stock.'),
+          Text('All ordered quantities will be automatically incremented into product stock.', style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurfaceVariant)),
         ],
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        TextButton(onPressed: () => Navigator.pop(context), child: Text('Cancel', style: TextStyle(color: theme.colorScheme.onSurfaceVariant))),
         ElevatedButton(
           onPressed: _processGrn,
-          style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF059669), foregroundColor: Colors.white),
           child: const Text('Confirm & Restock'),
         ),
       ],
@@ -2086,12 +2262,20 @@ class _RecordPaymentModalState extends ConsumerState<_RecordPaymentModal> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return AlertDialog(
-      title: Text('RECORD SUPPLIER PAYMENT', style: GoogleFonts.manrope(fontWeight: FontWeight.bold, fontSize: 16)),
+      backgroundColor: isDark ? const Color(0xFF151F32) : Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+      ),
+      title: Text('RECORD SUPPLIER PAYMENT', style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 16, color: theme.colorScheme.onSurface)),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text('Invoice: ${widget.invoice.invoiceNumber} • ${widget.invoice.supplierName}'),
+          Text('Invoice: ${widget.invoice.invoiceNumber} • ${widget.invoice.supplierName}', style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
           const SizedBox(height: 12),
           TextField(controller: _payAmountCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Payment Amount (K)', border: OutlineInputBorder())),
           const SizedBox(height: 12),
@@ -2111,10 +2295,10 @@ class _RecordPaymentModalState extends ConsumerState<_RecordPaymentModal> {
         ],
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        TextButton(onPressed: () => Navigator.pop(context), child: Text('Cancel', style: TextStyle(color: theme.colorScheme.onSurfaceVariant))),
         ElevatedButton(
           onPressed: _pay,
-          style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF059669), foregroundColor: Colors.white),
           child: const Text('Record Payment'),
         ),
       ],
@@ -2183,11 +2367,18 @@ class _CreateReturnModalState extends ConsumerState<_CreateReturnModal> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final suppliers = ref.watch(suppliersProvider).value ?? [];
     final productsAsync = ref.watch(databaseServiceProvider).getAllProducts();
 
     return AlertDialog(
-      title: Text('CREATE PURCHASE RETURN', style: GoogleFonts.manrope(fontWeight: FontWeight.bold, fontSize: 16)),
+      backgroundColor: isDark ? const Color(0xFF151F32) : Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+      ),
+      title: Text('CREATE PURCHASE RETURN', style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 16, color: theme.colorScheme.onSurface)),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -2232,14 +2423,14 @@ class _CreateReturnModalState extends ConsumerState<_CreateReturnModal> {
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        TextButton(onPressed: () => Navigator.pop(context), child: Text('Cancel', style: TextStyle(color: theme.colorScheme.onSurfaceVariant))),
         FutureBuilder<List<Product>>(
           future: productsAsync,
           builder: (context, snapshot) {
             final prods = snapshot.data ?? [];
             return ElevatedButton(
               onPressed: () => _submitReturn(suppliers, prods),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.purpleAccent, foregroundColor: Colors.white),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0284C7), foregroundColor: Colors.white),
               child: const Text('Submit Return'),
             );
           },

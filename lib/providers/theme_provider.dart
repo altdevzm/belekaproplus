@@ -6,20 +6,21 @@ import 'package:beleka_pos/providers/store_provider.dart';
 final accentColorProvider = Provider<Color>((ref) {
   final storeConfig = ref.watch(storeConfigProvider).value;
   
-  if (storeConfig == null) return const Color(0xFFC1F11D); // Default Neon Green
+  if (storeConfig == null) return const Color(0xFF1D4ED8); // Brand Primary #1D4ED8
 
   switch (storeConfig.primarySector) {
     case CategorySector.pharmacy:
-      return const Color(0xFF00B4D8); // Healthcare Blue
+      return const Color(0xFF0284C7); // Info #0284C7
     case CategorySector.stationery:
-      return const Color(0xFFFFD60A); // Vibrant Yellow
+      return const Color(0xFFD97706); // Warning #D97706
     case CategorySector.grocery:
-      return const Color(0xFF2ECC71); // Fresh Green
+      return const Color(0xFF059669); // Success #059669
     case CategorySector.food:
-      return const Color(0xFFFF6B6B); // Appetizing Red
+      return const Color(0xFFDC2626); // Error #DC2626
     case CategorySector.restaurant:
-      return const Color(0xFFF39C12); // Amber/Orange
+      return const Color(0xFFEA580C); // Warm Orange
     case CategorySector.other:
-      return const Color(0xFFC1F11D); // Industrial Neon Green
+      return const Color(0xFF1D4ED8); // Brand Primary #1D4ED8
   }
 });
+

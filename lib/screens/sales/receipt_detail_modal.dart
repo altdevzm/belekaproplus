@@ -116,7 +116,7 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
                       data: (items) => _buildItemList(items, currency),
                       loading: () => const Padding(
                         padding: EdgeInsets.symmetric(vertical: 24),
-                        child: Center(child: CircularProgressIndicator(color: Color(0xFFC1F11D))),
+                        child: Center(child: CircularProgressIndicator(color: Color(0xFF1D4ED8))),
                       ),
                       error: (err, stack) => Text('Error: $err', style: const TextStyle(color: Colors.redAccent)),
                     ),
@@ -169,18 +169,18 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
                     width: 8,
                     height: 8,
                     decoration: BoxDecoration(
-                      color: isRefunded ? Colors.redAccent : const Color(0xFFC1F11D),
+                      color: isRefunded ? const Color(0xFFDC2626) : const Color(0xFF059669),
                       shape: BoxShape.circle,
                     ),
                   ),
                   const SizedBox(width: 8),
                   Text(
                     title,
-                    style: GoogleFonts.manrope(
+                    style: GoogleFonts.inter(
                       fontSize: 11,
-                      fontWeight: FontWeight.w900,
+                      fontWeight: FontWeight.w800,
                       letterSpacing: 1.5,
-                      color: isRefunded ? Colors.redAccent : const Color(0xFFC1F11D),
+                      color: isRefunded ? const Color(0xFFDC2626) : const Color(0xFF059669),
                     ),
                   ),
                   if (isRefunded) ...[
@@ -299,10 +299,10 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               child: Text(
                 _selectedItemIds.length == availableItems.length ? 'DESELECT ALL' : 'SELECT ALL',
-                style: GoogleFonts.manrope(
+                style: GoogleFonts.inter(
                   fontSize: 10,
                   fontWeight: FontWeight.w800,
-                  color: const Color(0xFFC1F11D),
+                  color: const Color(0xFF1D4ED8),
                   letterSpacing: 0.5,
                 ),
               ),
@@ -337,12 +337,12 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
           margin: const EdgeInsets.only(bottom: 8),
           decoration: BoxDecoration(
             color: isSelected
-                ? const Color(0xFFC1F11D).withValues(alpha: 0.08)
-                : (item.isRefunded ? Colors.redAccent.withValues(alpha: 0.03) : Colors.white.withValues(alpha: 0.02)),
+                ? const Color(0xFF1D4ED8).withValues(alpha: 0.12)
+                : (item.isRefunded ? const Color(0xFFDC2626).withValues(alpha: 0.05) : Colors.white.withValues(alpha: 0.02)),
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
               color: isSelected
-                  ? const Color(0xFFC1F11D).withValues(alpha: 0.5)
+                  ? const Color(0xFF1D4ED8).withValues(alpha: 0.5)
                   : Colors.white.withValues(alpha: 0.05),
             ),
           ),
@@ -380,8 +380,8 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
                                   }
                                 });
                               },
-                        activeColor: const Color(0xFFC1F11D),
-                        checkColor: Colors.black,
+                        activeColor: const Color(0xFF1D4ED8),
+                        checkColor: Colors.white,
                         side: const BorderSide(color: Colors.white30),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
                       ),
@@ -392,16 +392,16 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
                     padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                     decoration: BoxDecoration(
                       color: item.isRefunded
-                          ? Colors.redAccent.withValues(alpha: 0.15)
-                          : const Color(0xFFC1F11D).withValues(alpha: 0.12),
+                          ? const Color(0xFFDC2626).withValues(alpha: 0.15)
+                          : const Color(0xFF1D4ED8).withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
                       '${item.quantity}×',
                       style: GoogleFonts.inter(
                         fontSize: 11,
-                        fontWeight: FontWeight.w900,
-                        color: item.isRefunded ? Colors.redAccent : const Color(0xFFC1F11D),
+                        fontWeight: FontWeight.w800,
+                        color: item.isRefunded ? const Color(0xFFDC2626) : const Color(0xFF1D4ED8),
                       ),
                     ),
                   ),
@@ -530,7 +530,7 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
           style: GoogleFonts.inter(
             fontSize: isMain ? 28 : 14,
             fontWeight: FontWeight.w900,
-            color: isMain ? const Color(0xFFC1F11D) : (isDiscount ? Colors.redAccent : Colors.white),
+            color: isMain ? const Color(0xFF059669) : (isDiscount ? const Color(0xFFDC2626) : Colors.white),
             letterSpacing: isMain ? -0.5 : 0,
           ),
         ),
@@ -835,9 +835,9 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
             child: ElevatedButton(
               onPressed: () => Navigator.pop(context),
               style: ElevatedButton.styleFrom(
-                backgroundColor: isRefunded ? Colors.redAccent : const Color(0xFFC1F11D),
-                foregroundColor: isRefunded ? Colors.white : Colors.black,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                backgroundColor: isRefunded ? const Color(0xFFDC2626) : const Color(0xFF1D4ED8),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 elevation: 0,
               ),
               child: FittedBox(

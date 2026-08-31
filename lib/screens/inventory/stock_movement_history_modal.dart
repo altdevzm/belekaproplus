@@ -6,7 +6,6 @@ import 'package:beleka_pos/models/models.dart';
 import 'package:beleka_pos/services/database_service.dart';
 import 'package:beleka_pos/services/export_service.dart';
 import 'package:beleka_pos/providers/store_provider.dart';
-import 'package:beleka_pos/providers/theme_provider.dart';
 
 final stockMovementFilterReasonProvider = StateProvider<String?>((ref) => null);
 final stockMovementSearchProvider = StateProvider<String>((ref) => '');
@@ -37,7 +36,10 @@ class _StockMovementHistoryModalState extends ConsumerState<StockMovementHistory
   @override
   Widget build(BuildContext context) {
     final db = ref.watch(databaseServiceProvider);
-    final accentColor = ref.watch(accentColorProvider);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
+    final accentColor = primaryColor;
     final currency = ref.watch(storeConfigProvider).value?.currencySymbol ?? 'K';
     final filterReason = ref.watch(stockMovementFilterReasonProvider);
     final search = ref.watch(stockMovementSearchProvider);
@@ -46,19 +48,12 @@ class _StockMovementHistoryModalState extends ConsumerState<StockMovementHistory
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       child: Container(
-        width: 900,
+        width: 920,
         height: 700,
         decoration: BoxDecoration(
-          color: const Color(0xFF141418),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.7),
-              blurRadius: 50,
-              spreadRadius: 10,
-            ),
-          ],
+          color: isDark ? const Color(0xFF151F32) : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
         ),
         padding: const EdgeInsets.all(28),
         child: Column(
@@ -161,15 +156,15 @@ class _StockMovementHistoryModalState extends ConsumerState<StockMovementHistory
                         ),
                         DropdownMenuItem<String?>(
                           value: 'ADD',
-                          child: Text('➕ All Stock In (Additions)', style: GoogleFonts.inter(color: const Color(0xFF10B981), fontSize: 12)),
+                          child: Text('All Stock In (Additions)', style: GoogleFonts.inter(color: const Color(0xFF10B981), fontSize: 12)),
                         ),
                         DropdownMenuItem<String?>(
                           value: 'DEDUCT',
-                          child: Text('➖ All Stock Out (Write-offs)', style: GoogleFonts.inter(color: const Color(0xFFEF4444), fontSize: 12)),
+                          child: Text('All Stock Out (Write-offs)', style: GoogleFonts.inter(color: const Color(0xFFEF4444), fontSize: 12)),
                         ),
                         DropdownMenuItem<String?>(
                           value: 'RECOUNT',
-                          child: Text('🔄 Physical Recounts', style: GoogleFonts.inter(color: const Color(0xFF3B82F6), fontSize: 12)),
+                          child: Text('Physical Recounts', style: GoogleFonts.inter(color: const Color(0xFF3B82F6), fontSize: 12)),
                         ),
                       ],
                       onChanged: (val) => ref.read(stockMovementFilterReasonProvider.notifier).state = val,
@@ -239,7 +234,7 @@ class _StockMovementHistoryModalState extends ConsumerState<StockMovementHistory
                         children: [
                           const Icon(Icons.print_rounded, color: Color(0xFF10B981), size: 18),
                           const SizedBox(width: 10),
-                          Text('🖨️ Print SAR Report', style: GoogleFonts.inter(color: Colors.white, fontSize: 13)),
+                          Text('Print SAR Report', style: GoogleFonts.inter(color: Colors.white, fontSize: 13)),
                         ],
                       ),
                     ),
@@ -249,7 +244,7 @@ class _StockMovementHistoryModalState extends ConsumerState<StockMovementHistory
                         children: [
                           const Icon(Icons.picture_as_pdf_rounded, color: Colors.redAccent, size: 18),
                           const SizedBox(width: 10),
-                          Text('📄 Export PDF Document', style: GoogleFonts.inter(color: Colors.white, fontSize: 13)),
+                          Text('Export PDF Document', style: GoogleFonts.inter(color: Colors.white, fontSize: 13)),
                         ],
                       ),
                     ),
@@ -259,7 +254,7 @@ class _StockMovementHistoryModalState extends ConsumerState<StockMovementHistory
                         children: [
                           const Icon(Icons.table_chart_rounded, color: Colors.greenAccent, size: 18),
                           const SizedBox(width: 10),
-                          Text('📊 Export Excel (.xlsx)', style: GoogleFonts.inter(color: Colors.white, fontSize: 13)),
+                          Text('Export Excel (.xlsx)', style: GoogleFonts.inter(color: Colors.white, fontSize: 13)),
                         ],
                       ),
                     ),
@@ -269,7 +264,7 @@ class _StockMovementHistoryModalState extends ConsumerState<StockMovementHistory
                         children: [
                           const Icon(Icons.text_snippet_rounded, color: Colors.amberAccent, size: 18),
                           const SizedBox(width: 10),
-                          Text('📝 Export CSV (.csv)', style: GoogleFonts.inter(color: Colors.white, fontSize: 13)),
+                          Text('Export CSV (.csv)', style: GoogleFonts.inter(color: Colors.white, fontSize: 13)),
                         ],
                       ),
                     ),

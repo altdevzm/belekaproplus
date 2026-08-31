@@ -2,6 +2,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
+import 'package:beleka_pos/utils/formatters.dart';
 import 'package:beleka_pos/models/models.dart';
 import 'package:beleka_pos/services/database_service.dart';
 import 'package:beleka_pos/services/export_service.dart';
@@ -11,7 +13,6 @@ import 'package:beleka_pos/screens/inventory/add_stock_modal.dart';
 import 'package:beleka_pos/screens/inventory/stock_movement_history_modal.dart';
 import 'package:beleka_pos/screens/inventory/digitax_stock_reconcile_modal.dart';
 import 'package:beleka_pos/providers/store_provider.dart';
-import 'package:beleka_pos/providers/theme_provider.dart';
 import 'package:beleka_pos/services/barcode_service.dart';
 import 'package:beleka_pos/services/digitax_inventory_service.dart';
 import 'package:beleka_pos/services/postgres_sync_service.dart';
@@ -153,6 +154,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final primaryColor = theme.colorScheme.primary;
+    
     final productsAsync = ref.watch(inventoryProductsProvider);
     final categoriesAsync = ref.watch(categoriesProvider);
     final search = ref.watch(inventorySearchProvider);
@@ -165,7 +169,6 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     
     // Filter products based on search, category, and multi-branch store isolation
     final filteredProducts = totalProducts.where((p) {
-      // 1. Multi-Branch Store Isolation
       if (user?.role == 'branch_manager' || user?.role == 'cashier') {
         final assignedBranch = (user?.branchCode != null && user!.branchCode!.isNotEmpty && user.branchCode != '00')
             ? user.branchCode!
@@ -193,22 +196,38 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
       });
     });
 
-    return Padding(
+    final double totalValue = totalProducts.fold(0.0, (sum, p) => sum + (p.price * p.stockLevel));
+    final int lowStockCount = totalProducts.where((p) => p.stockLevel < 10 && p.stockLevel > 0 && !p.isArchived).length;
+    final int outOfStockCount = totalProducts.where((p) => p.stockLevel == 0 && !p.isArchived).length;
+
+    return Container(
+      color: theme.scaffoldBackgroundColor,
       padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          _buildTopBreadcrumbBar(context),
+          const SizedBox(height: 16),
           _buildHeader(context, ref, totalProducts),
           const SizedBox(height: 16),
-          _buildFilters(ref),
+          _buildFourStockStatsRow(
+            context,
+            totalSkus: totalProducts.length,
+            totalValue: totalValue,
+            lowStockCount: lowStockCount,
+            outOfStockCount: outOfStockCount,
+            currency: currency,
+          ),
+          const SizedBox(height: 16),
+          _buildFilters(context, ref),
           const SizedBox(height: 12),
-          _buildCategoryFilterBar(ref, totalProducts, categories),
+          _buildCategoryFilterBar(context, ref, totalProducts, categories),
           const SizedBox(height: 14),
           Expanded(
             child: productsAsync.when(
               data: (_) => _buildStockTable(context, ref, filteredProducts, categories, currency),
-              loading: () => const Center(child: CircularProgressIndicator(color: Color(0xFFC1F11D))),
-              error: (err, stack) => Center(child: Text('Error: $err', style: const TextStyle(color: Colors.red))),
+              loading: () => Center(child: CircularProgressIndicator(color: primaryColor)),
+              error: (err, stack) => Center(child: Text('Error: $err', style: const TextStyle(color: Color(0xFFDC2626)))),
             ),
           ),
         ],
@@ -216,8 +235,235 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     );
   }
 
+  Widget _buildTopBreadcrumbBar(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Row(
+          children: [
+            Text(
+              'Workspace',
+              style: GoogleFonts.inter(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w500,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Icon(Icons.chevron_right_rounded, size: 14, color: theme.colorScheme.onSurfaceVariant),
+            const SizedBox(width: 6),
+            Text(
+              'Stock & Inventory',
+              style: GoogleFonts.inter(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+                color: theme.colorScheme.onSurface,
+              ),
+            ),
+          ],
+        ),
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF151F32) : Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 7,
+                    height: 7,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF059669),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'DigiTax Catalog Active',
+                    style: GoogleFonts.inter(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF059669),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF151F32) : Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.calendar_today_rounded, size: 13, color: theme.colorScheme.onSurfaceVariant),
+                  const SizedBox(width: 6),
+                  Text(
+                    DateFormat('E, MMM d, yyyy').format(DateTime.now()),
+                    style: GoogleFonts.inter(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFourStockStatsRow(
+    BuildContext context, {
+    required int totalSkus,
+    required double totalValue,
+    required int lowStockCount,
+    required int outOfStockCount,
+    required String currency,
+  }) {
+    return Row(
+      children: [
+        _buildStockMetricCard(
+          context,
+          label: 'Total Products',
+          value: '$totalSkus SKUs',
+          growthText: 'Active Catalog',
+          isPositive: true,
+          icon: Icons.inventory_2_rounded,
+          iconBgColor: const Color(0xFFEFF6FF),
+          iconColor: const Color(0xFF1D4ED8),
+        ),
+        const SizedBox(width: 14),
+        _buildStockMetricCard(
+          context,
+          label: 'Stock Valuation',
+          value: CurrencyFormatter.format(totalValue, currency),
+          growthText: 'Retail Value',
+          isPositive: true,
+          icon: Icons.monetization_on_rounded,
+          iconBgColor: const Color(0xFFECFDF5),
+          iconColor: const Color(0xFF059669),
+        ),
+        const SizedBox(width: 14),
+        _buildStockMetricCard(
+          context,
+          label: 'Low Stock Alert',
+          value: '$lowStockCount Items',
+          growthText: lowStockCount > 0 ? 'Needs Reorder' : 'Optimal',
+          isPositive: lowStockCount == 0,
+          icon: Icons.warning_amber_rounded,
+          iconBgColor: const Color(0xFFFFFBEB),
+          iconColor: const Color(0xFFD97706),
+        ),
+        const SizedBox(width: 14),
+        _buildStockMetricCard(
+          context,
+          label: 'Out of Stock',
+          value: '$outOfStockCount Items',
+          growthText: outOfStockCount > 0 ? 'Action Required' : 'All Available',
+          isPositive: outOfStockCount == 0,
+          icon: Icons.error_outline_rounded,
+          iconBgColor: const Color(0xFFFEF2F2),
+          iconColor: const Color(0xFFDC2626),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStockMetricCard(
+    BuildContext context, {
+    required String label,
+    required String value,
+    required String growthText,
+    required bool isPositive,
+    required IconData icon,
+    required Color iconBgColor,
+    required Color iconColor,
+  }) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF151F32) : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: isDark ? iconColor.withValues(alpha: 0.15) : iconBgColor,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, size: 18, color: iconColor),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    value,
+                    style: GoogleFonts.inter(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: theme.colorScheme.onSurface,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: isPositive ? const Color(0xFFECFDF5) : const Color(0xFFFEF2F2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                growthText,
+                style: GoogleFonts.inter(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: isPositive ? const Color(0xFF059669) : const Color(0xFFDC2626),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildHeader(BuildContext context, WidgetRef ref, List<Product> products) {
-    final accentColor = ref.watch(accentColorProvider);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -229,23 +475,23 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
               style: GoogleFonts.inter(
                 fontSize: 22,
                 fontWeight: FontWeight.w800,
-                color: Colors.white,
+                color: theme.colorScheme.onSurface,
               ),
             ),
             const SizedBox(width: 12),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.05),
+                color: isDark ? const Color(0xFF1C283D) : const Color(0xFFF1F5F9),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
               ),
               child: Text(
                 '${products.length} Items',
-                style: GoogleFonts.ibmPlexMono(
+                style: GoogleFonts.inter(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
-                  color: Colors.white60,
+                  color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
             ),
@@ -275,29 +521,30 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                 const PopupMenuItem(value: 'pdf', child: Text('Export PDF')),
               ],
               child: Container(
-                height: 44,
+                height: 40,
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 decoration: BoxDecoration(
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-                  borderRadius: BorderRadius.circular(10),
+                  color: isDark ? const Color(0xFF151F32) : const Color(0xFFFFFFFF),
+                  border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.download_rounded, size: 16, color: Colors.white.withValues(alpha: 0.7)),
+                    Icon(Icons.download_rounded, size: 16, color: theme.colorScheme.onSurfaceVariant),
                     const SizedBox(width: 6),
                     Text(
                       'Export',
                       style: GoogleFonts.inter(
                         fontWeight: FontWeight.w600,
                         fontSize: 13,
-                        color: Colors.white.withValues(alpha: 0.7),
+                        color: theme.colorScheme.onSurface,
                       ),
                     ),
                   ],
                 ),
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 8),
 
             // Instant DigiTax Sync Button
             OutlinedButton.icon(
@@ -306,21 +553,21 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                   ? const SizedBox(
                       width: 14,
                       height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF10B981)),
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF059669)),
                     )
-                  : const Icon(Icons.sync_rounded, size: 16, color: Color(0xFF10B981)),
+                  : const Icon(Icons.sync_rounded, size: 16, color: Color(0xFF059669)),
               label: Text(
                 _isSyncingDigitax ? 'Syncing...' : 'Sync DigiTax',
-                style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13, color: const Color(0xFF10B981)),
+                style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13, color: const Color(0xFF059669)),
               ),
               style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Color(0xFF10B981), width: 1),
-                backgroundColor: const Color(0xFF10B981).withValues(alpha: 0.08),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                side: const BorderSide(color: Color(0xFF059669), width: 1),
+                backgroundColor: const Color(0xFFECFDF5),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 8),
 
             // DigiTax Stock Reconciliation Button
             OutlinedButton.icon(
@@ -328,19 +575,19 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                 context: context,
                 builder: (context) => const DigiTaxStockReconcileModal(),
               ),
-              icon: const Icon(Icons.compare_arrows_rounded, size: 16, color: Color(0xFF4ADE80)),
+              icon: const Icon(Icons.compare_arrows_rounded, size: 16, color: Color(0xFF0284C7)),
               label: Text(
                 'Reconcile Stock',
-                style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13, color: const Color(0xFF4ADE80)),
+                style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13, color: const Color(0xFF0284C7)),
               ),
               style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Color(0xFF4ADE80), width: 1),
-                backgroundColor: const Color(0xFF4ADE80).withValues(alpha: 0.08),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                side: const BorderSide(color: Color(0xFF0284C7), width: 1),
+                backgroundColor: const Color(0xFFF0F9FF),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 8),
 
             // Stock Movements Audit History Button
             OutlinedButton.icon(
@@ -348,16 +595,16 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                 context: context,
                 builder: (context) => const StockMovementHistoryModal(),
               ),
-              icon: const Icon(Icons.history_rounded, size: 16, color: Color(0xFF60A5FA)),
-              label: Text('Stock Movements', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13, color: const Color(0xFF60A5FA))),
+              icon: Icon(Icons.history_rounded, size: 16, color: theme.colorScheme.onSurfaceVariant),
+              label: Text('Stock Movements', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13, color: theme.colorScheme.onSurface)),
               style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Color(0xFF60A5FA), width: 1),
-                backgroundColor: const Color(0xFF60A5FA).withValues(alpha: 0.08),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                side: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0), width: 1),
+                backgroundColor: isDark ? const Color(0xFF151F32) : const Color(0xFFFFFFFF),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 8),
 
             // Manage Categories Button
             OutlinedButton.icon(
@@ -365,46 +612,20 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                 context: context,
                 builder: (context) => const CategoryManagementModal(),
               ),
-              icon: const Icon(Icons.category_rounded, size: 16),
-              label: Text('Categories', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13)),
+              icon: Icon(Icons.category_rounded, size: 16, color: theme.colorScheme.onSurfaceVariant),
+              label: Text('Categories', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13, color: theme.colorScheme.onSurface)),
               style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.white,
-                side: BorderSide(color: Colors.white.withValues(alpha: 0.15)),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                side: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+                backgroundColor: isDark ? const Color(0xFF151F32) : const Color(0xFFFFFFFF),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
             ),
-            const SizedBox(width: 10),
-
-            // Quick Add Category Button
-            OutlinedButton.icon(
-              onPressed: () async {
-                final created = await showQuickCreateCategoryDialog(context, ref);
-                if (created != null && context.mounted) {
-                  ref.read(inventoryCategoryFilterProvider.notifier).state = created.id;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Category "${created.name}" created!'),
-                      backgroundColor: const Color(0xFF16161C),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                }
-              },
-              icon: Icon(Icons.add_circle_outline, size: 16, color: accentColor),
-              label: Text('New Category', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13, color: accentColor)),
-              style: OutlinedButton.styleFrom(
-                side: BorderSide(color: accentColor.withValues(alpha: 0.3)),
-                backgroundColor: accentColor.withValues(alpha: 0.05),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-            ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 8),
 
             // Add Product Button
             SizedBox(
-              height: 44,
+              height: 40,
               child: ElevatedButton.icon(
                 onPressed: () async {
                   final result = await showDialog<bool>(
@@ -415,13 +636,13 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                     ref.invalidate(inventoryProductsProvider);
                   }
                 },
-                icon: const Icon(Icons.add_rounded, size: 18),
-                label: Text('Add Product', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13)),
+                icon: const Icon(Icons.add_rounded, size: 18, color: Colors.white),
+                label: Text('Add Product', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13, color: Colors.white)),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: accentColor,
-                  foregroundColor: Colors.black,
+                  backgroundColor: primaryColor,
+                  foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   elevation: 0,
                 ),
               ),
@@ -432,26 +653,30 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     );
   }
 
-  Widget _buildFilters(WidgetRef ref) {
+  Widget _buildFilters(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
+
     return Row(
       children: [
         Expanded(
           child: SizedBox(
-            height: 42,
+            height: 40,
             child: TextField(
               controller: _searchController,
               onChanged: (value) => ref.read(inventorySearchProvider.notifier).state = value,
-              style: GoogleFonts.inter(color: Colors.white, fontSize: 14),
+              style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontSize: 13, fontWeight: FontWeight.w600),
               decoration: InputDecoration(
                 hintText: 'Search products by name, barcode, or SKU...',
                 hintStyle: GoogleFonts.inter(
                   fontSize: 13,
-                  color: Colors.white.withValues(alpha: 0.25),
+                  color: theme.colorScheme.onSurfaceVariant,
                 ),
-                prefixIcon: Icon(Icons.search, color: Colors.white.withValues(alpha: 0.3), size: 20),
+                prefixIcon: Icon(Icons.search, color: theme.colorScheme.onSurfaceVariant, size: 18),
                 suffixIcon: _searchController.text.isNotEmpty 
                   ? IconButton(
-                      icon: const Icon(Icons.clear, size: 16, color: Colors.white54),
+                      icon: Icon(Icons.clear, size: 16, color: theme.colorScheme.onSurfaceVariant),
                       onPressed: () {
                         _searchController.clear();
                         ref.read(inventorySearchProvider.notifier).state = '';
@@ -459,37 +684,46 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                     )
                   : null,
                 filled: true,
-                fillColor: Colors.white.withValues(alpha: 0.05),
+                fillColor: isDark ? const Color(0xFF151F32) : const Color(0xFFFFFFFF),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 12),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide.none,
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: primaryColor, width: 1.5),
                 ),
               ),
             ),
           ),
         ),
         const SizedBox(width: 12),
-        _buildArchiveToggle(ref),
+        _buildArchiveToggle(context, ref),
       ],
     );
   }
 
-  Widget _buildCategoryFilterBar(WidgetRef ref, List<Product> products, List<Category> categories) {
+  Widget _buildCategoryFilterBar(BuildContext context, WidgetRef ref, List<Product> products, List<Category> categories) {
     final activeFilter = ref.watch(inventoryCategoryFilterProvider);
-    final accentColor = ref.watch(accentColorProvider);
+    final primaryColor = Theme.of(context).colorScheme.primary;
 
     return SizedBox(
-      height: 38,
+      height: 36,
       child: ListView(
         scrollDirection: Axis.horizontal,
         children: [
           // "ALL PRODUCTS" chip
           _buildCategoryFilterChip(
+            context,
             label: 'ALL PRODUCTS',
             count: products.length,
             isSelected: activeFilter == null,
-            color: accentColor,
+            color: primaryColor,
             onTap: () => ref.read(inventoryCategoryFilterProvider.notifier).state = null,
           ),
           const SizedBox(width: 8),
@@ -503,6 +737,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
             return Padding(
               padding: const EdgeInsets.only(right: 8),
               child: _buildCategoryFilterChip(
+                context,
                 label: cat.name.toUpperCase(),
                 count: count,
                 isSelected: isSelected,
@@ -517,99 +752,60 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
               ),
             );
           }),
-
-          // Inline Quick Add Category Button
-          InkWell(
-            onTap: () async {
-              final created = await showQuickCreateCategoryDialog(context, ref);
-              if (created != null && context.mounted) {
-                ref.read(inventoryCategoryFilterProvider.notifier).state = created.id;
-              }
-            },
-            borderRadius: BorderRadius.circular(8),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.02),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.08), style: BorderStyle.solid),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.add_rounded, size: 14, color: accentColor),
-                  const SizedBox(width: 6),
-                  Text(
-                    'NEW CATEGORY',
-                    style: GoogleFonts.ibmPlexMono(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: accentColor,
-                      letterSpacing: 1,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
         ],
       ),
     );
   }
 
-  Widget _buildCategoryFilterChip({
+  Widget _buildCategoryFilterChip(
+    BuildContext context, {
     required String label,
     required int count,
     required bool isSelected,
     required Color color,
     required VoidCallback onTap,
   }) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
         decoration: BoxDecoration(
-          color: isSelected ? color.withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.03),
+          color: isSelected ? color : (isDark ? const Color(0xFF151F32) : const Color(0xFFFFFFFF)),
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: isSelected ? color.withValues(alpha: 0.5) : Colors.white.withValues(alpha: 0.06),
-            width: isSelected ? 1.5 : 1.0,
+            color: isSelected ? color : (isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+            width: 1.0,
           ),
         ),
         child: Row(
           children: [
-            Container(
-              width: 6,
-              height: 6,
-              decoration: BoxDecoration(
-                color: color,
-                shape: BoxShape.circle,
-              ),
-            ),
-            const SizedBox(width: 8),
             Text(
               label,
-              style: GoogleFonts.manrope(
+              style: GoogleFonts.inter(
                 fontSize: 11,
-                fontWeight: isSelected ? FontWeight.w900 : FontWeight.w700,
-                color: isSelected ? Colors.white : Colors.white60,
-                letterSpacing: 0.5,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                color: isSelected ? Colors.white : theme.colorScheme.onSurface,
+                letterSpacing: 0.3,
               ),
             ),
             const SizedBox(width: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
-                color: isSelected ? color.withValues(alpha: 0.25) : Colors.white.withValues(alpha: 0.05),
+                color: isSelected ? Colors.white.withValues(alpha: 0.2) : (isDark ? const Color(0xFF293548) : const Color(0xFFF1F5F9)),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(
                 '$count',
-                style: GoogleFonts.ibmPlexMono(
+                style: GoogleFonts.inter(
                   fontSize: 10,
                   fontWeight: FontWeight.bold,
-                  color: isSelected ? Colors.white : Colors.white38,
+                  color: isSelected ? Colors.white : theme.colorScheme.onSurfaceVariant,
                 ),
               ),
             ),
@@ -619,18 +815,22 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     );
   }
 
-  Widget _buildArchiveToggle(WidgetRef ref) {
+  Widget _buildArchiveToggle(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
     final showArchived = ref.watch(showArchivedProvider);
+
     return InkWell(
       onTap: () => ref.read(showArchivedProvider.notifier).state = !showArchived,
       borderRadius: BorderRadius.circular(8),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: showArchived ? const Color(0xFFC1F11D).withValues(alpha: 0.1) : Colors.white.withValues(alpha: 0.03),
+          color: showArchived ? primaryColor.withValues(alpha: 0.1) : (isDark ? const Color(0xFF151F32) : const Color(0xFFFFFFFF)),
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: showArchived ? const Color(0xFFC1F11D).withValues(alpha: 0.3) : Colors.white.withValues(alpha: 0.06),
+            color: showArchived ? primaryColor : (isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
           ),
         ),
         child: Row(
@@ -638,7 +838,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
             Icon(
               showArchived ? Icons.archive : Icons.archive_outlined,
               size: 14,
-              color: showArchived ? const Color(0xFFC1F11D) : Colors.white.withValues(alpha: 0.5),
+              color: showArchived ? primaryColor : theme.colorScheme.onSurfaceVariant,
             ),
             const SizedBox(width: 8),
             Text(
@@ -646,7 +846,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
               style: GoogleFonts.inter(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
-                color: showArchived ? const Color(0xFFC1F11D) : Colors.white.withValues(alpha: 0.5),
+                color: showArchived ? primaryColor : theme.colorScheme.onSurface,
               ),
             ),
           ],
@@ -662,32 +862,36 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     List<Category> categories, 
     String currency
   ) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1A1E),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        color: isDark ? const Color(0xFF151F32) : const Color(0xFFFFFFFF),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
       ),
       child: Column(
         children: [
-          _buildTableHeader(),
+          _buildTableHeader(context),
           Expanded(
             child: products.isEmpty 
               ? Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.inventory_2_outlined, size: 48, color: Colors.white.withValues(alpha: 0.15)),
+                      Icon(Icons.inventory_2_outlined, size: 48, color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.3)),
                       const SizedBox(height: 12),
                       Text(
                         'No products found in this view',
-                        style: GoogleFonts.inter(color: Colors.white.withValues(alpha: 0.4), fontSize: 13),
+                        style: GoogleFonts.inter(color: theme.colorScheme.onSurfaceVariant, fontSize: 13),
                       ),
                     ],
                   ),
                 )
-              : ListView.builder(
+              : ListView.separated(
                   itemCount: products.length,
+                  separatorBuilder: (_, _) => Divider(height: 1, color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
                   itemBuilder: (context, index) {
                     final product = products[index];
                     return _buildStockRow(context, ref, product, categories, currency);
@@ -699,35 +903,41 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     );
   }
 
-  Widget _buildTableHeader() {
+  Widget _buildTableHeader(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
+        color: isDark ? const Color(0xFF1C283D) : const Color(0xFFF8FAFC),
+        borderRadius: const BorderRadius.only(topLeft: Radius.circular(10), topRight: Radius.circular(10)),
+        border: Border(bottom: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0))),
       ),
       child: Row(
         children: [
-          _buildHeaderCell('SKU', flex: 2),
-          _buildHeaderCell('Product Name', flex: 3),
-          _buildHeaderCell('Category', flex: 2),
-          _buildHeaderCell('Stock Level', flex: 2),
-          _buildHeaderCell('Selling Price', flex: 2),
-          _buildHeaderCell('Status', flex: 2),
-          _buildHeaderCell('Actions', flex: 2),
+          _buildHeaderCell(context, 'SKU', flex: 2),
+          _buildHeaderCell(context, 'Product Name', flex: 3),
+          _buildHeaderCell(context, 'Category', flex: 2),
+          _buildHeaderCell(context, 'Stock Level', flex: 2),
+          _buildHeaderCell(context, 'Selling Price', flex: 2),
+          _buildHeaderCell(context, 'Status', flex: 2),
+          _buildHeaderCell(context, 'Actions', flex: 2),
         ],
       ),
     );
   }
 
-  Widget _buildHeaderCell(String label, {int flex = 1}) {
+  Widget _buildHeaderCell(BuildContext context, String label, {int flex = 1}) {
+    final theme = Theme.of(context);
     return Expanded(
       flex: flex,
       child: Text(
         label,
-        style: GoogleFonts.manrope(
+        style: GoogleFonts.inter(
           fontSize: 11,
-          fontWeight: FontWeight.w800,
-          color: Colors.white.withValues(alpha: 0.35),
+          fontWeight: FontWeight.w700,
+          color: theme.colorScheme.onSurfaceVariant,
           letterSpacing: 0.5,
         ),
       ),
@@ -741,35 +951,32 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     List<Category> categories, 
     String currency
   ) {
+    final theme = Theme.of(context);
+    final primaryColor = theme.colorScheme.primary;
     final bool isLowStock = product.stockLevel < 10;
     final bool isOutOfStock = product.stockLevel == 0;
     
     String statusLabel = 'IN STOCK';
-    Color statusColor = const Color(0xFF4ADE80);
+    Color statusColor = const Color(0xFF059669);
     
     if (product.isArchived) {
       statusLabel = 'ARCHIVED';
-      statusColor = Colors.white.withValues(alpha: 0.4);
+      statusColor = theme.colorScheme.onSurfaceVariant;
     } else if (isOutOfStock) {
       statusLabel = 'OUT OF STOCK';
-      statusColor = const Color(0xFFF87171);
+      statusColor = const Color(0xFFDC2626);
     } else if (isLowStock) {
       statusLabel = 'LOW STOCK';
-      statusColor = const Color(0xFFFACC15);
+      statusColor = const Color(0xFFD97706);
     }
 
-    // Category allocation lookup
     final matchedCat = categories.where((c) => c.id == product.categoryId).firstOrNull;
     final catName = matchedCat != null ? matchedCat.name.toUpperCase() : 'GENERAL';
-    final catColor = matchedCat != null ? _getSectorColor(matchedCat.sector) : Colors.white38;
 
     return Opacity(
       opacity: product.isArchived ? 0.5 : 1.0,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-        decoration: BoxDecoration(
-          border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.03))),
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         child: Row(
           children: [
             // SKU
@@ -777,10 +984,10 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
               flex: 2,
               child: Text(
                 product.sku,
-                style: GoogleFonts.ibmPlexMono(
+                style: GoogleFonts.inter(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: Colors.white.withValues(alpha: 0.6),
+                  color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
             ),
@@ -790,7 +997,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
               flex: 3,
               child: Row(
                 children: [
-                  _buildProductThumbnail(product.imagePath),
+                  _buildProductThumbnail(context, product.imagePath),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -800,8 +1007,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                           product.name,
                           style: GoogleFonts.inter(
                             fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            color: theme.colorScheme.onSurface,
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -811,29 +1018,29 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                               decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.05),
-                                borderRadius: BorderRadius.circular(3),
+                                color: primaryColor.withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
                                 'BHF-${product.branchCode}',
-                                style: GoogleFonts.jetBrainsMono(
+                                style: GoogleFonts.inter(
                                   fontSize: 9,
                                   fontWeight: FontWeight.w700,
-                                  color: Colors.white54,
+                                  color: primaryColor,
                                 ),
                               ),
                             ),
                             const SizedBox(width: 6),
                             Text(
                               !product.isDigitaxSyncEnabled
-                                  ? '🔒 Offline (Exempt)'
-                                  : (product.isSyncedWithDigitax ? '🟢 DigiTax Synced' : '🟡 Pending Sync'),
+                                  ? 'Offline (Exempt)'
+                                  : (product.isSyncedWithDigitax ? 'DigiTax Synced' : 'Pending Sync'),
                               style: GoogleFonts.inter(
-                                fontSize: 9,
+                                fontSize: 9.5,
                                 fontWeight: FontWeight.w600,
                                 color: !product.isDigitaxSyncEnabled
-                                    ? Colors.blueAccent
-                                    : (product.isSyncedWithDigitax ? const Color(0xFF10B981) : Colors.amber),
+                                    ? const Color(0xFF0284C7)
+                                    : (product.isSyncedWithDigitax ? const Color(0xFF059669) : const Color(0xFFD97706)),
                               ),
                             ),
                           ],
@@ -848,29 +1055,14 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
             // Allocated Category Badge
             Expanded(
               flex: 2,
-              child: Row(
-                children: [
-                  Container(
-                    width: 7,
-                    height: 7,
-                    decoration: BoxDecoration(
-                      color: catColor,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Flexible(
-                    child: Text(
-                      catName,
-                      style: GoogleFonts.manrope(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white70,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
+              child: Text(
+                catName,
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: theme.colorScheme.onSurface,
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
 
@@ -878,11 +1070,11 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
             Expanded(
               flex: 2,
               child: Text(
-                product.stockLevel.toString().padLeft(3, '0'),
-                style: GoogleFonts.ibmPlexMono(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: isOutOfStock ? const Color(0xFFF87171) : (isLowStock ? const Color(0xFFFACC15) : Colors.white),
+                product.stockLevel.toString(),
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: isOutOfStock ? const Color(0xFFDC2626) : (isLowStock ? const Color(0xFFD97706) : theme.colorScheme.onSurface),
                 ),
               ),
             ),
@@ -892,10 +1084,10 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
               flex: 2,
               child: Text(
                 '$currency${product.price.toStringAsFixed(2)}',
-                style: GoogleFonts.manrope(
-                  fontSize: 14,
+                style: GoogleFonts.inter(
+                  fontSize: 13.5,
                   fontWeight: FontWeight.w800,
-                  color: Colors.white,
+                  color: primaryColor,
                 ),
               ),
             ),
@@ -906,19 +1098,18 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
               child: UnconstrainedBox(
                 alignment: Alignment.centerLeft,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: Colors.black,
+                    color: statusColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: statusColor.withValues(alpha: 0.3)),
                   ),
                   child: Text(
                     statusLabel,
-                    style: GoogleFonts.ibmPlexMono(
-                      fontSize: 9,
-                      fontWeight: FontWeight.w900,
+                    style: GoogleFonts.inter(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w800,
                       color: statusColor,
-                      letterSpacing: 1,
+                      letterSpacing: 0.3,
                     ),
                   ),
                 ),
@@ -931,7 +1122,6 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  // Quick Adjust Stock Button (+/- with reason tracking)
                   IconButton(
                     onPressed: () async {
                       final result = await showDialog<bool>(
@@ -944,11 +1134,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                         ref.invalidate(inventoryProductsProvider);
                       }
                     },
-                    icon: const Icon(Icons.tune_rounded, color: Color(0xFFC1F11D), size: 18),
-                    tooltip: 'Adjust Stock & Record Reason (ZRA SAR)',
+                    icon: Icon(Icons.tune_rounded, color: primaryColor, size: 18),
+                    tooltip: 'Adjust Stock & Record Reason',
                   ),
-
-                  // Stock Movement History Audit Log Button
                   IconButton(
                     onPressed: () => showDialog(
                       context: context,
@@ -957,11 +1145,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                         productName: product.name,
                       ),
                     ),
-                    icon: const Icon(Icons.history_rounded, color: Colors.white60, size: 18),
+                    icon: Icon(Icons.history_rounded, color: theme.colorScheme.onSurfaceVariant, size: 18),
                     tooltip: 'View Stock Movement Audit Log',
                   ),
-
-                  // Edit Product Details
                   IconButton(
                     onPressed: () async {
                       final result = await showDialog<bool>(
@@ -974,7 +1160,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                         ref.invalidate(inventoryProductsProvider);
                       }
                     },
-                    icon: const Icon(Icons.edit_outlined, color: Colors.white38, size: 18),
+                    icon: Icon(Icons.edit_outlined, color: theme.colorScheme.onSurfaceVariant, size: 18),
                     tooltip: 'Edit Product Details',
                   ),
                   IconButton(
@@ -982,81 +1168,27 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                       final bool isArchiving = !product.isArchived;
                       final confirm = await showDialog<bool>(
                         context: context,
-                        builder: (context) => Dialog(
-                          backgroundColor: Colors.transparent,
-                          child: Container(
-                            width: 400,
-                            padding: const EdgeInsets.all(32),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF1E1E22),
-                              borderRadius: BorderRadius.circular(24),
-                              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-                            ),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  isArchiving ? Icons.warning_amber_rounded : Icons.settings_backup_restore_rounded,
-                                  color: isArchiving ? const Color(0xFFFFB3B5) : const Color(0xFFC1F11D),
-                                  size: 48,
-                                ),
-                                const SizedBox(height: 24),
-                                Text(
-                                  isArchiving ? 'ARCHIVE_PRODUCT' : 'RESTORE_PRODUCT',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: 2,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  isArchiving
-                                      ? 'Are you sure you want to archive ${product.name}? This SKU will be hidden from the catalog.'
-                                      : 'Do you want to restore ${product.name} to the active inventory?',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 13,
-                                    color: Colors.white.withValues(alpha: 0.5),
-                                    height: 1.5,
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
-                                const SizedBox(height: 32),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: OutlinedButton(
-                                        onPressed: () => Navigator.pop(context, false),
-                                        style: OutlinedButton.styleFrom(
-                                          side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
-                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                          padding: const EdgeInsets.symmetric(vertical: 14),
-                                        ),
-                                        child: Text('Cancel',
-                                            style: GoogleFonts.inter(color: Colors.white.withValues(alpha: 0.5))),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 16),
-                                    Expanded(
-                                      child: ElevatedButton(
-                                        onPressed: () => Navigator.pop(context, true),
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: isArchiving ? Colors.red : const Color(0xFFC1F11D),
-                                          foregroundColor: isArchiving ? Colors.white : Colors.black,
-                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                          padding: const EdgeInsets.symmetric(vertical: 14),
-                                          elevation: 0,
-                                        ),
-                                        child: Text(isArchiving ? 'Archive' : 'Restore',
-                                            style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
+                        builder: (context) => AlertDialog(
+                          title: Text(isArchiving ? 'Archive Product' : 'Restore Product', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 16)),
+                          content: Text(
+                            isArchiving
+                                ? 'Are you sure you want to archive ${product.name}? This SKU will be hidden from the active catalog.'
+                                : 'Do you want to restore ${product.name} to the active catalog?',
+                            style: GoogleFonts.inter(fontSize: 13),
                           ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context, false),
+                              child: const Text('CANCEL'),
+                            ),
+                            ElevatedButton(
+                              onPressed: () => Navigator.pop(context, true),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: isArchiving ? const Color(0xFFDC2626) : primaryColor,
+                              ),
+                              child: Text(isArchiving ? 'ARCHIVE' : 'RESTORE'),
+                            ),
+                          ],
                         ),
                       );
                       if (confirm == true) {
@@ -1070,7 +1202,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                     },
                     icon: Icon(
                       product.isArchived ? Icons.settings_backup_restore_rounded : Icons.archive_outlined,
-                      color: product.isArchived ? const Color(0xFFC1F11D).withValues(alpha: 0.5) : Colors.white24,
+                      color: product.isArchived ? primaryColor : theme.colorScheme.onSurfaceVariant,
                       size: 18,
                     ),
                     tooltip: product.isArchived ? 'Restore Product' : 'Archive Product',
@@ -1084,16 +1216,19 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     );
   }
 
-  Widget _buildProductThumbnail(String? imagePath) {
+  Widget _buildProductThumbnail(BuildContext context, String? imagePath) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
     final bool hasImage = imagePath != null && File(imagePath).existsSync();
     
     return Container(
       width: 32,
       height: 32,
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.03),
+        color: isDark ? const Color(0xFF1C283D) : const Color(0xFFF1F5F9),
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
         image: hasImage 
           ? DecorationImage(
               image: FileImage(File(imagePath)),
@@ -1102,25 +1237,25 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
           : null,
       ),
       child: !hasImage 
-        ? Center(
-            child: Icon(
-              Icons.inventory_2_outlined,
-              size: 14,
-              color: Colors.white.withValues(alpha: 0.1),
-            ),
-          )
-        : null,
+          ? Center(
+              child: Icon(
+                Icons.inventory_2_outlined,
+                size: 14,
+                color: primaryColor,
+              ),
+            )
+          : null,
     );
   }
 
   Color _getSectorColor(CategorySector sector) {
     switch (sector) {
-      case CategorySector.pharmacy: return const Color(0xFF00D1FF);
-      case CategorySector.stationery: return const Color(0xFFB565FF);
-      case CategorySector.grocery: return const Color(0xFF00FF85);
-      case CategorySector.food: return const Color(0xFFFF5C00);
-      case CategorySector.restaurant: return const Color(0xFFF39C12);
-      case CategorySector.other: return const Color(0xFFC1F11D);
+      case CategorySector.pharmacy: return const Color(0xFF0284C7);
+      case CategorySector.stationery: return const Color(0xFFD97706);
+      case CategorySector.grocery: return const Color(0xFF059669);
+      case CategorySector.food: return const Color(0xFFDC2626);
+      case CategorySector.restaurant: return const Color(0xFFEA580C);
+      case CategorySector.other: return const Color(0xFF1D4ED8);
     }
   }
 }

@@ -193,6 +193,9 @@ class _PrinterSettingsModalState extends ConsumerState<PrinterSettingsModal> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
     final selectedPrinter = ref.watch(selectedPrinterProvider);
 
     // Listen for global barcode scans
@@ -203,26 +206,18 @@ class _PrinterSettingsModalState extends ConsumerState<PrinterSettingsModal> {
     });
 
     return Dialog(
-      backgroundColor: Colors.transparent,
+      backgroundColor: isDark ? const Color(0xFF151F32) : Colors.white,
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+      ),
       child: Container(
         width: 660,
         constraints: BoxConstraints(
           maxHeight: MediaQuery.of(context).size.height * 0.92,
         ),
-        decoration: BoxDecoration(
-          color: const Color(0xFF141418),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.6),
-              blurRadius: 40,
-              offset: const Offset(0, 10),
-            ),
-          ],
-        ),
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -236,10 +231,10 @@ class _PrinterSettingsModalState extends ConsumerState<PrinterSettingsModal> {
                       Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFC1F11D).withValues(alpha: 0.15),
+                          color: isDark ? primaryColor.withValues(alpha: 0.15) : primaryColor.withValues(alpha: 0.08),
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: const Icon(Icons.print_rounded, color: Color(0xFFC1F11D), size: 20),
+                        child: Icon(Icons.print_rounded, color: primaryColor, size: 20),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
@@ -247,22 +242,22 @@ class _PrinterSettingsModalState extends ConsumerState<PrinterSettingsModal> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'HARDWARE & PERIPHERALS',
-                              style: GoogleFonts.manrope(
-                                fontSize: 13,
+                              'HARDWARE & TILL PERIPHERALS',
+                              style: GoogleFonts.inter(
+                                fontSize: 15,
                                 fontWeight: FontWeight.w900,
-                                letterSpacing: 1.2,
-                                color: Colors.white,
+                                letterSpacing: 0.5,
+                                color: theme.colorScheme.onSurface,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
                             Text(
-                              'AUTO-LOAD PRINTER DRIVERS & SCANNERS',
-                              style: GoogleFonts.ibmPlexMono(
-                                fontSize: 8.5,
+                              'PRINTER DRIVERS, CASH DRAWERS & SCANNERS',
+                              style: GoogleFonts.inter(
+                                fontSize: 10,
                                 fontWeight: FontWeight.bold,
-                                color: const Color(0xFFC1F11D),
+                                color: primaryColor,
                                 letterSpacing: 0.5,
                               ),
                               maxLines: 1,
@@ -276,10 +271,12 @@ class _PrinterSettingsModalState extends ConsumerState<PrinterSettingsModal> {
                 ),
                 IconButton(
                   onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.close, color: Colors.white38, size: 20),
+                  icon: Icon(Icons.close, color: theme.colorScheme.onSurfaceVariant, size: 20),
                 ),
               ],
             ),
+            const SizedBox(height: 14),
+            Divider(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0), height: 1),
             const SizedBox(height: 14),
             
             // Scrollable Settings Content
@@ -892,7 +889,11 @@ class _PrinterSettingsModalState extends ConsumerState<PrinterSettingsModal> {
   }
 
   Widget _buildTypeChip(String label, PrinterType type) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
     final isSelected = _selectedType == type;
+
     return InkWell(
       onTap: () {
         setState(() => _selectedType = type);
@@ -902,18 +903,18 @@ class _PrinterSettingsModalState extends ConsumerState<PrinterSettingsModal> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFC1F11D).withValues(alpha: 0.12) : Colors.white.withValues(alpha: 0.03),
+          color: isSelected ? (isDark ? primaryColor.withValues(alpha: 0.15) : primaryColor.withValues(alpha: 0.1)) : (isDark ? const Color(0xFF1C283D) : const Color(0xFFF8FAFC)),
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: isSelected ? const Color(0xFFC1F11D).withValues(alpha: 0.4) : Colors.white.withValues(alpha: 0.06),
+            color: isSelected ? primaryColor : (isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
           ),
         ),
         child: Text(
           label,
-          style: GoogleFonts.ibmPlexMono(
-            fontSize: 9,
-            fontWeight: FontWeight.bold,
-            color: isSelected ? const Color(0xFFC1F11D) : Colors.white.withValues(alpha: 0.45),
+          style: GoogleFonts.inter(
+            fontSize: 11,
+            fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+            color: isSelected ? primaryColor : theme.colorScheme.onSurfaceVariant,
           ),
         ),
       ),
@@ -921,7 +922,11 @@ class _PrinterSettingsModalState extends ConsumerState<PrinterSettingsModal> {
   }
 
   Widget _buildModelChip(String label, PrinterModel model) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
     final isSelected = _selectedModel == model;
+
     return InkWell(
       onTap: () {
         setState(() {
@@ -934,18 +939,18 @@ class _PrinterSettingsModalState extends ConsumerState<PrinterSettingsModal> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFC1F11D).withValues(alpha: 0.12) : Colors.white.withValues(alpha: 0.03),
+          color: isSelected ? (isDark ? primaryColor.withValues(alpha: 0.15) : primaryColor.withValues(alpha: 0.1)) : (isDark ? const Color(0xFF1C283D) : const Color(0xFFF8FAFC)),
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: isSelected ? const Color(0xFFC1F11D).withValues(alpha: 0.4) : Colors.white.withValues(alpha: 0.06),
+            color: isSelected ? primaryColor : (isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
           ),
         ),
         child: Text(
           label,
-          style: GoogleFonts.ibmPlexMono(
-            fontSize: 9,
-            fontWeight: FontWeight.bold,
-            color: isSelected ? const Color(0xFFC1F11D) : Colors.white.withValues(alpha: 0.45),
+          style: GoogleFonts.inter(
+            fontSize: 11,
+            fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+            color: isSelected ? primaryColor : theme.colorScheme.onSurfaceVariant,
           ),
         ),
       ),
@@ -978,17 +983,21 @@ class _PrinterSettingsModalState extends ConsumerState<PrinterSettingsModal> {
   }
 
   Widget _buildWidthChip(String label, int width, String description) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
     final isSelected = _paperWidthMm == width;
+
     return InkWell(
       onTap: () => _selectPaperWidth(width),
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(8),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFC1F11D).withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.03),
-          borderRadius: BorderRadius.circular(10),
+          color: isSelected ? (isDark ? primaryColor.withValues(alpha: 0.15) : primaryColor.withValues(alpha: 0.1)) : (isDark ? const Color(0xFF1C283D) : const Color(0xFFF8FAFC)),
+          borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: isSelected ? const Color(0xFFC1F11D) : Colors.white.withValues(alpha: 0.08),
+            color: isSelected ? primaryColor : (isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
             width: isSelected ? 1.5 : 1,
           ),
         ),
@@ -997,16 +1006,16 @@ class _PrinterSettingsModalState extends ConsumerState<PrinterSettingsModal> {
           children: [
             Icon(
               isSelected ? Icons.check_circle_rounded : Icons.crop_portrait_rounded,
-              color: isSelected ? const Color(0xFFC1F11D) : Colors.white24,
+              color: isSelected ? primaryColor : theme.colorScheme.onSurfaceVariant,
               size: 14,
             ),
             const SizedBox(width: 6),
             Text(
               label,
-              style: GoogleFonts.ibmPlexMono(
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-                color: isSelected ? const Color(0xFFC1F11D) : Colors.white70,
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                color: isSelected ? primaryColor : theme.colorScheme.onSurface,
               ),
             ),
           ],
@@ -1016,25 +1025,28 @@ class _PrinterSettingsModalState extends ConsumerState<PrinterSettingsModal> {
   }
 
   Widget _buildRefreshButton() {
+    final theme = Theme.of(context);
+    final primaryColor = theme.colorScheme.primary;
+
     return SizedBox(
       height: 36,
       child: ElevatedButton(
         onPressed: _isScanning ? null : _scan,
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFFC1F11D),
-          foregroundColor: Colors.black,
+          backgroundColor: primaryColor,
+          foregroundColor: Colors.white,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           elevation: 0,
           padding: const EdgeInsets.symmetric(horizontal: 12),
         ),
         child: _isScanning 
-          ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
+          ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
           : Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.refresh, size: 14, color: Colors.black),
+                const Icon(Icons.refresh, size: 14, color: Colors.white),
                 const SizedBox(width: 4),
-                Text('REFRESH', style: GoogleFonts.manrope(fontWeight: FontWeight.w800, fontSize: 10)),
+                Text('REFRESH', style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 11)),
               ],
             ),
       ),

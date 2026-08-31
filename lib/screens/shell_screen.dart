@@ -11,7 +11,6 @@ import 'package:beleka_pos/screens/terminals_screen.dart';
 import 'package:beleka_pos/screens/purchases_screen.dart';
 import 'package:beleka_pos/screens/branches_screen.dart';
 import 'package:beleka_pos/providers/auth_provider.dart';
-import 'package:beleka_pos/providers/theme_provider.dart';
 import 'package:beleka_pos/providers/store_provider.dart';
 import 'package:beleka_pos/models/models.dart';
 import 'dart:io';
@@ -19,7 +18,6 @@ import 'dart:io';
 import 'package:beleka_pos/services/network_client.dart';
 import 'package:beleka_pos/core/core.dart';
 import 'package:beleka_pos/widgets/update_banner.dart';
-import 'package:beleka_pos/widgets/tax_reminder_banner.dart';
 import 'package:beleka_pos/widgets/camera_barcode_scanner_modal.dart';
 import 'package:beleka_pos/providers/cart_provider.dart';
 import 'package:beleka_pos/services/database_service.dart';
@@ -61,33 +59,30 @@ class ShellScreen extends ConsumerWidget {
     bool isManager, {
     required bool isCompact,
   }) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final user = ref.watch(authProvider);
-    final accentColor = ref.watch(accentColorProvider);
+    final accentColor = theme.colorScheme.primary;
     final role = user?.role.toLowerCase().trim() ?? 'cashier';
     final isCashier = role == 'cashier';
+    final navBg = isDark ? const Color(0xFF1E293B) : const Color(0xFFFFFFFF);
+    final borderColor = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
 
     return Column(
       children: [
-        _buildStatusBar(ref, isCompact: isCompact),
+        _buildStatusBar(context, ref, isCompact: isCompact),
         const UpdateBanner(),
         Expanded(child: _buildMainContent(current)),
         
         // Ergonomic Mobile Lower Navigation Bar
         Container(
-          height: 68,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          height: 64,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           decoration: BoxDecoration(
-            color: const Color(0xFF111115),
+            color: navBg,
             border: Border(
-              top: BorderSide(color: Colors.white.withValues(alpha: 0.08), width: 1),
+              top: BorderSide(color: borderColor, width: 1),
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.5),
-                blurRadius: 16,
-                offset: const Offset(0, -4),
-              ),
-            ],
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -95,6 +90,7 @@ class ShellScreen extends ConsumerWidget {
                 ? [
                     // Cashier Tab 1: Sales
                     _buildMobileNavItem(
+                      context,
                       icon: Icons.point_of_sale_rounded,
                       label: 'Sales',
                       isSelected: current == ScreenType.sales,
@@ -110,6 +106,7 @@ class ShellScreen extends ConsumerWidget {
 
                     // Cashier Tab 2: Settings
                     _buildMobileNavItem(
+                      context,
                       icon: Icons.settings_rounded,
                       label: 'Settings',
                       isSelected: current == ScreenType.settings,
@@ -122,17 +119,19 @@ class ShellScreen extends ConsumerWidget {
 
                     // Cashier Tab 3: Logout
                     _buildMobileNavItem(
+                      context,
                       icon: Icons.logout_rounded,
                       label: 'Logout',
                       isSelected: false,
-                      accentColor: Colors.redAccent,
-                      iconColor: Colors.redAccent.withValues(alpha: 0.8),
+                      accentColor: const Color(0xFFEF4444),
+                      iconColor: const Color(0xFFEF4444),
                       onTap: () => _confirmLogout(context, ref),
                     ),
                   ]
                 : [
                     // Admin/Manager Tab 1: Overview
                     _buildMobileNavItem(
+                      context,
                       icon: Icons.dashboard_rounded,
                       label: 'Overview',
                       isSelected: current == ScreenType.dashboard,
@@ -145,6 +144,7 @@ class ShellScreen extends ConsumerWidget {
 
                     // Admin/Manager Tab 2: Stock
                     _buildMobileNavItem(
+                      context,
                       icon: Icons.inventory_2_rounded,
                       label: 'Stock',
                       isSelected: current == ScreenType.inventory,
@@ -160,6 +160,7 @@ class ShellScreen extends ConsumerWidget {
 
                     // Admin/Manager Tab 3: Reports
                     _buildMobileNavItem(
+                      context,
                       icon: Icons.assessment_rounded,
                       label: 'Reports',
                       isSelected: current == ScreenType.reports,
@@ -172,6 +173,7 @@ class ShellScreen extends ConsumerWidget {
 
                     // Admin/Manager Tab 4: Settings
                     _buildMobileNavItem(
+                      context,
                       icon: Icons.settings_rounded,
                       label: 'Settings',
                       isSelected: current == ScreenType.settings,
@@ -188,7 +190,8 @@ class ShellScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildMobileNavItem({
+  Widget _buildMobileNavItem(
+    BuildContext context, {
     required IconData icon,
     required String label,
     required bool isSelected,
@@ -196,9 +199,12 @@ class ShellScreen extends ConsumerWidget {
     Color? iconColor,
     required VoidCallback onTap,
   }) {
+    final theme = Theme.of(context);
+    final unselectedColor = theme.colorScheme.onSurfaceVariant;
+
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(8),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         child: Column(
@@ -208,15 +214,15 @@ class ShellScreen extends ConsumerWidget {
             Icon(
               icon,
               size: 22,
-              color: isSelected ? accentColor : (iconColor ?? Colors.white54),
+              color: isSelected ? accentColor : (iconColor ?? unselectedColor),
             ),
             const SizedBox(height: 3),
             Text(
               label,
               style: GoogleFonts.inter(
-                fontSize: 10.5,
-                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
-                color: isSelected ? accentColor : Colors.white60,
+                fontSize: 11,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                color: isSelected ? accentColor : unselectedColor,
               ),
             ),
           ],
@@ -232,29 +238,22 @@ class ShellScreen extends ConsumerWidget {
         _handleGlobalScan(context, ref);
       },
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
           color: accentColor,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: accentColor.withValues(alpha: 0.4),
-              blurRadius: 10,
-              offset: const Offset(0, 2),
-            ),
-          ],
+          borderRadius: BorderRadius.circular(8),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.qr_code_scanner_rounded, color: Colors.black, size: 20),
+            const Icon(Icons.qr_code_scanner_rounded, color: Colors.white, size: 18),
             const SizedBox(width: 6),
             Text(
               'SCAN',
-              style: GoogleFonts.manrope(
+              style: GoogleFonts.inter(
                 fontSize: 12,
-                fontWeight: FontWeight.w900,
-                color: Colors.black,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
                 letterSpacing: 0.5,
               ),
             ),
@@ -279,14 +278,13 @@ class ShellScreen extends ConsumerWidget {
             SnackBar(
               content: Row(
                 children: [
-                  const Icon(Icons.check_circle_rounded, color: Color(0xFFC1F11D), size: 18),
+                  const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 18),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text('Added "${product.name}" to cart (K${product.price.toStringAsFixed(2)})'),
                   ),
                 ],
               ),
-              backgroundColor: const Color(0xFF1E1E24),
               behavior: SnackBarBehavior.floating,
               duration: const Duration(seconds: 2),
             ),
@@ -298,14 +296,13 @@ class ShellScreen extends ConsumerWidget {
             SnackBar(
               content: Row(
                 children: [
-                  const Icon(Icons.warning_amber_rounded, color: Colors.orangeAccent, size: 18),
+                  const Icon(Icons.warning_amber_rounded, color: Colors.amber, size: 18),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text('No product found matching code "$scannedCode"'),
                   ),
                 ],
               ),
-              backgroundColor: const Color(0xFF1E1E24),
               behavior: SnackBarBehavior.floating,
               duration: const Duration(seconds: 3),
             ),
@@ -316,23 +313,29 @@ class ShellScreen extends ConsumerWidget {
   }
 
   void _confirmLogout(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1E24),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFFFFFFF),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+        ),
         title: Text(
           'Sign Out Cashier?',
-          style: GoogleFonts.manrope(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+          style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurface),
         ),
         content: Text(
           'Are you sure you want to end your session and log out?',
-          style: GoogleFonts.inter(fontSize: 13, color: Colors.white70),
+          style: GoogleFonts.inter(fontSize: 13, color: theme.colorScheme.onSurfaceVariant),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+            child: Text('Cancel', style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
           ),
           ElevatedButton(
             onPressed: () {
@@ -341,10 +344,12 @@ class ShellScreen extends ConsumerWidget {
               ref.read(authProvider.notifier).logout(ref);
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.redAccent,
+              backgroundColor: const Color(0xFFEF4444),
               foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
-            child: const Text('Sign Out', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const Text('Sign Out', style: TextStyle(fontWeight: FontWeight.w700)),
           ),
         ],
       ),
@@ -363,7 +368,7 @@ class ShellScreen extends ConsumerWidget {
         Expanded(
           child: Column(
             children: [
-              _buildStatusBar(ref, isCompact: false),
+              _buildStatusBar(context, ref, isCompact: false),
               const UpdateBanner(),
               Expanded(child: _buildMainContent(current)),
             ],
@@ -386,10 +391,10 @@ class ShellScreen extends ConsumerWidget {
         Expanded(
           child: Column(
             children: [
-              _buildStatusBar(ref, isCompact: false),
+              _buildStatusBar(context, ref, isCompact: false),
               const UpdateBanner(),
               Expanded(
-                child: isUltraWide
+                child: (isUltraWide && current != ScreenType.sales)
                     ? ConstrainedContent(child: _buildMainContent(current))
                     : _buildMainContent(current),
               ),
@@ -442,15 +447,19 @@ class ShellScreen extends ConsumerWidget {
     ScreenType current, {
     required bool isCompactRail,
   }) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final user = ref.watch(authProvider);
-    final width = isCompactRail ? 72.0 : 140.0;
+    final width = isCompactRail ? 72.0 : 160.0;
+    final sidebarBg = isDark ? const Color(0xFF1E293B) : const Color(0xFFFFFFFF);
+    final borderColor = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
 
     return Container(
       width: width,
       decoration: BoxDecoration(
-        color: const Color(0xFF111114),
+        color: sidebarBg,
         border: Border(
-          right: BorderSide(color: Colors.white.withValues(alpha: 0.06)),
+          right: BorderSide(color: borderColor, width: 1),
         ),
       ),
       child: Column(
@@ -462,8 +471,9 @@ class ShellScreen extends ConsumerWidget {
                 children: [
                   ..._getNavigationDestinations(user).map(
                     (dest) => Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.only(bottom: 6),
                       child: _buildSidebarItem(
+                        context,
                         ref,
                         dest.type,
                         dest.icon,
@@ -489,8 +499,8 @@ class ShellScreen extends ConsumerWidget {
                   if (logoPath != null && File(logoPath).existsSync()) {
                     return Image.file(
                       File(logoPath),
-                      width: 90,
-                      height: 90,
+                      width: 80,
+                      height: 80,
                       fit: BoxFit.contain,
                     );
                   }
@@ -499,10 +509,10 @@ class ShellScreen extends ConsumerWidget {
                     if (File(p).existsSync()) {
                       return Image.file(
                         File(p),
-                        width: 90,
-                        height: 90,
+                        width: 80,
+                        height: 80,
                         fit: BoxFit.contain,
-                        errorBuilder: (context, error, stackTrace) => Icon(Icons.bolt_rounded, color: ref.watch(accentColorProvider), size: 32),
+                        errorBuilder: (context, error, stackTrace) => Icon(Icons.bolt_rounded, color: theme.colorScheme.primary, size: 32),
                       );
                     }
                   }
@@ -511,8 +521,8 @@ class ShellScreen extends ConsumerWidget {
                     opacity: 0.6,
                     child: Image.asset(
                       'assets/images/logo.png',
-                      width: 90,
-                      errorBuilder: (context, error, stackTrace) => Icon(Icons.bolt_rounded, color: ref.watch(accentColorProvider), size: 32),
+                      width: 80,
+                      errorBuilder: (context, error, stackTrace) => Icon(Icons.bolt_rounded, color: theme.colorScheme.primary, size: 32),
                     ),
                   );
                 },
@@ -523,18 +533,21 @@ class ShellScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildStatusChip({
+  Widget _buildStatusChip(
+    BuildContext context, {
     required IconData icon,
     required String label,
     required Color color,
     bool showLoading = false,
   }) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
+        color: isDark ? color.withValues(alpha: 0.15) : color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(6),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -549,9 +562,9 @@ class ShellScreen extends ConsumerWidget {
           const SizedBox(width: 6),
           Text(
             label,
-            style: GoogleFonts.jetBrainsMono(
-              fontSize: 10,
-              fontWeight: FontWeight.bold,
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
               color: color,
             ),
           ),
@@ -561,6 +574,7 @@ class ShellScreen extends ConsumerWidget {
   }
 
   Widget _buildSidebarItem(
+    BuildContext context,
     WidgetRef ref,
     ScreenType type,
     IconData icon,
@@ -568,14 +582,20 @@ class ShellScreen extends ConsumerWidget {
     ScreenType current, {
     required bool isCompactRail,
   }) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final isActive = current == type;
-    final itemWidth = isCompactRail ? 56.0 : 120.0;
-    final itemHeight = isCompactRail ? 56.0 : 96.0;
+    final accentColor = theme.colorScheme.primary;
+    final itemWidth = isCompactRail ? 56.0 : 140.0;
+    final itemHeight = isCompactRail ? 56.0 : 72.0;
+
+    final activeBg = isDark ? accentColor.withValues(alpha: 0.18) : accentColor.withValues(alpha: 0.1);
+    final textColor = isActive ? accentColor : theme.colorScheme.onSurfaceVariant;
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         onTap: () {
           HapticFeedback.mediumImpact();
           ref.read(navigationProvider.notifier).state = type;
@@ -583,58 +603,62 @@ class ShellScreen extends ConsumerWidget {
         child: Container(
           width: itemWidth,
           height: itemHeight,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
-            color: isActive ? ref.watch(accentColorProvider).withValues(alpha: 0.08) : Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
+            color: isActive ? activeBg : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
           ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                icon,
-                color: isActive ? ref.watch(accentColorProvider) : Colors.white.withValues(alpha: 0.25),
-                size: isCompactRail ? 24 : 36,
-              ),
-              if (!isCompactRail) ...[
-                const SizedBox(height: 6),
-                Text(
-                  label,
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
-                    fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
-                    color: isActive ? ref.watch(accentColorProvider) : Colors.white.withValues(alpha: 0.25),
-                  ),
+          child: isCompactRail
+              ? Center(child: Icon(icon, color: textColor, size: 22))
+              : Row(
+                  children: [
+                    Icon(icon, color: textColor, size: 20),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        label,
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                          color: textColor,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ],
-          ),
         ),
       ),
     );
   }
 
-  Widget _buildStatusBar(WidgetRef ref, {required bool isCompact}) {
+  Widget _buildStatusBar(BuildContext context, WidgetRef ref, {required bool isCompact}) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final user = ref.watch(authProvider);
-    final accentColor = ref.watch(accentColorProvider);
+    final accentColor = theme.colorScheme.primary;
+    final barBg = isDark ? const Color(0xFF0F172A) : const Color(0xFFFFFFFF);
+    final borderColor = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
 
     return Container(
-      height: isCompact ? 48 : 54,
+      height: isCompact ? 48 : 52,
       padding: EdgeInsets.symmetric(horizontal: isCompact ? 12 : 20),
       decoration: BoxDecoration(
-        color: const Color(0xFF111114),
+        color: barBg,
         border: Border(
-          bottom: BorderSide(color: Colors.white.withValues(alpha: 0.06)),
+          bottom: BorderSide(color: borderColor, width: 1),
         ),
       ),
       child: Row(
         children: [
           Text(
-            isCompact ? 'BELEKA' : 'BELEKA TERMINAL',
-            style: GoogleFonts.manrope(
-              fontSize: 12,
-              letterSpacing: 2,
-              fontWeight: FontWeight.w900,
-              color: Colors.white.withValues(alpha: 0.5),
+            isCompact ? 'BELEKA' : 'BELEKA POS',
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              letterSpacing: 1.0,
+              fontWeight: FontWeight.w800,
+              color: theme.colorScheme.onSurface,
             ),
           ),
           if (!isCompact) ...[
@@ -647,14 +671,15 @@ class ShellScreen extends ConsumerWidget {
                 return Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.03),
-                    borderRadius: BorderRadius.circular(4),
+                    color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
                     '${now.day}/${now.month}/${now.year}  ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}',
-                    style: GoogleFonts.jetBrainsMono(
+                    style: GoogleFonts.inter(
                       fontSize: 12,
-                      color: accentColor.withValues(alpha: 0.7),
+                      fontWeight: FontWeight.w600,
+                      color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
                 );
@@ -670,6 +695,7 @@ class ShellScreen extends ConsumerWidget {
 
               if (config.isManagerMode) {
                 return _buildStatusChip(
+                  context,
                   icon: Icons.lan_rounded,
                   label: isCompact ? 'SRV' : 'SERVER ACTIVE',
                   color: accentColor,
@@ -679,51 +705,47 @@ class ShellScreen extends ConsumerWidget {
               final isOnlineAsync = ref.watch(networkOnlineProvider);
               return isOnlineAsync.when(
                 data: (online) => _buildStatusChip(
+                  context,
                   icon: online ? Icons.cloud_done_rounded : Icons.cloud_off_rounded,
                   label: online ? 'ONLINE' : 'OFFLINE',
-                  color: online ? Colors.green : Colors.red,
+                  color: online ? const Color(0xFF10B981) : const Color(0xFFEF4444),
                 ),
                 loading: () => _buildStatusChip(
+                  context,
                   icon: Icons.sync_rounded,
                   label: isCompact ? '...' : 'CHECKING...',
-                  color: Colors.white.withValues(alpha: 0.3),
+                  color: theme.colorScheme.onSurfaceVariant,
                 ),
                 error: (_, _) => _buildStatusChip(
+                  context,
                   icon: Icons.error_outline_rounded,
                   label: isCompact ? 'OFF' : 'NO CONNECTION',
-                  color: Colors.red,
+                  color: const Color(0xFFEF4444),
                 ),
               );
             },
           ),
           const Spacer(),
-          if (!isCompact) ...[
-            // Tax reminder — shown when deadlines are within 14 days
-            const TaxReminderBanner(),
-            const SizedBox(width: 8),
-          ],
           // Staff
           Flexible(
             child: Container(
               padding: EdgeInsets.symmetric(horizontal: isCompact ? 8 : 12, vertical: 5),
               decoration: BoxDecoration(
-                color: accentColor.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: accentColor.withValues(alpha: 0.2)),
+                color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(6),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.person_outline_rounded, size: 14, color: accentColor),
+                  Icon(Icons.person_outline_rounded, size: 14, color: theme.colorScheme.onSurface),
                   const SizedBox(width: 6),
                   Flexible(
                     child: Text(
                       (user?.name ?? 'STAFF').toUpperCase(),
                       style: GoogleFonts.inter(
                         fontSize: 11,
-                        letterSpacing: 0.5,
-                        fontWeight: FontWeight.w800,
-                        color: accentColor,
+                        fontWeight: FontWeight.w700,
+                        color: theme.colorScheme.onSurface,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -737,11 +759,8 @@ class ShellScreen extends ConsumerWidget {
             const SizedBox(width: 12),
             // Logout
             IconButton(
-              icon: const Icon(Icons.logout_rounded, color: Colors.redAccent, size: 20),
-              onPressed: () {
-                HapticFeedback.heavyImpact();
-                ref.read(authProvider.notifier).logout(ref);
-              },
+              icon: const Icon(Icons.logout_rounded, color: Color(0xFFEF4444), size: 18),
+              onPressed: () => _confirmLogout(context, ref),
               tooltip: 'Sign Out',
             ),
           ],
@@ -779,4 +798,3 @@ class _NavDestination {
 
   const _NavDestination(this.type, this.icon, this.label);
 }
-

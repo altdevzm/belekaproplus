@@ -55,7 +55,6 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
   bool _isGridView = true; // true = Grid, false = List
   
   bool _isProcessingPayment = false;
-  bool _isCheckoutActive = false;
   double _tenderedAmount = 0.0;
   String _selectedPaymentMethod = '';
 
@@ -179,7 +178,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
           HapticFeedback.mediumImpact();
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('⚖️ Added ${matchedProduct.name} (${scaleBarcodeResult.weightInKg.toStringAsFixed(3)} kg)'),
+              content: Text('Added ${matchedProduct.name} (${scaleBarcodeResult.weightInKg.toStringAsFixed(3)} kg)'),
               backgroundColor: const Color(0xFF10B981),
               duration: const Duration(milliseconds: 1500),
               behavior: SnackBarBehavior.floating,
@@ -213,8 +212,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     final allCategories = categoriesAsync.value ?? [];
     final filteredProducts = _getFilteredProducts(allProducts);
 
+    final theme = Theme.of(context);
+
     return Scaffold(
-      backgroundColor: const Color(0xFF0F0F12),
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: LayoutBuilder(
         builder: (context, constraints) {
           if (constraints.maxWidth >= 1050) {
@@ -254,16 +255,23 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     CartNotifier cartNotifier,
     String currency,
   ) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final panelBg = isDark ? const Color(0xFF151F32) : const Color(0xFFFFFFFF);
+    final borderColor = isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0);
+    final primaryColor = theme.colorScheme.primary;
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         // PANEL 1: Product Catalog & Touch Selection (Left)
         Expanded(
-          flex: 5,
+          flex: 6,
           child: Container(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              border: Border(right: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
+              color: panelBg,
+              border: Border(right: BorderSide(color: borderColor, width: 1)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -275,9 +283,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                   children: [
                     Expanded(
                       child: _buildPanelHeader(
+                        context,
                         Icons.grid_view_rounded,
                         'PRODUCT CATALOG',
-                        const Color(0xFFC1F11D),
+                        primaryColor,
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -289,23 +298,22 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                           message: 'Scan Product Barcode / QR',
                           child: InkWell(
                             onTap: _openCameraScanner,
-                            borderRadius: BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(8),
                             child: Container(
                               height: 34,
-                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                              padding: const EdgeInsets.symmetric(horizontal: 10),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFC1F11D).withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(color: const Color(0xFFC1F11D).withValues(alpha: 0.25)),
+                                color: isDark ? const Color(0xFF293548) : const Color(0xFFF1F5F9),
+                                borderRadius: BorderRadius.circular(8),
                               ),
-                              child: const Row(
+                              child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(Icons.qr_code_scanner_rounded, size: 16, color: Color(0xFFC1F11D)),
-                                  SizedBox(width: 4),
+                                  Icon(Icons.qr_code_scanner_rounded, size: 16, color: primaryColor),
+                                  const SizedBox(width: 6),
                                   Text(
                                     'SCAN',
-                                    style: TextStyle(color: Color(0xFFC1F11D), fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.5),
+                                    style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontSize: 11, fontWeight: FontWeight.w700),
                                   ),
                                 ],
                               ),
@@ -327,37 +335,35 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                                       children: [
                                         Icon(
                                           ok ? Icons.check_circle_rounded : Icons.warning_amber_rounded,
-                                          color: ok ? const Color(0xFFC1F11D) : Colors.orangeAccent,
+                                          color: ok ? const Color(0xFF059669) : const Color(0xFFDC2626),
                                           size: 18,
                                         ),
                                         const SizedBox(width: 8),
-                                        Text(ok ? '✓ Cash drawer opened' : '⚠️ Kick command sent (check printer connection)'),
+                                        Text(ok ? 'Cash drawer opened' : 'Kick command sent (check printer connection)'),
                                       ],
                                     ),
                                     duration: const Duration(seconds: 2),
                                     behavior: SnackBarBehavior.floating,
-                                    backgroundColor: const Color(0xFF1E1E24),
                                   ),
                                 );
                               }
                             },
-                            borderRadius: BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(8),
                             child: Container(
                               height: 34,
-                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                              padding: const EdgeInsets.symmetric(horizontal: 10),
                               decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.05),
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                                color: isDark ? const Color(0xFF293548) : const Color(0xFFF1F5F9),
+                                borderRadius: BorderRadius.circular(8),
                               ),
-                              child: const Row(
+                              child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(Icons.point_of_sale_rounded, size: 16, color: Color(0xFFC1F11D)),
-                                  SizedBox(width: 4),
+                                  Icon(Icons.point_of_sale_rounded, size: 16, color: theme.colorScheme.onSurfaceVariant),
+                                  const SizedBox(width: 6),
                                   Text(
                                     'DRAWER',
-                                    style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.5),
+                                    style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontSize: 11, fontWeight: FontWeight.w700),
                                   ),
                                 ],
                               ),
@@ -370,19 +376,21 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                           height: 34,
                           padding: const EdgeInsets.all(2),
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.05),
-                            borderRadius: BorderRadius.circular(10),
+                            color: isDark ? const Color(0xFF293548) : const Color(0xFFF1F5F9),
+                            borderRadius: BorderRadius.circular(8),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               _buildViewModeBtn(
+                                context,
                                 icon: Icons.grid_view_rounded,
                                 tooltip: 'Grid View',
                                 isSelected: _isGridView,
                                 onTap: () => setState(() => _isGridView = true),
                               ),
                               _buildViewModeBtn(
+                                context,
                                 icon: Icons.view_list_rounded,
                                 tooltip: 'List View',
                                 isSelected: !_isGridView,
@@ -395,7 +403,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 12),
 
                 // Search Bar with Instant Filter & Clear
                 TextField(
@@ -409,33 +417,33 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                       setState(() {});
                     }
                   },
-                  style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white),
-                  decoration: _searchInputDecoration(),
+                  style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface),
+                  decoration: _searchInputDecoration(context),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
 
-                // Category Filter Ribbon Chips (No stock counts, cleanly aligned)
-                _buildCategoryRibbon(allCategories),
-                const SizedBox(height: 14),
+                // Category Filter Ribbon Chips
+                _buildCategoryRibbon(context, allCategories),
+                const SizedBox(height: 12),
 
                 // Products Display Area
                 Expanded(
                   child: productsAsync.when(
                     data: (_) {
                       if (filteredProducts.isEmpty) {
-                        return _buildEmptyCatalogState();
+                        return _buildEmptyCatalogState(context);
                       }
                       if (_isGridView) {
-                        return _buildProductsGrid(filteredProducts, currency);
+                        return _buildProductsGrid(context, filteredProducts, currency);
                       } else {
-                        return _buildProductsList(filteredProducts, currency);
+                        return _buildProductsList(context, filteredProducts, currency);
                       }
                     },
                     loading: () => const Center(
-                      child: CircularProgressIndicator(color: Color(0xFFC1F11D)),
+                      child: CircularProgressIndicator(),
                     ),
                     error: (err, _) => Center(
-                      child: Text('Error loading products: $err', style: const TextStyle(color: Colors.redAccent)),
+                      child: Text('Error loading products: $err', style: const TextStyle(color: Color(0xFFDC2626))),
                     ),
                   ),
                 ),
@@ -444,131 +452,113 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
           ),
         ),
 
-        // PANEL 2: Quick Tender (Middle)
+        // PANEL 2: Payment Console & Keypad Terminal (Middle)
         Expanded(
           flex: 4,
           child: Container(
-            padding: const EdgeInsets.all(20),
-            color: const Color(0xFF141418),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1C283D) : const Color(0xFFF8FAFC),
+              border: Border(right: BorderSide(color: borderColor, width: 1)),
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (!_isCheckoutActive) ...[
-                  _buildPanelHeader(Icons.payments_rounded, 'QUICK TENDER', const Color(0xFFC1F11D)),
-                  const SizedBox(height: 28),
+                _buildPaymentMethodSelector(context),
+                const SizedBox(height: 14),
+
+                if (cartState.items.isEmpty)
                   Expanded(
-                    child: Center(
-                      child: cartState.items.isEmpty 
-                        ? _buildEmptyState('No active transaction', icon: Icons.shopping_basket_outlined)
-                        : Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                'TOTAL DUE', 
-                                style: GoogleFonts.manrope(
-                                  fontSize: 12,
-                                  letterSpacing: 2,
-                                  fontWeight: FontWeight.w900,
-                                  color: Colors.white30,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                CurrencyFormatter.format(cartNotifier.total, currency), 
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 48,
-                                  fontWeight: FontWeight.w900,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              const SizedBox(height: 36),
-                              _buildMainPayButton(cartNotifier, currency),
-                            ],
-                          ),
+                    child: _buildEmptyState(
+                      context,
+                      'Terminal Ready\nScan barcode or tap product to begin sale',
+                      icon: Icons.point_of_sale_rounded,
                     ),
+                  )
+                else ...[
+                  Builder(
+                    builder: (context) {
+                      if (_selectedPaymentMethod.isEmpty) {
+                        _selectedPaymentMethod = 'CASH';
+                      }
+                      return const SizedBox.shrink();
+                    },
                   ),
-                ] else ...[
-                  // Payment Selector always at top during checkout
-                  _buildPaymentMethodSelector(),
-                  const SizedBox(height: 20),
-                  
-                  if (_selectedPaymentMethod.isNotEmpty) ...[
+                  if (_selectedPaymentMethod == 'CASH')
                     Expanded(
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (_selectedPaymentMethod == 'CASH')
-                            Expanded(
-                              child: Column(
-                                children: [
-                                  _buildTenderDisplay(currency),
-                                  const SizedBox(height: 16),
-                                  // Custom Numeric Keypad for exact tender
-                                  Expanded(
-                                    child: Row(
-                                      children: [
-                                        // Note Shortcuts
-                                        Expanded(
-                                          flex: 2,
-                                          child: Column(
-                                            children: [
-                                              Expanded(child: _buildQuickTenderButton(20, currency)),
-                                              const SizedBox(height: 8),
-                                              Expanded(child: _buildQuickTenderButton(50, currency)),
-                                              const SizedBox(height: 8),
-                                              Expanded(child: _buildQuickTenderButton(100, currency)),
-                                            ],
-                                          ),
+                          _buildTenderDisplay(context, currency),
+                          const SizedBox(height: 12),
+                          Expanded(
+                            child: Row(
+                              children: [
+                                // Note Shortcuts Grid
+                                Expanded(
+                                  flex: 4,
+                                  child: Column(
+                                    children: [
+                                      Expanded(
+                                        child: Row(
+                                          children: [
+                                            Expanded(child: _buildQuickTenderButton(context, 20, currency)),
+                                            const SizedBox(width: 4),
+                                            Expanded(child: _buildQuickTenderButton(context, 50, currency)),
+                                          ],
                                         ),
-                                        const SizedBox(width: 8),
-                                        Expanded(
-                                          flex: 2,
-                                          child: Column(
-                                            children: [
-                                              Expanded(child: _buildQuickTenderButton(200, currency)),
-                                              const SizedBox(height: 8),
-                                              Expanded(child: _buildQuickTenderButton(500, currency)),
-                                              const SizedBox(height: 8),
-                                              Expanded(child: _buildExactAmountBtn(cartNotifier, currency)),
-                                            ],
-                                          ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Expanded(
+                                        child: Row(
+                                          children: [
+                                            Expanded(child: _buildQuickTenderButton(context, 100, currency)),
+                                            const SizedBox(width: 4),
+                                            Expanded(child: _buildQuickTenderButton(context, 200, currency)),
+                                          ],
                                         ),
-                                        const SizedBox(width: 14),
-                                        // Numeric Keypad
-                                        Expanded(
-                                          flex: 3,
-                                          child: _buildNumericKeypad(),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Expanded(
+                                        child: Row(
+                                          children: [
+                                            Expanded(child: _buildQuickTenderButton(context, 500, currency)),
+                                            const SizedBox(width: 4),
+                                            Expanded(child: _buildExactAmountBtn(context, cartNotifier, currency)),
+                                          ],
                                         ),
-                                      ],
-                                    ),
+                                      ),
+                                    ],
                                   ),
-                                ],
-                              ),
-                            )
-                          else
-                            _buildDigitalPaymentPrompt(currency),
+                                ),
+                                const SizedBox(width: 8),
+                                // Touch Keypad Grid
+                                Expanded(
+                                  flex: 5,
+                                  child: _buildNumericKeypad(context),
+                                ),
+                              ],
+                            ),
+                          ),
                         ],
                       ),
-                    ),
-                  ] else ...[
-                     Expanded(child: _buildEmptyState('Select Payment Method', icon: Icons.payments_outlined)),
-                  ],
-                  
-                  const SizedBox(height: 16),
-                  _buildCheckoutActions(cartNotifier),
+                    )
+                  else
+                    Expanded(child: _buildDigitalPaymentPrompt(context, currency)),
+
+                  const SizedBox(height: 12),
+                  _buildCompleteSaleButton(context, cartNotifier),
                 ],
               ],
             ),
           ),
         ),
 
-        // PANEL 3: Order Review (Right)
+        // PANEL 3: Live Order Review Cart (Right)
         Expanded(
           flex: 4,
           child: Container(
             decoration: BoxDecoration(
-              color: const Color(0xFF0A0A0C),
-              border: Border(left: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
+              color: panelBg,
             ),
             child: Column(
               children: [
@@ -577,31 +567,53 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Padding(
-                        padding: const EdgeInsets.all(20),
+                        padding: const EdgeInsets.all(16),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text('ORDER REVIEW', style: _headerTextStyle()),
+                            Text('ORDER REVIEW', style: _headerTextStyle(context)),
                             if (cartState.items.isNotEmpty)
-                              Text(
-                                '${cartState.items.fold<int>(0, (sum, item) => sum + item.quantity)} items',
-                                style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: const Color(0xFFC1F11D)),
+                              Row(
+                                children: [
+                                  Text(
+                                    '${cartState.items.fold<int>(0, (sum, item) => sum + item.quantity)} items',
+                                    style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: primaryColor),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  InkWell(
+                                    onTap: () {
+                                      cartNotifier.clear();
+                                      setState(() {
+                                        _tenderedAmount = 0;
+                                        _selectedPaymentMethod = '';
+                                      });
+                                    },
+                                    borderRadius: BorderRadius.circular(4),
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                      child: Text(
+                                        'CLEAR',
+                                        style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w800, color: const Color(0xFFDC2626)),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                           ],
                         ),
                       ),
                       Expanded(
                         child: cartState.items.isEmpty
-                            ? _buildEmptyState('Cart is empty', icon: Icons.shopping_cart_outlined)
+                            ? _buildEmptyState(context, 'Cart is empty', icon: Icons.shopping_cart_outlined)
                             : ListView.builder(
                                 itemCount: cartState.items.length,
-                                itemBuilder: (context, index) => _buildCartRow(cartState.items[index], cartNotifier, currency),
+                                itemBuilder: (context, index) => _buildCartRow(context, cartState.items[index], cartNotifier, currency),
                               ),
                       ),
                     ],
                   ),
                 ),
-                _buildOrderSummary(cartState, cartNotifier, currency),
+                _buildOrderSummary(context, cartState, cartNotifier, currency),
               ],
             ),
           ),
@@ -621,6 +633,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     CartNotifier cartNotifier,
     String currency,
   ) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
+
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
@@ -642,44 +658,58 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                         setState(() {});
                       }
                     },
-                    style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white),
+                    style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface),
                     decoration: InputDecoration(
                       hintText: 'Search product or SKU...',
-                      hintStyle: GoogleFonts.inter(fontSize: 12, color: Colors.white30),
-                      prefixIcon: const Icon(Icons.search_rounded, size: 18, color: Colors.white38),
+                      hintStyle: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
+                      prefixIcon: Icon(Icons.search_rounded, size: 18, color: theme.colorScheme.onSurfaceVariant),
                       suffixIcon: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           if (_searchController.text.isNotEmpty)
                             IconButton(
-                              icon: const Icon(Icons.close_rounded, size: 16, color: Colors.white54),
+                              icon: Icon(Icons.close_rounded, size: 16, color: theme.colorScheme.onSurfaceVariant),
                               onPressed: () {
                                 _searchController.clear();
                                 setState(() {});
                               },
                             ),
                           IconButton(
-                            icon: const Icon(Icons.qr_code_scanner_rounded, color: Color(0xFFC1F11D), size: 20),
+                            icon: Icon(Icons.qr_code_scanner_rounded, color: primaryColor, size: 20),
                             tooltip: 'Scan Barcode / QR',
                             onPressed: _openCameraScanner,
                           ),
                         ],
                       ),
                       filled: true,
-                      fillColor: Colors.white.withValues(alpha: 0.04),
+                      fillColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFFFFFFF),
                       contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(color: primaryColor, width: 1.5),
+                      ),
                     ),
                   ),
                 ),
                 const SizedBox(width: 8),
                 // Quick Cash Drawer button
                 IconButton(
-                  icon: const Icon(Icons.point_of_sale_rounded, color: Color(0xFFC1F11D), size: 20),
+                  icon: Icon(Icons.point_of_sale_rounded, color: primaryColor, size: 20),
                   tooltip: 'Open Drawer',
                   style: IconButton.styleFrom(
-                    backgroundColor: Colors.white.withValues(alpha: 0.05),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFFFFFFF),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      side: BorderSide(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+                    ),
                   ),
                   onPressed: () async {
                     final config = ref.read(storeConfigProvider).value;
@@ -687,7 +717,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text(ok ? '✓ Cash drawer opened' : '⚠️ Kick signal sent'),
+                          content: Text(ok ? 'Cash drawer opened' : 'Kick signal sent'),
                           behavior: SnackBarBehavior.floating,
                           duration: const Duration(seconds: 2),
                         ),
@@ -698,11 +728,14 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                 const SizedBox(width: 4),
                 // Grid / List toggle
                 IconButton(
-                  icon: Icon(_isGridView ? Icons.view_list_rounded : Icons.grid_view_rounded, color: Colors.white70, size: 20),
+                  icon: Icon(_isGridView ? Icons.view_list_rounded : Icons.grid_view_rounded, color: theme.colorScheme.onSurfaceVariant, size: 20),
                   tooltip: _isGridView ? 'Switch to List' : 'Switch to Grid',
                   style: IconButton.styleFrom(
-                    backgroundColor: Colors.white.withValues(alpha: 0.05),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFFFFFFF),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      side: BorderSide(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+                    ),
                   ),
                   onPressed: () => setState(() => _isGridView = !_isGridView),
                 ),
@@ -711,7 +744,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
             const SizedBox(height: 10),
 
             // Category Filter Ribbon Chips
-            _buildCategoryRibbon(allCategories),
+            _buildCategoryRibbon(context, allCategories),
             const SizedBox(height: 10),
 
             // Products Display Area
@@ -719,19 +752,19 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
               child: productsAsync.when(
                 data: (_) {
                   if (filteredProducts.isEmpty) {
-                    return _buildEmptyCatalogState();
+                    return _buildEmptyCatalogState(context);
                   }
                   if (_isGridView) {
-                    return _buildMobileProductsGrid(filteredProducts, currency);
+                    return _buildMobileProductsGrid(context, filteredProducts, currency);
                   } else {
-                    return _buildProductsList(filteredProducts, currency);
+                    return _buildProductsList(context, filteredProducts, currency);
                   }
                 },
                 loading: () => const Center(
-                  child: CircularProgressIndicator(color: Color(0xFFC1F11D)),
+                  child: CircularProgressIndicator(),
                 ),
                 error: (err, _) => Center(
-                  child: Text('Error loading products: $err', style: const TextStyle(color: Colors.redAccent)),
+                  child: Text('Error loading products: $err', style: const TextStyle(color: Color(0xFFEF4444))),
                 ),
               ),
             ),
@@ -739,14 +772,14 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
             const SizedBox(height: 8),
 
             // Docked Floating Cart & Pay Bar
-            _buildMobileBottomBar(cartState, cartNotifier, currency),
+            _buildMobileBottomBar(context, cartState, cartNotifier, currency),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildMobileProductsGrid(List<Product> products, String currency) {
+  Widget _buildMobileProductsGrid(BuildContext context, List<Product> products, String currency) {
     return GridView.builder(
       itemCount: products.length,
       padding: const EdgeInsets.only(bottom: 6),
@@ -758,12 +791,16 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       ),
       itemBuilder: (context, index) {
         final product = products[index];
-        return _buildProductCard(product, currency);
+        return _buildProductCard(context, product, currency);
       },
     );
   }
 
-  Widget _buildMobileBottomBar(CartState cartState, CartNotifier cartNotifier, String currency) {
+  Widget _buildMobileBottomBar(BuildContext context, CartState cartState, CartNotifier cartNotifier, String currency) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
+
     final totalItems = cartState.items.fold<int>(0, (sum, i) => sum + i.quantity);
     final total = cartNotifier.total;
     final hasItems = cartState.items.isNotEmpty;
@@ -771,19 +808,12 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFF141418),
-        borderRadius: BorderRadius.circular(18),
+        color: isDark ? const Color(0xFF1E293B) : const Color(0xFFFFFFFF),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: hasItems ? const Color(0xFFC1F11D).withValues(alpha: 0.35) : Colors.white.withValues(alpha: 0.08),
-          width: 1.2,
+          color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+          width: 1,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.5),
-            blurRadius: 14,
-            offset: const Offset(0, 4),
-          ),
-        ],
       ),
       child: Row(
         children: [
@@ -800,12 +830,12 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: hasItems ? const Color(0xFFC1F11D).withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.05),
+                          color: hasItems ? primaryColor.withValues(alpha: 0.12) : (isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9)),
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Icon(
                           Icons.shopping_bag_outlined,
-                          color: hasItems ? const Color(0xFFC1F11D) : Colors.white38,
+                          color: hasItems ? primaryColor : theme.colorScheme.onSurfaceVariant,
                           size: 20,
                         ),
                       ),
@@ -814,17 +844,17 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                           top: -4,
                           right: -4,
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFC1F11D),
+                              color: primaryColor,
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Text(
                               '$totalItems',
-                              style: GoogleFonts.manrope(
+                              style: GoogleFonts.inter(
                                 fontSize: 9,
-                                fontWeight: FontWeight.w900,
-                                color: Colors.black,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
                               ),
                             ),
                           ),
@@ -839,18 +869,18 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                       children: [
                         Text(
                           hasItems ? CurrencyFormatter.format(total, currency) : 'Cart is Empty',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w900,
-                            color: hasItems ? Colors.white : Colors.white38,
+                          style: GoogleFonts.inter(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: hasItems ? theme.colorScheme.onSurface : theme.colorScheme.onSurfaceVariant,
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
                         Text(
                           hasItems ? '$totalItems item${totalItems > 1 ? "s" : ""} • Tap to view' : 'Tap item or scan',
                           style: GoogleFonts.inter(
-                            fontSize: 10.5,
-                            color: hasItems ? const Color(0xFFC1F11D) : Colors.white30,
+                            fontSize: 11,
+                            color: hasItems ? primaryColor : theme.colorScheme.onSurfaceVariant,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -868,13 +898,13 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
           ElevatedButton(
             onPressed: hasItems ? () => _showMobileCheckoutSheet(context, cartNotifier, currency) : null,
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFC1F11D),
-              disabledBackgroundColor: Colors.white.withValues(alpha: 0.05),
-              foregroundColor: Colors.black,
-              disabledForegroundColor: Colors.white24,
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              elevation: hasItems ? 4 : 0,
+              backgroundColor: primaryColor,
+              disabledBackgroundColor: isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
+              foregroundColor: Colors.white,
+              disabledForegroundColor: theme.colorScheme.onSurfaceVariant,
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              elevation: 0,
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -883,9 +913,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                 const SizedBox(width: 6),
                 Text(
                   'PAY NOW',
-                  style: GoogleFonts.plusJakartaSans(
+                  style: GoogleFonts.inter(
                     fontSize: 13,
-                    fontWeight: FontWeight.w900,
+                    fontWeight: FontWeight.w800,
                     letterSpacing: 0.5,
                   ),
                 ),
@@ -903,6 +933,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     CartNotifier cartNotifier,
     String currency,
   ) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -916,9 +949,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
 
             return Container(
               height: media.size.height * 0.85,
-              decoration: const BoxDecoration(
-                color: Color(0xFF141418),
-                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1E293B) : const Color(0xFFFFFFFF),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
               ),
               child: Column(
                 children: [
@@ -927,21 +960,24 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                     margin: const EdgeInsets.only(top: 12, bottom: 8),
                     width: 44,
                     height: 4,
-                    decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2)),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
                   // Header
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Row(
                           children: [
-                            const Icon(Icons.shopping_cart_outlined, color: Color(0xFFC1F11D), size: 20),
+                            Icon(Icons.shopping_cart_outlined, color: theme.colorScheme.primary, size: 20),
                             const SizedBox(width: 8),
                             Text(
                               'ORDER REVIEW',
-                              style: GoogleFonts.manrope(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.white),
+                              style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w800, color: theme.colorScheme.onSurface),
                             ),
                           ],
                         ),
@@ -951,24 +987,24 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                               activeCartNotifier.clearCart();
                               Navigator.pop(ctx);
                             },
-                            child: const Text('Clear All', style: TextStyle(color: Colors.redAccent, fontSize: 12)),
+                            child: const Text('Clear All', style: TextStyle(color: Color(0xFFEF4444), fontSize: 12, fontWeight: FontWeight.w600)),
                           ),
                       ],
                     ),
                   ),
-                  const Divider(color: Colors.white10, height: 1),
+                  Divider(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0), height: 1),
 
                   // Cart Items
                   Expanded(
                     child: activeCartState.items.isEmpty
                         ? Center(
-                            child: Text('Cart is empty', style: GoogleFonts.inter(color: Colors.white38)),
+                            child: Text('Cart is empty', style: GoogleFonts.inter(color: theme.colorScheme.onSurfaceVariant)),
                           )
                         : ListView.builder(
                             padding: const EdgeInsets.symmetric(vertical: 8),
                             itemCount: activeCartState.items.length,
                             itemBuilder: (context, index) =>
-                                _buildCartRow(activeCartState.items[index], activeCartNotifier, currency),
+                                _buildCartRow(context, activeCartState.items[index], activeCartNotifier, currency),
                           ),
                   ),
 
@@ -976,17 +1012,17 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF1B1B20),
-                      border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.08))),
+                      color: isDark ? const Color(0xFF162032) : const Color(0xFFF8F9FB),
+                      border: Border(top: BorderSide(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0))),
                     ),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        _buildOrderSummary(activeCartState, activeCartNotifier, currency),
+                        _buildOrderSummary(context, activeCartState, activeCartNotifier, currency),
                         const SizedBox(height: 12),
                         SizedBox(
                           width: double.infinity,
-                          height: 52,
+                          height: 48,
                           child: ElevatedButton(
                             onPressed: activeCartState.items.isEmpty
                                 ? null
@@ -995,13 +1031,14 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                                     _showMobileCheckoutSheet(context, activeCartNotifier, currency);
                                   },
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFC1F11D),
-                              foregroundColor: Colors.black,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                              backgroundColor: theme.colorScheme.primary,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              elevation: 0,
                             ),
                             child: Text(
                               'PROCEED TO PAY (${CurrencyFormatter.format(activeCartNotifier.total, currency)})',
-                              style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 0.5),
+                              style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w800, letterSpacing: 0.5),
                             ),
                           ),
                         ),
@@ -1022,8 +1059,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     CartNotifier cartNotifier,
     String currency,
   ) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     setState(() {
-      _isCheckoutActive = true;
       _selectedPaymentMethod = 'CASH';
       _tenderedAmount = 0.0;
     });
@@ -1041,9 +1080,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
 
             return Container(
               height: MediaQuery.of(context).size.height * 0.9,
-              decoration: const BoxDecoration(
-                color: Color(0xFF141418),
-                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1E293B) : const Color(0xFFFFFFFF),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
               ),
               child: Column(
                 children: [
@@ -1052,11 +1091,14 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                     margin: const EdgeInsets.only(top: 12, bottom: 8),
                     width: 44,
                     height: 4,
-                    decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2)),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
                   // Header
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -1065,26 +1107,26 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                             Container(
                               padding: const EdgeInsets.all(6),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFC1F11D).withValues(alpha: 0.15),
+                                color: theme.colorScheme.primary.withValues(alpha: 0.12),
                                 borderRadius: BorderRadius.circular(8),
                               ),
-                              child: const Icon(Icons.payments_rounded, color: Color(0xFFC1F11D), size: 18),
+                              child: Icon(Icons.payments_rounded, color: theme.colorScheme.primary, size: 18),
                             ),
                             const SizedBox(width: 10),
                             Text(
                               'PAYMENT CHECKOUT',
-                              style: GoogleFonts.manrope(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.white),
+                              style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w800, color: theme.colorScheme.onSurface),
                             ),
                           ],
                         ),
                         IconButton(
-                          icon: const Icon(Icons.close_rounded, color: Colors.white70),
+                          icon: Icon(Icons.close_rounded, color: theme.colorScheme.onSurfaceVariant),
                           onPressed: () => Navigator.pop(ctx),
                         ),
                       ],
                     ),
                   ),
-                  const Divider(color: Colors.white10, height: 1),
+                  Divider(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0), height: 1),
 
                   Expanded(
                     child: SingleChildScrollView(
@@ -1096,9 +1138,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                             children: [
                               Expanded(
                                 child: _buildMobileMethodBtn(
+                                  context,
                                   'CASH',
                                   Icons.payments_rounded,
-                                  const Color(0xFFC1F11D),
+                                  theme.colorScheme.primary,
                                   _selectedPaymentMethod == 'CASH',
                                   () => setModalState(() {
                                     _selectedPaymentMethod = 'CASH';
@@ -1109,9 +1152,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                               const SizedBox(width: 8),
                               Expanded(
                                 child: _buildMobileMethodBtn(
+                                  context,
                                   'MOBILE MONEY',
                                   Icons.phone_android_rounded,
-                                  Colors.orangeAccent,
+                                  const Color(0xFFF59E0B),
                                   _selectedPaymentMethod == 'MOBILE MONEY',
                                   () => setModalState(() {
                                     _selectedPaymentMethod = 'MOBILE MONEY';
@@ -1122,9 +1166,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                               const SizedBox(width: 8),
                               Expanded(
                                 child: _buildMobileMethodBtn(
+                                  context,
                                   'CARD',
                                   Icons.credit_card_rounded,
-                                  Colors.blueAccent,
+                                  const Color(0xFF3B82F6),
                                   _selectedPaymentMethod == 'CARD',
                                   () => setModalState(() {
                                     _selectedPaymentMethod = 'CARD';
@@ -1137,7 +1182,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                           const SizedBox(height: 16),
 
                           if (_selectedPaymentMethod == 'CASH') ...[
-                            _buildTenderDisplay(currency),
+                            _buildTenderDisplay(context, currency),
                             const SizedBox(height: 14),
 
                             // Note shortcuts
@@ -1145,29 +1190,28 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                               scrollDirection: Axis.horizontal,
                               child: Row(
                                 children: [
-                                  _buildNoteChip(20, currency, () => setModalState(() => _tenderedAmount += 20)),
+                                  _buildNoteChip(context, 20, currency, () => setModalState(() => _tenderedAmount += 20)),
                                   const SizedBox(width: 6),
-                                  _buildNoteChip(50, currency, () => setModalState(() => _tenderedAmount += 50)),
+                                  _buildNoteChip(context, 50, currency, () => setModalState(() => _tenderedAmount += 50)),
                                   const SizedBox(width: 6),
-                                  _buildNoteChip(100, currency, () => setModalState(() => _tenderedAmount += 100)),
+                                  _buildNoteChip(context, 100, currency, () => setModalState(() => _tenderedAmount += 100)),
                                   const SizedBox(width: 6),
-                                  _buildNoteChip(200, currency, () => setModalState(() => _tenderedAmount += 200)),
+                                  _buildNoteChip(context, 200, currency, () => setModalState(() => _tenderedAmount += 200)),
                                   const SizedBox(width: 6),
-                                  _buildNoteChip(500, currency, () => setModalState(() => _tenderedAmount += 500)),
+                                  _buildNoteChip(context, 500, currency, () => setModalState(() => _tenderedAmount += 500)),
                                   const SizedBox(width: 6),
                                   InkWell(
                                     onTap: () => setModalState(() => _tenderedAmount = total),
-                                    borderRadius: BorderRadius.circular(10),
+                                    borderRadius: BorderRadius.circular(8),
                                     child: Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                                       decoration: BoxDecoration(
-                                        color: const Color(0xFFC1F11D).withValues(alpha: 0.15),
-                                        borderRadius: BorderRadius.circular(10),
-                                        border: Border.all(color: const Color(0xFFC1F11D).withValues(alpha: 0.4)),
+                                        color: theme.colorScheme.primary.withValues(alpha: 0.12),
+                                        borderRadius: BorderRadius.circular(8),
                                       ),
                                       child: Text(
                                         'EXACT (${CurrencyFormatter.format(total, currency)})',
-                                        style: GoogleFonts.manrope(fontSize: 11, fontWeight: FontWeight.bold, color: const Color(0xFFC1F11D)),
+                                        style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: theme.colorScheme.primary),
                                       ),
                                     ),
                                   ),
@@ -1179,7 +1223,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                             // Numeric Keypad
                             SizedBox(
                               height: 220,
-                              child: _buildMobileKeypad((key) {
+                              child: _buildMobileKeypad(context, (key) {
                                 setModalState(() {
                                   if (key == 'C') {
                                     _tenderedAmount = 0.0;
@@ -1203,7 +1247,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                               }),
                             ),
                           ] else ...[
-                            _buildDigitalPaymentPrompt(currency),
+                            _buildDigitalPaymentPrompt(context, currency),
                           ],
                         ],
                       ),
@@ -1215,7 +1259,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                     padding: const EdgeInsets.all(16),
                     child: SizedBox(
                       width: double.infinity,
-                      height: 54,
+                      height: 48,
                       child: ElevatedButton(
                         onPressed: (canComplete && !_isProcessingPayment)
                             ? () async {
@@ -1224,17 +1268,18 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                               }
                             : null,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFC1F11D),
-                          disabledBackgroundColor: Colors.white.withValues(alpha: 0.05),
-                          foregroundColor: Colors.black,
-                          disabledForegroundColor: Colors.white24,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          backgroundColor: theme.colorScheme.primary,
+                          disabledBackgroundColor: isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
+                          foregroundColor: Colors.white,
+                          disabledForegroundColor: theme.colorScheme.onSurfaceVariant,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          elevation: 0,
                         ),
                         child: _isProcessingPayment
-                            ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2))
+                            ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                             : Text(
                                 'COMPLETE SALE & PRINT RECEIPT',
-                                style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 0.5),
+                                style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w800, letterSpacing: 0.5),
                               ),
                       ),
                     ),
@@ -1249,34 +1294,35 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
   }
 
   Widget _buildMobileMethodBtn(
+    BuildContext context,
     String method,
     IconData icon,
     Color color,
     bool isSelected,
     VoidCallback onTap,
   ) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(10),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
-          color: isSelected ? color : Colors.white.withValues(alpha: 0.05),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected ? color : Colors.white.withValues(alpha: 0.1),
-          ),
+          color: isSelected ? color : (isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9)),
+          borderRadius: BorderRadius.circular(10),
         ),
         child: Column(
           children: [
-            Icon(icon, color: isSelected ? Colors.black : Colors.white70, size: 18),
+            Icon(icon, color: isSelected ? Colors.white : theme.colorScheme.onSurfaceVariant, size: 18),
             const SizedBox(height: 4),
             Text(
               method == 'MOBILE MONEY' ? 'M-MONEY' : method,
-              style: GoogleFonts.manrope(
+              style: GoogleFonts.inter(
                 fontSize: 10,
-                fontWeight: FontWeight.w900,
-                color: isSelected ? Colors.black : Colors.white70,
+                fontWeight: FontWeight.w700,
+                color: isSelected ? Colors.white : theme.colorScheme.onSurface,
               ),
             ),
           ],
@@ -1285,41 +1331,46 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     );
   }
 
-  Widget _buildNoteChip(double amount, String currency, VoidCallback onTap) {
+  Widget _buildNoteChip(BuildContext context, double amount, String currency, VoidCallback onTap) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(8),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.06),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+          color: isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
+          borderRadius: BorderRadius.circular(8),
         ),
         child: Text(
           '+${CurrencyFormatter.format(amount, currency)}',
-          style: GoogleFonts.manrope(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.white),
+          style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurface),
         ),
       ),
     );
   }
 
-  Widget _buildMobileKeypad(ValueChanged<String> onKeyPress) {
+  Widget _buildMobileKeypad(BuildContext context, ValueChanged<String> onKeyPress) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     Widget buildBtn(String label, {Color? textColor, Color? bgColor}) {
       return Expanded(
         child: Material(
-          color: bgColor ?? Colors.white.withValues(alpha: 0.05),
-          borderRadius: BorderRadius.circular(10),
+          color: bgColor ?? (isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9)),
+          borderRadius: BorderRadius.circular(8),
           child: InkWell(
             onTap: () => onKeyPress(label),
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(8),
             child: Center(
               child: Text(
                 label,
-                style: GoogleFonts.plusJakartaSans(
+                style: GoogleFonts.inter(
                   fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                  color: textColor ?? Colors.white,
+                  fontWeight: FontWeight.w700,
+                  color: textColor ?? theme.colorScheme.onSurface,
                 ),
               ),
             ),
@@ -1363,9 +1414,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         Expanded(
           child: Row(
             children: [
-              buildBtn('C', textColor: Colors.redAccent), const SizedBox(width: 6),
+              buildBtn('C', textColor: const Color(0xFFEF4444)), const SizedBox(width: 6),
               buildBtn('0'), const SizedBox(width: 6),
-              buildBtn('⌫', textColor: Colors.amberAccent),
+              buildBtn('⌫', textColor: const Color(0xFFF59E0B)),
             ],
           ),
         ),
@@ -1380,26 +1431,28 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     }
   }
 
-  // --- Clean Category Filter Ribbon (Aligned without stock numbers) ---
+  // --- Clean Category Filter Ribbon ---
 
-  Widget _buildCategoryRibbon(List<Category> categories) {
+  Widget _buildCategoryRibbon(BuildContext context, List<Category> categories) {
     return SizedBox(
-      height: 36,
+      height: 34,
       child: ListView(
         scrollDirection: Axis.horizontal,
         children: [
           // ALL Category Chip
           _buildCategoryChip(
+            context,
             label: 'ALL ITEMS',
             isSelected: _selectedCategoryId == null,
             onTap: () => setState(() => _selectedCategoryId = null),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 6),
           ...categories.map((cat) {
             final isSelected = _selectedCategoryId == cat.id;
             return Padding(
-              padding: const EdgeInsets.only(right: 8),
+              padding: const EdgeInsets.only(right: 6),
               child: _buildCategoryChip(
+                context,
                 label: cat.name.toUpperCase(),
                 isSelected: isSelected,
                 onTap: () => setState(() => _selectedCategoryId = cat.id),
@@ -1411,41 +1464,43 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     );
   }
 
-  Widget _buildCategoryChip({
+  Widget _buildCategoryChip(
+    BuildContext context, {
     required String label,
     required bool isSelected,
     required VoidCallback onTap,
   }) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
+
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(8),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFC1F11D) : Colors.white.withValues(alpha: 0.04),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: isSelected ? const Color(0xFFC1F11D) : Colors.white.withValues(alpha: 0.06),
-          ),
+          color: isSelected ? primaryColor : (isDark ? const Color(0xFF293548) : const Color(0xFFF1F5F9)),
+          borderRadius: BorderRadius.circular(8),
         ),
         child: Text(
           label,
-          style: GoogleFonts.manrope(
-            fontSize: 11.5,
-            fontWeight: isSelected ? FontWeight.w900 : FontWeight.w700,
-            color: isSelected ? Colors.black : Colors.white70,
-            letterSpacing: 0.5,
+          style: GoogleFonts.inter(
+            fontSize: 11,
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+            color: isSelected ? Colors.white : theme.colorScheme.onSurface,
+            letterSpacing: 0.3,
           ),
         ),
       ),
     );
   }
 
-  // --- Products Grid View (Aligned & Clean without stock counts) ---
+  // --- Products Grid View ---
 
-  Widget _buildProductsGrid(List<Product> products, String currency) {
+  Widget _buildProductsGrid(BuildContext context, List<Product> products, String currency) {
     return GridView.builder(
       itemCount: products.length,
       gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
@@ -1456,12 +1511,18 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       ),
       itemBuilder: (context, index) {
         final product = products[index];
-        return _buildProductCard(product, currency);
+        return _buildProductCard(context, product, currency);
       },
     );
   }
 
-  Widget _buildProductCard(Product product, String currency) {
+  Widget _buildProductCard(BuildContext context, Product product, String currency) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
+    final cardBg = isDark ? const Color(0xFF151F32) : const Color(0xFFFFFFFF);
+    final borderColor = isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0);
+
     final isOutOfStock = product.stockLevel <= 0;
     
     final hasDiscount = product.discountPrice != null && 
@@ -1471,19 +1532,20 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         DateTime.now().isBefore(product.discountEndDate!);
 
     return Material(
-      color: Colors.white.withValues(alpha: 0.03),
-      borderRadius: BorderRadius.circular(14),
+      color: cardBg,
+      borderRadius: BorderRadius.circular(10),
       child: InkWell(
         onTap: () => _handleProductSelection(product),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(10),
         child: Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(10),
             border: Border.all(
               color: isOutOfStock 
-                  ? Colors.redAccent.withValues(alpha: 0.25) 
-                  : Colors.white.withValues(alpha: 0.05),
+                  ? const Color(0xFFDC2626).withValues(alpha: 0.4) 
+                  : borderColor,
+              width: 1,
             ),
           ),
           child: Column(
@@ -1496,54 +1558,54 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    width: 36,
-                    height: 36,
+                    width: 34,
+                    height: 34,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFC1F11D).withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(10),
+                      color: primaryColor.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
                     ),
                     child: (product.imagePath != null && File(product.imagePath!).existsSync())
                         ? ClipRRect(
-                            borderRadius: BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(8),
                             child: Image.file(File(product.imagePath!), fit: BoxFit.cover),
                           )
-                        : const Icon(Icons.inventory_2_outlined, color: Color(0xFFC1F11D), size: 18),
+                        : Icon(Icons.inventory_2_outlined, color: primaryColor, size: 16),
                   ),
                   if (isOutOfStock)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                        color: Colors.redAccent.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(6),
+                        color: const Color(0xFFFEF2F2),
+                        borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
                         'OUT',
-                        style: GoogleFonts.manrope(
-                          fontSize: 8,
-                          fontWeight: FontWeight.w900,
-                          color: Colors.redAccent,
+                        style: GoogleFonts.inter(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFFDC2626),
                           letterSpacing: 0.3,
                         ),
                       ),
                     )
                   else if (product.isWeighted)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFC1F11D).withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(6),
+                        color: primaryColor.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(4),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.scale_rounded, color: Color(0xFFC1F11D), size: 9),
+                          Icon(Icons.scale_rounded, color: primaryColor, size: 10),
                           const SizedBox(width: 2),
                           Text(
                             product.unitOfMeasure.toUpperCase(),
-                            style: GoogleFonts.manrope(
-                              fontSize: 8,
-                              fontWeight: FontWeight.w900,
-                              color: const Color(0xFFC1F11D),
+                            style: GoogleFonts.inter(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w700,
+                              color: primaryColor,
                             ),
                           ),
                         ],
@@ -1551,17 +1613,17 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                     )
                   else if (hasDiscount)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                        color: Colors.orangeAccent.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(6),
+                        color: const Color(0xFFFFFBEB),
+                        borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
                         'PROMO',
-                        style: GoogleFonts.manrope(
-                          fontSize: 8,
-                          fontWeight: FontWeight.w900,
-                          color: Colors.orangeAccent,
+                        style: GoogleFonts.inter(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFFD97706),
                         ),
                       ),
                     ),
@@ -1570,13 +1632,13 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
 
               const SizedBox(height: 8),
 
-              // Product Name & SKU — tightly below the icon
+              // Product Name & SKU
               Text(
                 product.name,
-                style: GoogleFonts.manrope(
+                style: GoogleFonts.inter(
                   fontSize: 12.5,
-                  fontWeight: FontWeight.w800,
-                  color: isOutOfStock ? Colors.white38 : Colors.white,
+                  fontWeight: FontWeight.w700,
+                  color: isOutOfStock ? theme.colorScheme.onSurfaceVariant : theme.colorScheme.onSurface,
                   height: 1.25,
                 ),
                 maxLines: 2,
@@ -1585,15 +1647,14 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
               const SizedBox(height: 2),
               Text(
                 '#${product.sku}',
-                style: GoogleFonts.ibmPlexMono(
-                  fontSize: 9,
-                  color: Colors.white24,
+                style: GoogleFonts.inter(
+                  fontSize: 9.5,
+                  color: theme.colorScheme.onSurfaceVariant,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
 
-              // Push price & add button to bottom
               const Spacer(),
 
               // Bottom Row: Price & Instant Add
@@ -1609,28 +1670,28 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                         if (hasDiscount) ...[
                           Text(
                             CurrencyFormatter.format(product.price, currency),
-                            style: const TextStyle(
-                              fontSize: 9,
-                              color: Colors.white24,
+                            style: TextStyle(
+                              fontSize: 9.5,
+                              color: theme.colorScheme.onSurfaceVariant,
                               decoration: TextDecoration.lineThrough,
                             ),
                           ),
                           Text(
                             '${CurrencyFormatter.format(product.discountPrice!, currency)}${product.isWeighted ? "/${product.unitOfMeasure}" : ""}',
-                            style: GoogleFonts.plusJakartaSans(
+                            style: GoogleFonts.inter(
                               fontSize: 13.5,
-                              fontWeight: FontWeight.w900,
-                              color: const Color(0xFFC1F11D),
+                              fontWeight: FontWeight.w800,
+                              color: primaryColor,
                             ),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ] else ...[
                           Text(
                             '${CurrencyFormatter.format(product.price, currency)}${product.isWeighted ? "/${product.unitOfMeasure}" : ""}',
-                            style: GoogleFonts.plusJakartaSans(
+                            style: GoogleFonts.inter(
                               fontSize: 13.5,
-                              fontWeight: FontWeight.w900,
-                              color: isOutOfStock ? Colors.white24 : const Color(0xFFC1F11D),
+                              fontWeight: FontWeight.w800,
+                              color: isOutOfStock ? theme.colorScheme.onSurfaceVariant : primaryColor,
                             ),
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -1640,18 +1701,18 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                   ),
                   const SizedBox(width: 6),
                   Container(
-                    width: 28,
-                    height: 28,
+                    width: 26,
+                    height: 26,
                     decoration: BoxDecoration(
                       color: isOutOfStock
-                          ? Colors.white.withValues(alpha: 0.04)
-                          : const Color(0xFFC1F11D),
+                          ? (isDark ? const Color(0xFF293548) : const Color(0xFFF1F5F9))
+                          : primaryColor,
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
                       isOutOfStock ? Icons.block_rounded : (product.isWeighted ? Icons.scale_rounded : Icons.add),
-                      color: isOutOfStock ? Colors.white24 : Colors.black,
-                      size: 15,
+                      color: isOutOfStock ? theme.colorScheme.onSurfaceVariant : Colors.white,
+                      size: 14,
                     ),
                   ),
                 ],
@@ -1663,15 +1724,20 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     );
   }
 
-  // --- Products List View (Aligned & Clean without stock counts) ---
+  // --- Products List View ---
 
-  Widget _buildProductsList(List<Product> products, String currency) {
+  Widget _buildProductsList(BuildContext context, List<Product> products, String currency) {
     return ListView.separated(
       itemCount: products.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 8),
+      separatorBuilder: (_, _) => const SizedBox(height: 6),
       itemBuilder: (context, index) {
         final product = products[index];
         final isOutOfStock = product.stockLevel <= 0;
+        final theme = Theme.of(context);
+        final isDark = theme.brightness == Brightness.dark;
+        final primaryColor = theme.colorScheme.primary;
+        final cardBg = isDark ? const Color(0xFF151F32) : const Color(0xFFFFFFFF);
+        final borderColor = isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0);
         
         final hasDiscount = product.discountPrice != null && 
             product.discountStartDate != null && 
@@ -1680,28 +1746,29 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
             DateTime.now().isBefore(product.discountEndDate!);
 
         return Material(
-          color: Colors.white.withValues(alpha: 0.03),
-          borderRadius: BorderRadius.circular(12),
+          color: cardBg,
+          borderRadius: BorderRadius.circular(8),
           child: InkWell(
             onTap: () => _handleProductSelection(product),
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(8),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(8),
                 border: Border.all(
                   color: isOutOfStock 
-                      ? Colors.redAccent.withValues(alpha: 0.2) 
-                      : Colors.white.withValues(alpha: 0.04),
+                      ? const Color(0xFFDC2626).withValues(alpha: 0.3) 
+                      : borderColor,
+                  width: 1,
                 ),
               ),
               child: Row(
                 children: [
                   Container(
-                    width: 36,
-                    height: 36,
+                    width: 34,
+                    height: 34,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFC1F11D).withValues(alpha: 0.1),
+                      color: primaryColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: (product.imagePath != null && File(product.imagePath!).existsSync())
@@ -1709,7 +1776,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                             borderRadius: BorderRadius.circular(8),
                             child: Image.file(File(product.imagePath!), fit: BoxFit.cover),
                           )
-                        : const Icon(Icons.inventory_2_outlined, color: Color(0xFFC1F11D), size: 18),
+                        : Icon(Icons.inventory_2_outlined, color: primaryColor, size: 16),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -1718,10 +1785,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                       children: [
                         Text(
                           product.name,
-                          style: GoogleFonts.manrope(
+                          style: GoogleFonts.inter(
                             fontSize: 13,
-                            fontWeight: FontWeight.w800,
-                            color: isOutOfStock ? Colors.white54 : Colors.white,
+                            fontWeight: FontWeight.w700,
+                            color: isOutOfStock ? theme.colorScheme.onSurfaceVariant : theme.colorScheme.onSurface,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -1731,16 +1798,16 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                           children: [
                             Text(
                               '#${product.sku}',
-                              style: GoogleFonts.ibmPlexMono(fontSize: 9.5, color: Colors.white30),
+                              style: GoogleFonts.inter(fontSize: 10, color: theme.colorScheme.onSurfaceVariant),
                             ),
                             if (isOutOfStock) ...[
                               const SizedBox(width: 8),
                               Text(
                                 '• Out of Stock',
                                 style: GoogleFonts.inter(
-                                  fontSize: 9.5,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.redAccent,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFFDC2626),
                                 ),
                               ),
                             ] else if (hasDiscount) ...[
@@ -1748,9 +1815,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                               Text(
                                 '• On Promo',
                                 style: GoogleFonts.inter(
-                                  fontSize: 9.5,
-                                  fontWeight: FontWeight.bold,
-                                  color: const Color(0xFFC1F11D),
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFFD97706),
                                 ),
                               ),
                             ],
@@ -1767,32 +1834,32 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                       if (hasDiscount) ...[
                         Text(
                           CurrencyFormatter.format(product.price, currency),
-                          style: const TextStyle(fontSize: 9, color: Colors.white30, decoration: TextDecoration.lineThrough),
+                          style: TextStyle(fontSize: 9.5, color: theme.colorScheme.onSurfaceVariant, decoration: TextDecoration.lineThrough),
                         ),
                         Text(
                           CurrencyFormatter.format(product.discountPrice!, currency),
-                          style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w900, color: const Color(0xFFC1F11D)),
+                          style: GoogleFonts.inter(fontSize: 13.5, fontWeight: FontWeight.w800, color: primaryColor),
                         ),
                       ] else ...[
                         Text(
                           CurrencyFormatter.format(product.price, currency),
-                          style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w900, color: const Color(0xFFC1F11D)),
+                          style: GoogleFonts.inter(fontSize: 13.5, fontWeight: FontWeight.w800, color: primaryColor),
                         ),
                       ],
                     ],
                   ),
                   const SizedBox(width: 10),
                   Container(
-                    width: 28,
-                    height: 28,
+                    width: 26,
+                    height: 26,
                     decoration: BoxDecoration(
-                      color: isOutOfStock ? Colors.white.withValues(alpha: 0.05) : const Color(0xFFC1F11D).withValues(alpha: 0.15),
+                      color: isOutOfStock ? (isDark ? const Color(0xFF293548) : const Color(0xFFF1F5F9)) : primaryColor,
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
                       isOutOfStock ? Icons.block_rounded : Icons.add, 
-                      color: isOutOfStock ? Colors.white24 : const Color(0xFFC1F11D), 
-                      size: 15,
+                      color: isOutOfStock ? theme.colorScheme.onSurfaceVariant : Colors.white, 
+                      size: 14,
                     ),
                   ),
                 ],
@@ -1804,16 +1871,19 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     );
   }
 
-  Widget _buildEmptyCatalogState() {
+  Widget _buildEmptyCatalogState(BuildContext context) {
+    final theme = Theme.of(context);
+    final primaryColor = theme.colorScheme.primary;
+
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.search_off_rounded, size: 48, color: Colors.white.withValues(alpha: 0.15)),
+          Icon(Icons.search_off_rounded, size: 48, color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4)),
           const SizedBox(height: 12),
           Text(
             'No matching products found',
-            style: GoogleFonts.inter(fontSize: 13, color: Colors.white60),
+            style: GoogleFonts.inter(fontSize: 13, color: theme.colorScheme.onSurfaceVariant),
           ),
           const SizedBox(height: 8),
           if (_searchController.text.isNotEmpty || _selectedCategoryId != null)
@@ -1822,142 +1892,83 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                 _searchController.clear();
                 setState(() => _selectedCategoryId = null);
               },
-              icon: const Icon(Icons.clear_all_rounded, size: 16, color: Color(0xFFC1F11D)),
-              label: const Text('Clear Filters', style: TextStyle(color: Color(0xFFC1F11D), fontSize: 12)),
+              icon: Icon(Icons.clear_all_rounded, size: 16, color: primaryColor),
+              label: Text('Clear Filters', style: TextStyle(color: primaryColor, fontSize: 12, fontWeight: FontWeight.w600)),
             ),
         ],
       ),
     );
   }
 
-  Widget _buildViewModeBtn({
+  Widget _buildViewModeBtn(
+    BuildContext context, {
     required IconData icon,
     required String tooltip,
     required bool isSelected,
     required VoidCallback onTap,
   }) {
+    final theme = Theme.of(context);
+    final primaryColor = theme.colorScheme.primary;
+
     return Tooltip(
       message: tooltip,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(6),
         child: Container(
           width: 30,
           height: 30,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: isSelected ? const Color(0xFFC1F11D) : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
+            color: isSelected ? primaryColor : Colors.transparent,
+            borderRadius: BorderRadius.circular(6),
           ),
           child: Icon(
             icon,
             size: 16,
-            color: isSelected ? Colors.black : Colors.white38,
+            color: isSelected ? Colors.white : theme.colorScheme.onSurfaceVariant,
           ),
         ),
       ),
     );
   }
 
-  // --- Payment & Tender Widgets ---
-
-  Widget _buildMainPayButton(CartNotifier cartNotifier, String currency) {
-    return Material(
-      color: const Color(0xFFC1F11D),
-      borderRadius: BorderRadius.circular(20),
-      child: InkWell(
-        onTap: () => setState(() => _isCheckoutActive = true),
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
-          width: 300,
-          height: 84,
-          alignment: Alignment.center,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.payments_rounded, color: Colors.black, size: 28),
-              const SizedBox(width: 14),
-              Text(
-                'PAY NOW',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w900,
-                  color: Colors.black,
-                  letterSpacing: 1,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCheckoutActions(CartNotifier cartNotifier) {
-    return Row(
-      children: [
-        if (_selectedPaymentMethod.isNotEmpty)
-          Expanded(child: _buildCompleteSaleButton(cartNotifier))
-        else
-          const Spacer(),
-        const SizedBox(width: 12),
-        if (_selectedPaymentMethod.isNotEmpty)
-          _buildActionIconButton(Icons.arrow_back_rounded, 'Change Method', 
-                                 () => setState(() => _selectedPaymentMethod = '')),
-        const SizedBox(width: 10),
-        _buildActionIconButton(Icons.close_rounded, 'Cancel Checkout', () => setState(() {
-          _isCheckoutActive = false;
-          _selectedPaymentMethod = '';
-        })),
-      ],
-    );
-  }
-
-  Widget _buildActionIconButton(IconData icon, String tooltip, VoidCallback onTap) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: IconButton(
-        onPressed: onTap,
-        icon: Icon(icon, color: Colors.white38, size: 20),
-        tooltip: tooltip,
-      ),
-    );
-  }
-
-  Widget _buildPanelHeader(IconData icon, String title, Color color) {
+  Widget _buildPanelHeader(BuildContext context, IconData icon, String title, Color color) {
     return Row(
       children: [
         Container(
-          padding: const EdgeInsets.all(7),
-          decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
-          child: Icon(icon, color: color, size: 18),
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)),
+          child: Icon(icon, color: color, size: 16),
         ),
-        const SizedBox(width: 10),
-        Text(title, style: _headerTextStyle()),
+        const SizedBox(width: 8),
+        Text(title, style: _headerTextStyle(context)),
       ],
     );
   }
 
-  TextStyle _headerTextStyle() {
-    return GoogleFonts.plusJakartaSans(
+  TextStyle _headerTextStyle(BuildContext context) {
+    final theme = Theme.of(context);
+    return GoogleFonts.inter(
       fontSize: 11,
-      fontWeight: FontWeight.w900,
-      letterSpacing: 1.5,
-      color: Colors.white.withValues(alpha: 0.5),
+      fontWeight: FontWeight.w700,
+      letterSpacing: 1.0,
+      color: theme.colorScheme.onSurfaceVariant,
     );
   }
 
-  InputDecoration _searchInputDecoration() {
+  InputDecoration _searchInputDecoration(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
+
     return InputDecoration(
       hintText: 'Search product name or SKU...',
-      hintStyle: GoogleFonts.inter(fontSize: 13, color: Colors.white.withValues(alpha: 0.2)),
-      prefixIcon: const Icon(Icons.search_rounded, size: 18, color: Colors.white38),
+      hintStyle: GoogleFonts.inter(fontSize: 13, color: theme.colorScheme.onSurfaceVariant),
+      prefixIcon: Icon(Icons.search_rounded, size: 18, color: theme.colorScheme.onSurfaceVariant),
       suffixIcon: _searchController.text.isNotEmpty
           ? IconButton(
-              icon: const Icon(Icons.close_rounded, size: 16, color: Colors.white54),
+              icon: Icon(Icons.close_rounded, size: 16, color: theme.colorScheme.onSurfaceVariant),
               onPressed: () {
                 _searchController.clear();
                 setState(() {});
@@ -1965,45 +1976,57 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
             )
           : null,
       filled: true,
-      fillColor: Colors.white.withValues(alpha: 0.03),
-      contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-      border: _searchBorder(Colors.white.withValues(alpha: 0.1)),
-      enabledBorder: _searchBorder(Colors.white.withValues(alpha: 0.05)),
-      focusedBorder: _searchBorder(const Color(0xFFC1F11D), width: 1.5),
+      fillColor: isDark ? const Color(0xFF151F32) : const Color(0xFFFFFFFF),
+      contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: BorderSide(color: primaryColor, width: 1.5),
+      ),
     );
   }
 
-  OutlineInputBorder _searchBorder(Color color, {double width = 1}) {
-    return OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: color, width: width));
-  }
-
-  Widget _buildEmptyState(String message, {IconData icon = Icons.search_off_rounded}) {
+  Widget _buildEmptyState(BuildContext context, String message, {IconData icon = Icons.search_off_rounded}) {
+    final theme = Theme.of(context);
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Opacity(opacity: 0.1, child: Icon(icon, size: 54, color: Colors.white)),
+          Icon(icon, size: 48, color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.3)),
           const SizedBox(height: 8),
-          Opacity(opacity: 0.35, child: Text(message, style: GoogleFonts.inter(color: Colors.white, fontSize: 13))),
+          Text(message, style: GoogleFonts.inter(color: theme.colorScheme.onSurfaceVariant, fontSize: 13, fontWeight: FontWeight.w500)),
         ],
       ),
     );
   }
 
-  Widget _buildPaymentMethodSelector() {
+  Widget _buildPaymentMethodSelector(BuildContext context) {
+    final theme = Theme.of(context);
+    final primaryColor = theme.colorScheme.primary;
+
     return Row(
       children: [
-        _buildCompactMethodBtn('CASH', Icons.payments_rounded, const Color(0xFFC1F11D)),
-        const SizedBox(width: 10),
-        _buildCompactMethodBtn('MOBILE MONEY', Icons.phone_android_rounded, Colors.orangeAccent),
-        const SizedBox(width: 10),
-        _buildCompactMethodBtn('CARD', Icons.credit_card_rounded, Colors.blueAccent),
+        _buildCompactMethodBtn(context, 'CASH', Icons.payments_rounded, primaryColor),
+        const SizedBox(width: 8),
+        _buildCompactMethodBtn(context, 'MOBILE MONEY', Icons.phone_android_rounded, const Color(0xFFD97706)),
+        const SizedBox(width: 8),
+        _buildCompactMethodBtn(context, 'CARD', Icons.credit_card_rounded, const Color(0xFF0284C7)),
       ],
     );
   }
 
-  Widget _buildCompactMethodBtn(String method, IconData icon, Color color) {
+  Widget _buildCompactMethodBtn(BuildContext context, String method, IconData icon, Color color) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final isSelected = _selectedPaymentMethod == method;
+
     return Expanded(
       child: GestureDetector(
         onTap: () => setState(() {
@@ -2015,43 +2038,28 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
           }
         }),
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOutCubic,
-          height: 52,
+          duration: const Duration(milliseconds: 150),
+          height: 46,
           decoration: BoxDecoration(
-            color: isSelected ? color : Colors.white.withValues(alpha: 0.07),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: isSelected ? color : Colors.white.withValues(alpha: 0.18),
-              width: isSelected ? 0 : 1.2,
-            ),
-            boxShadow: isSelected
-                ? [
-                    BoxShadow(
-                      color: color.withValues(alpha: 0.45),
-                      blurRadius: 14,
-                      spreadRadius: 0,
-                      offset: const Offset(0, 4),
-                    ),
-                  ]
-                : [],
+            color: isSelected ? color : (isDark ? const Color(0xFF293548) : const Color(0xFFF1F5F9)),
+            borderRadius: BorderRadius.circular(8),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
                 icon,
-                color: isSelected ? Colors.black : Colors.white.withValues(alpha: 0.75),
-                size: 17,
+                color: isSelected ? Colors.white : theme.colorScheme.onSurfaceVariant,
+                size: 16,
               ),
-              const SizedBox(width: 7),
+              const SizedBox(width: 6),
               Text(
                 method == 'MOBILE MONEY' ? 'M-MONEY' : method,
-                style: GoogleFonts.manrope(
+                style: GoogleFonts.inter(
                   fontSize: 11,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 0.8,
-                  color: isSelected ? Colors.black : Colors.white.withValues(alpha: 0.85),
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.5,
+                  color: isSelected ? Colors.white : theme.colorScheme.onSurface,
                 ),
               ),
             ],
@@ -2061,46 +2069,45 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     );
   }
 
-
-  Widget _buildNumericKeypad() {
+  Widget _buildNumericKeypad(BuildContext context) {
     return Column(
       children: [
         Expanded(
           child: Row(
             children: [
-              _buildKey('1'), const SizedBox(width: 6),
-              _buildKey('2'), const SizedBox(width: 6),
-              _buildKey('3'),
+              _buildKey(context, '1'), const SizedBox(width: 4),
+              _buildKey(context, '2'), const SizedBox(width: 4),
+              _buildKey(context, '3'),
             ],
           ),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 4),
         Expanded(
           child: Row(
             children: [
-              _buildKey('4'), const SizedBox(width: 6),
-              _buildKey('5'), const SizedBox(width: 6),
-              _buildKey('6'),
+              _buildKey(context, '4'), const SizedBox(width: 4),
+              _buildKey(context, '5'), const SizedBox(width: 4),
+              _buildKey(context, '6'),
             ],
           ),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 4),
         Expanded(
           child: Row(
             children: [
-              _buildKey('7'), const SizedBox(width: 6),
-              _buildKey('8'), const SizedBox(width: 6),
-              _buildKey('9'),
+              _buildKey(context, '7'), const SizedBox(width: 4),
+              _buildKey(context, '8'), const SizedBox(width: 4),
+              _buildKey(context, '9'),
             ],
           ),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 4),
         Expanded(
           child: Row(
             children: [
-              _buildKey('0'), const SizedBox(width: 6),
-              _buildKey('00'), const SizedBox(width: 6),
-              _buildClearKey(),
+              _buildKey(context, '0'), const SizedBox(width: 4),
+              _buildKey(context, '00'), const SizedBox(width: 4),
+              _buildClearKey(context),
             ],
           ),
         ),
@@ -2108,11 +2115,14 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     );
   }
 
-  Widget _buildKey(String label) {
+  Widget _buildKey(BuildContext context, String label) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Expanded(
       child: Material(
-        color: Colors.white.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(10),
+        color: isDark ? const Color(0xFF151F32) : const Color(0xFFFFFFFF),
+        borderRadius: BorderRadius.circular(8),
         child: InkWell(
           onTap: () {
             setState(() {
@@ -2123,11 +2133,11 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
               _tenderedAmount = double.parse(digits) / 100;
             });
           },
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(8),
           child: Center(
             child: Text(
               label,
-              style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white),
+              style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurface),
             ),
           ),
         ),
@@ -2135,94 +2145,100 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     );
   }
 
-  Widget _buildClearKey() {
+  Widget _buildClearKey(BuildContext context) {
     return Expanded(
       child: Material(
-        color: Colors.redAccent.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(10),
+        color: const Color(0xFFFEF2F2),
+        borderRadius: BorderRadius.circular(8),
         child: InkWell(
           onTap: () => setState(() => _tenderedAmount = 0),
           onLongPress: () => setState(() => _tenderedAmount = 0),
-          borderRadius: BorderRadius.circular(10),
-          child: const Center(child: Icon(Icons.backspace_rounded, color: Colors.redAccent, size: 18)),
+          borderRadius: BorderRadius.circular(8),
+          child: const Center(child: Icon(Icons.backspace_rounded, color: Color(0xFFDC2626), size: 16)),
         ),
       ),
     );
   }
 
-  Widget _buildExactAmountBtn(CartNotifier cartNotifier, String currency) {
+  Widget _buildExactAmountBtn(BuildContext context, CartNotifier cartNotifier, String currency) {
+    final theme = Theme.of(context);
+    final primaryColor = theme.colorScheme.primary;
+
     return Material(
-      color: const Color(0xFFC1F11D).withValues(alpha: 0.1),
-      borderRadius: BorderRadius.circular(12),
+      color: primaryColor.withValues(alpha: 0.12),
+      borderRadius: BorderRadius.circular(8),
       child: InkWell(
         onTap: () => setState(() => _tenderedAmount = cartNotifier.total),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         child: Container(
           alignment: Alignment.center,
           child: Text(
             'EXACT',
-            style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w900, color: const Color(0xFFC1F11D)),
+            style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: primaryColor),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildDigitalPaymentPrompt(String currency) {
+  Widget _buildDigitalPaymentPrompt(BuildContext context, String currency) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final total = ref.read(cartProvider.notifier).total;
+
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(
-            padding: const EdgeInsets.all(28),
+            padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.03),
+              color: isDark ? const Color(0xFF151F32) : const Color(0xFFFFFFFF),
               shape: BoxShape.circle,
             ),
             child: Icon(
               _selectedPaymentMethod == 'CARD' ? Icons.credit_card_rounded : Icons.phone_android_rounded,
-              size: 64,
-              color: Colors.white.withValues(alpha: 0.15),
+              size: 48,
+              color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 18),
           Text(
             'PLEASE PROCESS ON MERCHANT DEVICE',
-            style: GoogleFonts.manrope(
-              fontSize: 12,
+            style: GoogleFonts.inter(
+              fontSize: 11,
               fontWeight: FontWeight.w700,
-              color: Colors.white.withValues(alpha: 0.4),
+              color: theme.colorScheme.onSurfaceVariant,
               letterSpacing: 0.5,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
             CurrencyFormatter.format(total, currency),
-            style: GoogleFonts.manrope(
-              fontSize: 40,
+            style: GoogleFonts.inter(
+              fontSize: 36,
               fontWeight: FontWeight.w900,
-              color: Colors.white,
+              color: theme.colorScheme.onSurface,
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
-              color: const Color(0xFFC1F11D).withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(30),
+              color: const Color(0xFFECFDF5),
+              borderRadius: BorderRadius.circular(20),
             ),
-            child: const Row(
+            child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.check_circle_rounded, color: Color(0xFFC1F11D), size: 16),
-                SizedBox(width: 8),
+                const Icon(Icons.check_circle_rounded, color: Color(0xFF059669), size: 16),
+                const SizedBox(width: 6),
                 Text(
                   'READY FOR CONFIRMATION',
-                  style: TextStyle(
+                  style: GoogleFonts.inter(
                     fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFFC1F11D),
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF059669),
                   ),
                 ),
               ],
@@ -2233,63 +2249,141 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     );
   }
 
-  Widget _buildCompleteSaleButton(CartNotifier cartNotifier) {
+  Widget _buildCompleteSaleButton(BuildContext context, CartNotifier cartNotifier) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     final total = cartNotifier.total;
     final isCash = _selectedPaymentMethod == 'CASH';
+    final shortAmount = total - _tenderedAmount;
     final canComplete = !isCash || (_tenderedAmount >= total);
+    final currency = ref.watch(storeConfigProvider).value?.currencySymbol ?? 'ZK';
 
-    return Material(
-      color: canComplete && !_isProcessingPayment ? const Color(0xFFC1F11D) : Colors.white.withValues(alpha: 0.05),
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        onTap: (canComplete && !_isProcessingPayment) ? () => _finalizeSale(cartNotifier) : null,
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          height: 56,
-          alignment: Alignment.center,
-          child: _isProcessingPayment
-            ? const SizedBox(height: 22, width: 22, child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2))
-            : Text(
-                'COMPLETE SALE',
-                style: GoogleFonts.manrope(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
-                  color: canComplete ? Colors.black : Colors.white24,
-                  letterSpacing: 1,
+    if (_isProcessingPayment) {
+      return Container(
+        height: 52,
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: const Color(0xFF059669),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        alignment: Alignment.center,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const SizedBox(
+              height: 20,
+              width: 20,
+              child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'PROCESSING TRANSACTION...',
+              style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: 0.5),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (!canComplete) {
+      return Container(
+        height: 52,
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF293548) : const Color(0xFFF1F5F9),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: const Color(0xFFD97706).withValues(alpha: 0.5)),
+        ),
+        child: InkWell(
+          onTap: () {
+            setState(() => _tenderedAmount = total);
+          },
+          borderRadius: BorderRadius.circular(10),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.info_outline_rounded, color: Color(0xFFD97706), size: 18),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    _tenderedAmount == 0 
+                      ? 'ENTER CASH TENDER AMOUNT (TAP FOR EXACT)' 
+                      : 'SHORT BY ${CurrencyFormatter.format(shortAmount, currency)} (TAP FOR EXACT)',
+                    style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: const Color(0xFFD97706)),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return SizedBox(
+      height: 52,
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: () => _finalizeSale(cartNotifier),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFF059669),
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          elevation: 2,
+          shadowColor: const Color(0xFF059669).withValues(alpha: 0.4),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.check_circle_rounded, color: Colors.white, size: 22),
+            const SizedBox(width: 10),
+            Text(
+              'COMPLETE SALE',
+              style: GoogleFonts.inter(
+                fontSize: 15,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.0,
+                color: Colors.white,
               ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildTenderDisplay(String currency) {
+  Widget _buildTenderDisplay(BuildContext context, String currency) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final cartNotifier = ref.read(cartProvider.notifier);
     final total = cartNotifier.total;
     
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
+      padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.02),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        color: isDark ? const Color(0xFF151F32) : const Color(0xFFFFFFFF),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
       ),
       child: Column(
         children: [
           Text(
             _selectedPaymentMethod == 'CASH' ? 'TENDERED AMOUNT' : 'TOTAL TO PAY', 
-            style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.white.withValues(alpha: 0.4))
+            style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurfaceVariant)
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
           Text(
             _selectedPaymentMethod == 'CASH' 
               ? (_tenderedAmount == 0 ? 'ENTER AMOUNT' : CurrencyFormatter.format(_tenderedAmount, currency))
               : CurrencyFormatter.format(total, currency),
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 38,
+            style: GoogleFonts.inter(
+              fontSize: 32,
               fontWeight: FontWeight.w900,
-              color: (_selectedPaymentMethod == 'CASH' && _tenderedAmount == 0) ? Colors.white.withValues(alpha: 0.1) : Colors.white,
+              color: (_selectedPaymentMethod == 'CASH' && _tenderedAmount == 0) ? theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5) : theme.colorScheme.onSurface,
             ),
           ),
         ],
@@ -2297,38 +2391,42 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     );
   }
 
-  Widget _buildQuickTenderButton(double amount, String currency) {
+  Widget _buildQuickTenderButton(BuildContext context, double amount, String currency) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final bool isCash = _selectedPaymentMethod == 'CASH';
-    return Opacity(
-      opacity: isCash ? 1.0 : 0.3,
-      child: Material(
-        color: Colors.white.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(12),
-        child: InkWell(
-          onTap: isCash ? () => setState(() => _tenderedAmount += amount) : null,
-          borderRadius: BorderRadius.circular(12),
-          child: Center(
-            child: Text(
-              CurrencyFormatter.format(amount, currency),
-              style: GoogleFonts.plusJakartaSans(fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white),
-            ),
+
+    return Material(
+      color: isDark ? const Color(0xFF151F32) : const Color(0xFFFFFFFF),
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        onTap: isCash ? () => setState(() => _tenderedAmount += amount) : null,
+        borderRadius: BorderRadius.circular(8),
+        child: Center(
+          child: Text(
+            CurrencyFormatter.format(amount, currency),
+            style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurface),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildCartRow(CartItem item, CartNotifier cartNotifier, String currency) {
+  Widget _buildCartRow(BuildContext context, CartItem item, CartNotifier cartNotifier, String currency) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
+
     final unit = item.product.unitOfMeasure.toLowerCase().trim();
     final unitLabel = unit.isEmpty ? 'kg' : unit;
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.02),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.03)),
+        color: isDark ? const Color(0xFF151F32) : const Color(0xFFFFFFFF),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
       ),
       child: Row(
         children: [
@@ -2341,24 +2439,24 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                     if (item.isWeighted)
                       Container(
                         margin: const EdgeInsets.only(right: 6),
-                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFC1F11D).withValues(alpha: 0.15),
+                          color: primaryColor.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
                           'SCALE',
-                          style: GoogleFonts.manrope(
+                          style: GoogleFonts.inter(
                             fontSize: 8.5,
-                            fontWeight: FontWeight.w900,
-                            color: const Color(0xFFC1F11D),
+                            fontWeight: FontWeight.w800,
+                            color: primaryColor,
                           ),
                         ),
                       ),
                     Expanded(
                       child: Text(
                         item.product.name,
-                        style: GoogleFonts.manrope(fontWeight: FontWeight.w700, color: Colors.white, fontSize: 12.5),
+                        style: GoogleFonts.inter(fontWeight: FontWeight.w700, color: theme.colorScheme.onSurface, fontSize: 12.5),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -2370,22 +2468,23 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                   item.isWeighted
                       ? '${item.weight.toStringAsFixed(3)} $unitLabel @ ${CurrencyFormatter.format(item.unitPrice, currency)}/$unitLabel'
                       : '${CurrencyFormatter.format(item.unitPrice, currency)} / unit',
-                  style: GoogleFonts.jetBrainsMono(fontSize: 9.5, color: Colors.white38),
+                  style: GoogleFonts.inter(fontSize: 10, color: theme.colorScheme.onSurfaceVariant),
                 ),
               ],
             ),
           ),
           
           Container(
-            padding: const EdgeInsets.all(3),
+            padding: const EdgeInsets.all(2),
             decoration: BoxDecoration(
-              color: Colors.black26,
-              borderRadius: BorderRadius.circular(8),
+              color: isDark ? const Color(0xFF293548) : const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(6),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 _buildQtyActionBtn(
+                  context,
                   Icons.remove_rounded,
                   () => item.isWeighted
                       ? _handleProductSelection(item.product)
@@ -2397,21 +2496,22 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                       : _showQuantityDialog(item, cartNotifier),
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6),
-                    constraints: const BoxConstraints(minWidth: 44),
+                    constraints: const BoxConstraints(minWidth: 36),
                     alignment: Alignment.center,
                     child: Text(
                       item.isWeighted
                           ? '${item.weight.toStringAsFixed(2)} $unitLabel'
                           : '${item.quantity}',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: item.isWeighted ? 12.5 : 16,
-                        fontWeight: FontWeight.w900,
-                        color: const Color(0xFFC1F11D),
+                      style: GoogleFonts.inter(
+                        fontSize: item.isWeighted ? 12 : 14,
+                        fontWeight: FontWeight.w800,
+                        color: primaryColor,
                       ),
                     ),
                   ),
                 ),
                 _buildQtyActionBtn(
+                  context,
                   Icons.add_rounded,
                   () => item.isWeighted
                       ? _handleProductSelection(item.product)
@@ -2421,9 +2521,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
             ),
           ),
           
-          const SizedBox(width: 6),
+          const SizedBox(width: 4),
           IconButton(
-            icon: const Icon(Icons.delete_outline_rounded, color: Colors.white12, size: 16),
+            icon: const Icon(Icons.delete_outline_rounded, color: Color(0xFFDC2626), size: 16),
             onPressed: () => cartNotifier.removeProduct(item.product.id),
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
@@ -2442,86 +2542,89 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF141418),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('Edit Quantity', style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 15)),
+        title: Text('Edit Quantity', style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w700)),
         content: TextField(
           controller: controller,
           keyboardType: TextInputType.number,
           autofocus: true,
-          style: const TextStyle(color: Colors.white, fontSize: 22),
+          style: GoogleFonts.inter(fontSize: 22, fontWeight: FontWeight.w700),
           textAlign: TextAlign.center,
           decoration: const InputDecoration(border: InputBorder.none),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('CANCEL', style: TextStyle(color: Colors.white24)),
+            child: const Text('CANCEL'),
           ),
-          TextButton(
+          ElevatedButton(
             onPressed: () {
               final newQty = int.tryParse(controller.text) ?? 1;
               cartNotifier.setQuantity(item.product.id, newQty);
               Navigator.pop(ctx);
             },
-            child: const Text('UPDATE', style: TextStyle(color: Color(0xFFC1F11D))),
+            child: const Text('UPDATE'),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildQtyActionBtn(IconData icon, VoidCallback onTap) {
+  Widget _buildQtyActionBtn(BuildContext context, IconData icon, VoidCallback onTap) {
+    final theme = Theme.of(context);
     return Material(
-      color: Colors.white.withValues(alpha: 0.05),
-      borderRadius: BorderRadius.circular(6),
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(4),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(6),
-        child: Container(
-          padding: const EdgeInsets.all(5),
-          child: Icon(icon, color: Colors.white38, size: 13),
+        borderRadius: BorderRadius.circular(4),
+        child: Padding(
+          padding: const EdgeInsets.all(4),
+          child: Icon(icon, color: theme.colorScheme.onSurfaceVariant, size: 14),
         ),
       ),
     );
   }
 
-  Widget _buildOrderSummary(CartState cartState, CartNotifier cartNotifier, String currency) {
+  Widget _buildOrderSummary(BuildContext context, CartState cartState, CartNotifier cartNotifier, String currency) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
+
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.02),
-        border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
+        color: isDark ? const Color(0xFF151F32) : const Color(0xFFFFFFFF),
+        border: Border(top: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0))),
       ),
       child: Column(
         children: [
           // B2B Corporate / Tax Invoice Customer TPIN Card
           if (cartState.customerTpin != null && cartState.customerTpin!.isNotEmpty)
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              margin: const EdgeInsets.only(bottom: 10),
               decoration: BoxDecoration(
-                color: const Color(0xFF10B981).withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.3)),
+                color: const Color(0xFFECFDF5),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: const Color(0xFF059669).withValues(alpha: 0.3)),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.business_rounded, color: Color(0xFF10B981), size: 16),
-                  const SizedBox(width: 8),
+                  const Icon(Icons.business_rounded, color: Color(0xFF059669), size: 16),
+                  const SizedBox(width: 6),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('BUYER TPIN: ${cartState.customerTpin}', style: const TextStyle(color: Color(0xFF10B981), fontWeight: FontWeight.bold, fontSize: 11)),
+                        Text('BUYER TPIN: ${cartState.customerTpin}', style: GoogleFonts.inter(color: const Color(0xFF059669), fontWeight: FontWeight.bold, fontSize: 11)),
                         if (cartState.customerBusinessName != null)
-                          Text(cartState.customerBusinessName!, style: const TextStyle(color: Colors.white70, fontSize: 10)),
+                          Text(cartState.customerBusinessName!, style: GoogleFonts.inter(color: theme.colorScheme.onSurfaceVariant, fontSize: 10)),
                       ],
                     ),
                   ),
                   InkWell(
                     onTap: () => cartNotifier.setCustomerTpin(null),
-                    child: const Icon(Icons.close, size: 16, color: Colors.white54),
+                    child: Icon(Icons.close, size: 16, color: theme.colorScheme.onSurfaceVariant),
                   ),
                 ],
               ),
@@ -2529,21 +2632,20 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
           else
             InkWell(
               onTap: () => _showB2bCustomerModal(context, cartNotifier, cartState),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(6),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                margin: const EdgeInsets.only(bottom: 10),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.03),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                  color: primaryColor.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(6),
                 ),
-                child: const Row(
+                child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.business_rounded, color: Color(0xFFC1F11D), size: 16),
-                    SizedBox(width: 8),
-                    Text('+ Buyer TPIN / Tax Invoice', style: TextStyle(color: Color(0xFFC1F11D), fontSize: 11, fontWeight: FontWeight.bold)),
+                    Icon(Icons.business_rounded, color: primaryColor, size: 14),
+                    const SizedBox(width: 6),
+                    Text('+ Buyer TPIN / Tax Invoice', style: GoogleFonts.inter(color: primaryColor, fontSize: 11, fontWeight: FontWeight.w700)),
                   ],
                 ),
               ),
@@ -2552,22 +2654,22 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Items Subtotal', style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 12)),
-              Text(CurrencyFormatter.format(cartNotifier.subtotal, currency), style: const TextStyle(color: Colors.white, fontSize: 12)),
+              Text('Items Subtotal', style: GoogleFonts.inter(color: theme.colorScheme.onSurfaceVariant, fontSize: 12)),
+              Text(CurrencyFormatter.format(cartNotifier.subtotal, currency), style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontSize: 12, fontWeight: FontWeight.w600)),
             ],
           ),
           if (cartNotifier.tax > 0) ...[
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('VAT / Tax', style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 12)),
-                Text(CurrencyFormatter.format(cartNotifier.tax, currency), style: const TextStyle(color: Colors.white, fontSize: 12)),
+                Text('VAT / Tax', style: GoogleFonts.inter(color: theme.colorScheme.onSurfaceVariant, fontSize: 12)),
+                Text(CurrencyFormatter.format(cartNotifier.tax, currency), style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontSize: 12, fontWeight: FontWeight.w600)),
               ],
             ),
           ],
           if (cartState.serviceChargeEnabled && cartNotifier.serviceChargeAmount > 0) ...[
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -2575,23 +2677,23 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                   children: [
                     Text(
                       'Service Charge (${cartState.serviceChargeRate.toStringAsFixed(0)}% • Untaxed)',
-                      style: const TextStyle(color: Color(0xFF60A5FA), fontSize: 11.5, fontWeight: FontWeight.w600),
+                      style: GoogleFonts.inter(color: primaryColor, fontSize: 11, fontWeight: FontWeight.w600),
                     ),
-                    const SizedBox(width: 6),
+                    const SizedBox(width: 4),
                     InkWell(
                       onTap: () => cartNotifier.toggleServiceCharge(false),
-                      child: const Icon(Icons.close, size: 14, color: Colors.white38),
+                      child: Icon(Icons.close, size: 14, color: theme.colorScheme.onSurfaceVariant),
                     ),
                   ],
                 ),
                 Text(
                   CurrencyFormatter.format(cartNotifier.serviceChargeAmount, currency),
-                  style: const TextStyle(color: Color(0xFF60A5FA), fontSize: 12, fontWeight: FontWeight.bold),
+                  style: GoogleFonts.inter(color: primaryColor, fontSize: 12, fontWeight: FontWeight.bold),
                 ),
               ],
             ),
           ] else ...[
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
             InkWell(
               onTap: () => _showServiceChargeModal(context, cartNotifier, cartState),
               child: Padding(
@@ -2599,34 +2701,38 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('+ Service Charge (Untaxed)', style: TextStyle(color: Colors.white.withValues(alpha: 0.35), fontSize: 11)),
-                    Text('0%', style: TextStyle(color: Colors.white.withValues(alpha: 0.25), fontSize: 11)),
+                    Text('+ Service Charge (Untaxed)', style: GoogleFonts.inter(color: theme.colorScheme.onSurfaceVariant, fontSize: 11)),
+                    Text('0%', style: GoogleFonts.inter(color: theme.colorScheme.onSurfaceVariant, fontSize: 11)),
                   ],
                 ),
               ),
             ),
           ],
           if (cartState.discountAmount > 0) ...[
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Discount', style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 12)),
-                Text('- ${CurrencyFormatter.format(cartState.discountAmount, currency)}', style: const TextStyle(color: Color(0xFFC1F11D), fontSize: 12, fontWeight: FontWeight.bold)),
+                Text('Discount', style: GoogleFonts.inter(color: theme.colorScheme.onSurfaceVariant, fontSize: 12)),
+                Text('- ${CurrencyFormatter.format(cartState.discountAmount, currency)}', style: GoogleFonts.inter(color: const Color(0xFF059669), fontSize: 12, fontWeight: FontWeight.bold)),
               ],
             ),
           ],
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('TOTAL DUE', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w800, color: const Color(0xFFC1F11D))),
+              Text('TOTAL DUE', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w800, color: theme.colorScheme.onSurface)),
               Text(
                 CurrencyFormatter.format(cartNotifier.total, currency),
-                style: GoogleFonts.inter(fontSize: 24, fontWeight: FontWeight.w900, color: Colors.white),
+                style: GoogleFonts.inter(fontSize: 22, fontWeight: FontWeight.w900, color: primaryColor),
               ),
             ],
           ),
+          if (cartState.items.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _buildCompleteSaleButton(context, cartNotifier),
+          ],
         ],
       ),
     );
@@ -2729,223 +2835,236 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     showDialog(
       context: context,
       builder: (dialogCtx) => StatefulBuilder(
-        builder: (context, setModalState) => AlertDialog(
-          backgroundColor: const Color(0xFF1A1A1E),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: Row(
-            children: [
-              const Icon(Icons.business_rounded, color: Color(0xFFC1F11D)),
-              const SizedBox(width: 10),
-              Text('BUYER TPIN / TAX INVOICE', style: GoogleFonts.manrope(fontWeight: FontWeight.w900, color: Colors.white, fontSize: 16)),
-            ],
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
+        builder: (context, setModalState) {
+          final isDark = Theme.of(context).brightness == Brightness.dark;
+          final dialogBg = isDark ? const Color(0xFF151F32) : Colors.white;
+          final borderColor = isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0);
+          final fieldBg = isDark ? const Color(0xFF0B1220) : const Color(0xFFF8FAFC);
+          const primaryAccent = Color(0xFF1D4ED8);
+
+          return AlertDialog(
+            backgroundColor: dialogBg,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(color: borderColor),
+            ),
+            title: Row(
               children: [
-                const Text(
-                  "Enter the corporate buyer's ZRA TPIN to issue an official Tax Invoice for VAT claim.",
-                  style: TextStyle(color: Colors.white54, fontSize: 12),
-                ),
-                const SizedBox(height: 16),
-
-                Builder(
-                  builder: (context) {
-                    Future<void> doVerify() async {
-                      final tpin = tpinCtrl.text.trim();
-                      if (tpin.length != 10) {
-                        setModalState(() => verifyError = 'TPIN must be exactly 10 digits');
-                        return;
-                      }
-                      setModalState(() {
-                        isVerifying = true;
-                        verifyError = null;
-                      });
-                      try {
-                        final res = await ref.read(digitaxInventoryServiceProvider).lookupTaxpayerTpin(tpin);
-                        if (res != null && res.containsKey('error')) {
-                          setModalState(() {
-                            verifyError = res['error'] as String?;
-                            isVerified = false;
-                          });
-                        } else if (res != null) {
-                          final fetchedName = (res['taxpayer_name'] ?? res['name'] ?? '').toString();
-                          final fetchedAddr = (res['physical_address'] ?? res['address'] ?? '').toString();
-                          if (fetchedName.isNotEmpty) nameCtrl.text = fetchedName;
-                          if (fetchedAddr.isNotEmpty) addrCtrl.text = fetchedAddr;
-                          setModalState(() {
-                            isVerified = true;
-                            verifyError = null;
-                          });
-                        } else {
-                          setModalState(() {
-                            verifyError = 'TPIN not found. Enter business name manually.';
-                            isVerified = false;
-                          });
-                        }
-                      } finally {
-                        setModalState(() => isVerifying = false);
-                      }
-                    }
-
-                    return TextField(
-                      controller: tpinCtrl,
-                      style: const TextStyle(color: Colors.white),
-                      keyboardType: TextInputType.number,
-                      maxLength: 10,
-                      onChanged: (val) {
-                        final clean = val.trim();
-                        if (clean.length == 10) {
-                          doVerify();
-                        } else if (isVerified || verifyError != null) {
-                          setModalState(() {
-                            isVerified = false;
-                            verifyError = null;
-                          });
-                        }
-                      },
-                      decoration: InputDecoration(
-                        labelText: 'Customer TPIN (10 Digits) *',
-                        hintText: '1000000000',
-                        counterText: '',
-                        filled: true,
-                        fillColor: isVerified
-                            ? const Color(0xFF10B981).withValues(alpha: 0.08)
-                            : Colors.black26,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: BorderSide(
-                            color: isVerified
-                                ? const Color(0xFF10B981)
-                                : verifyError != null
-                                    ? Colors.redAccent
-                                    : Colors.white24,
-                          ),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: BorderSide(
-                            color: isVerified
-                                ? const Color(0xFF10B981)
-                                : const Color(0xFFC1F11D),
-                            width: 1.5,
-                          ),
-                        ),
-                        suffixIcon: isVerifying
-                            ? const Padding(
-                                padding: EdgeInsets.all(14),
-                                child: SizedBox(
-                                  height: 18,
-                                  width: 18,
-                                  child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFC1F11D)),
-                                ),
-                              )
-                            : isVerified
-                                ? const Padding(
-                                    padding: EdgeInsets.all(12),
-                                    child: Icon(Icons.verified_rounded, color: Color(0xFF10B981), size: 22),
-                                  )
-                                : TextButton(
-                                    onPressed: doVerify,
-                                    child: const Text('Verify', style: TextStyle(color: Color(0xFFC1F11D), fontWeight: FontWeight.bold)),
-                                  ),
-                      ),
-                    );
-                  },
-                ),
-
-                // Verified banner
-                if (isVerified)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8, left: 2),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 14),
-                        const SizedBox(width: 6),
-                        Text(
-                          'ZRA Taxpayer Verified',
-                          style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF10B981), fontWeight: FontWeight.w600),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                // Error message
-                if (verifyError != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8, left: 2),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Icon(Icons.info_outline_rounded, color: Colors.amber, size: 14),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            verifyError!,
-                            style: GoogleFonts.inter(fontSize: 11, color: Colors.amber, fontWeight: FontWeight.w500),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                const SizedBox(height: 12),
-                TextField(
-                  controller: nameCtrl,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    labelText: 'Registered Business Name',
-                    hintText: 'e.g. ABC Holdings Ltd',
-                    filled: true,
-                    fillColor: Colors.black26,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: addrCtrl,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    labelText: 'Physical Address',
-                    hintText: 'e.g. Plot 45, Cairo Road, Lusaka',
-                    filled: true,
-                    fillColor: Colors.black26,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                ),
+                const Icon(Icons.business_rounded, color: primaryAccent),
+                const SizedBox(width: 10),
+                Text('BUYER TPIN / TAX INVOICE', style: GoogleFonts.inter(fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurface, fontSize: 15)),
               ],
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogCtx),
-              child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Enter the corporate buyer's ZRA TPIN to issue an official Tax Invoice for VAT claim.",
+                    style: GoogleFonts.inter(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12),
+                  ),
+                  const SizedBox(height: 16),
+
+                  Builder(
+                    builder: (context) {
+                      Future<void> doVerify() async {
+                        final tpin = tpinCtrl.text.trim();
+                        if (tpin.length != 10) {
+                          setModalState(() => verifyError = 'TPIN must be exactly 10 digits');
+                          return;
+                        }
+                        setModalState(() {
+                          isVerifying = true;
+                          verifyError = null;
+                        });
+                        try {
+                          final res = await ref.read(digitaxInventoryServiceProvider).lookupTaxpayerTpin(tpin);
+                          if (res != null && res.containsKey('error')) {
+                            setModalState(() {
+                              verifyError = res['error'] as String?;
+                              isVerified = false;
+                            });
+                          } else if (res != null) {
+                            final fetchedName = (res['taxpayer_name'] ?? res['name'] ?? '').toString();
+                            final fetchedAddr = (res['physical_address'] ?? res['address'] ?? '').toString();
+                            if (fetchedName.isNotEmpty) nameCtrl.text = fetchedName;
+                            if (fetchedAddr.isNotEmpty) addrCtrl.text = fetchedAddr;
+                            setModalState(() {
+                              isVerified = true;
+                              verifyError = null;
+                            });
+                          } else {
+                            setModalState(() {
+                              verifyError = 'TPIN not found. Enter business name manually.';
+                              isVerified = false;
+                            });
+                          }
+                        } finally {
+                          setModalState(() => isVerifying = false);
+                        }
+                      }
+
+                      return TextField(
+                        controller: tpinCtrl,
+                        style: GoogleFonts.inter(color: Theme.of(context).colorScheme.onSurface),
+                        keyboardType: TextInputType.number,
+                        maxLength: 10,
+                        onChanged: (val) {
+                          final clean = val.trim();
+                          if (clean.length == 10) {
+                            doVerify();
+                          } else if (isVerified || verifyError != null) {
+                            setModalState(() {
+                              isVerified = false;
+                              verifyError = null;
+                            });
+                          }
+                        },
+                        decoration: InputDecoration(
+                          labelText: 'Customer TPIN (10 Digits) *',
+                          hintText: '1000000000',
+                          counterText: '',
+                          filled: true,
+                          fillColor: isVerified
+                              ? const Color(0xFFECFDF5)
+                              : fieldBg,
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: borderColor)),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(
+                              color: isVerified
+                                  ? const Color(0xFF059669)
+                                  : verifyError != null
+                                      ? const Color(0xFFDC2626)
+                                      : borderColor,
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(
+                              color: isVerified
+                                  ? const Color(0xFF059669)
+                                  : primaryAccent,
+                              width: 1.5,
+                            ),
+                          ),
+                          suffixIcon: isVerifying
+                              ? const Padding(
+                                  padding: EdgeInsets.all(14),
+                                  child: SizedBox(
+                                    height: 18,
+                                    width: 18,
+                                    child: CircularProgressIndicator(strokeWidth: 2, color: primaryAccent),
+                                  ),
+                                )
+                              : isVerified
+                                  ? const Padding(
+                                      padding: EdgeInsets.all(12),
+                                      child: Icon(Icons.verified_rounded, color: Color(0xFF059669), size: 22),
+                                    )
+                                  : TextButton(
+                                      onPressed: doVerify,
+                                      child: const Text('Verify', style: TextStyle(color: primaryAccent, fontWeight: FontWeight.bold)),
+                                    ),
+                        ),
+                      );
+                    },
+                  ),
+
+                  // Verified banner
+                  if (isVerified)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8, left: 2),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.check_circle_rounded, color: Color(0xFF059669), size: 14),
+                          const SizedBox(width: 6),
+                          Text(
+                            'ZRA Taxpayer Verified',
+                            style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF059669), fontWeight: FontWeight.w700),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                  // Error message
+                  if (verifyError != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8, left: 2),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.info_outline_rounded, color: Color(0xFFD97706), size: 14),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              verifyError!,
+                              style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFFD97706), fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: nameCtrl,
+                    style: GoogleFonts.inter(color: Theme.of(context).colorScheme.onSurface),
+                    decoration: InputDecoration(
+                      labelText: 'Registered Business Name',
+                      hintText: 'e.g. ABC Holdings Ltd',
+                      filled: true,
+                      fillColor: fieldBg,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: borderColor)),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: borderColor)),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: addrCtrl,
+                    style: GoogleFonts.inter(color: Theme.of(context).colorScheme.onSurface),
+                    decoration: InputDecoration(
+                      labelText: 'Physical Address',
+                      hintText: 'e.g. Plot 45, Cairo Road, Lusaka',
+                      filled: true,
+                      fillColor: fieldBg,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: borderColor)),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: borderColor)),
+                    ),
+                  ),
+                ],
+              ),
             ),
-            ElevatedButton(
-              onPressed: () {
-                final tpin = tpinCtrl.text.trim();
-                final name = nameCtrl.text.trim();
-                final addr = addrCtrl.text.trim();
-                if (tpin.isEmpty || name.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Please enter the TPIN and business name')),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogCtx),
+                child: Text('Cancel', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  final tpin = tpinCtrl.text.trim();
+                  final name = nameCtrl.text.trim();
+                  final addr = addrCtrl.text.trim();
+                  if (tpin.isEmpty || name.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Please enter the TPIN and business name')),
+                    );
+                    return;
+                  }
+                  cartNotifier.setCustomerTpin(
+                    tpin.isNotEmpty ? tpin : null,
+                    businessName: name.isNotEmpty ? name : null,
+                    address: addr.isNotEmpty ? addr : null,
                   );
-                  return;
-                }
-                cartNotifier.setCustomerTpin(
-                  tpin.isNotEmpty ? tpin : null,
-                  businessName: name.isNotEmpty ? name : null,
-                  address: addr.isNotEmpty ? addr : null,
-                );
-                Navigator.pop(dialogCtx);
-              },
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFC1F11D), foregroundColor: Colors.black),
-              child: const Text('Apply to Invoice'),
-            ),
-          ],
-        ),
+                  Navigator.pop(dialogCtx);
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: primaryAccent, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+                child: const Text('Apply to Invoice'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -3030,34 +3149,44 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       }
 
       if (mounted) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        final dialogBg = isDark ? const Color(0xFF151F32) : Colors.white;
+        final borderColor = isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0);
+        const primaryAccent = Color(0xFF1D4ED8);
+
         showDialog(
           context: context,
           builder: (ctx) => AlertDialog(
-            backgroundColor: const Color(0xFF1A1A1E),
-            title: const Text('Sale Complete', style: TextStyle(color: Colors.white)),
+            backgroundColor: dialogBg,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(color: borderColor),
+            ),
+            title: Text('Sale Complete', style: GoogleFonts.inter(fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurface, fontSize: 16)),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   'Change Due: ${CurrencyFormatter.format(change, config?.currencySymbol ?? "ZK")}', 
-                  style: const TextStyle(color: Color(0xFFC1F11D), fontSize: 22, fontWeight: FontWeight.bold),
+                  style: GoogleFonts.inter(color: const Color(0xFF059669), fontSize: 22, fontWeight: FontWeight.w900),
                 ),
                 if (hasDigitax && !fiscalized) ...[
                   const SizedBox(height: 12),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFEAB308).withValues(alpha: 0.15),
+                      color: const Color(0xFFD97706).withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFFD97706).withValues(alpha: 0.25)),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
-                      children: const [
-                        Icon(Icons.hourglass_top_rounded, color: Color(0xFFEAB308), size: 14),
-                        SizedBox(width: 6),
+                      children: [
+                        const Icon(Icons.hourglass_top_rounded, color: Color(0xFFD97706), size: 14),
+                        const SizedBox(width: 6),
                         Text(
                           'DigiTax Fiscalizing... Receipt will print automatically',
-                          style: TextStyle(color: Color(0xFFEAB308), fontSize: 11, fontWeight: FontWeight.w600),
+                          style: GoogleFonts.inter(color: const Color(0xFFD97706), fontSize: 11, fontWeight: FontWeight.w700),
                         ),
                       ],
                     ),
@@ -3066,17 +3195,23 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
               ],
             ),
             actions: [
-              TextButton(
+              ElevatedButton(
                 onPressed: () {
                   Navigator.pop(ctx);
                   cartNotifier.clear();
                   setState(() {
                     _tenderedAmount = 0;
-                    _isCheckoutActive = false;
+                    _selectedPaymentMethod = '';
                   });
                   _searchFocusNode.requestFocus();
                 },
-                child: const Text('NEW SALE', style: TextStyle(color: Color(0xFFC1F11D))),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: primaryAccent,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  elevation: 0,
+                ),
+                child: Text('NEW SALE', style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 12)),
               ),
             ],
           ),
@@ -3084,7 +3219,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: const Color(0xFFDC2626)));
       }
     } finally {
       if (mounted) setState(() => _isProcessingPayment = false);

@@ -152,8 +152,10 @@ class _DigiTaxStockReconcileModalState extends ConsumerState<DigiTaxStockReconci
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final activeGreen = const Color(0xFF059669);
     final currency = ref.watch(storeConfigProvider).value?.currencySymbol ?? 'K';
-    final activeGreen = const Color(0xFF4ADE80);
 
     final filtered = _allItems.where((item) {
       if (_showDiscrepanciesOnly && item.variance == 0) return false;
@@ -172,18 +174,11 @@ class _DigiTaxStockReconcileModalState extends ConsumerState<DigiTaxStockReconci
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       child: Container(
         width: 880,
-        height: 640,
+        height: 660,
         decoration: BoxDecoration(
-          color: const Color(0xFF16161A),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.7),
-              blurRadius: 40,
-              spreadRadius: 8,
-            ),
-          ],
+          color: isDark ? const Color(0xFF151F32) : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
         ),
         padding: const EdgeInsets.all(24),
         child: Column(
@@ -539,7 +534,7 @@ class _DigiTaxStockReconcileModalState extends ConsumerState<DigiTaxStockReconci
                                                               visualDensity: VisualDensity.compact,
                                                               side: const BorderSide(color: Colors.white24),
                                                             ),
-                                                            child: Text('📥 Pull to POS', style: GoogleFonts.inter(fontSize: 10, color: Colors.white70)),
+                                                            child: Text('Pull to POS', style: GoogleFonts.inter(fontSize: 10, color: Colors.white70)),
                                                           ),
                                                         ),
                                                         const SizedBox(width: 6),
@@ -555,7 +550,7 @@ class _DigiTaxStockReconcileModalState extends ConsumerState<DigiTaxStockReconci
                                                               visualDensity: VisualDensity.compact,
                                                               elevation: 0,
                                                             ),
-                                                            child: Text('📤 Push to Cloud', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700)),
+                                                            child: Text('Push to Cloud', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700)),
                                                           ),
                                                         ),
                                                       ],

@@ -260,7 +260,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('${type == 'clock_in' ? 'Clocked IN' : 'Clocked OUT'} successfully for ${user.name}'),
-              backgroundColor: const Color(0xFFC1F11D),
+              backgroundColor: const Color(0xFF059669),
               behavior: SnackBarBehavior.floating,
             ),
           );
@@ -295,8 +295,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final scaffoldBg = isDark ? const Color(0xFF0B1220) : const Color(0xFFF5F7FA);
+    final consoleBg = isDark ? const Color(0xFF151F32) : Colors.white;
+    final borderColor = isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0);
+
     return Scaffold(
-      backgroundColor: const Color(0xFF0C0C0F),
+      backgroundColor: scaffoldBg,
       body: Stack(
         children: [
           LayoutBuilder(
@@ -307,27 +313,27 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 return Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Left Hero Image & Branding Pane (Full Bleed)
+                    // Left Branding Pane (Full Bleed)
                     Expanded(
                       flex: 5,
-                      child: _buildHeroImageSection(),
+                      child: _buildHeroImageSection(context),
                     ),
                     // Seam Divider Line
                     Container(
                       width: 1,
-                      color: Colors.white.withValues(alpha: 0.08),
+                      color: borderColor,
                     ),
-                    // Right Authentication Terminal Pane (Full Bleed)
+                    // Right Authentication Pane (Full Bleed)
                     Expanded(
                       flex: 6,
                       child: Container(
-                        color: const Color(0xFF111115),
+                        color: consoleBg,
                         child: Center(
                           child: SingleChildScrollView(
                             padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 24),
                             child: ConstrainedBox(
                               constraints: const BoxConstraints(maxWidth: 780),
-                              child: _buildRightConsole(),
+                              child: _buildRightConsole(context),
                             ),
                           ),
                         ),
@@ -349,7 +355,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             child: LayoutBuilder(
               builder: (context, constraints) {
                 if (MediaQuery.of(context).size.width < 900) return const SizedBox.shrink();
-                return _buildBottomRightRestoreButton();
+                return _buildBottomRightRestoreButton(context);
               },
             ),
           ),
@@ -358,7 +364,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 
-  Widget _buildBottomRightRestoreButton() {
+  Widget _buildBottomRightRestoreButton(BuildContext context) {
+    const primaryAccent = Color(0xFF1D4ED8);
+
     return TextButton.icon(
       onPressed: () {
         showDialog(
@@ -366,47 +374,33 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           builder: (context) => const BackupRestoreModal(),
         );
       },
-      icon: const Icon(Icons.settings_backup_restore, size: 16, color: Colors.white38),
+      icon: const Icon(Icons.settings_backup_restore_rounded, size: 15, color: primaryAccent),
       label: Text(
         'RESTORE BACKUP',
-        style: GoogleFonts.ibmPlexMono(fontSize: 10, color: Colors.white38),
+        style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: primaryAccent),
       ),
     );
   }
 
-  Widget _buildHeroImageSection({bool isCompact = false}) {
+  Widget _buildHeroImageSection(BuildContext context, {bool isCompact = false}) {
+    const primaryColor = Color(0xFF1D4ED8);
+
     return Stack(
       fit: StackFit.expand,
       children: [
-        // Background Retail Image (Fail-safe direct file & asset loader)
+        // Background Retail Image
         _buildHeroBackground(),
 
-        // Multi-layered Gradient Overlay for High Readability & Seam Blend
+        // Elegant Directional Gradient Overlay for High Text Legibility
         DecoratedBox(
           decoration: BoxDecoration(
             gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
               colors: [
-                Colors.black.withValues(alpha: 0.40),
-                Colors.black.withValues(alpha: 0.65),
-                const Color(0xFF0E0E12).withValues(alpha: 0.95),
+                const Color(0xFF0F172A).withValues(alpha: 0.75),
+                const Color(0xFF0F172A).withValues(alpha: 0.45),
               ],
-              stops: const [0.0, 0.5, 1.0],
-            ),
-          ),
-        ),
-        DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-              colors: [
-                Colors.transparent,
-                Colors.black.withValues(alpha: 0.4),
-                const Color(0xFF141418).withValues(alpha: 0.8),
-              ],
-              stops: const [0.0, 0.7, 1.0],
             ),
           ),
         ),
@@ -424,9 +418,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.5),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                      color: primaryColor.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: primaryColor.withValues(alpha: 0.4)),
                     ),
                     child: _buildLogoBadge(isCompact),
                   ),
@@ -436,20 +430,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     children: [
                       Text(
                         'BELEKA POS',
-                        style: GoogleFonts.manrope(
+                        style: GoogleFonts.inter(
                           fontSize: isCompact ? 16 : 20,
-                          fontWeight: FontWeight.w900,
+                          fontWeight: FontWeight.w800,
                           color: Colors.white,
-                          letterSpacing: 1,
+                          letterSpacing: 0.5,
                         ),
                       ),
                       Text(
-                        'RETAIL OPERATING SYSTEM',
-                        style: GoogleFonts.ibmPlexMono(
-                          fontSize: isCompact ? 8 : 10,
-                          fontWeight: FontWeight.bold,
-                          color: const Color(0xFFC1F11D),
-                          letterSpacing: 2,
+                        'ENTERPRISE POS SYSTEM',
+                        style: GoogleFonts.inter(
+                          fontSize: isCompact ? 9 : 10,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF93C5FD),
+                          letterSpacing: 1.2,
                         ),
                       ),
                     ],
@@ -465,9 +459,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFC1F11D).withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: const Color(0xFFC1F11D).withValues(alpha: 0.3)),
+                        color: primaryColor.withValues(alpha: 0.25),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: primaryColor.withValues(alpha: 0.4)),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -476,18 +470,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             width: 6,
                             height: 6,
                             decoration: const BoxDecoration(
-                              color: Color(0xFFC1F11D),
+                              color: Color(0xFF60A5FA),
                               shape: BoxShape.circle,
                             ),
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            'NEXT-GEN COMMERCE PLATFORM',
-                            style: GoogleFonts.ibmPlexMono(
+                            'ENTERPRISE COMMERCE ENGINE',
+                            style: GoogleFonts.inter(
                               fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 1.5,
-                              color: const Color(0xFFC1F11D),
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.0,
+                              color: const Color(0xFFBFDBFE),
                             ),
                           ),
                         ],
@@ -495,32 +489,32 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      'High-Speed Checkout\n& Intelligent Retail.',
-                      style: GoogleFonts.manrope(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w900,
+                      'High-Speed Checkout\n& Inventory Control.',
+                      style: GoogleFonts.inter(
+                        fontSize: 26,
+                        fontWeight: FontWeight.w800,
                         color: Colors.white,
-                        height: 1.15,
+                        height: 1.2,
                         letterSpacing: -0.5,
                       ),
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      'Optimized for high-volume transactions, real-time inventory control, and seamless multi-terminal synchronization.',
+                      'Optimized for high-volume transactions, real-time stock control, multi-terminal sync, and ZRA fiscal compliance.',
                       style: GoogleFonts.inter(
                         fontSize: 13,
-                        color: Colors.white.withValues(alpha: 0.7),
+                        color: Colors.white.withValues(alpha: 0.75),
                         height: 1.5,
                       ),
                     ),
                     const SizedBox(height: 24),
 
                     // Feature highlights chips
-                    _buildFeaturePill(Icons.bolt_rounded, 'Ultra-Low Latency Offline First POS'),
+                    _buildFeaturePill(Icons.bolt_rounded, 'Ultra-Low Latency Offline First Architecture'),
                     const SizedBox(height: 10),
-                    _buildFeaturePill(Icons.sync_alt_rounded, 'Automatic Terminal Synchronization'),
+                    _buildFeaturePill(Icons.sync_alt_rounded, 'Automatic Multi-Terminal Synchronization'),
                     const SizedBox(height: 10),
-                    _buildFeaturePill(Icons.analytics_rounded, 'Real-time Stock & Financial Insights'),
+                    _buildFeaturePill(Icons.analytics_rounded, 'Real-time Stock & Revenue Analytics'),
                   ],
                 ),
 
@@ -529,21 +523,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   decoration: BoxDecoration(
                     color: Colors.black.withValues(alpha: 0.4),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.shield_outlined, size: 16, color: Color(0xFFC1F11D)),
+                      const Icon(Icons.shield_outlined, size: 16, color: Color(0xFF60A5FA)),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
-                          'LOCAL DATABASE ENCRYPTED • ZERO LATENCY',
-                          style: GoogleFonts.ibmPlexMono(
+                          'ENCRYPTED LOCAL STORAGE • HARDWARE-VERIFIED',
+                          style: GoogleFonts.inter(
                             fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white.withValues(alpha: 0.7),
-                            letterSpacing: 1,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white.withValues(alpha: 0.8),
+                            letterSpacing: 0.5,
                           ),
                         ),
                       ),
@@ -564,10 +558,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         Container(
           padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(8),
+            color: const Color(0xFF1D4ED8).withValues(alpha: 0.25),
+            borderRadius: BorderRadius.circular(6),
           ),
-          child: Icon(icon, size: 14, color: const Color(0xFFCFBDFF)),
+          child: Icon(icon, size: 14, color: const Color(0xFF93C5FD)),
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -576,7 +570,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             style: GoogleFonts.inter(
               fontSize: 12,
               fontWeight: FontWeight.w500,
-              color: Colors.white.withValues(alpha: 0.85),
+              color: Colors.white.withValues(alpha: 0.9),
             ),
           ),
         ),
@@ -587,6 +581,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   // --- Mobile Adaptive Login Layout ---
 
   Widget _buildMobileLoginLayout(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final cardBg = isDark ? const Color(0xFF151F32) : const Color(0xFFFFFFFF);
+    final borderColor = isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0);
+    const primaryAccent = Color(0xFF1D4ED8);
+
     return SafeArea(
       child: Center(
         child: SingleChildScrollView(
@@ -606,11 +606,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           width: 38,
                           height: 38,
                           decoration: BoxDecoration(
-                            color: const Color(0xFFC1F11D).withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: const Color(0xFFC1F11D).withValues(alpha: 0.3)),
+                            color: primaryAccent,
+                            borderRadius: BorderRadius.circular(8),
                           ),
-                          child: const Icon(Icons.point_of_sale_rounded, color: Color(0xFFC1F11D), size: 20),
+                          child: const Icon(Icons.point_of_sale_rounded, color: Colors.white, size: 20),
                         ),
                         const SizedBox(width: 10),
                         Column(
@@ -618,20 +617,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           children: [
                             Text(
                               'BELEKA POS',
-                              style: GoogleFonts.manrope(
+                              style: GoogleFonts.inter(
                                 fontSize: 16,
-                                fontWeight: FontWeight.w900,
-                                color: Colors.white,
-                                letterSpacing: 0.8,
+                                fontWeight: FontWeight.w800,
+                                color: theme.colorScheme.onSurface,
+                                letterSpacing: 0.5,
                               ),
                             ),
                             Text(
                               'CASHIER TERMINAL',
-                              style: GoogleFonts.ibmPlexMono(
-                                fontSize: 8.5,
-                                fontWeight: FontWeight.bold,
-                                color: const Color(0xFFC1F11D),
-                                letterSpacing: 1.5,
+                              style: GoogleFonts.inter(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w700,
+                                color: primaryAccent,
+                                letterSpacing: 1.0,
                               ),
                             ),
                           ],
@@ -647,21 +646,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.05),
+                          color: isDark ? const Color(0xFF1C283D) : const Color(0xFFF8FAFC),
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                          border: Border.all(color: borderColor),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.lan_rounded, size: 13, color: Color(0xFFC1F11D)),
+                            const Icon(Icons.lan_rounded, size: 13, color: primaryAccent),
                             const SizedBox(width: 5),
                             Text(
                               'LAN TILL',
-                              style: GoogleFonts.ibmPlexMono(
-                                fontSize: 9.5,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white70,
+                              style: GoogleFonts.inter(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                color: theme.colorScheme.onSurface,
                               ),
                             ),
                           ],
@@ -673,7 +672,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 const SizedBox(height: 14),
 
                 // Terminal & Network Mode Status Indicator
-                _buildTerminalBadge(),
+                _buildTerminalBadge(context),
                 const SizedBox(height: 14),
 
                 // Staff Identification Banner
@@ -681,21 +680,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFC1F11D).withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: const Color(0xFFC1F11D).withValues(alpha: 0.3)),
+                      color: const Color(0xFFECFDF5),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFFA7F3D0)),
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.check_circle_rounded, color: Color(0xFFC1F11D), size: 16),
+                        const Icon(Icons.check_circle_rounded, color: Color(0xFF059669), size: 16),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             'STAFF IDENTIFIED: ${_recognizedName!.toUpperCase()}',
-                            style: GoogleFonts.manrope(
+                            style: GoogleFonts.inter(
                               fontSize: 12,
-                              fontWeight: FontWeight.w800,
-                              color: const Color(0xFFC1F11D),
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF047857),
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -708,11 +707,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ],
 
                 // Staff ID Field
-                _buildInputField('EMPLOYEE ID', _idController, Icons.person_outline, 'Staff ID (e.g. 1001)'),
+                _buildInputField(context, 'EMPLOYEE ID', _idController, Icons.person_outline, 'Staff ID (e.g. 1001)'),
                 const SizedBox(height: 10),
 
                 // PIN Dots Display
-                _buildPinDotsDisplay(),
+                _buildPinDotsDisplay(context),
                 const SizedBox(height: 10),
 
                 // Error message
@@ -720,20 +719,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
-                      color: Colors.red.withValues(alpha: 0.12),
+                      color: const Color(0xFFFEF2F2),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.red.withValues(alpha: 0.25)),
+                      border: Border.all(color: const Color(0xFFFECACA)),
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.error_outline, color: Colors.redAccent, size: 14),
+                        const Icon(Icons.error_outline, color: Color(0xFFDC2626), size: 14),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             _errorMessage!,
                             style: GoogleFonts.inter(
-                              color: Colors.redAccent,
-                              fontSize: 11,
+                              color: const Color(0xFFB91C1C),
+                              fontSize: 11.5,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -748,9 +747,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.25),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+                    color: cardBg,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: borderColor),
                   ),
                   child: GridView.count(
                     shrinkWrap: true,
@@ -760,10 +759,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     crossAxisSpacing: 8,
                     childAspectRatio: 1.6,
                     children: [
-                      ...List.generate(9, (index) => _buildKeyItem((index + 1).toString())),
-                      _buildKeyItem('backspace', isIcon: true),
-                      _buildKeyItem('0'),
-                      _buildKeyItem('check', isIcon: true),
+                      ...List.generate(9, (index) => _buildKeyItem(context, (index + 1).toString())),
+                      _buildKeyItem(context, 'backspace', isIcon: true),
+                      _buildKeyItem(context, '0'),
+                      _buildKeyItem(context, 'check', isIcon: true),
                     ],
                   ),
                 ),
@@ -774,6 +773,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   children: [
                     Expanded(
                       child: _buildAuxButton(
+                        context,
                         Icons.login_rounded,
                         'Clock In',
                         onTap: () => _handleClockAction('clock_in'),
@@ -782,6 +782,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: _buildAuxButton(
+                        context,
                         Icons.logout_rounded,
                         'Clock Out',
                         onTap: () => _handleClockAction('clock_out'),
@@ -791,40 +792,40 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ),
                 const SizedBox(height: 12),
 
-                // Submit / Login Action Button
-                Material(
-                  color: const Color(0xFFC1F11D),
-                  borderRadius: BorderRadius.circular(12),
-                  child: InkWell(
-                    onTap: _isLoading ? null : _handleLogin,
-                    borderRadius: BorderRadius.circular(12),
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      alignment: Alignment.center,
-                      child: _isLoading
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
-                            )
-                          : Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(Icons.login_rounded, size: 18, color: Colors.black),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'SIGN IN TO REGISTER',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: 1.2,
-                                    color: Colors.black,
-                                  ),
-                                ),
-                              ],
-                            ),
+                // Submit / Login Action Button (Solid & Borderless)
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton(
+                    onPressed: _isLoading ? null : _handleLogin,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: primaryAccent,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.login_rounded, size: 18, color: Colors.white),
+                              const SizedBox(width: 8),
+                              Text(
+                                'SIGN IN TO REGISTER',
+                                style: GoogleFonts.inter(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.5,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
                   ),
                 ),
                 const SizedBox(height: 14),
@@ -833,21 +834,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    _buildTextLink('RESET PIN', onTap: () {
+                    _buildTextLink(context, 'RESET PIN', onTap: () {
                       _showInfoDialog(
                         'CREDENTIAL_RECOVERY',
                         'Staff PINs: Must be reset by a Manager in Settings > User Management.\n\nAdmin Reset: If you are the owner and forgot your Admin PIN, use the "ADMIN RECOVERY" button below to enter your 8-digit terminal recovery code.',
                       );
                     }),
                     const SizedBox(width: 16),
-                    _buildTextLink('RESTORE DATA', onTap: () {
+                    _buildTextLink(context, 'RESTORE DATA', onTap: () {
                       showDialog(
                         context: context,
                         builder: (context) => const BackupRestoreModal(),
                       );
                     }),
                     const SizedBox(width: 16),
-                    _buildTextLink('SUPPORT', onTap: () {
+                    _buildTextLink(context, 'SUPPORT', onTap: () {
                       _showInfoDialog(
                         'SYSTEM_SUPPORT',
                         'If you are having trouble accessing the terminal, please contact your store administrator.',
@@ -863,28 +864,33 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 
-  Widget _buildPinDotsDisplay() {
+  Widget _buildPinDotsDisplay(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final containerBg = isDark ? const Color(0xFF0B1220) : const Color(0xFFF8FAFC);
+    final borderColor = isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0);
+    const primaryColor = Color(0xFF1D4ED8);
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        color: containerBg,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: borderColor),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Row(
             children: [
-              const Icon(Icons.lock_outline, size: 16, color: Color(0xFFCFBDFF)),
+              Icon(Icons.lock_outline, size: 16, color: theme.colorScheme.onSurfaceVariant),
               const SizedBox(width: 8),
               Text(
                 'PIN:',
-                style: GoogleFonts.ibmPlexMono(
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white60,
-                  letterSpacing: 1.2,
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
             ],
@@ -899,20 +905,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 height: 12,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: isFilled ? const Color(0xFFC1F11D) : Colors.white.withValues(alpha: 0.1),
-                  border: Border.all(
-                    color: isFilled ? const Color(0xFFC1F11D) : Colors.white.withValues(alpha: 0.2),
-                    width: 1.2,
-                  ),
-                  boxShadow: isFilled
-                      ? [
-                          BoxShadow(
-                            color: const Color(0xFFC1F11D).withValues(alpha: 0.5),
-                            blurRadius: 6,
-                            spreadRadius: 1,
-                          )
-                        ]
-                      : null,
+                  color: isFilled ? primaryColor : (isDark ? const Color(0xFF293548) : const Color(0xFFCBD5E1)),
                 ),
               );
             }),
@@ -928,10 +921,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 4),
                 child: Text(
                   'CLEAR',
-                  style: GoogleFonts.ibmPlexMono(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.redAccent,
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: const Color(0xFFDC2626),
                   ),
                 ),
               ),
@@ -943,7 +936,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 
-  Widget _buildRightConsole() {
+  Widget _buildRightConsole(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final cardBg = isDark ? const Color(0xFF1C283D) : const Color(0xFFF8FAFC);
+    final borderColor = isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0);
+    const primaryAccent = Color(0xFF1D4ED8);
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       child: Row(
@@ -969,21 +968,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             Row(
                               children: [
                                 Container(
-                                  padding: const EdgeInsets.all(6),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFC1F11D).withValues(alpha: 0.15),
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFF059669),
                                     shape: BoxShape.circle,
                                   ),
-                                  child: const Icon(Icons.check, size: 12, color: Color(0xFFC1F11D)),
+                                  child: const Icon(Icons.check, size: 10, color: Colors.white),
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
                                   'STAFF IDENTIFIED',
-                                  style: GoogleFonts.ibmPlexMono(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: 2,
-                                    color: const Color(0xFFC1F11D),
+                                  style: GoogleFonts.inter(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.5,
+                                    color: const Color(0xFF059669),
                                   ),
                                 ),
                               ],
@@ -991,31 +990,29 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             const SizedBox(height: 4),
                             Text(
                               _recognizedName!.toUpperCase(),
-                              style: GoogleFonts.manrope(
-                                fontSize: 22,
-                                fontWeight: FontWeight.w900,
-                                color: Colors.white,
-                                letterSpacing: -0.5,
+                              style: GoogleFonts.inter(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w800,
+                                color: theme.colorScheme.onSurface,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
                           ] else ...[
                             Text(
-                              'TERMINAL AUTHENTICATION',
-                              style: GoogleFonts.manrope(
+                              'Terminal Authentication',
+                              style: GoogleFonts.inter(
                                 fontSize: 20,
-                                fontWeight: FontWeight.w900,
-                                color: Colors.white,
-                                letterSpacing: -0.5,
+                                fontWeight: FontWeight.w800,
+                                color: theme.colorScheme.onSurface,
                               ),
                             ),
                             const SizedBox(height: 2),
                             Text(
                               'Enter your Staff ID and PIN to begin shift',
                               style: GoogleFonts.inter(
-                                fontSize: 12,
-                                color: Colors.white.withValues(alpha: 0.45),
+                                fontSize: 13,
+                                color: theme.colorScheme.onSurfaceVariant,
                               ),
                             ),
                           ],
@@ -1032,21 +1029,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.05),
+                          color: cardBg,
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                          border: Border.all(color: borderColor),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.lan_rounded, size: 14, color: Color(0xFFC1F11D)),
+                            const Icon(Icons.lan_rounded, size: 14, color: primaryAccent),
                             const SizedBox(width: 6),
                             Text(
                               'LAN TILL IP',
-                              style: GoogleFonts.ibmPlexMono(
+                              style: GoogleFonts.inter(
                                 fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white70,
+                                fontWeight: FontWeight.w800,
+                                color: theme.colorScheme.onSurface,
                               ),
                             ),
                           ],
@@ -1055,33 +1052,34 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                   ],
                 ),
+                const SizedBox(height: 16),
                 // Terminal & Network Mode Status Indicator
-                _buildTerminalBadge(),
-                const SizedBox(height: 14),
+                _buildTerminalBadge(context),
+                const SizedBox(height: 16),
 
                 // Staff ID Field
-                _buildInputField('EMPLOYEE ID', _idController, Icons.person_outline, 'Staff ID or Username'),
-                const SizedBox(height: 8),
+                _buildInputField(context, 'EMPLOYEE ID', _idController, Icons.person_outline, 'Staff ID or Username'),
+                const SizedBox(height: 12),
 
                 // Error message
                 if (_errorMessage != null) ...[
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
-                      color: Colors.red.withValues(alpha: 0.12),
+                      color: const Color(0xFFFEF2F2),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.red.withValues(alpha: 0.25)),
+                      border: Border.all(color: const Color(0xFFFECACA)),
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.error_outline, color: Colors.redAccent, size: 14),
+                        const Icon(Icons.error_outline, color: Color(0xFFDC2626), size: 14),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             _errorMessage!,
                             style: GoogleFonts.inter(
-                              color: Colors.redAccent,
-                              fontSize: 11,
+                              color: const Color(0xFFB91C1C),
+                              fontSize: 11.5,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -1089,11 +1087,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 12),
                 ],
 
                 // Secure PIN Field
-                _buildInputField('SECURITY PIN', _pinController, Icons.lock_outline, '• • • •', isPassword: true),
+                _buildInputField(context, 'SECURITY PIN', _pinController, Icons.lock_outline, '• • • •', isPassword: true),
                 const SizedBox(height: 16),
 
                 // Clock In / Clock Out Buttons
@@ -1101,6 +1099,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   children: [
                     Expanded(
                       child: _buildAuxButton(
+                        context,
                         Icons.login_rounded,
                         'Clock In',
                         onTap: () => _handleClockAction('clock_in'),
@@ -1109,6 +1108,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: _buildAuxButton(
+                        context,
                         Icons.logout_rounded,
                         'Clock Out',
                         onTap: () => _handleClockAction('clock_out'),
@@ -1118,40 +1118,40 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // Submit / Login Action Button
-                Material(
-                  color: const Color(0xFFC1F11D),
-                  borderRadius: BorderRadius.circular(12),
-                  child: InkWell(
-                    onTap: _isLoading ? null : _handleLogin,
-                    borderRadius: BorderRadius.circular(12),
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      alignment: Alignment.center,
-                      child: _isLoading
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
-                            )
-                          : Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(Icons.login_rounded, size: 18, color: Colors.black),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'SIGN IN TO REGISTER',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: 1.5,
-                                    color: Colors.black,
-                                  ),
-                                ),
-                              ],
-                            ),
+                // Submit / Login Action Button (Solid & Borderless)
+                SizedBox(
+                  width: double.infinity,
+                  height: 46,
+                  child: ElevatedButton(
+                    onPressed: _isLoading ? null : _handleLogin,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: primaryAccent,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.login_rounded, size: 18, color: Colors.white),
+                              const SizedBox(width: 8),
+                              Text(
+                                'SIGN IN TO REGISTER',
+                                style: GoogleFonts.inter(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.5,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
                   ),
                 ),
               ],
@@ -1160,17 +1160,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
           const SizedBox(width: 24),
 
-          // Right side of Console: Keypad & Help
+          // Right side of Console: Keypad
           Expanded(
             flex: 5,
             child: Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.3),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+                color: cardBg,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: borderColor),
               ),
-              child: _buildKeypadSection(),
+              child: _buildKeypadSection(context),
             ),
           ),
         ],
@@ -1178,19 +1178,24 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 
-  Widget _buildTerminalBadge() {
+  Widget _buildTerminalBadge(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final config = ref.watch(storeConfigProvider).value;
     final isManager = config?.isManagerMode ?? true;
     final tillCode = config?.terminalName ?? 'TILL-01';
     final serverIp = config?.serverIp ?? '127.0.0.1';
 
+    final badgeColor = isManager ? const Color(0xFF1D4ED8) : const Color(0xFF059669);
+    final containerBg = isDark
+        ? badgeColor.withValues(alpha: 0.15)
+        : badgeColor.withValues(alpha: 0.08);
+
     return Container(
       decoration: BoxDecoration(
-        color: isManager ? const Color(0xFFC1F11D).withValues(alpha: 0.08) : Colors.blueAccent.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: isManager ? const Color(0xFFC1F11D).withValues(alpha: 0.25) : Colors.blueAccent.withValues(alpha: 0.25),
-        ),
+        color: containerBg,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: badgeColor.withValues(alpha: 0.25)),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: Row(
@@ -1199,7 +1204,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             width: 8,
             height: 8,
             decoration: BoxDecoration(
-              color: isManager ? const Color(0xFFC1F11D) : Colors.blueAccent,
+              color: badgeColor,
               shape: BoxShape.circle,
             ),
           ),
@@ -1210,11 +1215,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               children: [
                 Text(
                   isManager ? 'STORE HUB • MASTER POS SERVER' : 'CASHIER TILL • $tillCode',
-                  style: GoogleFonts.ibmPlexMono(
+                  style: GoogleFonts.inter(
                     fontSize: 10,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1,
-                    color: isManager ? const Color(0xFFC1F11D) : Colors.blueAccent,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.5,
+                    color: badgeColor,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -1224,7 +1229,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       : 'Connected to Master POS Host ($serverIp:8080)',
                   style: GoogleFonts.inter(
                     fontSize: 11,
-                    color: Colors.white70,
+                    color: theme.colorScheme.onSurfaceVariant,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -1235,15 +1240,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           Icon(
             isManager ? Icons.hub_rounded : Icons.point_of_sale_rounded,
             size: 16,
-            color: isManager ? const Color(0xFFC1F11D) : Colors.blueAccent,
+            color: badgeColor,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildInputField(String label, TextEditingController controller, IconData icon, String hint, {bool isPassword = false}) {
+  Widget _buildInputField(BuildContext context, String label, TextEditingController controller, IconData icon, String hint, {bool isPassword = false}) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final maxLen = isPassword ? 6 : 4;
+    final fieldBg = isDark ? const Color(0xFF0B1220) : const Color(0xFFF8FAFC);
+    final borderColor = isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0);
+    const primaryAccent = Color(0xFF1D4ED8);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1252,25 +1263,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           children: [
             Text(
               label,
-              style: GoogleFonts.ibmPlexMono(
-                fontSize: 9,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1.2,
-                color: Colors.white.withValues(alpha: 0.45),
+              style: GoogleFonts.inter(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w800,
+                color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
             Text(
               isPassword ? 'MAX 6 DIGITS' : 'MAX 4 CHARS',
-              style: GoogleFonts.ibmPlexMono(
-                fontSize: 8,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1,
-                color: Colors.white.withValues(alpha: 0.25),
+              style: GoogleFonts.jetBrainsMono(
+                fontSize: 9,
+                fontWeight: FontWeight.w700,
+                color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
               ),
             ),
           ],
         ),
-        const SizedBox(height: 5),
+        const SizedBox(height: 6),
         SizedBox(
           height: 44,
           child: TextField(
@@ -1290,30 +1299,30 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 });
               }),
             ],
-            style: GoogleFonts.ibmPlexMono(
-              color: Colors.white,
+            style: GoogleFonts.inter(
+              color: theme.colorScheme.onSurface,
               fontSize: 14,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w600,
               letterSpacing: isPassword ? 6 : 1,
             ),
             decoration: InputDecoration(
               hintText: hint.toUpperCase(),
-              hintStyle: GoogleFonts.ibmPlexMono(
-                color: Colors.white.withValues(alpha: 0.12),
-                fontSize: 11,
-                letterSpacing: 1,
+              hintStyle: GoogleFonts.inter(
+                color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+                fontSize: 12,
+                letterSpacing: 0.5,
               ),
-              prefixIcon: Icon(icon, size: 16, color: const Color(0xFFCFBDFF).withValues(alpha: 0.5)),
+              prefixIcon: Icon(icon, size: 16, color: theme.colorScheme.onSurfaceVariant),
               filled: true,
-              fillColor: Colors.black.withValues(alpha: 0.4),
+              fillColor: fieldBg,
               contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
               enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: borderColor),
               ),
               focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(color: Color(0xFFC1F11D), width: 1.5),
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: primaryAccent, width: 1.5),
               ),
             ),
           ),
@@ -1322,30 +1331,31 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 
-  Widget _buildAuxButton(IconData icon, String label, {required VoidCallback onTap}) {
+  Widget _buildAuxButton(BuildContext context, IconData icon, String label, {required VoidCallback onTap}) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final bg = isDark ? const Color(0xFF1C283D) : const Color(0xFFE2E8F0);
+
     return Material(
-      color: Colors.white.withValues(alpha: 0.04),
-      borderRadius: BorderRadius.circular(10),
+      color: bg,
+      borderRadius: BorderRadius.circular(8),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(8),
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-          ),
+          alignment: Alignment.center,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 14, color: Colors.white.withValues(alpha: 0.7)),
+              Icon(icon, size: 14, color: theme.colorScheme.onSurface),
               const SizedBox(width: 6),
               Text(
                 label,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white.withValues(alpha: 0.85),
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: theme.colorScheme.onSurface,
                 ),
               ),
             ],
@@ -1355,31 +1365,31 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 
-  Widget _buildKeypadSection() {
+  Widget _buildKeypadSection(BuildContext context) {
+    const primaryAccent = Color(0xFF1D4ED8);
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Wrap(
-          alignment: WrapAlignment.spaceBetween,
-          crossAxisAlignment: WrapCrossAlignment.center,
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
               'PIN PAD',
-              style: GoogleFonts.ibmPlexMono(
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-                color: const Color(0xFFC1F11D),
-                letterSpacing: 1.5,
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                color: primaryAccent,
+                letterSpacing: 0.5,
               ),
             ),
             Text(
               '6 DIGITS MAX',
-              style: GoogleFonts.ibmPlexMono(
-                fontSize: 8,
-                fontWeight: FontWeight.bold,
-                color: Colors.white.withValues(alpha: 0.3),
-                letterSpacing: 1,
+              style: GoogleFonts.jetBrainsMono(
+                fontSize: 9,
+                fontWeight: FontWeight.w700,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
           ],
@@ -1389,14 +1399,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           crossAxisCount: 3,
-          mainAxisSpacing: 10,
-          crossAxisSpacing: 10,
+          mainAxisSpacing: 8,
+          crossAxisSpacing: 8,
           childAspectRatio: 1.35,
           children: [
-            ...List.generate(9, (index) => _buildKeyItem((index + 1).toString())),
-            _buildKeyItem('backspace', isIcon: true),
-            _buildKeyItem('0'),
-            _buildKeyItem('check', isIcon: true),
+            ...List.generate(9, (index) => _buildKeyItem(context, (index + 1).toString())),
+            _buildKeyItem(context, 'backspace', isIcon: true),
+            _buildKeyItem(context, '0'),
+            _buildKeyItem(context, 'check', isIcon: true),
           ],
         ),
         const SizedBox(height: 16),
@@ -1405,19 +1415,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           spacing: 16,
           runSpacing: 8,
           children: [
-            _buildTextLink('RESET PIN', onTap: () {
+            _buildTextLink(context, 'RESET PIN', onTap: () {
               _showInfoDialog(
                 'CREDENTIAL_RECOVERY',
                 'Staff PINs: Must be reset by a Manager in Settings > User Management.\n\nAdmin Reset: If you are the owner and forgot your Admin PIN, use the "ADMIN RECOVERY" button below to enter your 8-digit terminal recovery code.',
               );
             }),
-            _buildTextLink('RESTORE DATA', onTap: () {
+            _buildTextLink(context, 'RESTORE DATA', onTap: () {
               showDialog(
                 context: context,
                 builder: (context) => const BackupRestoreModal(),
               );
             }),
-            _buildTextLink('SUPPORT', onTap: () {
+            _buildTextLink(context, 'SUPPORT', onTap: () {
               _showInfoDialog(
                 'SYSTEM_SUPPORT',
                 'If you are having trouble accessing the terminal, please contact your store administrator.',
@@ -1429,35 +1439,37 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 
-  Widget _buildKeyItem(String val, {bool isIcon = false}) {
+  Widget _buildKeyItem(BuildContext context, String val, {bool isIcon = false}) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final itemBg = isDark ? const Color(0xFF0B1220) : const Color(0xFFFFFFFF);
+    final borderColor = isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0);
+    const primaryAccent = Color(0xFF1D4ED8);
+
     return Material(
-      color: Colors.transparent,
+      color: itemBg,
+      borderRadius: BorderRadius.circular(8),
       child: InkWell(
         onTap: () => _onKeypadTap(val),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         child: Container(
           decoration: BoxDecoration(
-            color: isIcon ? Colors.white.withValues(alpha: 0.04) : Colors.white.withValues(alpha: 0.02),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: isIcon
-                  ? Colors.white.withValues(alpha: 0.06)
-                  : const Color(0xFFCFBDFF).withValues(alpha: 0.08),
-            ),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: borderColor),
           ),
           alignment: Alignment.center,
           child: isIcon
               ? Icon(
                   val == 'backspace' ? Icons.backspace_outlined : Icons.check_circle_outline_rounded,
-                  color: val == 'check' ? const Color(0xFFC1F11D) : Colors.white70,
-                  size: 20,
+                  color: val == 'check' ? primaryAccent : theme.colorScheme.onSurfaceVariant,
+                  size: 18,
                 )
               : Text(
                   val,
-                  style: GoogleFonts.manrope(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.white,
+                  style: GoogleFonts.inter(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    color: theme.colorScheme.onSurface,
                   ),
                 ),
         ),
@@ -1465,44 +1477,55 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 
-  Widget _buildTextLink(String label, {VoidCallback? onTap}) {
+  Widget _buildTextLink(BuildContext context, String label, {VoidCallback? onTap}) {
+    final theme = Theme.of(context);
+
     return GestureDetector(
       onTap: onTap,
       child: Text(
         label,
-        style: GoogleFonts.ibmPlexMono(
-          fontSize: 9,
+        style: GoogleFonts.inter(
+          fontSize: 10.5,
           fontWeight: FontWeight.w700,
-          letterSpacing: 1,
-          color: Colors.white.withValues(alpha: 0.35),
+          color: theme.colorScheme.onSurfaceVariant,
           decoration: onTap != null ? TextDecoration.underline : null,
-          decorationColor: Colors.white.withValues(alpha: 0.15),
+          decorationColor: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
         ),
       ),
     );
   }
 
   void _showInfoDialog(String title, String message) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final dialogBg = isDark ? const Color(0xFF151F32) : Colors.white;
+    final borderColor = isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0);
+    const primaryAccent = Color(0xFF1D4ED8);
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF141418),
+        backgroundColor: dialogBg,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: borderColor),
         ),
         title: Text(
           title,
-          style: GoogleFonts.ibmPlexMono(
+          style: GoogleFonts.inter(
             fontSize: 14,
-            fontWeight: FontWeight.bold,
-            color: const Color(0xFFC1F11D),
-            letterSpacing: 2,
+            fontWeight: FontWeight.w800,
+            color: primaryAccent,
+            letterSpacing: 0.5,
           ),
         ),
         content: Text(
           message,
-          style: GoogleFonts.inter(color: Colors.white70, fontSize: 13, height: 1.5),
+          style: GoogleFonts.inter(
+            color: theme.colorScheme.onSurface,
+            fontSize: 12.5,
+            height: 1.5,
+          ),
         ),
         actions: [
           if (title == 'CREDENTIAL_RECOVERY')
@@ -1513,16 +1536,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               },
               child: Text(
                 'ADMIN RECOVERY',
-                style: GoogleFonts.manrope(color: const Color(0xFFC1F11D), fontWeight: FontWeight.bold, fontSize: 12),
+                style: GoogleFonts.inter(color: primaryAccent, fontWeight: FontWeight.w800, fontSize: 12),
               ),
             ),
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: Text(
               'DISMISS',
-              style: GoogleFonts.manrope(
-                color: title == 'CREDENTIAL_RECOVERY' ? Colors.white24 : const Color(0xFFC1F11D),
-                fontWeight: FontWeight.bold,
+              style: GoogleFonts.inter(
+                color: theme.colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w700,
                 fontSize: 12,
               ),
             ),
@@ -1534,36 +1557,53 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   void _showRecoveryInput() {
     final controller = TextEditingController();
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final dialogBg = isDark ? const Color(0xFF151F32) : Colors.white;
+    final borderColor = isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0);
+    final fieldBg = isDark ? const Color(0xFF0B1220) : const Color(0xFFF8FAFC);
+    const primaryAccent = Color(0xFF1D4ED8);
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF141418),
+        backgroundColor: dialogBg,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: borderColor),
         ),
         title: Text(
           'ADMIN RECOVERY',
-          style: GoogleFonts.manrope(fontWeight: FontWeight.w900, color: const Color(0xFFC1F11D), fontSize: 16),
+          style: GoogleFonts.inter(fontWeight: FontWeight.w800, color: primaryAccent, fontSize: 16),
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Please enter your 8-digit Recovery Code to reset the Admin PIN.',
-                style: GoogleFonts.inter(color: Colors.white70, fontSize: 13)),
-            const SizedBox(height: 20),
+            Text(
+              'Please enter your 8-digit Recovery Code to reset the Admin PIN.',
+              style: GoogleFonts.inter(color: theme.colorScheme.onSurfaceVariant, fontSize: 12.5),
+            ),
+            const SizedBox(height: 14),
             TextField(
               controller: controller,
-              style: GoogleFonts.ibmPlexMono(color: Colors.white, letterSpacing: 2, fontWeight: FontWeight.bold),
+              style: GoogleFonts.jetBrainsMono(color: theme.colorScheme.onSurface, letterSpacing: 2, fontWeight: FontWeight.w700),
               decoration: InputDecoration(
                 hintText: 'XXXX-XXXX',
-                hintStyle: GoogleFonts.ibmPlexMono(color: Colors.white10),
+                hintStyle: GoogleFonts.jetBrainsMono(color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4)),
                 filled: true,
-                fillColor: Colors.white.withValues(alpha: 0.02),
+                fillColor: fieldBg,
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: borderColor),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: borderColor),
+                ),
+                focusedBorder: const OutlineInputBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(8)),
+                  borderSide: BorderSide(color: primaryAccent, width: 1.5),
                 ),
               ),
               textCapitalization: TextCapitalization.characters,
@@ -1573,7 +1613,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('CANCEL', style: GoogleFonts.manrope(color: Colors.white24, fontWeight: FontWeight.bold, fontSize: 12)),
+            child: Text('CANCEL', style: GoogleFonts.inter(color: theme.colorScheme.onSurfaceVariant, fontWeight: FontWeight.w700, fontSize: 12)),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -1592,17 +1632,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               } else {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Invalid Recovery Code'), backgroundColor: Colors.redAccent),
+                    const SnackBar(content: Text('Invalid Recovery Code'), backgroundColor: Color(0xFFDC2626)),
                   );
                 }
               }
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFC1F11D),
-              foregroundColor: Colors.black,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              backgroundColor: primaryAccent,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
-            child: Text('VERIFY', style: GoogleFonts.manrope(fontWeight: FontWeight.w900, fontSize: 13)),
+            child: Text('VERIFY', style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 12)),
           ),
         ],
       ),
@@ -1669,7 +1710,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             fit: BoxFit.contain,
             errorBuilder: (context, error, stackTrace) => Icon(
               Icons.bolt_rounded, 
-              color: const Color(0xFFC1F11D), 
+              color: const Color(0xFF60A5FA), 
               size: isCompact ? 24 : 32,
             ),
           );
@@ -1683,7 +1724,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       fit: BoxFit.contain,
       errorBuilder: (context, error, stackTrace) => Icon(
         Icons.bolt_rounded, 
-        color: const Color(0xFFC1F11D), 
+        color: const Color(0xFF60A5FA), 
         size: isCompact ? 24 : 32,
       ),
     );
@@ -1691,7 +1732,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   Widget _buildHeroPlaceholder() {
     return Container(
-      color: const Color(0xFF1A1A22),
+      color: const Color(0xFF0F172A),
       child: const Center(
         child: Icon(Icons.storefront_rounded, size: 80, color: Colors.white24),
       ),

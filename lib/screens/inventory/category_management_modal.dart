@@ -298,26 +298,22 @@ class _CategoryManagementModalState extends ConsumerState<CategoryManagementModa
 
   @override
   Widget build(BuildContext context) {
-    final accentColor = ref.watch(accentColorProvider);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
+    final accentColor = primaryColor;
 
     return Dialog(
       backgroundColor: Colors.transparent,
       child: Container(
-        width: 620,
-        height: 720,
+        width: 640,
+        height: 700,
         decoration: BoxDecoration(
-          color: const Color(0xFF141418),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.6),
-              blurRadius: 30,
-              offset: const Offset(0, 10),
-            ),
-          ],
+          color: isDark ? const Color(0xFF151F32) : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
         ),
-        padding: const EdgeInsets.all(32),
+        padding: const EdgeInsets.all(28),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [

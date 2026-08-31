@@ -52,23 +52,19 @@ class _AddUserModalState extends ConsumerState<AddUserModal> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
+
     return Dialog(
-      backgroundColor: Colors.transparent,
+      backgroundColor: isDark ? const Color(0xFF151F32) : Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+      ),
       child: Container(
         width: 500,
-        decoration: BoxDecoration(
-          color: const Color(0xFF141418),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.4),
-              blurRadius: 40,
-              offset: const Offset(0, 10),
-            ),
-          ],
-        ),
-        padding: const EdgeInsets.all(40),
+        padding: const EdgeInsets.all(28),
         child: Form(
           key: _formKey,
           child: Column(
@@ -79,30 +75,34 @@ class _AddUserModalState extends ConsumerState<AddUserModal> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    widget.userToEdit == null ? 'ADD NEW STAFF' : 'EDIT STAFF',
-                    style: GoogleFonts.manrope(
-                      fontSize: 14,
+                    widget.userToEdit == null ? 'ADD NEW STAFF ACCOUNT' : 'EDIT STAFF ACCOUNT',
+                    style: GoogleFonts.inter(
+                      fontSize: 15,
                       fontWeight: FontWeight.w800,
-                      letterSpacing: 2,
-                      color: const Color(0xFFC1F11D),
+                      letterSpacing: 0.5,
+                      color: theme.colorScheme.onSurface,
                     ),
                   ),
                   IconButton(
                     onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close, color: Colors.white24, size: 20),
+                    icon: Icon(Icons.close, color: theme.colorScheme.onSurfaceVariant, size: 20),
                   ),
                 ],
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 16),
+              Divider(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0), height: 1),
+              const SizedBox(height: 16),
               _buildTextField(
+                context: context,
                 controller: _nameController,
                 label: 'Full Name',
                 hint: 'e.g. Sarah Vance',
                 icon: Icons.person_outline,
                 validator: (v) => v!.isEmpty ? 'Required' : null,
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
               _buildTextField(
+                context: context,
                 controller: _numericIdController,
                 label: 'Staff Numeric ID',
                 hint: 'e.g. 1001 (max 4 digits)',
@@ -114,8 +114,9 @@ class _AddUserModalState extends ConsumerState<AddUserModal> {
                   return null;
                 },
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
                _buildTextField(
+                 context: context,
                  controller: _passwordController,
                  label: widget.userToEdit == null ? 'Password / PIN' : 'New Password / PIN',
                  hint: '4-6 digits',
@@ -125,13 +126,12 @@ class _AddUserModalState extends ConsumerState<AddUserModal> {
                  suffixIcon: IconButton(
                    icon: Icon(
                      _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                     color: Colors.white24,
+                     color: theme.colorScheme.onSurfaceVariant,
                      size: 18,
                    ),
                    onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                  ),
                  validator: (v) {
-                   // When editing, password is optional (skip blank means no change)
                    if (widget.userToEdit == null && (v == null || v.isEmpty)) {
                      return 'Required';
                    }
@@ -142,8 +142,9 @@ class _AddUserModalState extends ConsumerState<AddUserModal> {
                  },
                ),
                if (widget.userToEdit != null || _passwordController.text.isNotEmpty) ...[
-                 const SizedBox(height: 20),
+                 const SizedBox(height: 16),
                  _buildTextField(
+                   context: context,
                    controller: _confirmPasswordController,
                    label: 'Confirm PIN',
                    hint: 'Repeat new PIN',
@@ -158,25 +159,25 @@ class _AddUserModalState extends ConsumerState<AddUserModal> {
                    },
                  ),
                ],
-              const SizedBox(height: 20),
-              _buildRoleDropdown(),
-              const SizedBox(height: 48),
+              const SizedBox(height: 16),
+              _buildRoleDropdown(context),
+              const SizedBox(height: 24),
               SizedBox(
-                height: 56,
+                height: 44,
                 child: ElevatedButton(
                   onPressed: _handleSubmit,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFC1F11D),
-                    foregroundColor: Colors.black,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    backgroundColor: primaryColor,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     elevation: 0,
                   ),
                   child: Text(
                     widget.userToEdit == null ? 'CREATE ACCOUNT' : 'SAVE CHANGES',
-                    style: GoogleFonts.manrope(
+                    style: GoogleFonts.inter(
                       fontWeight: FontWeight.w800,
-                      letterSpacing: 1,
-                      fontSize: 14,
+                      letterSpacing: 0.5,
+                      fontSize: 13,
                     ),
                   ),
                 ),
@@ -189,6 +190,7 @@ class _AddUserModalState extends ConsumerState<AddUserModal> {
   }
 
   Widget _buildTextField({
+    required BuildContext context,
     required TextEditingController controller,
     required String label,
     required String hint,
@@ -199,6 +201,9 @@ class _AddUserModalState extends ConsumerState<AddUserModal> {
     Widget? suffixIcon,
     String? Function(String?)? validator,
   }) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
     final int? maxDigits = isNumeric ? 4 : (isPin ? 6 : null);
     final String errorLabel = isNumeric ? "Staff ID cannot exceed 4 digits" : "PIN cannot exceed 6 digits";
 
@@ -210,26 +215,26 @@ class _AddUserModalState extends ConsumerState<AddUserModal> {
           children: [
             Text(
               label.toUpperCase(),
-              style: GoogleFonts.manrope(
-                fontSize: 10,
+              style: GoogleFonts.inter(
+                fontSize: 10.5,
                 fontWeight: FontWeight.w800,
-                color: Colors.white.withValues(alpha: 0.4),
-                letterSpacing: 1,
+                color: primaryColor,
+                letterSpacing: 0.5,
               ),
             ),
             if (maxDigits != null)
               Text(
                 'MAX $maxDigits DIGITS',
-                style: GoogleFonts.ibmPlexMono(
-                  fontSize: 8,
+                style: GoogleFonts.inter(
+                  fontSize: 9,
                   fontWeight: FontWeight.bold,
-                  color: Colors.white.withValues(alpha: 0.25),
-                  letterSpacing: 1,
+                  color: theme.colorScheme.onSurfaceVariant,
+                  letterSpacing: 0.5,
                 ),
               ),
           ],
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 6),
         TextFormField(
           controller: controller,
           obscureText: obscure,
@@ -251,60 +256,65 @@ class _AddUserModalState extends ConsumerState<AddUserModal> {
               }),
           ],
           buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
-          style: GoogleFonts.inter(color: Colors.white, fontSize: 14),
+          style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontSize: 13),
           decoration: InputDecoration(
+            counterText: '',
             hintText: hint,
-            hintStyle: GoogleFonts.inter(color: Colors.white10),
-            prefixIcon: Icon(icon, color: Colors.white24, size: 18),
+            hintStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5), fontSize: 13),
+            prefixIcon: Icon(icon, color: theme.colorScheme.onSurfaceVariant, size: 18),
             suffixIcon: suffixIcon,
             filled: true,
-            fillColor: Colors.white.withValues(alpha: 0.02),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+            fillColor: isDark ? const Color(0xFF1C283D) : const Color(0xFFF8FAFC),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: const Color(0xFFC1F11D).withValues(alpha: 0.3)),
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: primaryColor),
             ),
-            errorStyle: const TextStyle(color: Colors.redAccent, fontSize: 11),
+            errorStyle: const TextStyle(color: Color(0xFFDC2626), fontSize: 11),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildRoleDropdown() {
+  Widget _buildRoleDropdown(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           'ROLE',
-          style: GoogleFonts.manrope(
-            fontSize: 10,
+          style: GoogleFonts.inter(
+            fontSize: 10.5,
             fontWeight: FontWeight.w800,
-            color: Colors.white.withValues(alpha: 0.4),
-            letterSpacing: 1,
+            color: primaryColor,
+            letterSpacing: 0.5,
           ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 6),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16),
-          height: 54,
+          height: 48,
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.02),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+            color: isDark ? const Color(0xFF1C283D) : const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
               value: ['owner', 'manager', 'cashier'].contains(_role) ? _role : 'cashier',
-              dropdownColor: const Color(0xFF1A1A1F),
-              icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white24),
+              dropdownColor: isDark ? const Color(0xFF151F32) : Colors.white,
+              icon: Icon(Icons.keyboard_arrow_down_rounded, color: theme.colorScheme.onSurfaceVariant),
               isExpanded: true,
-              style: GoogleFonts.inter(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
-              borderRadius: BorderRadius.circular(12),
+              style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontSize: 13, fontWeight: FontWeight.w600),
+              borderRadius: BorderRadius.circular(8),
               items: ['owner', 'manager', 'cashier'].map((String value) {
                 return DropdownMenuItem<String>(
                   value: value,

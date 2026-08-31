@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:beleka_pos/providers/theme_provider.dart';
+import 'package:intl/intl.dart';
 import 'package:beleka_pos/providers/store_provider.dart';
 import 'package:beleka_pos/providers/users_provider.dart';
 import 'package:beleka_pos/models/models.dart';
@@ -18,46 +18,216 @@ class BranchesScreen extends ConsumerStatefulWidget {
 }
 
 class _BranchesScreenState extends ConsumerState<BranchesScreen> {
+  Widget _buildTopBreadcrumbBar(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Row(
+          children: [
+            Text(
+              'Workspace',
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                color: theme.colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded, size: 16, color: theme.colorScheme.onSurfaceVariant),
+            Text(
+              'Multi-Branch & Store Network',
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                color: theme.colorScheme.onSurface,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF151F32) : Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 7,
+                    height: 7,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF059669),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'ZRA DigiTax Multi-Location Active',
+                    style: GoogleFonts.inter(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF059669),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF151F32) : Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.calendar_today_rounded, size: 13, color: theme.colorScheme.onSurfaceVariant),
+                  const SizedBox(width: 6),
+                  Text(
+                    DateFormat('E, MMM d, yyyy').format(DateTime.now()),
+                    style: GoogleFonts.inter(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildKpiCard(String label, String value, String subtitle, IconData icon, Color color) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF151F32) : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: isDark ? color.withValues(alpha: 0.15) : color.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: color, size: 22),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  label,
+                  style: GoogleFonts.inter(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                    color: theme.colorScheme.onSurfaceVariant,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  value,
+                  style: GoogleFonts.inter(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: theme.colorScheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
+
     final isOwner = ref.watch(isOwnerProvider);
     if (!isOwner) {
       return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.lock_rounded, size: 64, color: Colors.white24),
-            const SizedBox(height: 16),
-            Text(
-              'ACCESS RESTRICTED',
-              style: GoogleFonts.manrope(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                color: Colors.white,
-                letterSpacing: 1.2,
+        child: Container(
+          padding: const EdgeInsets.all(32),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF151F32) : Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.lock_rounded, size: 56, color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4)),
+              const SizedBox(height: 16),
+              Text(
+                'ACCESS RESTRICTED',
+                style: GoogleFonts.inter(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: theme.colorScheme.onSurface,
+                  letterSpacing: 1.2,
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Multi-Branch Management is restricted to Corporate Owners and Super Admins.',
-              style: GoogleFonts.inter(fontSize: 14, color: Colors.white54),
-            ),
-          ],
+              const SizedBox(height: 8),
+              Text(
+                'Multi-Branch Management is restricted to Corporate Owners and Super Admins.',
+                style: GoogleFonts.inter(fontSize: 13, color: theme.colorScheme.onSurfaceVariant),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
         ),
       );
     }
 
-    final accentColor = ref.watch(accentColorProvider);
     final currentConfig = ref.watch(storeConfigProvider).value;
     final branches = ref.watch(storeBranchesProvider).value ?? [];
     final users = ref.watch(usersProvider).value ?? [];
     final currency = currentConfig?.currencySymbol ?? 'K';
+
+    final totalNetworkSales = branches.fold<double>(0.0, (sum, b) => sum + b.salesToday);
+    final activeCount = branches.where((b) => b.status == 'ONLINE' || b.status == 'ACTIVE').length;
 
     return Padding(
       padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Breadcrumb Bar
+          _buildTopBreadcrumbBar(context),
+          const SizedBox(height: 16),
+
           // Header Bar
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -66,18 +236,18 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'MULTI-BRANCH MANAGEMENT & BRANCH MANAGERS',
-                    style: GoogleFonts.manrope(
-                      fontSize: 22,
+                    'MULTI-BRANCH & STORE NETWORK',
+                    style: GoogleFonts.inter(
+                      fontSize: 20,
                       fontWeight: FontWeight.w900,
-                      letterSpacing: 1,
-                      color: Colors.white,
+                      letterSpacing: 0.5,
+                      color: theme.colorScheme.onSurface,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     'Create store branches, assign Branch Managers from your user list, and configure ZRA DigiTax codes (bhfId)',
-                    style: GoogleFonts.inter(fontSize: 13, color: Colors.white54),
+                    style: GoogleFonts.inter(fontSize: 13, color: theme.colorScheme.onSurfaceVariant),
                   ),
                 ],
               ),
@@ -104,7 +274,7 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
                         value: 'pdf',
                         child: Row(
                           children: [
-                            Icon(Icons.picture_as_pdf_rounded, color: Colors.redAccent, size: 16),
+                            Icon(Icons.picture_as_pdf_rounded, color: Color(0xFFDC2626), size: 16),
                             SizedBox(width: 8),
                             Text('Export Branches (PDF)'),
                           ],
@@ -114,7 +284,7 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
                         value: 'excel',
                         child: Row(
                           children: [
-                            Icon(Icons.table_chart_rounded, color: Colors.green, size: 16),
+                            Icon(Icons.table_chart_rounded, color: Color(0xFF059669), size: 16),
                             SizedBox(width: 8),
                             Text('Export Branches (Excel)'),
                           ],
@@ -122,31 +292,31 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
                       ),
                     ],
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
                       decoration: BoxDecoration(
-                        color: Colors.white.withAlpha(15),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.white.withAlpha(20)),
+                        color: isDark ? const Color(0xFF151F32) : Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.download_rounded, size: 16, color: Colors.white70),
+                          Icon(Icons.download_rounded, size: 16, color: theme.colorScheme.onSurfaceVariant),
                           const SizedBox(width: 6),
-                          Text('Export & Print', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13, color: Colors.white)),
+                          Text('Export & Print', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13, color: theme.colorScheme.onSurface)),
                         ],
                       ),
                     ),
                   ),
                   const SizedBox(width: 12),
                   ElevatedButton.icon(
-                    onPressed: () => _showAddEditBranchDialog(context, accentColor, users),
+                    onPressed: () => _showAddEditBranchDialog(context, primaryColor, users),
                     icon: const Icon(Icons.add_business_rounded, size: 18),
                     label: Text('+ Create New Branch', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13)),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: accentColor,
-                      foregroundColor: Colors.black,
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      backgroundColor: primaryColor,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       elevation: 0,
                     ),
                   ),
@@ -154,29 +324,42 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
 
-          // Active Branch Card Highlight
+          // Top Executive Metric Cards Grid
+          GridView.count(
+            crossAxisCount: 4,
+            crossAxisSpacing: 16,
+            mainAxisSpacing: 16,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            childAspectRatio: 2.5,
+            children: [
+              _buildKpiCard('TOTAL BRANCHES', '${branches.length} Locations', 'Store network size', Icons.store_mall_directory_rounded, primaryColor),
+              _buildKpiCard('ACTIVE HQ STORE', currentConfig?.businessName ?? 'Main HQ Branch', 'bhfId: ${currentConfig?.bhfId ?? "00"}', Icons.storefront_rounded, const Color(0xFF0284C7)),
+              _buildKpiCard('NETWORK SALES TODAY', '$currency ${totalNetworkSales.toStringAsFixed(2)}', 'Combined daily revenue', Icons.payments_rounded, const Color(0xFF059669)),
+              _buildKpiCard('ZRA DIGITAX CONNECTED', '$activeCount / ${branches.length} Online', 'Fiscalized locations', Icons.verified_rounded, const Color(0xFFD97706)),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // Active HQ Branch Highlight Card
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [accentColor.withAlpha(40), Colors.purple.withAlpha(30)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: accentColor.withAlpha(60)),
+              color: isDark ? const Color(0xFF151F32) : Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
             ),
             child: Row(
               children: [
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: accentColor.withAlpha(50),
-                    shape: BoxShape.circle,
+                    color: isDark ? primaryColor.withValues(alpha: 0.15) : const Color(0xFFEFF6FF),
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Icon(Icons.storefront_rounded, color: accentColor, size: 28),
+                  child: Icon(Icons.storefront_rounded, color: primaryColor, size: 24),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -185,39 +368,46 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
                     children: [
                       Text(
                         'HEADQUARTERS & ACTIVE TERMINAL BRANCH',
-                        style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: accentColor, letterSpacing: 1),
+                        style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.w800, color: primaryColor, letterSpacing: 0.8),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         currentConfig?.businessName ?? 'Lusaka Main Branch (HQ)',
-                        style: GoogleFonts.manrope(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                        style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w800, color: theme.colorScheme.onSurface),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         'ZRA Branch Code (bhfId): ${currentConfig?.bhfId ?? "00"} • TPIN: ${currentConfig?.tpin ?? "1002948192"}',
-                        style: GoogleFonts.inter(fontSize: 12, color: Colors.white70),
+                        style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
                       ),
                     ],
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: Colors.green.withAlpha(40),
+                    color: const Color(0xFFECFDF5),
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  child: const Row(
+                  child: Row(
                     children: [
-                      Icon(Icons.check_circle, color: Colors.green, size: 14),
-                      SizedBox(width: 6),
-                      Text('ZRA DIGITAX ACTIVE', style: TextStyle(color: Colors.green, fontSize: 11, fontWeight: FontWeight.bold)),
+                      Container(
+                        width: 7,
+                        height: 7,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF059669),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text('ZRA DIGITAX ACTIVE', style: GoogleFonts.inter(color: const Color(0xFF059669), fontSize: 11, fontWeight: FontWeight.bold)),
                     ],
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
 
           // Branches Grid
           Expanded(
@@ -226,11 +416,11 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.store_mall_directory_rounded, size: 48, color: Colors.white.withAlpha(30)),
+                        Icon(Icons.store_mall_directory_rounded, size: 48, color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.3)),
                         const SizedBox(height: 12),
-                        Text('No Branches Created Yet', style: GoogleFonts.manrope(fontSize: 16, color: Colors.white54)),
+                        Text('No Branches Created Yet', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.bold, color: theme.colorScheme.onSurfaceVariant)),
                         const SizedBox(height: 8),
-                        Text('Click "+ Create New Branch" to expand your store network.', style: GoogleFonts.inter(fontSize: 12, color: Colors.white38)),
+                        Text('Click "+ Create New Branch" to expand your store network.', style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurfaceVariant)),
                       ],
                     ),
                   )
@@ -248,9 +438,9 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
                       return Container(
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF1A1A1E),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: Colors.white.withAlpha(20)),
+                          color: isDark ? const Color(0xFF151F32) : Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -261,12 +451,12 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                   decoration: BoxDecoration(
-                                    color: Colors.blue.withAlpha(40),
+                                    color: const Color(0xFFF0F9FF),
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: Text(
                                     '${b.code} (bhfId: ${b.bhfId})',
-                                    style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blue[300]),
+                                    style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: const Color(0xFF0284C7)),
                                   ),
                                 ),
                                 Row(
@@ -274,17 +464,17 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
                                     Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                       decoration: BoxDecoration(
-                                        color: (isOnline ? Colors.green : Colors.grey).withAlpha(40),
+                                        color: isOnline ? const Color(0xFFECFDF5) : (isDark ? const Color(0xFF1C283D) : const Color(0xFFF1F5F9)),
                                         borderRadius: BorderRadius.circular(6),
                                       ),
                                       child: Text(
                                         b.isHQ ? 'HQ STORE' : (isOnline ? 'ONLINE' : 'OFFLINE'),
-                                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isOnline ? Colors.green : Colors.white60),
+                                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isOnline ? const Color(0xFF059669) : theme.colorScheme.onSurfaceVariant),
                                       ),
                                     ),
                                     const SizedBox(width: 4),
                                     PopupMenuButton<String>(
-                                      icon: const Icon(Icons.more_vert_rounded, size: 18, color: Colors.white54),
+                                      icon: Icon(Icons.more_vert_rounded, size: 18, color: theme.colorScheme.onSurfaceVariant),
                                       padding: EdgeInsets.zero,
                                       onSelected: (val) async {
                                         if (val == 'daily_report_pdf') {
@@ -292,7 +482,7 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
                                         } else if (val == 'daily_report_print') {
                                           _generateBranchDailyReport(context, b, printDirectly: true);
                                         } else if (val == 'edit') {
-                                          _showAddEditBranchDialog(context, accentColor, users, branch: b);
+                                          _showAddEditBranchDialog(context, primaryColor, users, branch: b);
                                         } else if (val == 'toggle_status') {
                                           final isar = ref.read(isarProvider);
                                           await isar.writeTxn(() async {
@@ -309,7 +499,7 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
                                           value: 'daily_report_pdf',
                                           child: Row(
                                             children: [
-                                              Icon(Icons.picture_as_pdf_rounded, color: Colors.redAccent, size: 16),
+                                              Icon(Icons.picture_as_pdf_rounded, color: Color(0xFFDC2626), size: 16),
                                               SizedBox(width: 8),
                                               Text('Daily Branch Report (PDF)'),
                                             ],
@@ -319,7 +509,7 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
                                           value: 'daily_report_print',
                                           child: Row(
                                             children: [
-                                              Icon(Icons.print_rounded, color: Colors.greenAccent, size: 16),
+                                              Icon(Icons.print_rounded, color: Color(0xFF059669), size: 16),
                                               SizedBox(width: 8),
                                               Text('Print Daily Report'),
                                             ],
@@ -337,7 +527,7 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
                                         if (!b.isHQ)
                                           const PopupMenuItem(
                                             value: 'delete',
-                                            child: Row(children: [Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 16), SizedBox(width: 8), Text('Delete Branch', style: TextStyle(color: Colors.redAccent))]),
+                                            child: Row(children: [Icon(Icons.delete_outline_rounded, color: Color(0xFFDC2626), size: 16), SizedBox(width: 8), Text('Delete Branch', style: TextStyle(color: Color(0xFFDC2626)))]),
                                           ),
                                       ],
                                     ),
@@ -348,36 +538,37 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
                             const SizedBox(height: 10),
                             Text(
                               b.name,
-                              style: GoogleFonts.manrope(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                              style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
                             const SizedBox(height: 4),
                             Text(
                               b.address?.isNotEmpty == true ? b.address! : 'Location details not set',
-                              style: GoogleFonts.inter(fontSize: 12, color: Colors.white54),
+                              style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
                             const SizedBox(height: 12),
                             // Branch Manager Card
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                               decoration: BoxDecoration(
-                                color: Colors.white.withAlpha(8),
+                                color: isDark ? const Color(0xFF1C283D) : const Color(0xFFF8FAFC),
                                 borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
                               ),
                               child: Row(
                                 children: [
-                                  Icon(Icons.person_pin_rounded, size: 16, color: accentColor),
+                                  Icon(Icons.person_pin_rounded, size: 18, color: primaryColor),
                                   const SizedBox(width: 8),
                                   Expanded(
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        Text('Manager: ${b.managerName ?? "Unassigned"}', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
+                                        Text('Manager: ${b.managerName ?? "Unassigned"}', style: GoogleFonts.inter(fontSize: 11.5, fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface)),
                                         if (b.managerPhone != null && b.managerPhone!.isNotEmpty)
-                                          Text('Contact: ${b.managerPhone}', style: GoogleFonts.inter(fontSize: 10, color: Colors.white38)),
+                                          Text('Contact: ${b.managerPhone}', style: GoogleFonts.inter(fontSize: 10.5, color: theme.colorScheme.onSurfaceVariant)),
                                       ],
                                     ),
                                   ),
@@ -385,28 +576,28 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
                               ),
                             ),
                             const Spacer(),
-                            const Divider(color: Colors.white10),
+                            Divider(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text('Sales Today', style: GoogleFonts.inter(fontSize: 10, color: Colors.white38)),
-                                    Text('$currency ${b.salesToday.toStringAsFixed(2)}', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold, color: accentColor)),
+                                    Text('Sales Today', style: GoogleFonts.inter(fontSize: 10, color: theme.colorScheme.onSurfaceVariant)),
+                                    Text('$currency ${b.salesToday.toStringAsFixed(2)}', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold, color: primaryColor)),
                                   ],
                                 ),
                                 Row(
                                   children: [
                                     IconButton(
                                       onPressed: () => _generateBranchDailyReport(context, b, printDirectly: false),
-                                      icon: const Icon(Icons.picture_as_pdf_rounded, size: 16, color: Colors.redAccent),
+                                      icon: const Icon(Icons.picture_as_pdf_rounded, size: 16, color: Color(0xFFDC2626)),
                                       tooltip: 'Generate Daily Report (PDF)',
                                       splashRadius: 18,
                                     ),
                                     IconButton(
                                       onPressed: () => _generateBranchDailyReport(context, b, printDirectly: true),
-                                      icon: const Icon(Icons.print_rounded, size: 16, color: Colors.white70),
+                                      icon: Icon(Icons.print_rounded, size: 16, color: theme.colorScheme.onSurfaceVariant),
                                       tooltip: 'Print Daily Report',
                                       splashRadius: 18,
                                     ),
@@ -463,17 +654,24 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
   }
 
   Future<void> _deleteBranch(BuildContext context, StoreBranch branch) async {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1E24),
-        title: const Text('Delete Branch?', style: TextStyle(color: Colors.white)),
-        content: Text('Are you sure you want to delete "${branch.name}" (${branch.code})?', style: const TextStyle(color: Colors.white70)),
+        backgroundColor: isDark ? const Color(0xFF151F32) : Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+        ),
+        title: Text('Delete Branch?', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16, color: theme.colorScheme.onSurface)),
+        content: Text('Are you sure you want to delete "${branch.name}" (${branch.code})?', style: GoogleFonts.inter(fontSize: 13, color: theme.colorScheme.onSurfaceVariant)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Cancel', style: TextStyle(color: theme.colorScheme.onSurfaceVariant))),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDC2626), foregroundColor: Colors.white),
             child: const Text('Delete'),
           ),
         ],
@@ -525,15 +723,19 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
       context: context,
       builder: (dialogCtx) => StatefulBuilder(
         builder: (context, setModalState) {
+          final theme = Theme.of(context);
+          final isDark = theme.brightness == Brightness.dark;
+          final primaryColor = theme.colorScheme.primary;
+
           return Dialog(
             backgroundColor: Colors.transparent,
             child: Container(
               width: 540,
               constraints: const BoxConstraints(maxHeight: 750),
               decoration: BoxDecoration(
-                color: const Color(0xFF141418),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.white.withAlpha(25)),
+                color: isDark ? const Color(0xFF151F32) : Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
               ),
               padding: const EdgeInsets.all(24),
               child: SingleChildScrollView(
@@ -550,47 +752,42 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
                             Container(
                               padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                color: accentColor.withAlpha(35),
+                                color: isDark ? primaryColor.withValues(alpha: 0.15) : const Color(0xFFEFF6FF),
                                 borderRadius: BorderRadius.circular(8),
                               ),
-                              child: Icon(Icons.add_business_rounded, color: accentColor, size: 20),
+                              child: Icon(Icons.add_business_rounded, color: primaryColor, size: 20),
                             ),
                             const SizedBox(width: 12),
                             Text(
                               isEditing ? 'EDIT STORE BRANCH' : 'CREATE NEW BRANCH',
-                              style: GoogleFonts.manrope(
+                              style: GoogleFonts.inter(
                                 fontSize: 16,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 1.2,
-                                color: Colors.white,
+                                fontWeight: FontWeight.w800,
+                                color: theme.colorScheme.onSurface,
                               ),
                             ),
                           ],
                         ),
                         IconButton(
                           onPressed: () => Navigator.pop(dialogCtx),
-                          icon: const Icon(Icons.close_rounded, color: Colors.white54),
+                          icon: Icon(Icons.close_rounded, color: theme.colorScheme.onSurfaceVariant, size: 18),
                           splashRadius: 20,
                         ),
                       ],
                     ),
-                    const SizedBox(height: 20),
-                    const Divider(color: Colors.white10, height: 1),
+                    const SizedBox(height: 14),
+                    Divider(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0), height: 1),
                     const SizedBox(height: 16),
 
                     // Branch Store Details Section
-                    Text('BRANCH STORE DETAILS', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: accentColor, letterSpacing: 1)),
+                    Text('BRANCH STORE DETAILS', style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.w800, color: primaryColor, letterSpacing: 0.8)),
                     const SizedBox(height: 12),
                     TextField(
                       controller: nameCtrl,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: InputDecoration(
+                      decoration: const InputDecoration(
                         labelText: 'Branch Name *',
                         hintText: 'e.g. Ndola Central Store, Kitwe Mall Branch',
-                        hintStyle: const TextStyle(color: Colors.white24),
-                        filled: true,
-                        fillColor: const Color(0xFF1E1E24),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                        border: OutlineInputBorder(),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -599,14 +796,10 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
                         Expanded(
                           child: TextField(
                             controller: bhfIdCtrl,
-                            style: const TextStyle(color: Colors.white),
-                            decoration: InputDecoration(
+                            decoration: const InputDecoration(
                               labelText: 'ZRA Branch Code (bhfId) *',
                               hintText: '01, 02, 03...',
-                              hintStyle: const TextStyle(color: Colors.white24),
-                              filled: true,
-                              fillColor: const Color(0xFF1E1E24),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                              border: OutlineInputBorder(),
                             ),
                           ),
                         ),
@@ -614,14 +807,10 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
                         Expanded(
                           child: TextField(
                             controller: phoneCtrl,
-                            style: const TextStyle(color: Colors.white),
-                            decoration: InputDecoration(
+                            decoration: const InputDecoration(
                               labelText: 'Branch Phone',
                               hintText: '+260 97...',
-                              hintStyle: const TextStyle(color: Colors.white24),
-                              filled: true,
-                              fillColor: const Color(0xFF1E1E24),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                              border: OutlineInputBorder(),
                             ),
                           ),
                         ),
@@ -630,35 +819,27 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
                     const SizedBox(height: 12),
                     TextField(
                       controller: addressCtrl,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: InputDecoration(
+                      decoration: const InputDecoration(
                         labelText: 'Physical Address',
                         hintText: 'Plot 123, Cairo Road, Lusaka',
-                        hintStyle: const TextStyle(color: Colors.white24),
-                        filled: true,
-                        fillColor: const Color(0xFF1E1E24),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                        border: OutlineInputBorder(),
                       ),
                     ),
                     const SizedBox(height: 12),
                     TextField(
                       controller: emailCtrl,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: InputDecoration(
+                      decoration: const InputDecoration(
                         labelText: 'Branch Email Address',
                         hintText: 'branch@company.com',
-                        hintStyle: const TextStyle(color: Colors.white24),
-                        filled: true,
-                        fillColor: const Color(0xFF1E1E24),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                        border: OutlineInputBorder(),
                       ),
                     ),
                     const SizedBox(height: 24),
 
                     // Branch Manager Assignment Section
-                    Text('ASSIGN BRANCH MANAGER', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: accentColor, letterSpacing: 1)),
-                    const SizedBox(height: 8),
-                    Text('Select a manager from your existing users, or provision a new user account.', style: GoogleFonts.inter(fontSize: 11.5, color: Colors.white54)),
+                    Text('ASSIGN BRANCH MANAGER', style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.w800, color: primaryColor, letterSpacing: 0.8)),
+                    const SizedBox(height: 4),
+                    Text('Select a manager from your existing users, or provision a new user account.', style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurfaceVariant)),
                     const SizedBox(height: 12),
 
                     Builder(
@@ -674,26 +855,27 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
                         return Container(
                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF1E1E24),
-                            borderRadius: BorderRadius.circular(10),
+                            color: isDark ? const Color(0xFF1C283D) : const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
                           ),
                           child: DropdownButtonHideUnderline(
                             child: DropdownButton<String?>(
                               value: isCreateNewUser ? '__CREATE_NEW__' : safeSelectedUserId,
                               isExpanded: true,
-                              dropdownColor: const Color(0xFF1E1E24),
-                              style: GoogleFonts.inter(color: Colors.white, fontSize: 13),
-                              hint: const Text('Select Existing User as Manager', style: TextStyle(color: Colors.white38)),
+                              dropdownColor: isDark ? const Color(0xFF151F32) : Colors.white,
+                              style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontSize: 13),
+                              hint: Text('Select Existing User as Manager', style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
                               items: [
-                                const DropdownMenuItem<String?>(
+                                DropdownMenuItem<String?>(
                                   value: null,
-                                  child: Text('-- No Manager Assigned --', style: TextStyle(color: Colors.white54)),
+                                  child: Text('-- No Manager Assigned --', style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
                                 ),
                                 ...uniqueUsers.values.map((u) => DropdownMenuItem<String?>(
                                   value: u.numericId,
                                   child: Row(
                                     children: [
-                                      Icon(Icons.person_outline_rounded, size: 16, color: accentColor),
+                                      Icon(Icons.person_outline_rounded, size: 16, color: primaryColor),
                                       const SizedBox(width: 8),
                                       Text('${u.name} (Role: ${u.role.toUpperCase()}) - ID: ${u.numericId}'),
                                     ],
@@ -703,9 +885,9 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
                                   value: '__CREATE_NEW__',
                                   child: Row(
                                     children: [
-                                      Icon(Icons.person_add_alt_1_rounded, size: 16, color: Color(0xFF10B981)),
+                                      Icon(Icons.person_add_alt_1_rounded, size: 16, color: Color(0xFF059669)),
                                       SizedBox(width: 8),
-                                      Text('+ Provision New Manager User', style: TextStyle(color: Color(0xFFA7F3D0), fontWeight: FontWeight.bold)),
+                                      Text('+ Provision New Manager User', style: TextStyle(color: Color(0xFF059669), fontWeight: FontWeight.bold)),
                                     ],
                                   ),
                                 ),
@@ -733,24 +915,21 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: Colors.green.withAlpha(15),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.green.withAlpha(40)),
+                          color: const Color(0xFFECFDF5),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFFA7F3D0)),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('NEW BRANCH MANAGER CREDENTIALS', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.greenAccent, letterSpacing: 1)),
+                            Text('NEW BRANCH MANAGER CREDENTIALS', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: const Color(0xFF059669), letterSpacing: 0.8)),
                             const SizedBox(height: 10),
                             TextField(
                               controller: newMgrNameCtrl,
-                              style: const TextStyle(color: Colors.white),
-                              decoration: InputDecoration(
+                              decoration: const InputDecoration(
                                 labelText: 'Manager Full Name *',
                                 hintText: 'e.g. John Mwila',
-                                filled: true,
-                                fillColor: const Color(0xFF141418),
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                                border: OutlineInputBorder(),
                               ),
                             ),
                             const SizedBox(height: 10),
@@ -759,13 +938,10 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
                                 Expanded(
                                   child: TextField(
                                     controller: newMgrIdCtrl,
-                                    style: const TextStyle(color: Colors.white),
-                                    decoration: InputDecoration(
+                                    decoration: const InputDecoration(
                                       labelText: 'Manager Login ID *',
                                       hintText: '3001',
-                                      filled: true,
-                                      fillColor: const Color(0xFF141418),
-                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                                      border: OutlineInputBorder(),
                                     ),
                                   ),
                                 ),
@@ -774,13 +950,10 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
                                   child: TextField(
                                     controller: newMgrPinCtrl,
                                     obscureText: true,
-                                    style: const TextStyle(color: Colors.white),
-                                    decoration: InputDecoration(
+                                    decoration: const InputDecoration(
                                       labelText: 'Manager PIN *',
                                       hintText: '1234',
-                                      filled: true,
-                                      fillColor: const Color(0xFF141418),
-                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                                      border: OutlineInputBorder(),
                                     ),
                                   ),
                                 ),
@@ -789,13 +962,10 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
                             const SizedBox(height: 10),
                             TextField(
                               controller: newMgrPhoneCtrl,
-                              style: const TextStyle(color: Colors.white),
-                              decoration: InputDecoration(
+                              decoration: const InputDecoration(
                                 labelText: 'Phone / WhatsApp',
                                 hintText: '+260 97...',
-                                filled: true,
-                                fillColor: const Color(0xFF141418),
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                                border: OutlineInputBorder(),
                               ),
                             ),
                           ],
@@ -810,7 +980,7 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
                       children: [
                         TextButton(
                           onPressed: () => Navigator.pop(dialogCtx),
-                          child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+                          child: Text('Cancel', style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
                         ),
                         const SizedBox(width: 12),
                         ElevatedButton(
@@ -912,16 +1082,16 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
                                   content: Text(isEditing ? 'Branch "$branchName" updated successfully.' : 'Branch "$branchName" created successfully!'),
-                                  backgroundColor: const Color(0xFF10B981),
+                                  backgroundColor: const Color(0xFF059669),
                                 ),
                               );
                             }
                           },
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: accentColor,
-                            foregroundColor: Colors.black,
+                            backgroundColor: primaryColor,
+                            foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                           ),
                           child: Text(
                             isEditing ? 'Save Changes' : 'Create Branch',

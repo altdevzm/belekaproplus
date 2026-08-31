@@ -110,6 +110,13 @@ class _WeightScaleModalState extends ConsumerState<WeightScaleModal> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final dialogBg = isDark ? const Color(0xFF151F32) : Colors.white;
+    final borderColor = isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0);
+    final innerBg = isDark ? const Color(0xFF0B1220) : const Color(0xFFF8FAFC);
+    const primaryAccent = Color(0xFF1D4ED8);
+
     final unit = widget.product.unitOfMeasure.toLowerCase().trim();
     final unitLabel = unit.isEmpty ? 'kg' : unit;
     final unitPrice = widget.product.price;
@@ -121,14 +128,14 @@ class _WeightScaleModalState extends ConsumerState<WeightScaleModal> {
       child: Container(
         width: 580,
         decoration: BoxDecoration(
-          color: const Color(0xFF141418),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+          color: dialogBg,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: borderColor),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.6),
-              blurRadius: 50,
-              spreadRadius: 10,
+              color: Colors.black.withValues(alpha: isDark ? 0.5 : 0.08),
+              blurRadius: 36,
+              offset: const Offset(0, 12),
             ),
           ],
         ),
@@ -147,10 +154,10 @@ class _WeightScaleModalState extends ConsumerState<WeightScaleModal> {
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFC1F11D).withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(12),
+                          color: primaryAccent.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(10),
                         ),
-                        child: const Icon(Icons.scale_rounded, color: Color(0xFFC1F11D), size: 22),
+                        child: const Icon(Icons.scale_rounded, color: primaryAccent, size: 22),
                       ),
                       const SizedBox(width: 14),
                       Column(
@@ -158,17 +165,17 @@ class _WeightScaleModalState extends ConsumerState<WeightScaleModal> {
                         children: [
                           Text(
                             widget.product.name,
-                            style: GoogleFonts.manrope(
-                              fontSize: 18,
+                            style: GoogleFonts.inter(
+                              fontSize: 17,
                               fontWeight: FontWeight.w800,
-                              color: Colors.white,
+                              color: theme.colorScheme.onSurface,
                             ),
                           ),
                           Text(
                             'Unit Price: ${CurrencyFormatter.format(unitPrice, widget.currency)} / $unitLabel',
                             style: GoogleFonts.inter(
                               fontSize: 12,
-                              color: Colors.white54,
+                              color: theme.colorScheme.onSurfaceVariant,
                             ),
                           ),
                         ],
@@ -177,7 +184,7 @@ class _WeightScaleModalState extends ConsumerState<WeightScaleModal> {
                   ),
                   IconButton(
                     onPressed: () => Navigator.pop(context),
-                    icon: Icon(Icons.close_rounded, color: Colors.white.withValues(alpha: 0.4)),
+                    icon: Icon(Icons.close_rounded, color: theme.colorScheme.onSurfaceVariant),
                   ),
                 ],
               ),
@@ -188,19 +195,12 @@ class _WeightScaleModalState extends ConsumerState<WeightScaleModal> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                 decoration: BoxDecoration(
-                  color: Colors.black,
-                  borderRadius: BorderRadius.circular(16),
+                  color: innerBg,
+                  borderRadius: BorderRadius.circular(14),
                   border: Border.all(
-                    color: _isScaleStable ? const Color(0xFF10B981) : Colors.orangeAccent,
+                    color: _isScaleStable ? const Color(0xFF059669) : const Color(0xFFD97706),
                     width: 1.5,
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: (_isScaleStable ? const Color(0xFF10B981) : Colors.orangeAccent).withValues(alpha: 0.15),
-                      blurRadius: 20,
-                      spreadRadius: 2,
-                    ),
-                  ],
                 ),
                 child: Column(
                   children: [
@@ -210,39 +210,37 @@ class _WeightScaleModalState extends ConsumerState<WeightScaleModal> {
                         Row(
                           children: [
                             Container(
-                              width: 10,
-                              height: 10,
+                              width: 8,
+                              height: 8,
                               decoration: BoxDecoration(
+                                color: _isScaleStable ? const Color(0xFF059669) : const Color(0xFFD97706),
                                 shape: BoxShape.circle,
-                                color: _isScaleStable ? const Color(0xFF10B981) : Colors.orangeAccent,
                               ),
                             ),
-                            const SizedBox(width: 8),
+                            const SizedBox(width: 6),
                             Text(
-                              _isManualInput
-                                  ? 'MANUAL KEYPAD INPUT'
-                                  : (_isScaleConnected
-                                      ? (_isScaleStable ? 'SCALE STABLE' : 'READING SCALE...')
-                                      : 'SCALE SIMULATOR / DISCONNECTED'),
-                              style: GoogleFonts.manrope(
-                                fontSize: 11,
+                              _isScaleConnected 
+                                  ? (_isScaleStable ? 'STABLE READOUT' : 'STABILIZING...') 
+                                  : 'SCALE SIMULATION MODE',
+                              style: GoogleFonts.jetBrainsMono(
+                                fontSize: 10,
                                 fontWeight: FontWeight.w800,
-                                letterSpacing: 1,
-                                color: _isScaleStable ? const Color(0xFF10B981) : Colors.orangeAccent,
+                                color: _isScaleStable ? const Color(0xFF059669) : const Color(0xFFD97706),
+                                letterSpacing: 1.0,
                               ),
                             ),
                           ],
                         ),
                         if (_currentTareWeight > 0)
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.1),
+                              color: primaryAccent.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
                               'TARE: ${_currentTareWeight.toStringAsFixed(3)} $unitLabel',
-                              style: GoogleFonts.inter(fontSize: 10, color: Colors.white70, fontWeight: FontWeight.bold),
+                              style: GoogleFonts.jetBrainsMono(fontSize: 10, color: primaryAccent, fontWeight: FontWeight.w800),
                             ),
                           ),
                       ],
@@ -255,10 +253,10 @@ class _WeightScaleModalState extends ConsumerState<WeightScaleModal> {
                       children: [
                         Text(
                           _currentNetWeight.toStringAsFixed(3),
-                          style: GoogleFonts.robotoMono(
+                          style: GoogleFonts.jetBrainsMono(
                             fontSize: 46,
                             fontWeight: FontWeight.w900,
-                            color: const Color(0xFFC1F11D),
+                            color: primaryAccent,
                             letterSpacing: 2,
                           ),
                         ),
@@ -267,8 +265,8 @@ class _WeightScaleModalState extends ConsumerState<WeightScaleModal> {
                           unitLabel.toUpperCase(),
                           style: GoogleFonts.inter(
                             fontSize: 20,
-                            fontWeight: FontWeight.w900,
-                            color: Colors.white54,
+                            fontWeight: FontWeight.w800,
+                            color: theme.colorScheme.onSurfaceVariant,
                           ),
                         ),
                       ],
@@ -283,9 +281,9 @@ class _WeightScaleModalState extends ConsumerState<WeightScaleModal> {
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.04),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                  color: innerBg,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: borderColor),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -295,26 +293,26 @@ class _WeightScaleModalState extends ConsumerState<WeightScaleModal> {
                       children: [
                         Text(
                           'TOTAL COMPUTED AMOUNT',
-                          style: GoogleFonts.manrope(
+                          style: GoogleFonts.inter(
                             fontSize: 10,
                             fontWeight: FontWeight.w800,
                             letterSpacing: 0.8,
-                            color: Colors.white.withValues(alpha: 0.4),
+                            color: theme.colorScheme.onSurfaceVariant,
                           ),
                         ),
                         const SizedBox(height: 4),
                         Text(
                           '${_currentNetWeight.toStringAsFixed(3)} $unitLabel × ${CurrencyFormatter.format(unitPrice, widget.currency)}',
-                          style: GoogleFonts.inter(fontSize: 12, color: Colors.white70),
+                          style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurface, fontWeight: FontWeight.w600),
                         ),
                       ],
                     ),
                     Text(
                       CurrencyFormatter.format(totalComputedPrice, widget.currency),
-                      style: GoogleFonts.manrope(
-                        fontSize: 24,
+                      style: GoogleFonts.inter(
+                        fontSize: 22,
                         fontWeight: FontWeight.w900,
-                        color: const Color(0xFFC1F11D),
+                        color: const Color(0xFF059669),
                       ),
                     ),
                   ],
@@ -331,23 +329,23 @@ class _WeightScaleModalState extends ConsumerState<WeightScaleModal> {
                       scrollDirection: Axis.horizontal,
                       child: Row(
                         children: [
-                          _buildTareButton('Zero', () => _setTare(0.0)),
+                          _buildTareButton(context, 'Zero', () => _setTare(0.0)),
                           const SizedBox(width: 6),
-                          _buildTareButton('Bag (15g)', () => _setTare(0.015)),
+                          _buildTareButton(context, 'Bag (15g)', () => _setTare(0.015)),
                           const SizedBox(width: 6),
-                          _buildTareButton('Tray (50g)', () => _setTare(0.050)),
+                          _buildTareButton(context, 'Tray (50g)', () => _setTare(0.050)),
                           const SizedBox(width: 10),
-                          Container(width: 1, height: 24, color: Colors.white24),
+                          Container(width: 1, height: 24, color: borderColor),
                           const SizedBox(width: 10),
-                          _buildPresetButton('0.25 $unitLabel', () => _setManualWeight(0.25)),
+                          _buildPresetButton(context, '0.25 $unitLabel', () => _setManualWeight(0.25)),
                           const SizedBox(width: 6),
-                          _buildPresetButton('0.50 $unitLabel', () => _setManualWeight(0.50)),
+                          _buildPresetButton(context, '0.50 $unitLabel', () => _setManualWeight(0.50)),
                           const SizedBox(width: 6),
-                          _buildPresetButton('1.00 $unitLabel', () => _setManualWeight(1.00)),
+                          _buildPresetButton(context, '1.00 $unitLabel', () => _setManualWeight(1.00)),
                           const SizedBox(width: 6),
-                          _buildPresetButton('2.00 $unitLabel', () => _setManualWeight(2.00)),
+                          _buildPresetButton(context, '2.00 $unitLabel', () => _setManualWeight(2.00)),
                           const SizedBox(width: 6),
-                          _buildPresetButton('5.00 $unitLabel', () => _setManualWeight(5.00)),
+                          _buildPresetButton(context, '5.00 $unitLabel', () => _setManualWeight(5.00)),
                         ],
                       ),
                     ),
@@ -361,41 +359,41 @@ class _WeightScaleModalState extends ConsumerState<WeightScaleModal> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.02),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+                  color: innerBg,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: borderColor),
                 ),
                 child: Column(
                   children: [
                     Row(
                       children: [
-                        _buildKeypadKey('1'),
-                        _buildKeypadKey('2'),
-                        _buildKeypadKey('3'),
-                        _buildKeypadKey('C', color: Colors.orangeAccent),
+                        _buildKeypadKey(context, '1'),
+                        _buildKeypadKey(context, '2'),
+                        _buildKeypadKey(context, '3'),
+                        _buildKeypadKey(context, 'C', color: const Color(0xFFD97706)),
                       ],
                     ),
                     Row(
                       children: [
-                        _buildKeypadKey('4'),
-                        _buildKeypadKey('5'),
-                        _buildKeypadKey('6'),
-                        _buildKeypadKey('⌫', color: Colors.redAccent),
+                        _buildKeypadKey(context, '4'),
+                        _buildKeypadKey(context, '5'),
+                        _buildKeypadKey(context, '6'),
+                        _buildKeypadKey(context, '⌫', color: const Color(0xFFDC2626)),
                       ],
                     ),
                     Row(
                       children: [
-                        _buildKeypadKey('7'),
-                        _buildKeypadKey('8'),
-                        _buildKeypadKey('9'),
-                        _buildKeypadKey('.'),
+                        _buildKeypadKey(context, '7'),
+                        _buildKeypadKey(context, '8'),
+                        _buildKeypadKey(context, '9'),
+                        _buildKeypadKey(context, '.'),
                       ],
                     ),
                     Row(
                       children: [
-                        _buildKeypadKey('0', flex: 2),
-                        _buildKeypadKey('00'),
-                        _buildScaleReReadKey(),
+                        _buildKeypadKey(context, '0', flex: 2),
+                        _buildKeypadKey(context, '00'),
+                        _buildScaleReReadKey(context),
                       ],
                     ),
                   ],
@@ -406,7 +404,7 @@ class _WeightScaleModalState extends ConsumerState<WeightScaleModal> {
 
               // Action Confirm Button
               SizedBox(
-                height: 52,
+                height: 48,
                 child: ElevatedButton(
                   onPressed: _currentNetWeight > 0
                       ? () {
@@ -415,25 +413,26 @@ class _WeightScaleModalState extends ConsumerState<WeightScaleModal> {
                         }
                       : null,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFC1F11D),
-                    foregroundColor: Colors.black,
-                    disabledBackgroundColor: Colors.white.withValues(alpha: 0.1),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    backgroundColor: primaryAccent,
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor: isDark ? const Color(0xFF1C283D) : const Color(0xFFE2E8F0),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     elevation: 0,
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.add_shopping_cart_rounded, size: 20),
+                      const Icon(Icons.add_shopping_cart_rounded, size: 18, color: Colors.white),
                       const SizedBox(width: 10),
                       Text(
                         _currentNetWeight > 0
                             ? 'ADD TO CART  •  ${CurrencyFormatter.format(totalComputedPrice, widget.currency)}'
                             : 'PLACE ITEM ON SCALE',
-                        style: GoogleFonts.manrope(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w900,
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
                           letterSpacing: 0.5,
+                          color: Colors.white,
                         ),
                       ),
                     ],
@@ -447,7 +446,10 @@ class _WeightScaleModalState extends ConsumerState<WeightScaleModal> {
     );
   }
 
-  Widget _buildTareButton(String label, VoidCallback onTap) {
+  Widget _buildTareButton(BuildContext context, String label, VoidCallback onTap) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return InkWell(
       onTap: () {
         HapticFeedback.lightImpact();
@@ -457,19 +459,20 @@ class _WeightScaleModalState extends ConsumerState<WeightScaleModal> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.08),
+          color: isDark ? const Color(0xFF1C283D) : const Color(0xFFE2E8F0),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
         ),
         child: Text(
           label,
-          style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white70),
+          style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurface),
         ),
       ),
     );
   }
 
-  Widget _buildPresetButton(String label, VoidCallback onTap) {
+  Widget _buildPresetButton(BuildContext context, String label, VoidCallback onTap) {
+    const primaryAccent = Color(0xFF1D4ED8);
+
     return InkWell(
       onTap: () {
         HapticFeedback.lightImpact();
@@ -479,19 +482,24 @@ class _WeightScaleModalState extends ConsumerState<WeightScaleModal> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: const Color(0xFFC1F11D).withValues(alpha: 0.1),
+          color: primaryAccent.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: const Color(0xFFC1F11D).withValues(alpha: 0.3)),
+          border: Border.all(color: primaryAccent.withValues(alpha: 0.3)),
         ),
         child: Text(
           label,
-          style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: const Color(0xFFC1F11D)),
+          style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: primaryAccent),
         ),
       ),
     );
   }
 
-  Widget _buildKeypadKey(String key, {int flex = 1, Color? color}) {
+  Widget _buildKeypadKey(BuildContext context, String key, {int flex = 1, Color? color}) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final itemBg = isDark ? const Color(0xFF151F32) : Colors.white;
+    final borderColor = isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0);
+
     return Expanded(
       flex: flex,
       child: Padding(
@@ -501,21 +509,21 @@ class _WeightScaleModalState extends ConsumerState<WeightScaleModal> {
             HapticFeedback.selectionClick();
             _appendKeypad(key);
           },
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(8),
           child: Container(
-            height: 44,
+            height: 42,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.05),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+              color: itemBg,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: borderColor),
             ),
             child: Text(
               key,
-              style: GoogleFonts.robotoMono(
-                fontSize: 18,
+              style: GoogleFonts.jetBrainsMono(
+                fontSize: 16,
                 fontWeight: FontWeight.w800,
-                color: color ?? Colors.white,
+                color: color ?? theme.colorScheme.onSurface,
               ),
             ),
           ),
@@ -524,7 +532,9 @@ class _WeightScaleModalState extends ConsumerState<WeightScaleModal> {
     );
   }
 
-  Widget _buildScaleReReadKey() {
+  Widget _buildScaleReReadKey(BuildContext context) {
+    const primaryAccent = Color(0xFF1D4ED8);
+
     return Expanded(
       child: Padding(
         padding: const EdgeInsets.all(3),
@@ -534,16 +544,16 @@ class _WeightScaleModalState extends ConsumerState<WeightScaleModal> {
             setState(() => _isManualInput = false);
             ref.read(scaleServiceProvider).startSimulation(targetWeight: 1.450);
           },
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(8),
           child: Container(
-            height: 44,
+            height: 42,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: const Color(0xFFC1F11D).withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFFC1F11D).withValues(alpha: 0.3)),
+              color: primaryAccent.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: primaryAccent.withValues(alpha: 0.3)),
             ),
-            child: const Icon(Icons.refresh_rounded, color: Color(0xFFC1F11D), size: 20),
+            child: const Icon(Icons.refresh_rounded, color: primaryAccent, size: 20),
           ),
         ),
       ),

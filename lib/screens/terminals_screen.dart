@@ -5,7 +5,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:isar/isar.dart';
 import 'package:beleka_pos/models/models.dart';
-import 'package:beleka_pos/providers/theme_provider.dart';
 import 'package:beleka_pos/providers/store_provider.dart';
 import 'package:beleka_pos/providers/auth_provider.dart';
 import 'package:beleka_pos/services/database_service.dart';
@@ -67,9 +66,100 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
     super.dispose();
   }
 
+  Widget _buildTopBreadcrumbBar(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Row(
+          children: [
+            Text(
+              'Workspace',
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                color: theme.colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded, size: 16, color: theme.colorScheme.onSurfaceVariant),
+            Text(
+              'Tills & Cashier Terminals',
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                color: theme.colorScheme.onSurface,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF151F32) : Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 7,
+                    height: 7,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF059669),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Master POS Host Hub Live',
+                    style: GoogleFonts.inter(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF059669),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF151F32) : Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.calendar_today_rounded, size: 13, color: theme.colorScheme.onSurfaceVariant),
+                  const SizedBox(width: 6),
+                  Text(
+                    DateFormat('E, MMM d, yyyy').format(DateTime.now()),
+                    style: GoogleFonts.inter(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final accentColor = ref.watch(accentColorProvider);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
+
     final isOwner = ref.watch(isOwnerProvider);
     final currentUser = ref.watch(authProvider);
     final storeConfig = ref.watch(storeConfigProvider).value;
@@ -103,6 +193,10 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Breadcrumb Bar
+          _buildTopBreadcrumbBar(context),
+          const SizedBox(height: 16),
+
           // Header Bar
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -112,31 +206,31 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
                 children: [
                   Text(
                     'TILLS & CASHIER TERMINALS MANAGEMENT',
-                    style: GoogleFonts.manrope(
-                      fontSize: 22,
+                    style: GoogleFonts.inter(
+                      fontSize: 20,
                       fontWeight: FontWeight.w900,
-                      letterSpacing: 1,
-                      color: Colors.white,
+                      letterSpacing: 0.5,
+                      color: theme.colorScheme.onSurface,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     'Monitor connected cashier registers, assign cashier shifts, generate per-till PDF reports, and balance till floats.',
-                    style: GoogleFonts.inter(fontSize: 13, color: Colors.white54),
+                    style: GoogleFonts.inter(fontSize: 13, color: theme.colorScheme.onSurfaceVariant),
                   ),
                 ],
               ),
               Row(
                 children: [
                   ElevatedButton.icon(
-                    onPressed: () => _showAddEditTerminalDialog(context, accentColor, branches, users),
+                    onPressed: () => _showAddEditTerminalDialog(context, primaryColor, branches, users),
                     icon: const Icon(Icons.add_to_queue_rounded, size: 18),
                     label: Text('+ Pre-Authorize Till', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13)),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: accentColor,
-                      foregroundColor: Colors.black,
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      backgroundColor: primaryColor,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       elevation: 0,
                     ),
                   ),
@@ -144,27 +238,27 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
               ),
             ],
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 16),
 
           // Master POS Host Hub Status Card
-          _buildMasterHubBanner(context, storeConfig, hostIp, hostPort, accentColor),
-          const SizedBox(height: 18),
+          _buildMasterHubBanner(context, storeConfig, hostIp, hostPort, primaryColor),
+          const SizedBox(height: 16),
 
           // Tab Bar for Terminals vs Shift Balancing
           Container(
             decoration: BoxDecoration(
-              color: const Color(0xFF141417),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white.withAlpha(15)),
+              color: isDark ? const Color(0xFF151F32) : Colors.white,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
             ),
             child: TabBar(
               controller: _tabController,
               isScrollable: true,
               tabAlignment: TabAlignment.start,
-              indicatorColor: accentColor,
+              indicatorColor: primaryColor,
               indicatorWeight: 3,
-              labelColor: accentColor,
-              unselectedLabelColor: Colors.white60,
+              labelColor: primaryColor,
+              unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
               labelStyle: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13),
               tabs: [
                 Tab(
@@ -178,7 +272,7 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
               ],
             ),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 16),
 
           // Tab Views
           Expanded(
@@ -196,7 +290,7 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
                   users: users,
                   totalSalesToday: totalSalesToday,
                   currency: currency,
-                  accentColor: accentColor,
+                  accentColor: primaryColor,
                   apiService: apiService,
                   hostIp: hostIp,
                   hostPort: hostPort,
@@ -209,7 +303,7 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
                   users: users,
                   activeShifts: activeShifts,
                   currency: currency,
-                  accentColor: accentColor,
+                  accentColor: primaryColor,
                 ),
               ],
             ),
@@ -237,6 +331,10 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
     required String hostIp,
     required int hostPort,
   }) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
+
     return Column(
       children: [
         // KPI Stats Overview Bar
@@ -248,7 +346,7 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
                 value: '${terminals.length} / $maxAllowedTills',
                 subtitle: '$activeTerminalsCount Active (Max $maxAllowedTills on License)',
                 icon: Icons.point_of_sale_rounded,
-                color: accentColor,
+                color: primaryColor,
               ),
             ),
             const SizedBox(width: 16),
@@ -258,7 +356,7 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
                 value: '${activeShifts.length}',
                 subtitle: '${activeShifts.length} Cashiers Live On Shift',
                 icon: Icons.person_pin_circle_rounded,
-                color: Colors.green,
+                color: const Color(0xFF059669),
               ),
             ),
             const SizedBox(width: 16),
@@ -268,7 +366,7 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
                 value: '${branches.length}',
                 subtitle: 'ZRA Fiscal Branches Linked',
                 icon: Icons.storefront_rounded,
-                color: Colors.purpleAccent,
+                color: const Color(0xFF0284C7),
               ),
             ),
             const SizedBox(width: 16),
@@ -278,7 +376,7 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
                 value: CurrencyFormatter.format(totalSalesToday, currency),
                 subtitle: 'Aggregate Live Till Revenue',
                 icon: Icons.payments_rounded,
-                color: Colors.amber,
+                color: const Color(0xFFD97706),
               ),
             ),
           ],
@@ -288,7 +386,7 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
         // Terminals Grid / List
         Expanded(
           child: terminals.isEmpty
-              ? _buildEmptyTillsState(context, hostIp, hostPort, accentColor, branches, users)
+              ? _buildEmptyTillsState(context, hostIp, hostPort, primaryColor, branches, users)
               : GridView.builder(
                   gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
                     maxCrossAxisExtent: 450,
@@ -311,14 +409,12 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
                     return Container(
                       padding: const EdgeInsets.all(18),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF161619),
-                        borderRadius: BorderRadius.circular(16),
+                        color: isDark ? const Color(0xFF151F32) : Colors.white,
+                        borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                           color: isShiftOpen
-                              ? Colors.green.withAlpha(120)
-                              : isActive
-                                  ? Colors.white.withAlpha(20)
-                                  : Colors.redAccent.withAlpha(60),
+                              ? const Color(0xFF059669)
+                              : (isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
                           width: isShiftOpen ? 1.5 : 1,
                         ),
                       ),
@@ -335,13 +431,13 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
                                     padding: const EdgeInsets.all(8),
                                     decoration: BoxDecoration(
                                       color: isShiftOpen
-                                          ? Colors.green.withAlpha(40)
-                                          : accentColor.withAlpha(30),
+                                          ? const Color(0xFFECFDF5)
+                                          : (isDark ? primaryColor.withValues(alpha: 0.15) : const Color(0xFFEFF6FF)),
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                     child: Icon(
                                       Icons.point_of_sale_rounded,
-                                      color: isShiftOpen ? Colors.green : accentColor,
+                                      color: isShiftOpen ? const Color(0xFF059669) : primaryColor,
                                       size: 20,
                                     ),
                                   ),
@@ -351,24 +447,23 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
                                     children: [
                                       Text(
                                         t.terminalCode.toUpperCase(),
-                                        style: GoogleFonts.manrope(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w900,
-                                          letterSpacing: 1,
-                                          color: Colors.white,
+                                        style: GoogleFonts.inter(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w800,
+                                          color: theme.colorScheme.onSurface,
                                         ),
                                       ),
                                       Row(
                                         children: [
                                           Text(
                                             t.name,
-                                            style: GoogleFonts.inter(fontSize: 12, color: Colors.white70),
+                                            style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
                                           ),
                                           if (t.deviceIp != null && t.deviceIp!.isNotEmpty) ...[
                                             const SizedBox(width: 6),
                                             Text(
                                               '• ${t.deviceIp}',
-                                              style: GoogleFonts.ibmPlexMono(fontSize: 10, color: Colors.white38),
+                                              style: GoogleFonts.inter(fontSize: 10.5, color: theme.colorScheme.onSurfaceVariant),
                                             ),
                                           ],
                                         ],
@@ -383,51 +478,42 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
                                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                     decoration: BoxDecoration(
                                       color: isShiftOpen
-                                          ? Colors.green.withAlpha(30)
-                                          : isLiveConnected
-                                              ? const Color(0xFF10B981).withAlpha(30)
-                                              : isActive
-                                                  ? Colors.blue.withAlpha(30)
-                                                  : Colors.orange.withAlpha(30),
+                                          ? const Color(0xFFECFDF5)
+                                          : (isLiveConnected
+                                              ? const Color(0xFFECFDF5)
+                                              : (isActive
+                                                  ? const Color(0xFFEFF6FF)
+                                                  : const Color(0xFFFFFBEB))),
                                       borderRadius: BorderRadius.circular(6),
-                                      border: Border.all(
-                                        color: isShiftOpen
-                                            ? Colors.green.withAlpha(80)
-                                            : isLiveConnected
-                                                ? const Color(0xFF10B981).withAlpha(80)
-                                                : isActive
-                                                    ? Colors.blue.withAlpha(80)
-                                                    : Colors.orange.withAlpha(80),
-                                      ),
                                     ),
                                     child: Text(
                                       isShiftOpen
                                           ? 'LIVE SHIFT'
-                                          : isLiveConnected
+                                          : (isLiveConnected
                                               ? 'CONNECTED'
-                                              : t.status,
-                                      style: GoogleFonts.jetBrainsMono(
+                                              : t.status),
+                                      style: GoogleFonts.inter(
                                         fontSize: 10,
                                         fontWeight: FontWeight.bold,
                                         color: isShiftOpen
-                                            ? Colors.green
-                                            : isLiveConnected
-                                                ? const Color(0xFF10B981)
-                                                : isActive
-                                                    ? Colors.blue
-                                                    : Colors.orange,
+                                            ? const Color(0xFF059669)
+                                            : (isLiveConnected
+                                                ? const Color(0xFF059669)
+                                                : (isActive
+                                                    ? primaryColor
+                                                    : const Color(0xFFD97706))),
                                       ),
                                     ),
                                   ),
                                   PopupMenuButton<String>(
-                                    icon: const Icon(Icons.more_vert_rounded, size: 18, color: Colors.white54),
+                                    icon: Icon(Icons.more_vert_rounded, size: 18, color: theme.colorScheme.onSurfaceVariant),
                                     onSelected: (val) async {
                                       if (val == 'report_pdf') {
                                         _generateTillReport(context, t, matchingShift, printDirectly: false);
                                       } else if (val == 'report_print') {
                                         _generateTillReport(context, t, matchingShift, printDirectly: true);
                                       } else if (val == 'edit') {
-                                        _showAddEditTerminalDialog(context, accentColor, branches, users, terminal: t);
+                                        _showAddEditTerminalDialog(context, primaryColor, branches, users, terminal: t);
                                       } else if (val == 'toggle_status') {
                                         await _toggleTerminalStatus(t);
                                       } else if (val == 'delete') {
@@ -439,7 +525,7 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
                                         value: 'report_pdf',
                                         child: Row(
                                           children: [
-                                            Icon(Icons.picture_as_pdf_rounded, color: Colors.redAccent, size: 16),
+                                            Icon(Icons.picture_as_pdf_rounded, color: Color(0xFFDC2626), size: 16),
                                             SizedBox(width: 8),
                                             Text('Till Report (PDF)'),
                                           ],
@@ -449,7 +535,7 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
                                         value: 'report_print',
                                         child: Row(
                                           children: [
-                                            Icon(Icons.print_rounded, color: Colors.greenAccent, size: 16),
+                                            Icon(Icons.print_rounded, color: Color(0xFF059669), size: 16),
                                             SizedBox(width: 8),
                                             Text('Print Till Report'),
                                           ],
@@ -480,9 +566,9 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
                                         value: 'delete',
                                         child: Row(
                                           children: [
-                                            Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 16),
+                                            Icon(Icons.delete_outline_rounded, color: Color(0xFFDC2626), size: 16),
                                             SizedBox(width: 8),
-                                            Text('Delete Till', style: TextStyle(color: Colors.redAccent)),
+                                            Text('Delete Till', style: TextStyle(color: Color(0xFFDC2626))),
                                           ],
                                         ),
                                       ),
@@ -492,29 +578,29 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
                               ),
                             ],
                           ),
-                          const Divider(color: Colors.white10, height: 16),
+                          Divider(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0), height: 16),
 
                           // Branch & DigiTax bhfId Info
                           Row(
                             children: [
-                              const Icon(Icons.storefront_rounded, size: 14, color: Colors.white38),
+                              Icon(Icons.storefront_rounded, size: 14, color: theme.colorScheme.onSurfaceVariant),
                               const SizedBox(width: 6),
                               Expanded(
                                 child: Text(
                                   t.branchName,
-                                  style: GoogleFonts.inter(fontSize: 12, color: Colors.white70),
+                                  style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurface),
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
-                                  color: Colors.white.withAlpha(10),
+                                  color: const Color(0xFFF0F9FF),
                                   borderRadius: BorderRadius.circular(4),
                                 ),
                                 child: Text(
                                   'ZRA bhfId: ${t.digitaxBhfId}',
-                                  style: GoogleFonts.jetBrainsMono(fontSize: 10, color: Colors.white54),
+                                  style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.w600, color: const Color(0xFF0284C7)),
                                 ),
                               ),
                             ],
@@ -525,15 +611,16 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
                           Container(
                             padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
-                              color: Colors.white.withAlpha(8),
+                              color: isDark ? const Color(0xFF1C283D) : const Color(0xFFF8FAFC),
                               borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
                             ),
                             child: Row(
                               children: [
                                 CircleAvatar(
                                   radius: 14,
-                                  backgroundColor: isShiftOpen ? Colors.green.withAlpha(40) : Colors.white.withAlpha(20),
-                                  child: Icon(Icons.person, size: 14, color: isShiftOpen ? Colors.green : Colors.white70),
+                                  backgroundColor: isShiftOpen ? const Color(0xFFECFDF5) : (isDark ? const Color(0xFF151F32) : Colors.white),
+                                  child: Icon(Icons.person, size: 14, color: isShiftOpen ? const Color(0xFF059669) : theme.colorScheme.onSurfaceVariant),
                                 ),
                                 const SizedBox(width: 10),
                                 Expanded(
@@ -549,7 +636,7 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
                                         style: GoogleFonts.inter(
                                           fontSize: 12,
                                           fontWeight: FontWeight.w600,
-                                          color: isShiftOpen ? Colors.green : Colors.white,
+                                          color: isShiftOpen ? const Color(0xFF059669) : theme.colorScheme.onSurface,
                                         ),
                                         overflow: TextOverflow.ellipsis,
                                       ),
@@ -559,7 +646,7 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
                                             : (t.assignedCashierId != null && t.assignedCashierId!.isNotEmpty)
                                                 ? 'Assigned ID: ${t.assignedCashierId}'
                                                 : 'Cashier can log in directly',
-                                        style: GoogleFonts.inter(fontSize: 10, color: Colors.white38),
+                                        style: GoogleFonts.inter(fontSize: 10.5, color: theme.colorScheme.onSurfaceVariant),
                                       ),
                                     ],
                                   ),
@@ -576,10 +663,10 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text('TILL REVENUE TODAY', style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w800, color: Colors.white38, letterSpacing: 1)),
+                                  Text('TILL REVENUE TODAY', style: GoogleFonts.inter(fontSize: 9.5, fontWeight: FontWeight.w800, color: theme.colorScheme.onSurfaceVariant, letterSpacing: 0.5)),
                                   Text(
                                     CurrencyFormatter.format(t.salesToday, currency),
-                                    style: GoogleFonts.jetBrainsMono(fontSize: 14, fontWeight: FontWeight.bold, color: accentColor),
+                                    style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold, color: primaryColor),
                                   ),
                                 ],
                               ),
@@ -587,7 +674,7 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
                                 children: [
                                   IconButton(
                                     onPressed: () => _generateTillReport(context, t, matchingShift, printDirectly: false),
-                                    icon: const Icon(Icons.picture_as_pdf_rounded, size: 16, color: Colors.redAccent),
+                                    icon: const Icon(Icons.picture_as_pdf_rounded, size: 16, color: Color(0xFFDC2626)),
                                     tooltip: 'Generate Till Report (PDF)',
                                     splashRadius: 18,
                                   ),
@@ -595,15 +682,15 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
                                   ElevatedButton.icon(
                                     onPressed: isShiftOpen
                                         ? () => _showCloseShiftModal(context, matchingShift, currency)
-                                        : () => _openShiftForTerminal(context, t, users, accentColor),
+                                        : () => _openShiftForTerminal(context, t, users, primaryColor),
                                     icon: Icon(isShiftOpen ? Icons.calculate_rounded : Icons.login_rounded, size: 13),
                                     label: Text(
                                       isShiftOpen ? 'Reconcile' : 'Assign Shift',
                                       style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
                                     ),
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: isShiftOpen ? Colors.redAccent.withAlpha(40) : accentColor,
-                                      foregroundColor: isShiftOpen ? Colors.redAccent : Colors.black,
+                                      backgroundColor: isShiftOpen ? const Color(0xFFFEF2F2) : primaryColor,
+                                      foregroundColor: isShiftOpen ? const Color(0xFFDC2626) : Colors.white,
                                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                                       elevation: 0,
@@ -634,6 +721,9 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
     required String currency,
     required Color accentColor,
   }) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
     final shifts = ref.watch(cashShiftsProvider).value ?? [];
 
     return SingleChildScrollView(
@@ -647,20 +737,27 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('ACTIVE TILLS & CASHIER SHIFT BALANCING', style: GoogleFonts.manrope(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                  Text(
+                    'ACTIVE TILLS & CASHIER SHIFT BALANCING',
+                    style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w800, color: theme.colorScheme.onSurface),
+                  ),
                   const SizedBox(height: 2),
-                  Text('${activeShifts.length} active cashier till${activeShifts.length == 1 ? "" : "s"} currently live on shift', style: GoogleFonts.inter(fontSize: 12, color: Colors.white54)),
+                  Text(
+                    '${activeShifts.length} active cashier till${activeShifts.length == 1 ? "" : "s"} currently live on shift',
+                    style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
+                  ),
                 ],
               ),
               ElevatedButton.icon(
-                onPressed: () => _showQuickAssignShiftModal(context, terminals, users, accentColor),
+                onPressed: () => _showQuickAssignShiftModal(context, terminals, users, primaryColor),
                 icon: const Icon(Icons.person_pin_circle_rounded, size: 16),
-                label: const Text('+ Assign Cashier to a Till'),
+                label: Text('+ Assign Cashier to a Till', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13)),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: accentColor,
-                  foregroundColor: Colors.black,
+                  backgroundColor: primaryColor,
+                  foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  elevation: 0,
                 ),
               ),
             ],
@@ -672,18 +769,18 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
             Container(
               padding: const EdgeInsets.all(28),
               decoration: BoxDecoration(
-                color: const Color(0xFF1A1A1E),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white.withAlpha(15)),
+                color: isDark ? const Color(0xFF151F32) : Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
               ),
               child: Center(
                 child: Column(
                   children: [
-                    Icon(Icons.point_of_sale_rounded, size: 48, color: Colors.white.withAlpha(40)),
+                    Icon(Icons.point_of_sale_rounded, size: 48, color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.3)),
                     const SizedBox(height: 12),
-                    Text('No Active Till Shifts Operating', style: GoogleFonts.manrope(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white70)),
+                    Text('No Active Till Shifts Operating', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.bold, color: theme.colorScheme.onSurfaceVariant)),
                     const SizedBox(height: 4),
-                    Text('Assign a cashier to a specific till and set their opening float to begin a shift.', style: GoogleFonts.inter(fontSize: 12, color: Colors.white38)),
+                    Text('Assign a cashier to a specific till and set their opening float to begin a shift.', style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurfaceVariant)),
                   ],
                 ),
               ),
@@ -701,13 +798,9 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
                   margin: const EdgeInsets.only(bottom: 16),
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF1E293B), Color(0xFF0F172A)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.green.withAlpha(80)),
+                    color: isDark ? const Color(0xFF151F32) : Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFF059669), width: 1.5),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -720,22 +813,22 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                                 decoration: BoxDecoration(
-                                  color: Colors.blue.withAlpha(40),
+                                  color: const Color(0xFFF0F9FF),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Row(
                                   children: [
-                                    const Icon(Icons.point_of_sale_rounded, color: Colors.blue, size: 14),
+                                    const Icon(Icons.point_of_sale_rounded, color: Color(0xFF0284C7), size: 14),
                                     const SizedBox(width: 6),
-                                    Text(shift.terminalId.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.blue)),
+                                    Text(shift.terminalId.toUpperCase(), style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 12, color: const Color(0xFF0284C7))),
                                   ],
                                 ),
                               ),
                               const SizedBox(width: 12),
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(color: Colors.green.withAlpha(30), borderRadius: BorderRadius.circular(6)),
-                                child: const Text('SHIFT ACTIVE', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: Colors.greenAccent)),
+                                decoration: BoxDecoration(color: const Color(0xFFECFDF5), borderRadius: BorderRadius.circular(6)),
+                                child: Text('SHIFT ACTIVE', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 10, color: const Color(0xFF059669))),
                               ),
                             ],
                           ),
@@ -746,7 +839,7 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
                                   final config = ref.read(storeConfigProvider).value;
                                   ref.read(exportServiceProvider).exportShiftZReportToPdf(shift, config: config, printDirectly: false);
                                 },
-                                icon: const Icon(Icons.picture_as_pdf_rounded, size: 18, color: Colors.redAccent),
+                                icon: const Icon(Icons.picture_as_pdf_rounded, size: 18, color: Color(0xFFDC2626)),
                                 tooltip: 'Export Interim Z-Report PDF',
                               ),
                               IconButton(
@@ -754,7 +847,7 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
                                   final config = ref.read(storeConfigProvider).value;
                                   ref.read(exportServiceProvider).exportShiftZReportToPdf(shift, config: config, printDirectly: true);
                                 },
-                                icon: const Icon(Icons.print_rounded, size: 18, color: Colors.white70),
+                                icon: Icon(Icons.print_rounded, size: 18, color: theme.colorScheme.onSurfaceVariant),
                                 tooltip: 'Print Interim Slip',
                               ),
                               const SizedBox(width: 8),
@@ -763,10 +856,11 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
                                 icon: const Icon(Icons.calculate_rounded, size: 16),
                                 label: const Text('Reconcile & Close Till'),
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.redAccent,
+                                  backgroundColor: const Color(0xFFDC2626),
                                   foregroundColor: Colors.white,
                                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                  elevation: 0,
                                 ),
                               ),
                             ],
@@ -777,11 +871,11 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
                       Row(
                         children: [
                           CircleAvatar(
-                            backgroundColor: accentColor.withAlpha(40),
+                            backgroundColor: isDark ? primaryColor.withValues(alpha: 0.15) : const Color(0xFFEFF6FF),
                             radius: 18,
                             child: Text(
                               shift.cashierName.isNotEmpty ? shift.cashierName[0].toUpperCase() : 'C',
-                              style: TextStyle(color: accentColor, fontWeight: FontWeight.bold),
+                              style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold),
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -790,18 +884,18 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
                             children: [
                               Text(
                                 'Assigned Cashier: ${shift.cashierName} (ID: ${shift.cashierId ?? "1001"})',
-                                style: GoogleFonts.manrope(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white),
+                                style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14, color: theme.colorScheme.onSurface),
                               ),
                               Text(
                                 '${shift.branchName} • Opened at ${DateFormat('HH:mm, dd MMM yyyy').format(shift.openingTime)}',
-                                style: GoogleFonts.inter(fontSize: 11, color: Colors.white54),
+                                style: GoogleFonts.inter(fontSize: 11, color: theme.colorScheme.onSurfaceVariant),
                               ),
                             ],
                           ),
                         ],
                       ),
                       const SizedBox(height: 16),
-                      const Divider(color: Colors.white10),
+                      Divider(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
                       const SizedBox(height: 10),
                       Row(
                         children: [
@@ -824,14 +918,21 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
           const SizedBox(height: 24),
 
           // Shift History Table
-          Text('PAST SHIFTS & VARIANCE RECONCILIATION AUDIT', style: GoogleFonts.manrope(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+          Text(
+            'PAST SHIFTS & VARIANCE RECONCILIATION AUDIT',
+            style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w800, color: theme.colorScheme.onSurface),
+          ),
           const SizedBox(height: 12),
 
           if (shifts.isEmpty)
             Container(
               padding: const EdgeInsets.all(32),
-              decoration: BoxDecoration(color: const Color(0xFF1A1A1E), borderRadius: BorderRadius.circular(16)),
-              child: Center(child: Text('No past shift reconciliation records available', style: GoogleFonts.inter(color: Colors.white38))),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF151F32) : Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+              ),
+              child: Center(child: Text('No past shift reconciliation records available', style: GoogleFonts.inter(color: theme.colorScheme.onSurfaceVariant))),
             )
           else
             ListView.builder(
@@ -846,23 +947,23 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
                   margin: const EdgeInsets.only(bottom: 10),
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF1A1A1E),
+                    color: isDark ? const Color(0xFF151F32) : Colors.white,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.white.withAlpha(15)),
+                    border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
                   ),
                   child: Row(
                     children: [
                       CircleAvatar(
                         backgroundColor: s.status == 'OPEN'
-                            ? Colors.green.withAlpha(30)
-                            : (s.cashVariance == 0 ? Colors.blue.withAlpha(30) : Colors.red.withAlpha(30)),
+                            ? const Color(0xFFECFDF5)
+                            : (s.cashVariance == 0 ? const Color(0xFFEFF6FF) : const Color(0xFFFEF2F2)),
                         child: Icon(
                           s.status == 'OPEN'
                               ? Icons.access_time_filled
                               : (s.cashVariance == 0 ? Icons.check_circle : Icons.warning_rounded),
                           color: s.status == 'OPEN'
-                              ? Colors.green
-                              : (s.cashVariance == 0 ? Colors.blue : Colors.redAccent),
+                              ? const Color(0xFF059669)
+                              : (s.cashVariance == 0 ? primaryColor : const Color(0xFFDC2626)),
                           size: 20,
                         ),
                       ),
@@ -873,15 +974,15 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
                           children: [
                             Row(
                               children: [
-                                Text(s.shiftNumber, style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white)),
+                                Text(s.shiftNumber, style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14, color: theme.colorScheme.onSurface)),
                                 const SizedBox(width: 10),
-                                Text('Cashier: ${s.cashierName} (${s.terminalId})', style: GoogleFonts.inter(fontSize: 12, color: Colors.white70)),
+                                Text('Cashier: ${s.cashierName} (${s.terminalId})', style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurfaceVariant)),
                               ],
                             ),
                             const SizedBox(height: 4),
                             Text(
                               'Opened: ${DateFormat('dd MMM yyyy, HH:mm').format(s.openingTime)} ${s.closingTime != null ? "• Closed: ${DateFormat('HH:mm').format(s.closingTime!)}" : ""}',
-                              style: GoogleFonts.inter(fontSize: 11, color: Colors.white38),
+                              style: GoogleFonts.inter(fontSize: 11, color: theme.colorScheme.onSurfaceVariant),
                             ),
                           ],
                         ),
@@ -891,7 +992,7 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
                         children: [
                           Text(
                             'Expected: $currency ${s.expectedClosingCash.toStringAsFixed(2)} | Actual: $currency ${s.actualClosingCash.toStringAsFixed(2)}',
-                            style: GoogleFonts.inter(fontSize: 12, color: Colors.white70),
+                            style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurface),
                           ),
                           const SizedBox(height: 4),
                           Text(
@@ -906,8 +1007,8 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
                               fontWeight: FontWeight.bold,
                               fontSize: 12,
                               color: s.status == 'OPEN'
-                                  ? Colors.green
-                                  : (s.cashVariance == 0 ? Colors.green : (isOver ? Colors.blue : Colors.redAccent)),
+                                  ? const Color(0xFF059669)
+                                  : (s.cashVariance == 0 ? const Color(0xFF059669) : (isOver ? const Color(0xFF0284C7) : const Color(0xFFDC2626))),
                             ),
                           ),
                         ],
@@ -921,7 +1022,7 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
                               final config = ref.read(storeConfigProvider).value;
                               ref.read(exportServiceProvider).exportShiftZReportToPdf(s, config: config, printDirectly: true);
                             },
-                            icon: const Icon(Icons.print_rounded, size: 18, color: Colors.white70),
+                            icon: Icon(Icons.print_rounded, size: 18, color: theme.colorScheme.onSurfaceVariant),
                             tooltip: 'Print Shift Z-Report',
                           ),
                           IconButton(
@@ -929,7 +1030,7 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
                               final config = ref.read(storeConfigProvider).value;
                               ref.read(exportServiceProvider).exportShiftZReportToPdf(s, config: config, printDirectly: false);
                             },
-                            icon: const Icon(Icons.picture_as_pdf_rounded, size: 18, color: Colors.redAccent),
+                            icon: const Icon(Icons.picture_as_pdf_rounded, size: 18, color: Color(0xFFDC2626)),
                             tooltip: 'Export Z-Report to PDF',
                           ),
                         ],
@@ -998,6 +1099,10 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
     int hostPort,
     Color accentColor,
   ) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
+
     final businessName = config?.businessName ?? 'Beleka Master Store';
     final branchName = config?.branchName ?? 'Headquarters (HQ)';
     final bhfId = config?.bhfId ?? '00';
@@ -1005,26 +1110,19 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       decoration: BoxDecoration(
-        color: const Color(0xFF141418),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: accentColor.withAlpha(60)),
-        boxShadow: [
-          BoxShadow(
-            color: accentColor.withAlpha(15),
-            blurRadius: 20,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        color: isDark ? const Color(0xFF151F32) : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: accentColor.withAlpha(30),
-              borderRadius: BorderRadius.circular(12),
+              color: isDark ? primaryColor.withValues(alpha: 0.15) : const Color(0xFFEFF6FF),
+              borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(Icons.hub_rounded, color: accentColor, size: 28),
+            child: Icon(Icons.hub_rounded, color: primaryColor, size: 26),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -1034,37 +1132,36 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
                 Row(
                   children: [
                     Container(
-                      width: 8,
-                      height: 8,
+                      width: 7,
+                      height: 7,
                       decoration: const BoxDecoration(
-                        color: Color(0xFF10B981),
+                        color: Color(0xFF059669),
                         shape: BoxShape.circle,
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 6),
                     Text(
                       'MASTER POS SERVER (HOST HUB)',
-                      style: GoogleFonts.ibmPlexMono(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 1.5,
-                        color: accentColor,
+                      style: GoogleFonts.inter(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.8,
+                        color: primaryColor,
                       ),
                     ),
                     const SizedBox(width: 10),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF10B981).withAlpha(30),
+                        color: const Color(0xFFECFDF5),
                         borderRadius: BorderRadius.circular(4),
-                        border: Border.all(color: const Color(0xFF10B981).withAlpha(80)),
                       ),
                       child: Text(
                         'HOST RUNNING',
-                        style: GoogleFonts.jetBrainsMono(
-                          fontSize: 9,
+                        style: GoogleFonts.inter(
+                          fontSize: 9.5,
                           fontWeight: FontWeight.bold,
-                          color: const Color(0xFF10B981),
+                          color: const Color(0xFF059669),
                         ),
                       ),
                     ),
@@ -1073,16 +1170,16 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
                 const SizedBox(height: 4),
                 Text(
                   '$businessName • $branchName (bhfId: $bhfId)',
-                  style: GoogleFonts.manrope(
+                  style: GoogleFonts.inter(
                     fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                    color: theme.colorScheme.onSurface,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   'Secondary Cashier Tills connect using Master IP: $hostIp on Port $hostPort',
-                  style: GoogleFonts.inter(fontSize: 11.5, color: Colors.white60),
+                  style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
                 ),
               ],
             ),
@@ -1094,7 +1191,7 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text('Master POS IP "$hostIp" copied to clipboard!'),
-                  backgroundColor: accentColor,
+                  backgroundColor: const Color(0xFF059669),
                   behavior: SnackBarBehavior.floating,
                 ),
               );
@@ -1102,13 +1199,17 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
             icon: const Icon(Icons.copy_rounded, size: 14),
             label: Text(
               'IP: $hostIp:$hostPort',
-              style: GoogleFonts.ibmPlexMono(fontSize: 11, fontWeight: FontWeight.bold),
+              style: GoogleFonts.inter(fontSize: 11.5, fontWeight: FontWeight.bold),
             ),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.white10,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              backgroundColor: isDark ? const Color(0xFF1C283D) : const Color(0xFFF8FAFC),
+              foregroundColor: theme.colorScheme.onSurface,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+                side: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+              ),
+              elevation: 0,
             ),
           ),
         ],
@@ -1124,14 +1225,18 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
     List<StoreBranch> branches,
     List<User> users,
   ) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
+
     return Center(
       child: Container(
         constraints: const BoxConstraints(maxWidth: 620),
         padding: const EdgeInsets.all(32),
         decoration: BoxDecoration(
-          color: const Color(0xFF141418),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withAlpha(15)),
+          color: isDark ? const Color(0xFF151F32) : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1139,41 +1244,41 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: accentColor.withAlpha(20),
+                color: isDark ? primaryColor.withValues(alpha: 0.15) : const Color(0xFFEFF6FF),
                 shape: BoxShape.circle,
               ),
-              child: Icon(Icons.point_of_sale_rounded, size: 40, color: accentColor),
+              child: Icon(Icons.point_of_sale_rounded, size: 40, color: primaryColor),
             ),
             const SizedBox(height: 16),
             Text(
               'Waiting for Secondary Cashier Tills to Connect',
-              style: GoogleFonts.manrope(
+              style: GoogleFonts.inter(
                 fontSize: 18,
-                fontWeight: FontWeight.w900,
-                color: Colors.white,
+                fontWeight: FontWeight.w800,
+                color: theme.colorScheme.onSurface,
               ),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
             Text(
               'You do not need to register a till under the Owner. When you install Beleka POS on cashier machines in your shop, they will automatically handshake and appear here.',
-              style: GoogleFonts.inter(fontSize: 12.5, color: Colors.white60, height: 1.4),
+              style: GoogleFonts.inter(fontSize: 12.5, color: theme.colorScheme.onSurfaceVariant, height: 1.4),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 20),
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white.withAlpha(6),
+                color: isDark ? const Color(0xFF1C283D) : const Color(0xFFF8FAFC),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white.withAlpha(12)),
+                border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     'QUICK CLIENT TILL LINKING INSTRUCTIONS:',
-                    style: GoogleFonts.ibmPlexMono(fontSize: 10, fontWeight: FontWeight.bold, color: accentColor, letterSpacing: 1),
+                    style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.w800, color: primaryColor, letterSpacing: 0.8),
                   ),
                   const SizedBox(height: 8),
                   _buildStepRow('1', 'Launch Beleka POS on another PC or tablet in your shop.'),
@@ -1191,14 +1296,14 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 OutlinedButton.icon(
-                  onPressed: () => _showAddEditTerminalDialog(context, accentColor, branches, users),
+                  onPressed: () => _showAddEditTerminalDialog(context, primaryColor, branches, users),
                   icon: const Icon(Icons.add, size: 16),
-                  label: const Text('+ Pre-Authorize Till Manually'),
+                  label: Text('+ Pre-Authorize Till Manually', style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 13)),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white70,
-                    side: const BorderSide(color: Colors.white24),
+                    foregroundColor: theme.colorScheme.onSurface,
+                    side: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   ),
                 ),
               ],
@@ -1210,6 +1315,9 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
   }
 
   Widget _buildStepRow(String number, String text) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1218,19 +1326,19 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
           height: 18,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: Colors.white12,
+            color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0),
             borderRadius: BorderRadius.circular(4),
           ),
           child: Text(
             number,
-            style: GoogleFonts.ibmPlexMono(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white),
+            style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface),
           ),
         ),
         const SizedBox(width: 10),
         Expanded(
           child: Text(
             text,
-            style: GoogleFonts.inter(fontSize: 12, color: Colors.white70, height: 1.3),
+            style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurfaceVariant, height: 1.3),
           ),
         ),
       ],
@@ -1244,32 +1352,62 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
     required IconData icon,
     required Color color,
   }) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF161619),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withAlpha(15)),
+        color: isDark ? const Color(0xFF151F32) : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
       ),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(12),
+            width: 42,
+            height: 42,
             decoration: BoxDecoration(
-              color: color.withAlpha(25),
+              color: isDark ? color.withValues(alpha: 0.15) : color.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(icon, color: color, size: 24),
+            child: Icon(icon, color: color, size: 22),
           ),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(title, style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.white38, letterSpacing: 1)),
+                Text(
+                  title,
+                  style: GoogleFonts.inter(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                    color: theme.colorScheme.onSurfaceVariant,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  value,
+                  style: GoogleFonts.inter(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: theme.colorScheme.onSurface,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
                 const SizedBox(height: 2),
-                Text(value, style: GoogleFonts.manrope(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white), overflow: TextOverflow.ellipsis),
-                Text(subtitle, style: GoogleFonts.inter(fontSize: 10.5, color: Colors.white54)),
+                Text(
+                  subtitle,
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
               ],
             ),
           ),
@@ -1289,18 +1427,25 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
   }
 
   Future<void> _deleteTerminal(BuildContext context, PosTerminal t) async {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1E24),
-        title: const Text('Delete Till Register?', style: TextStyle(color: Colors.white)),
-        content: Text('Are you sure you want to permanently delete "${t.terminalCode} - ${t.name}"?', style: const TextStyle(color: Colors.white70)),
+        backgroundColor: isDark ? const Color(0xFF151F32) : Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+        ),
+        title: Text('Delete Till Register?', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16, color: theme.colorScheme.onSurface)),
+        content: Text('Are you sure you want to permanently delete "${t.terminalCode} - ${t.name}"?', style: GoogleFonts.inter(fontSize: 13, color: theme.colorScheme.onSurfaceVariant)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Cancel', style: TextStyle(color: theme.colorScheme.onSurfaceVariant))),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-            child: const Text('Delete', style: TextStyle(color: Colors.white)),
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDC2626), foregroundColor: Colors.white),
+            child: const Text('Delete'),
           ),
         ],
       ),
@@ -1366,6 +1511,10 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
     List<User> users, {
     PosTerminal? terminal,
   }) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
+
     final isEditing = terminal != null;
     final allTills = ref.read(posTerminalsProvider).value ?? [];
     final activeLicense = ref.read(licenseServiceProvider).activeLicense;
@@ -1375,26 +1524,29 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
-          backgroundColor: const Color(0xFF1A1A1E),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          backgroundColor: isDark ? const Color(0xFF151F32) : Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+          ),
           title: Row(
             children: [
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.amber.withAlpha(40),
+                  color: const Color(0xFFFFFBEB),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(Icons.lock_rounded, color: Colors.amber, size: 22),
+                child: const Icon(Icons.lock_rounded, color: Color(0xFFD97706), size: 22),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
                   'TILL CAPACITY LIMIT (MAX $maxAllowedTills TILLS)',
-                  style: GoogleFonts.manrope(
-                    fontWeight: FontWeight.w900,
+                  style: GoogleFonts.inter(
+                    fontWeight: FontWeight.w800,
                     fontSize: 15,
-                    color: Colors.white,
+                    color: theme.colorScheme.onSurface,
                   ),
                 ),
               ),
@@ -1406,19 +1558,19 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
             children: [
               Text(
                 'Your current installation is licensed for up to $maxAllowedTills checkout tills (Currently registered: ${allTills.length} tills).',
-                style: GoogleFonts.inter(color: Colors.white70, fontSize: 13, height: 1.4),
+                style: GoogleFonts.inter(color: theme.colorScheme.onSurfaceVariant, fontSize: 13, height: 1.4),
               ),
               const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.amber.withAlpha(20),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.amber.withAlpha(60)),
+                  color: const Color(0xFFFFFBEB),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFFDE68A)),
                 ),
                 child: Text(
                   'To connect and register additional checkout terminals (Till #${allTills.length + 1} and beyond), please upgrade your system license or contact Beleka Support to activate more tills.',
-                  style: GoogleFonts.inter(color: Colors.amber.shade200, fontSize: 12, height: 1.4),
+                  style: GoogleFonts.inter(color: const Color(0xFFB45309), fontSize: 12, height: 1.4),
                 ),
               ),
             ],
@@ -1426,7 +1578,7 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: Text('Close', style: GoogleFonts.inter(color: Colors.white54)),
+              child: Text('Close', style: GoogleFonts.inter(color: theme.colorScheme.onSurfaceVariant)),
             ),
             ElevatedButton.icon(
               onPressed: () {
@@ -1437,10 +1589,11 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
                 );
               },
               icon: const Icon(Icons.verified_user_rounded, size: 16),
-              label: Text('View License & Upgrade', style: GoogleFonts.manrope(fontWeight: FontWeight.bold, fontSize: 12)),
+              label: Text('View License & Upgrade', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 12)),
               style: ElevatedButton.styleFrom(
-                backgroundColor: accentColor,
-                foregroundColor: Colors.black,
+                backgroundColor: primaryColor,
+                foregroundColor: Colors.white,
+                elevation: 0,
               ),
             ),
           ],
@@ -1524,12 +1677,18 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setModalState) {
+          final inputFillColor = isDark ? const Color(0xFF1C283D) : const Color(0xFFF8FAFC);
+          final inputBorderColor = isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0);
+
           return AlertDialog(
-            backgroundColor: const Color(0xFF1A1A1E),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            backgroundColor: isDark ? const Color(0xFF151F32) : Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(color: inputBorderColor),
+            ),
             title: Text(
               isEditing ? 'EDIT TILL / POS TERMINAL' : 'REGISTER NEW TILL / POS TERMINAL',
-              style: GoogleFonts.manrope(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
+              style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16, color: theme.colorScheme.onSurface),
             ),
             content: SingleChildScrollView(
               child: SizedBox(
@@ -1538,7 +1697,7 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Configure this cashier checkout point and link it to your store branch:', style: GoogleFonts.inter(fontSize: 12, color: Colors.white60)),
+                    Text('Configure this cashier checkout point and link it to your store branch:', style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurfaceVariant)),
                     const SizedBox(height: 16),
 
                     // Terminal Code & Name
@@ -1548,12 +1707,15 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
                           flex: 2,
                           child: TextField(
                             controller: codeCtrl,
-                            style: const TextStyle(color: Colors.white),
-                            decoration: const InputDecoration(
+                            style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontSize: 13),
+                            decoration: InputDecoration(
                               labelText: 'Till Code *',
                               hintText: 'e.g. TILL-01',
-                              labelStyle: TextStyle(color: Colors.white70),
-                              border: OutlineInputBorder(),
+                              filled: true,
+                              fillColor: inputFillColor,
+                              labelStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: inputBorderColor)),
+                              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: primaryColor, width: 1.5)),
                             ),
                           ),
                         ),
@@ -1562,12 +1724,15 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
                           flex: 3,
                           child: TextField(
                             controller: nameCtrl,
-                            style: const TextStyle(color: Colors.white),
-                            decoration: const InputDecoration(
+                            style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontSize: 13),
+                            decoration: InputDecoration(
                               labelText: 'Till Name *',
                               hintText: 'e.g. Counter 1 Express',
-                              labelStyle: TextStyle(color: Colors.white70),
-                              border: OutlineInputBorder(),
+                              filled: true,
+                              fillColor: inputFillColor,
+                              labelStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: inputBorderColor)),
+                              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: primaryColor, width: 1.5)),
                             ),
                           ),
                         ),
@@ -1578,13 +1743,16 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
                     // Store Branch Selection
                     DropdownButtonFormField<String>(
                       initialValue: uniqueBranches.containsKey(selectedBranchCode) ? selectedBranchCode : branchOptions.first['code'],
-                      dropdownColor: const Color(0xFF222228),
-                      style: const TextStyle(color: Colors.white),
+                      dropdownColor: isDark ? const Color(0xFF1C283D) : Colors.white,
+                      style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontSize: 13),
                       decoration: InputDecoration(
                         labelText: isOwner ? 'Assigned Store Branch *' : 'Assigned Store Branch (Locked to your Branch)',
-                        labelStyle: const TextStyle(color: Colors.white70),
-                        border: const OutlineInputBorder(),
-                        prefixIcon: const Icon(Icons.storefront_rounded, color: Colors.white60),
+                        filled: true,
+                        fillColor: inputFillColor,
+                        labelStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: inputBorderColor)),
+                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: primaryColor, width: 1.5)),
+                        prefixIcon: Icon(Icons.storefront_rounded, color: theme.colorScheme.onSurfaceVariant),
                       ),
                       items: branchOptions.map((b) => DropdownMenuItem(
                         value: b['code'],
@@ -1608,13 +1776,16 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
                     // Default Assigned Cashier
                     DropdownButtonFormField<String>(
                       initialValue: (selectedCashierId.isEmpty || uniqueUsersMap.containsKey(selectedCashierId)) ? selectedCashierId : '',
-                      dropdownColor: const Color(0xFF222228),
-                      style: const TextStyle(color: Colors.white),
-                      decoration: const InputDecoration(
+                      dropdownColor: isDark ? const Color(0xFF1C283D) : Colors.white,
+                      style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontSize: 13),
+                      decoration: InputDecoration(
                         labelText: 'Default Assigned Cashier (Optional)',
-                        labelStyle: TextStyle(color: Colors.white70),
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.person_rounded, color: Colors.white60),
+                        filled: true,
+                        fillColor: inputFillColor,
+                        labelStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: inputBorderColor)),
+                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: primaryColor, width: 1.5)),
+                        prefixIcon: Icon(Icons.person_rounded, color: theme.colorScheme.onSurfaceVariant),
                       ),
                       items: [
                         const DropdownMenuItem(value: '', child: Text('None (Assign on shift open)')),
@@ -1639,12 +1810,15 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
                         Expanded(
                           child: DropdownButtonFormField<String>(
                             initialValue: status,
-                            dropdownColor: const Color(0xFF222228),
-                            style: const TextStyle(color: Colors.white),
-                            decoration: const InputDecoration(
+                            dropdownColor: isDark ? const Color(0xFF1C283D) : Colors.white,
+                            style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontSize: 13),
+                            decoration: InputDecoration(
                               labelText: 'Status',
-                              labelStyle: TextStyle(color: Colors.white70),
-                              border: OutlineInputBorder(),
+                              filled: true,
+                              fillColor: inputFillColor,
+                              labelStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: inputBorderColor)),
+                              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: primaryColor, width: 1.5)),
                             ),
                             items: const [
                               DropdownMenuItem(value: 'ACTIVE', child: Text('ACTIVE')),
@@ -1660,12 +1834,15 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
                         Expanded(
                           child: TextField(
                             controller: ipCtrl,
-                            style: const TextStyle(color: Colors.white),
-                            decoration: const InputDecoration(
+                            style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontSize: 13),
+                            decoration: InputDecoration(
                               labelText: 'Device IP / Serial',
                               hintText: 'e.g. 192.168.1.105',
-                              labelStyle: TextStyle(color: Colors.white70),
-                              border: OutlineInputBorder(),
+                              filled: true,
+                              fillColor: inputFillColor,
+                              labelStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: inputBorderColor)),
+                              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: primaryColor, width: 1.5)),
                             ),
                           ),
                         ),
@@ -1678,7 +1855,7 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel', style: TextStyle(color: Colors.white60)),
+                child: Text('Cancel', style: GoogleFonts.inter(color: theme.colorScheme.onSurfaceVariant)),
               ),
               ElevatedButton(
                 onPressed: () async {
@@ -1741,17 +1918,19 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text(isEditing ? 'Till ${posTerminal.terminalCode} updated.' : 'Till ${posTerminal.terminalCode} registered successfully!'),
-                        backgroundColor: Colors.green[800],
+                        backgroundColor: const Color(0xFF059669),
                       ),
                     );
                   }
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: accentColor,
-                  foregroundColor: Colors.black,
+                  backgroundColor: primaryColor,
+                  foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
-                child: Text(isEditing ? 'Save Changes' : 'Register Till', style: const TextStyle(fontWeight: FontWeight.bold)),
+                child: Text(isEditing ? 'Save Changes' : 'Register Till', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
               ),
             ],
           );
@@ -1880,12 +2059,21 @@ class _AssignShiftModalState extends ConsumerState<_AssignShiftModal> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
+    final inputFillColor = isDark ? const Color(0xFF1C283D) : const Color(0xFFF8FAFC);
+    final inputBorderColor = isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0);
+
     return AlertDialog(
-      backgroundColor: const Color(0xFF1A1A1E),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      backgroundColor: isDark ? const Color(0xFF151F32) : Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: inputBorderColor),
+      ),
       title: Text(
         'ASSIGN CASHIER & OPEN SHIFT',
-        style: GoogleFonts.manrope(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
+        style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16, color: theme.colorScheme.onSurface),
       ),
       content: SingleChildScrollView(
         child: SizedBox(
@@ -1897,12 +2085,16 @@ class _AssignShiftModalState extends ConsumerState<_AssignShiftModal> {
               if (widget.allTerminals != null && widget.allTerminals!.length > 1) ...[
                 DropdownButtonFormField<PosTerminal>(
                   initialValue: _currentTerminal,
-                  dropdownColor: const Color(0xFF222228),
-                  style: const TextStyle(color: Colors.white),
-                  decoration: const InputDecoration(
+                  dropdownColor: isDark ? const Color(0xFF1C283D) : Colors.white,
+                  style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontSize: 13),
+                  decoration: InputDecoration(
                     labelText: 'Select Till Register *',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.point_of_sale_rounded, color: Colors.white60),
+                    filled: true,
+                    fillColor: inputFillColor,
+                    labelStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: inputBorderColor)),
+                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: primaryColor, width: 1.5)),
+                    prefixIcon: Icon(Icons.point_of_sale_rounded, color: theme.colorScheme.onSurfaceVariant),
                   ),
                   items: widget.allTerminals!.map((t) => DropdownMenuItem(
                     value: t,
@@ -1924,18 +2116,19 @@ class _AssignShiftModalState extends ConsumerState<_AssignShiftModal> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.white.withAlpha(8),
-                    borderRadius: BorderRadius.circular(10),
+                    color: inputFillColor,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: inputBorderColor),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.point_of_sale_rounded, color: Colors.white70, size: 20),
+                      Icon(Icons.point_of_sale_rounded, color: theme.colorScheme.onSurfaceVariant, size: 20),
                       const SizedBox(width: 10),
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('${_currentTerminal.terminalCode} - ${_currentTerminal.name}', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-                          Text('${_currentTerminal.branchName} • ZRA: ${_currentTerminal.digitaxBhfId}', style: const TextStyle(fontSize: 11, color: Colors.white54)),
+                          Text('${_currentTerminal.terminalCode} - ${_currentTerminal.name}', style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface)),
+                          Text('${_currentTerminal.branchName} • ZRA: ${_currentTerminal.digitaxBhfId}', style: GoogleFonts.inter(fontSize: 11, color: theme.colorScheme.onSurfaceVariant)),
                         ],
                       ),
                     ],
@@ -1959,13 +2152,16 @@ class _AssignShiftModalState extends ConsumerState<_AssignShiftModal> {
 
                   return DropdownButtonFormField<String>(
                     initialValue: safeCashierId,
-                    dropdownColor: const Color(0xFF222228),
-                    style: const TextStyle(color: Colors.white),
-                    decoration: const InputDecoration(
+                    dropdownColor: isDark ? const Color(0xFF1C283D) : Colors.white,
+                    style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontSize: 13),
+                    decoration: InputDecoration(
                       labelText: 'Select Cashier / Staff *',
-                      labelStyle: TextStyle(color: Colors.white70),
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.person, color: Colors.white60),
+                      filled: true,
+                      fillColor: inputFillColor,
+                      labelStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: inputBorderColor)),
+                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: primaryColor, width: 1.5)),
+                      prefixIcon: Icon(Icons.person, color: theme.colorScheme.onSurfaceVariant),
                     ),
                     items: uniqueUsersList.map((u) => DropdownMenuItem(
                       value: u.numericId,
@@ -1980,12 +2176,15 @@ class _AssignShiftModalState extends ConsumerState<_AssignShiftModal> {
               TextField(
                 controller: _floatCtrl,
                 keyboardType: TextInputType.number,
-                style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(
+                style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontSize: 13),
+                decoration: InputDecoration(
                   labelText: 'Opening Cash Float (K) *',
-                  labelStyle: TextStyle(color: Colors.white70),
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.money_rounded, color: Colors.white60),
+                  filled: true,
+                  fillColor: inputFillColor,
+                  labelStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: inputBorderColor)),
+                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: primaryColor, width: 1.5)),
+                  prefixIcon: Icon(Icons.money_rounded, color: theme.colorScheme.onSurfaceVariant),
                 ),
               ),
             ],
@@ -1995,16 +2194,18 @@ class _AssignShiftModalState extends ConsumerState<_AssignShiftModal> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel', style: TextStyle(color: Colors.white60)),
+          child: Text('Cancel', style: GoogleFonts.inter(color: theme.colorScheme.onSurfaceVariant)),
         ),
         ElevatedButton(
           onPressed: _openShift,
           style: ElevatedButton.styleFrom(
-            backgroundColor: widget.accentColor,
-            foregroundColor: Colors.black,
+            backgroundColor: primaryColor,
+            foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            elevation: 0,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           ),
-          child: const Text('Start Shift & Log In', style: TextStyle(fontWeight: FontWeight.bold)),
+          child: Text('Start Shift & Log In', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
         ),
       ],
     );
@@ -2076,7 +2277,7 @@ class _CloseShiftModalState extends ConsumerState<_CloseShiftModal> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Till shift ${widget.shift.shiftNumber} closed! Cash variance: ${widget.currency}${_variance.toStringAsFixed(2)}'),
-          backgroundColor: _variance == 0 ? Colors.green : (_variance > 0 ? Colors.blue : Colors.redAccent),
+          backgroundColor: _variance == 0 ? const Color(0xFF059669) : (_variance > 0 ? const Color(0xFF0284C7) : const Color(0xFFDC2626)),
           action: SnackBarAction(
             label: 'Print Z-Report',
             textColor: Colors.white,
@@ -2092,10 +2293,18 @@ class _CloseShiftModalState extends ConsumerState<_CloseShiftModal> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final inputFillColor = isDark ? const Color(0xFF1C283D) : const Color(0xFFF8FAFC);
+    final inputBorderColor = isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0);
+
     return AlertDialog(
-      backgroundColor: const Color(0xFF1A1A1E),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      title: Text('RECONCILE & CLOSE TILL SHIFT', style: GoogleFonts.manrope(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
+      backgroundColor: isDark ? const Color(0xFF151F32) : Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: inputBorderColor),
+      ),
+      title: Text('RECONCILE & CLOSE TILL SHIFT', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16, color: theme.colorScheme.onSurface)),
       content: SizedBox(
         width: 440,
         child: Column(
@@ -2104,17 +2313,21 @@ class _CloseShiftModalState extends ConsumerState<_CloseShiftModal> {
           children: [
             Container(
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: Colors.white.withAlpha(8), borderRadius: BorderRadius.circular(8)),
+              decoration: BoxDecoration(
+                color: inputFillColor,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: inputBorderColor),
+              ),
               child: Column(
                 children: [
                   _row('Shift Number:', widget.shift.shiftNumber),
                   _row('Terminal / Till:', widget.shift.terminalId),
                   _row('Cashier Name:', widget.shift.cashierName),
                   _row('Opening Float:', '${widget.currency} ${widget.shift.openingCash.toStringAsFixed(2)}'),
-                  _row('Cash Sales (+):', '${widget.currency} ${widget.shift.cashSales.toStringAsFixed(2)}', color: Colors.greenAccent),
-                  _row('Cash Expenses (-):', '${widget.currency} ${widget.shift.cashExpenses.toStringAsFixed(2)}', color: Colors.redAccent),
-                  _row('Cash Refunds (-):', '${widget.currency} ${widget.shift.cashRefunds.toStringAsFixed(2)}', color: Colors.redAccent),
-                  const Divider(color: Colors.white24),
+                  _row('Cash Sales (+):', '${widget.currency} ${widget.shift.cashSales.toStringAsFixed(2)}', color: const Color(0xFF059669)),
+                  _row('Cash Expenses (-):', '${widget.currency} ${widget.shift.cashExpenses.toStringAsFixed(2)}', color: const Color(0xFFDC2626)),
+                  _row('Cash Refunds (-):', '${widget.currency} ${widget.shift.cashRefunds.toStringAsFixed(2)}', color: const Color(0xFFDC2626)),
+                  Divider(color: inputBorderColor),
                   _row('Expected in Drawer:', '${widget.currency} ${_expected.toStringAsFixed(2)}', isBold: true),
                 ],
               ),
@@ -2123,28 +2336,31 @@ class _CloseShiftModalState extends ConsumerState<_CloseShiftModal> {
             TextField(
               controller: _actualCashCtrl,
               keyboardType: TextInputType.number,
-              style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+              style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontSize: 16, fontWeight: FontWeight.bold),
               onChanged: _calcVariance,
               decoration: InputDecoration(
                 labelText: 'Actual Cash Counted in Drawer (${widget.currency}) *',
-                labelStyle: const TextStyle(color: Colors.white70),
-                border: const OutlineInputBorder(),
+                filled: true,
+                fillColor: inputFillColor,
+                labelStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: inputBorderColor)),
+                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: theme.colorScheme.primary, width: 1.5)),
               ),
             ),
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(
-                color: _variance == 0 ? Colors.green.withAlpha(20) : (_variance > 0 ? Colors.blue.withAlpha(20) : Colors.red.withAlpha(20)),
+                color: _variance == 0 ? const Color(0xFFECFDF5) : (_variance > 0 ? const Color(0xFFF0F9FF) : const Color(0xFFFEF2F2)),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: _variance == 0 ? Colors.green.withAlpha(50) : (_variance > 0 ? Colors.blue.withAlpha(50) : Colors.red.withAlpha(50)),
+                  color: _variance == 0 ? const Color(0xFFA7F3D0) : (_variance > 0 ? const Color(0xFFBAE6FD) : const Color(0xFFFECACA)),
                 ),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Cash Variance / Reconciliation:', style: GoogleFonts.inter(fontSize: 12, color: Colors.white70)),
+                  Text('Cash Variance / Reconciliation:', style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurfaceVariant)),
                   Text(
                     _variance == 0
                         ? 'BALANCED (0.00)'
@@ -2154,7 +2370,7 @@ class _CloseShiftModalState extends ConsumerState<_CloseShiftModal> {
                     style: GoogleFonts.inter(
                       fontSize: 13,
                       fontWeight: FontWeight.bold,
-                      color: _variance == 0 ? Colors.greenAccent : (_variance > 0 ? Colors.blueAccent : Colors.redAccent),
+                      color: _variance == 0 ? const Color(0xFF059669) : (_variance > 0 ? const Color(0xFF0284C7) : const Color(0xFFDC2626)),
                     ),
                   ),
                 ],
@@ -2164,29 +2380,35 @@ class _CloseShiftModalState extends ConsumerState<_CloseShiftModal> {
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel', style: TextStyle(color: Colors.white60))),
+        TextButton(onPressed: () => Navigator.pop(context), child: Text('Cancel', style: GoogleFonts.inter(color: theme.colorScheme.onSurfaceVariant))),
         ElevatedButton(
           onPressed: _close,
-          style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white),
-          child: const Text('Confirm Reconciliation & Close Shift'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFFDC2626),
+            foregroundColor: Colors.white,
+            elevation: 0,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+          child: Text('Confirm Reconciliation & Close Shift', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
         ),
       ],
     );
   }
 
   Widget _row(String l, String v, {Color? color, bool isBold = false}) {
+    final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2.5),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(l, style: GoogleFonts.inter(fontSize: 12, color: Colors.white60)),
+          Text(l, style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurfaceVariant)),
           Text(
             v,
             style: GoogleFonts.inter(
               fontSize: 12,
               fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
-              color: color ?? Colors.white,
+              color: color ?? theme.colorScheme.onSurface,
             ),
           ),
         ],

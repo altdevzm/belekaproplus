@@ -8,7 +8,6 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import 'dart:io';
 import 'package:beleka_pos/providers/store_provider.dart';
-import 'package:beleka_pos/providers/theme_provider.dart';
 import 'package:beleka_pos/providers/auth_provider.dart';
 import 'package:beleka_pos/services/digitax_inventory_service.dart';
 import 'package:beleka_pos/screens/inventory/category_management_modal.dart';
@@ -100,27 +99,23 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
 
   @override
   Widget build(BuildContext context) {
-    final accentColor = ref.watch(accentColorProvider);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
+    final accentColor = primaryColor;
     final currencySymbol = ref.watch(storeConfigProvider).value?.currencySymbol ?? r'$';
 
     return Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       child: Container(
-        width: 500,
+        width: 540,
         decoration: BoxDecoration(
-          color: const Color(0xFF141418),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.5),
-              blurRadius: 50,
-              spreadRadius: 10,
-            ),
-          ],
+          color: isDark ? const Color(0xFF151F32) : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
         ),
-        padding: const EdgeInsets.all(32),
+        padding: const EdgeInsets.all(28),
         child: Form(
           key: _formKey,
           child: SingleChildScrollView(
@@ -131,18 +126,31 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      widget.product == null ? 'ADD PRODUCT' : 'EDIT PRODUCT',
-                      style: GoogleFonts.manrope(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 2,
-                        color: accentColor,
-                      ),
+                    Row(
+                      children: [
+                        Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: isDark ? primaryColor.withValues(alpha: 0.15) : const Color(0xFFEFF6FF),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(Icons.inventory_2_rounded, size: 16, color: primaryColor),
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          widget.product == null ? 'ADD NEW PRODUCT' : 'EDIT PRODUCT DETAILS',
+                          style: GoogleFonts.inter(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: theme.colorScheme.onSurface,
+                          ),
+                        ),
+                      ],
                     ),
                     IconButton(
                       onPressed: () => Navigator.pop(context),
-                      icon: Icon(Icons.close, color: Colors.white.withValues(alpha: 0.3)),
+                      icon: Icon(Icons.close_rounded, size: 18, color: theme.colorScheme.onSurfaceVariant),
                     ),
                   ],
                 ),
@@ -215,21 +223,21 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                 _buildDiscountSection(accentColor, currencySymbol),
                 const SizedBox(height: 40),
                 SizedBox(
-                  height: 56,
+                  height: 48,
                   child: ElevatedButton(
                     onPressed: _save,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: accentColor,
-                      foregroundColor: Colors.black,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      backgroundColor: primaryColor,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       elevation: 0,
                     ),
                     child: Text(
                       widget.product == null ? 'CREATE PRODUCT' : 'SAVE CHANGES',
                       style: GoogleFonts.inter(
-                        fontWeight: FontWeight.w900,
-                        fontSize: 14,
-                        letterSpacing: 1,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                        color: Colors.white,
                       ),
                     ),
                   ),
@@ -881,7 +889,7 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        '💡 Profit per $_unitOfMeasure: Selling at $currencySymbol${pricePerUnit.toStringAsFixed(2)} - cost $currencySymbol${costPerUnit.toStringAsFixed(2)} = +$currencySymbol${profitPerUnit.toStringAsFixed(2)} profit per 1 $_unitOfMeasure.',
+                        'Profit per $_unitOfMeasure: Selling at $currencySymbol${pricePerUnit.toStringAsFixed(2)} - cost $currencySymbol${costPerUnit.toStringAsFixed(2)} = +$currencySymbol${profitPerUnit.toStringAsFixed(2)} profit per 1 $_unitOfMeasure.',
                         style: GoogleFonts.inter(fontSize: 10.5, color: Colors.white60, height: 1.3),
                       ),
                     ],
@@ -981,7 +989,7 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      '🔒 Private Offline Item: Stored locally only on this computer. Excluded from DigiTax cloud stock and ZRA fiscal sales payloads.',
+                      'Private Offline Item: Stored locally only on this computer. Excluded from DigiTax cloud stock and ZRA fiscal sales payloads.',
                       style: GoogleFonts.inter(fontSize: 11, color: Colors.white70),
                     ),
                   ),
@@ -1319,7 +1327,7 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                   const Icon(Icons.shield_rounded, color: Colors.blueAccent, size: 18),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Text('🔒 ${product.name} saved offline (Exempt from DigiTax/ZRA sync)'),
+                    child: Text('${product.name} saved offline (Exempt from DigiTax/ZRA sync)'),
                   ),
                 ],
               ),
@@ -1329,14 +1337,14 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
         } else if (digitaxSynced) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('✅ ${product.name} saved & registered with DigiTax!'),
+              content: Text('${product.name} saved & registered with DigiTax!'),
               backgroundColor: const Color(0xFF10B981),
             ),
           );
         } else if (syncErr != null) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('⚠️ Product saved locally. DigiTax: $syncErr'),
+              content: Text('Product saved locally. DigiTax: $syncErr'),
               backgroundColor: const Color(0xFFF59E0B),
             ),
           );
