@@ -12,6 +12,7 @@ import 'package:beleka_pos/providers/auth_provider.dart';
 import 'package:beleka_pos/services/digitax_inventory_service.dart';
 import 'package:beleka_pos/screens/inventory/category_management_modal.dart';
 import 'package:beleka_pos/screens/inventory/add_stock_modal.dart';
+import 'package:beleka_pos/widgets/product_image_widget.dart';
 
 class ProductEditorModal extends ConsumerStatefulWidget {
   final Product? product;
@@ -275,14 +276,8 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                 color: Colors.white.withValues(alpha: 0.04),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-                image: (_imagePath != null && File(_imagePath!).existsSync())
-                  ? DecorationImage(
-                      image: FileImage(File(_imagePath!)),
-                      fit: BoxFit.cover,
-                    )
-                  : null,
               ),
-              child: (_imagePath == null || !File(_imagePath!).existsSync())
+              child: (_imagePath == null || _imagePath!.trim().isEmpty)
                 ? Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -294,6 +289,14 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                   )
                 : Stack(
                     children: [
+                      Positioned.fill(
+                        child: ProductImageWidget(
+                          imagePath: _imagePath,
+                          width: 120,
+                          height: 120,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
                       Positioned(
                         right: 8,
                         top: 8,

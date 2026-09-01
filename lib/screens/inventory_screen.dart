@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -17,6 +16,7 @@ import 'package:beleka_pos/services/barcode_service.dart';
 import 'package:beleka_pos/services/digitax_inventory_service.dart';
 import 'package:beleka_pos/services/postgres_sync_service.dart';
 import 'package:beleka_pos/providers/auth_provider.dart';
+import 'package:beleka_pos/widgets/product_image_widget.dart';
 
 final showArchivedProvider = StateProvider<bool>((ref) => false);
 final inventorySearchProvider = StateProvider<String>((ref) => '');
@@ -1217,34 +1217,11 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   }
 
   Widget _buildProductThumbnail(BuildContext context, String? imagePath) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final primaryColor = theme.colorScheme.primary;
-    final bool hasImage = imagePath != null && File(imagePath).existsSync();
-    
-    return Container(
-      width: 32,
-      height: 32,
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1C283D) : const Color(0xFFF1F5F9),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
-        image: hasImage 
-          ? DecorationImage(
-              image: FileImage(File(imagePath)),
-              fit: BoxFit.cover,
-            )
-          : null,
-      ),
-      child: !hasImage 
-          ? Center(
-              child: Icon(
-                Icons.inventory_2_outlined,
-                size: 14,
-                color: primaryColor,
-              ),
-            )
-          : null,
+    return ProductImageWidget(
+      imagePath: imagePath,
+      width: 34,
+      height: 34,
+      borderRadius: BorderRadius.circular(6),
     );
   }
 

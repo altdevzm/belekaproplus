@@ -332,6 +332,11 @@ class NetworkClient {
   // ─── JSON Helpers ─────────────────────────────────────────────
 
   static Product _jsonToProduct(Map<String, dynamic> j) {
+    String? img = j['imageBase64'] as String?;
+    if (img == null || img.trim().isEmpty) {
+      img = j['imagePath'] as String?;
+    }
+
     return Product(
       name: j['name'] as String,
       sku: j['sku'] as String,
@@ -342,7 +347,7 @@ class NetworkClient {
       isTaxInclusive: j['isTaxInclusive'] as bool? ?? true,
       taxRate: (j['taxRate'] as num?)?.toDouble() ?? 0.0,
       isArchived: j['isArchived'] as bool? ?? false,
-      imagePath: j['imagePath'] as String?,
+      imagePath: img,
     )..id = j['id'] as int;
   }
 

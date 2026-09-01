@@ -651,19 +651,43 @@ class ApiService {
 
   // ─── JSON Helpers ─────────────────────────────────────────────
 
-  static Map<String, dynamic> _productToJson(Product p) => {
-        'id': p.id,
-        'name': p.name,
-        'sku': p.sku,
-        'price': p.price,
-        'unitCost': p.unitCost,
-        'stockLevel': p.stockLevel,
-        'categoryId': p.categoryId,
-        'isTaxInclusive': p.isTaxInclusive,
-        'taxRate': p.taxRate,
-        'isArchived': p.isArchived,
-        'imagePath': p.imagePath,
-      };
+  static Map<String, dynamic> _productToJson(Product p) {
+    String? imageBase64;
+    if (p.imagePath != null && p.imagePath!.trim().isNotEmpty) {
+      if (p.imagePath!.startsWith('data:image')) {
+        imageBase64 = p.imagePath;
+      } else {
+        final file = File(p.imagePath!);
+        if (file.existsSync()) {
+          try {
+            final bytes = file.readAsBytesSync();
+            if (bytes.length <= 1024 * 1024) {
+              final ext = p.imagePath!.split('.').last.toLowerCase();
+              final mime = ext == 'png' ? 'image/png' : 'image/jpeg';
+              imageBase64 = 'data:$mime;base64,${base64Encode(bytes)}';
+            }
+          } catch (e) {
+            debugPrint('Image base64 encoding error: $e');
+          }
+        }
+      }
+    }
+
+    return {
+      'id': p.id,
+      'name': p.name,
+      'sku': p.sku,
+      'price': p.price,
+      'unitCost': p.unitCost,
+      'stockLevel': p.stockLevel,
+      'categoryId': p.categoryId,
+      'isTaxInclusive': p.isTaxInclusive,
+      'taxRate': p.taxRate,
+      'isArchived': p.isArchived,
+      'imagePath': p.imagePath,
+      'imageBase64': imageBase64,
+    };
+  }
 
   static SaleTransaction _jsonToTransaction(Map<String, dynamic> j) {
     final tx = SaleTransaction(

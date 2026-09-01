@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,6 +13,7 @@ import 'package:beleka_pos/services/sync_service.dart';
 import 'package:beleka_pos/services/digitax_inventory_service.dart';
 import 'package:beleka_pos/screens/sales/weight_scale_modal.dart';
 import 'package:beleka_pos/widgets/camera_barcode_scanner_modal.dart';
+import 'package:beleka_pos/widgets/product_image_widget.dart';
 import 'package:beleka_pos/utils/formatters.dart';
 import 'package:beleka_pos/providers/auth_provider.dart';
 
@@ -1500,12 +1500,14 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
 
   // --- Products Grid View ---
 
+  // --- Products Grid View ---
+
   Widget _buildProductsGrid(BuildContext context, List<Product> products, String currency) {
     return GridView.builder(
       itemCount: products.length,
       gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
         maxCrossAxisExtent: 220,
-        mainAxisExtent: 175,
+        mainAxisExtent: 210,
         crossAxisSpacing: 10,
         mainAxisSpacing: 10,
       ),
@@ -1533,14 +1535,13 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
 
     return Material(
       color: cardBg,
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: () => _handleProductSelection(product),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(12),
         child: Container(
-          padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: isOutOfStock 
                   ? const Color(0xFFDC2626).withValues(alpha: 0.4) 
@@ -1550,172 +1551,194 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.start,
             children: [
-              // Top Row: Product Icon/Image & Badge
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 34,
-                    height: 34,
-                    decoration: BoxDecoration(
-                      color: primaryColor.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
+              // Top Header Image Banner (Height: 95px)
+              SizedBox(
+                height: 95,
+                width: double.infinity,
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: ProductImageWidget(
+                        imagePath: product.imagePath,
+                        fit: BoxFit.cover,
+                        borderRadius: const BorderRadius.vertical(top: Radius.circular(11)),
+                      ),
                     ),
-                    child: (product.imagePath != null && File(product.imagePath!).existsSync())
-                        ? ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: Image.file(File(product.imagePath!), fit: BoxFit.cover),
-                          )
-                        : Icon(Icons.inventory_2_outlined, color: primaryColor, size: 16),
-                  ),
-                  if (isOutOfStock)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFEF2F2),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        'OUT',
-                        style: GoogleFonts.inter(
-                          fontSize: 9,
-                          fontWeight: FontWeight.w700,
-                          color: const Color(0xFFDC2626),
-                          letterSpacing: 0.3,
-                        ),
-                      ),
-                    )
-                  else if (product.isWeighted)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: primaryColor.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
+                    // Floating Badges Overlay (Top Right)
+                    Positioned(
+                      top: 6,
+                      right: 6,
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.scale_rounded, color: primaryColor, size: 10),
-                          const SizedBox(width: 2),
-                          Text(
-                            product.unitOfMeasure.toUpperCase(),
-                            style: GoogleFonts.inter(
-                              fontSize: 9,
-                              fontWeight: FontWeight.w700,
-                              color: primaryColor,
+                          if (isOutOfStock)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFDC2626),
+                                borderRadius: BorderRadius.circular(4),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.2),
+                                    blurRadius: 3,
+                                  ),
+                                ],
+                              ),
+                              child: Text(
+                                'OUT',
+                                style: GoogleFonts.inter(
+                                  fontSize: 8.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
+                                  letterSpacing: 0.3,
+                                ),
+                              ),
+                            )
+                          else if (product.isWeighted)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: primaryColor,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.scale_rounded, color: Colors.white, size: 10),
+                                  const SizedBox(width: 2),
+                                  Text(
+                                    product.unitOfMeasure.toUpperCase(),
+                                    style: GoogleFonts.inter(
+                                      fontSize: 8.5,
+                                      fontWeight: FontWeight.w800,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          else if (hasDiscount)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFD97706),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                'PROMO',
+                                style: GoogleFonts.inter(
+                                  fontSize: 8.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
+                                ),
+                              ),
                             ),
-                          ),
                         ],
                       ),
-                    )
-                  else if (hasDiscount)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFFBEB),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        'PROMO',
-                        style: GoogleFonts.inter(
-                          fontSize: 9,
-                          fontWeight: FontWeight.w700,
-                          color: const Color(0xFFD97706),
-                        ),
-                      ),
                     ),
-                ],
-              ),
-
-              const SizedBox(height: 8),
-
-              // Product Name & SKU
-              Text(
-                product.name,
-                style: GoogleFonts.inter(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w700,
-                  color: isOutOfStock ? theme.colorScheme.onSurfaceVariant : theme.colorScheme.onSurface,
-                  height: 1.25,
+                  ],
                 ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 2),
-              Text(
-                '#${product.sku}',
-                style: GoogleFonts.inter(
-                  fontSize: 9.5,
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
 
-              const Spacer(),
-
-              // Bottom Row: Price & Instant Add
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (hasDiscount) ...[
+              // Card Body
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
                           Text(
-                            CurrencyFormatter.format(product.price, currency),
-                            style: TextStyle(
+                            product.name,
+                            style: GoogleFonts.inter(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                              color: isOutOfStock ? theme.colorScheme.onSurfaceVariant : theme.colorScheme.onSurface,
+                              height: 1.2,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '#${product.sku}',
+                            style: GoogleFonts.inter(
                               fontSize: 9.5,
                               color: theme.colorScheme.onSurfaceVariant,
-                              decoration: TextDecoration.lineThrough,
                             ),
-                          ),
-                          Text(
-                            '${CurrencyFormatter.format(product.discountPrice!, currency)}${product.isWeighted ? "/${product.unitOfMeasure}" : ""}',
-                            style: GoogleFonts.inter(
-                              fontSize: 13.5,
-                              fontWeight: FontWeight.w800,
-                              color: primaryColor,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ] else ...[
-                          Text(
-                            '${CurrencyFormatter.format(product.price, currency)}${product.isWeighted ? "/${product.unitOfMeasure}" : ""}',
-                            style: GoogleFonts.inter(
-                              fontSize: 13.5,
-                              fontWeight: FontWeight.w800,
-                              color: isOutOfStock ? theme.colorScheme.onSurfaceVariant : primaryColor,
-                            ),
+                            maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
                         ],
-                      ],
-                    ),
+                      ),
+
+                      // Price & (+) Add Button Row
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (hasDiscount) ...[
+                                  Text(
+                                    CurrencyFormatter.format(product.price, currency),
+                                    style: TextStyle(
+                                      fontSize: 9.5,
+                                      color: theme.colorScheme.onSurfaceVariant,
+                                      decoration: TextDecoration.lineThrough,
+                                    ),
+                                  ),
+                                  Text(
+                                    '${CurrencyFormatter.format(product.discountPrice!, currency)}${product.isWeighted ? "/${product.unitOfMeasure}" : ""}',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w800,
+                                      color: primaryColor,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ] else ...[
+                                  Text(
+                                    '${CurrencyFormatter.format(product.price, currency)}${product.isWeighted ? "/${product.unitOfMeasure}" : ""}',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w800,
+                                      color: isOutOfStock ? theme.colorScheme.onSurfaceVariant : primaryColor,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Container(
+                            width: 26,
+                            height: 26,
+                            decoration: BoxDecoration(
+                              color: isOutOfStock
+                                  ? (isDark ? const Color(0xFF293548) : const Color(0xFFF1F5F9))
+                                  : primaryColor,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              isOutOfStock ? Icons.block_rounded : (product.isWeighted ? Icons.scale_rounded : Icons.add),
+                              color: isOutOfStock ? theme.colorScheme.onSurfaceVariant : Colors.white,
+                              size: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 6),
-                  Container(
-                    width: 26,
-                    height: 26,
-                    decoration: BoxDecoration(
-                      color: isOutOfStock
-                          ? (isDark ? const Color(0xFF293548) : const Color(0xFFF1F5F9))
-                          : primaryColor,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      isOutOfStock ? Icons.block_rounded : (product.isWeighted ? Icons.scale_rounded : Icons.add),
-                      color: isOutOfStock ? theme.colorScheme.onSurfaceVariant : Colors.white,
-                      size: 14,
-                    ),
-                  ),
-                ],
+                ),
               ),
             ],
           ),
@@ -1764,19 +1787,11 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
               ),
               child: Row(
                 children: [
-                  Container(
-                    width: 34,
-                    height: 34,
-                    decoration: BoxDecoration(
-                      color: primaryColor.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: (product.imagePath != null && File(product.imagePath!).existsSync())
-                        ? ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: Image.file(File(product.imagePath!), fit: BoxFit.cover),
-                          )
-                        : Icon(Icons.inventory_2_outlined, color: primaryColor, size: 16),
+                  ProductImageWidget(
+                    imagePath: product.imagePath,
+                    width: 42,
+                    height: 42,
+                    borderRadius: BorderRadius.circular(8),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
