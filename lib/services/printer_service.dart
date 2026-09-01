@@ -653,7 +653,7 @@ class PrinterService {
         bytes += generator.text('TPIN: ${config.tpin!}', styles: const PosStyles(align: PosAlign.center, bold: true));
       }
 
-      final isFiscalApproved = (transaction.zraStatus == 'APPROVED' || transaction.zraStatus == 'FISCALIZED' || transaction.isFiscalized) &&
+      final isFiscalApproved = (transaction.zraStatus.toUpperCase() == 'APPROVED' || transaction.zraStatus.toUpperCase() == 'FISCALIZED') &&
                                transaction.zraMarkId != null &&
                                transaction.zraMarkId!.isNotEmpty &&
                                transaction.zraMarkId != 'PENDING';
