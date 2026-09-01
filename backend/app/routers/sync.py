@@ -6,6 +6,7 @@ from typing import List
 from app.database import get_db
 from app import models, schemas
 from app.auth_deps import get_current_user, verify_store_access
+from app.services.digitax_service import DigiTaxZraService
 
 router = APIRouter(prefix="/api/v1/sync", tags=["Sync"])
 
@@ -18,6 +19,7 @@ def sync_batch_sales(
     """
     Receive batch sales transactions from store terminals (offline sync queue).
     Inserts sales & sale items, updates stock levels in PostgreSQL DB.
+    Auto-fiscalizes un-fiscalized sales with DigiTax if API key present.
     Requires authentication & store verification.
     """
     verify_store_access(payload.store_id, current_user)
@@ -69,6 +71,7 @@ def sync_batch_sales(
         db.add(tx)
         db.flush()
 
+        items_for_fiscal = []
         for item_in in sale_in.items:
             if item_in.quantity <= 0 or item_in.price_at_sale < 0:
                 raise HTTPException(
@@ -88,6 +91,15 @@ def sync_batch_sales(
             )
             db.add(item)
 
+            items_for_fiscal.append({
+                "product_id": item_in.product_id,
+                "product_name": item_in.product_name,
+                "price_at_sale": float(item_in.price_at_sale),
+                "quantity": item_in.quantity,
+                "zra_tax_code": "A",
+                "tax_rate_at_sale": float(item_in.tax_rate_at_sale),
+            })
+
             # Deduct stock level in cloud PostgreSQL database
             if item_in.product_id:
                 product = db.query(models.Product).filter(
@@ -96,6 +108,31 @@ def sync_batch_sales(
                 ).first()
                 if product:
                     product.stock_level = max(0, product.stock_level - item_in.quantity)
+
+        # Auto-fiscalize via DigiTax on cloud backend if API key configured and transaction not yet fiscalized
+        if store.digitax_api_key and store.digitax_api_key.strip():
+            try:
+                store_config = {
+                    "digitax_api_key": store.digitax_api_key,
+                    "digitax_environment": store.digitax_environment,
+                    "tpin": store.tpin or "1000000000",
+                    "sdc_id": store.sdc_id or "SDC-ZM-001",
+                    "bhf_id": store.bhf_id or "00",
+                }
+                tx_dict = {
+                    "transaction_uuid": tx.transaction_uuid,
+                    "total_amount": float(tx.total_amount),
+                    "cashier_id": tx.cashier_id,
+                    "cashier_name": tx.cashier_name,
+                }
+                res = DigiTaxZraService.fiscalize_sale_invoice(store_config, tx_dict, items_for_fiscal)
+                if res and res.get("zra_receipt_number"):
+                    tx.zra_receipt_number = res.get("zra_receipt_number")
+                    tx.zra_mark_id = res.get("zra_mark_id")
+                    tx.zra_qr_code = res.get("zra_qr_code")
+                    tx.zra_status = "APPROVED"
+            except Exception as e:
+                print(f"Backend auto-fiscalize notice for {tx.transaction_uuid}: {e}")
 
         synced_uuids.append(sale_in.transaction_uuid)
 

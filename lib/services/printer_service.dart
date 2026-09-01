@@ -654,9 +654,8 @@ class PrinterService {
       }
 
       final isFiscalApproved = (transaction.zraStatus.toUpperCase() == 'APPROVED' || transaction.zraStatus.toUpperCase() == 'FISCALIZED') &&
-                               transaction.zraMarkId != null &&
-                               transaction.zraMarkId!.isNotEmpty &&
-                               transaction.zraMarkId != 'PENDING';
+                               ((transaction.zraReceiptNumber != null && transaction.zraReceiptNumber!.isNotEmpty) ||
+                                (transaction.zraMarkId != null && transaction.zraMarkId!.isNotEmpty && transaction.zraMarkId != 'PENDING'));
 
       final receiptTitle = transaction.isCreditNote
           ? 'ZRA FISCAL CREDIT NOTE'
@@ -1439,10 +1438,9 @@ class PrinterService {
     commands.appendEmphasis(false);
     if (config?.address != null && config!.address!.isNotEmpty) commands.append('${config.address!}\n');
     if (config?.contactNumber != null && config!.contactNumber!.isNotEmpty) commands.append('Tel: ${config.contactNumber!}\n');
-    final isFiscalApproved = transaction.zraStatus == 'APPROVED' &&
-                             transaction.zraMarkId != null &&
-                             transaction.zraMarkId!.isNotEmpty &&
-                             transaction.zraMarkId != 'PENDING';
+    final isFiscalApproved = (transaction.zraStatus.toUpperCase() == 'APPROVED' || transaction.zraStatus.toUpperCase() == 'FISCALIZED') &&
+                             ((transaction.zraReceiptNumber != null && transaction.zraReceiptNumber!.isNotEmpty) ||
+                              (transaction.zraMarkId != null && transaction.zraMarkId!.isNotEmpty && transaction.zraMarkId != 'PENDING'));
 
     final receiptTitle = transaction.isCreditNote
         ? 'ZRA FISCAL CREDIT NOTE'
@@ -1641,10 +1639,9 @@ class PrinterService {
           ? transaction.zraQrCode!
           : 'https://smartinvoice.zra.org.zm/verify?tpin=${config?.tpin ?? "1000000000"}&sdc=$sdcIdStr&rcpt=$sdcInvNoStr';
 
-      final isFiscalApproved = transaction.zraStatus == 'APPROVED' &&
-                               transaction.zraMarkId != null &&
-                               transaction.zraMarkId!.isNotEmpty &&
-                               transaction.zraMarkId != 'PENDING';
+      final isFiscalApproved = (transaction.zraStatus.toUpperCase() == 'APPROVED' || transaction.zraStatus.toUpperCase() == 'FISCALIZED') &&
+                               ((transaction.zraReceiptNumber != null && transaction.zraReceiptNumber!.isNotEmpty) ||
+                                (transaction.zraMarkId != null && transaction.zraMarkId!.isNotEmpty && transaction.zraMarkId != 'PENDING'));
       final receiptTitle = transaction.isCreditNote
           ? 'ZRA FISCAL CREDIT NOTE'
           : (isFiscalApproved ? 'TAX INVOICE / OFFICIAL RECEIPT' : 'CUSTOMER SALES SLIP');

@@ -1856,16 +1856,18 @@ class DigiTaxInventoryService {
     if (apiKey == null || apiKey.isEmpty) return 0;
 
     final db = ref.read(databaseServiceProvider);
-    final pendingTransactions = await db.isar.saleTransactions
-        .filter()
-        .zraStatusEqualTo('PENDING', caseSensitive: false)
-        .or()
-        .zraStatusEqualTo('pending', caseSensitive: false)
-        .or()
-        .zraReceiptNumberIsNull()
-        .findAll();
+    final allTx = await db.isar.saleTransactions.where().findAll();
+    final pendingTransactions = allTx.where((tx) {
+      final hasReceipt = tx.zraReceiptNumber != null && tx.zraReceiptNumber!.trim().isNotEmpty;
+      if (hasReceipt) return false;
+      final statusUpper = tx.zraStatus.toUpperCase();
+      if (statusUpper == 'APPROVED' || statusUpper == 'FISCALIZED' || statusUpper == 'OFFLINE_EXEMPT') return false;
+      return true;
+    }).toList();
 
     if (pendingTransactions.isEmpty) return 0;
+
+    debugPrint('DIGITAX_QUEUE_WORKER: Processing ${pendingTransactions.length} pending/offline transactions...');
 
     int fiscalizedCount = 0;
     for (final tx in pendingTransactions) {

@@ -10,6 +10,7 @@ import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_router/shelf_router.dart';
 import 'package:beleka_pos/models/models.dart';
 import 'package:beleka_pos/services/database_service.dart';
+import 'package:beleka_pos/services/digitax_inventory_service.dart';
 // isar imported above at line 6
 
 
@@ -49,11 +50,12 @@ class TerminalInfo {
 /// cashier terminals can authenticate, fetch products, and push sales.
 class ApiService {
   final DatabaseService _db;
+  final Ref? ref;
   HttpServer? _server;
   final Map<String, TerminalInfo> _activeTerminals = {};
   final _terminalUpdateController = StreamController<List<TerminalInfo>>.broadcast();
 
-  ApiService(this._db);
+  ApiService(this._db, {this.ref});
 
   Stream<List<TerminalInfo>> get terminalsStream => _terminalUpdateController.stream;
 
@@ -134,6 +136,7 @@ class ApiService {
     router.get('/categories', _handleGetCategories);
     router.post('/transactions', _handlePostTransaction);
     router.post('/transactions/batch', _handleBatchTransactions);
+    router.get('/transactions/updates', _handleGetTransactionUpdates);
     router.get('/terminals', _handleGetTerminals);
     router.post('/terminals/register', _handleRegisterTerminal);
     router.post('/terminals/handshake', _handleRegisterTerminal);
@@ -160,6 +163,9 @@ class ApiService {
         'currencySymbol': config?.currencySymbol ?? 'ZK',
         'tpin': config?.tpin ?? '',
         'businessTaxType': config?.businessTaxType ?? 'TURNOVER_TAX',
+        'digitaxApiKey': config?.digitaxApiKey ?? '',
+        'digitaxEnvironment': config?.digitaxEnvironment ?? 'sandbox',
+        'sdcId': config?.sdcId ?? '',
         'maxTills': 3,
         'timestamp': DateTime.now().toIso8601String(),
         'activeTerminals': _activeTerminals.length,
@@ -217,6 +223,8 @@ class ApiService {
         _notifyTerminals();
       }
 
+      final config = await _db.getStoreConfig();
+
       return Response.ok(
         jsonEncode({
           'success': true,
@@ -226,6 +234,16 @@ class ApiService {
             'name': user.name,
             'role': user.role,
           },
+          'store': {
+            'businessName': config?.businessName ?? 'Beleka POS',
+            'branchName': config?.branchName ?? 'Main Branch',
+            'bhfId': (config?.bhfId != null && config!.bhfId.isNotEmpty) ? config.bhfId : '00',
+            'tpin': config?.tpin ?? '',
+            'businessTaxType': config?.businessTaxType ?? 'TURNOVER_TAX',
+            'digitaxApiKey': config?.digitaxApiKey ?? '',
+            'digitaxEnvironment': config?.digitaxEnvironment ?? 'sandbox',
+            'sdcId': config?.sdcId ?? '',
+          }
         }),
         headers: _jsonHeaders,
       );
@@ -282,13 +300,34 @@ class ApiService {
             .findFirst();
         if (existing != null) {
           return Response.ok(
-            jsonEncode({'success': true, 'transactionId': existing.id, 'duplicate': true}),
+            jsonEncode({
+              'success': true,
+              'transactionId': existing.id,
+              'duplicate': true,
+              'zraReceiptNumber': existing.zraReceiptNumber,
+              'zraMarkId': existing.zraMarkId,
+              'zraQrCode': existing.zraQrCode,
+              'zraInternalData': existing.zraInternalData,
+              'zraSdcId': existing.zraSdcId,
+              'zraInvoiceType': existing.zraInvoiceType,
+              'zraStatus': existing.zraStatus,
+            }),
             headers: _jsonHeaders,
           );
         }
       }
 
       await _db.saveTransaction(transaction, items);
+
+      // Instantly fiscalize with DigiTax on Manager server if API Key present & not yet fiscalized
+      if (ref != null && (transaction.zraReceiptNumber == null || transaction.zraReceiptNumber!.isEmpty)) {
+        try {
+          final digitaxService = ref!.read(digitaxInventoryServiceProvider);
+          await digitaxService.fiscalizeSaleTransaction(transaction, items);
+        } catch (e) {
+          debugPrint('LAN_SERVER_FISCALIZE_NOTICE: $e');
+        }
+      }
 
       // Update terminal stats if known
       if (transaction.terminalName != null && _activeTerminals.containsKey(transaction.terminalName)) {
@@ -300,7 +339,17 @@ class ApiService {
       }
 
       return Response.ok(
-        jsonEncode({'success': true, 'transactionId': transaction.id}),
+        jsonEncode({
+          'success': true,
+          'transactionId': transaction.id,
+          'zraReceiptNumber': transaction.zraReceiptNumber,
+          'zraMarkId': transaction.zraMarkId,
+          'zraQrCode': transaction.zraQrCode,
+          'zraInternalData': transaction.zraInternalData,
+          'zraSdcId': transaction.zraSdcId,
+          'zraInvoiceType': transaction.zraInvoiceType,
+          'zraStatus': transaction.zraStatus,
+        }),
         headers: _jsonHeaders,
       );
     } catch (e) {
@@ -314,6 +363,7 @@ class ApiService {
       final body = jsonDecode(await request.readAsString());
       final batch = body['transactions'] as List<dynamic>;
       int successCount = 0;
+      final List<Map<String, dynamic>> syncedItems = [];
 
       for (final entry in batch) {
         try {
@@ -326,7 +376,29 @@ class ApiService {
               .toList();
 
           await _db.saveTransaction(transaction, items);
+
+          // Instantly fiscalize with DigiTax on Manager server if needed
+          if (ref != null && (transaction.zraReceiptNumber == null || transaction.zraReceiptNumber!.isEmpty)) {
+            try {
+              final digitaxService = ref!.read(digitaxInventoryServiceProvider);
+              await digitaxService.fiscalizeSaleTransaction(transaction, items);
+            } catch (e) {
+              debugPrint('LAN_SERVER_BATCH_FISCALIZE_NOTICE: $e');
+            }
+          }
+
           successCount++;
+
+          syncedItems.add({
+            'transactionId': transaction.transactionId ?? 'INV-${transaction.id}',
+            'zraReceiptNumber': transaction.zraReceiptNumber,
+            'zraMarkId': transaction.zraMarkId,
+            'zraQrCode': transaction.zraQrCode,
+            'zraInternalData': transaction.zraInternalData,
+            'zraSdcId': transaction.zraSdcId,
+            'zraInvoiceType': transaction.zraInvoiceType,
+            'zraStatus': transaction.zraStatus,
+          });
 
           // Update terminal stats
           if (transaction.terminalName != null && _activeTerminals.containsKey(transaction.terminalName)) {
@@ -346,6 +418,7 @@ class ApiService {
           'success': true,
           'synced': successCount,
           'total': batch.length,
+          'fiscalUpdates': syncedItems,
         }),
         headers: _jsonHeaders,
       );
@@ -355,158 +428,146 @@ class ApiService {
     }
   }
 
-  Response _handleGetTerminals(Request request) {
-    // Clean up stale terminals (no heartbeat for 5 minutes)
-    final cutoff = DateTime.now().subtract(const Duration(minutes: 5));
-    _activeTerminals
-        .removeWhere((_, info) => info.lastHeartbeat.isBefore(cutoff));
+  Future<Response> _handleGetTransactionUpdates(Request request) async {
+    try {
+      final approvedTx = await _db.isar.saleTransactions
+          .filter()
+          .zraReceiptNumberIsNotNull()
+          .findAll();
 
-    final list = _activeTerminals.values.map((t) => t.toJson()).toList();
-    return Response.ok(jsonEncode(list), headers: _jsonHeaders);
+      final jsonList = approvedTx.map((tx) => {
+        'transactionId': tx.transactionId,
+        'zraReceiptNumber': tx.zraReceiptNumber,
+        'zraMarkId': tx.zraMarkId,
+        'zraQrCode': tx.zraQrCode,
+        'zraInternalData': tx.zraInternalData,
+        'zraSdcId': tx.zraSdcId,
+        'zraInvoiceType': tx.zraInvoiceType,
+        'zraStatus': tx.zraStatus,
+      }).toList();
+
+      return Response.ok(jsonEncode(jsonList), headers: _jsonHeaders);
+    } catch (e) {
+      return Response.internalServerError(
+          body: jsonEncode({'error': '$e'}), headers: _jsonHeaders);
+    }
+  }
+
+  Future<Response> _handleGetTerminals(Request request) async {
+    try {
+      final terminals = await _db.isar.posTerminals.where().findAll();
+      final jsonList = terminals.map((t) => {
+        'id': t.id,
+        'terminalCode': t.terminalCode,
+        'name': t.name,
+        'deviceIp': t.deviceIp,
+        'serialNumber': t.serialNumber,
+        'status': t.status,
+        'branchCode': t.branchCode,
+        'lastActive': t.lastActive.toIso8601String(),
+      }).toList();
+      return Response.ok(jsonEncode(jsonList), headers: _jsonHeaders);
+    } catch (e) {
+      return Response.internalServerError(
+          body: jsonEncode({'error': '$e'}), headers: _jsonHeaders);
+    }
   }
 
   Future<Response> _handleRegisterTerminal(Request request) async {
     try {
-      final body = jsonDecode(await request.readAsString()) as Map<String, dynamic>;
-      final terminalCode = (body['terminalCode'] ?? body['terminalName'] ?? 'TILL-01').toString().trim().toUpperCase();
-      final name = (body['name'] ?? 'Counter Till ($terminalCode)').toString().trim();
-      final deviceIp = (body['deviceIp'] ?? '').toString().trim();
-      final hardwareId = (body['hardwareId'] ?? '').toString().trim();
-      final branchCode = (body['branchCode'] ?? '').toString().trim();
+      final body = jsonDecode(await request.readAsString());
+      final terminalCode = (body['terminalCode'] as String?) ?? 'TILL-01';
+      final name = body['name'] as String? ?? terminalCode;
+      final deviceIp = body['deviceIp'] as String?;
+      final hardwareId = body['hardwareId'] as String?;
+      final branchCode = body['branchCode'] as String?;
 
-      final config = await _db.getStoreConfig();
-      final effectiveBranchCode = branchCode.isNotEmpty ? branchCode : (config?.bhfId.isNotEmpty == true ? config!.bhfId : '00');
-      final effectiveBranchName = config?.branchName ?? 'Main Branch';
-
-      // 1. Update or create PosTerminal entry in Isar database
-      PosTerminal? existing = await _db.isar.posTerminals.filter().terminalCodeEqualTo(terminalCode).findFirst();
-      final PosTerminal savedTerminal;
-
-      if (existing != null) {
-        if (deviceIp.isNotEmpty) existing.deviceIp = deviceIp;
-        if (hardwareId.isNotEmpty) existing.serialNumber = hardwareId;
-        existing.status = 'ACTIVE';
-        existing.lastActive = DateTime.now();
-        savedTerminal = existing;
-      } else {
-        savedTerminal = PosTerminal()
-          ..terminalCode = terminalCode
-          ..name = name
-          ..deviceIp = deviceIp
-          ..serialNumber = hardwareId
-          ..branchCode = effectiveBranchCode
-          ..branchName = effectiveBranchName
-          ..digitaxBhfId = effectiveBranchCode
-          ..status = 'ACTIVE'
-          ..salesToday = 0.0
-          ..lastActive = DateTime.now()
-          ..createdAt = DateTime.now();
+      if (terminalCode.isEmpty) {
+        return Response(400, body: jsonEncode({'error': 'terminalCode required'}), headers: _jsonHeaders);
       }
 
+      final existingTerminals = await _db.isar.posTerminals.where().findAll();
+      final exists = existingTerminals.any((t) => t.terminalCode == terminalCode);
+
+      if (!exists && existingTerminals.length >= 3) {
+        return Response(403,
+            body: jsonEncode({
+              'error': 'Maximum till limit reached (Max 3 tills allowed on this license). Upgrade your license to connect additional tills.'
+            }),
+            headers: _jsonHeaders);
+      }
+
+      PosTerminal? terminal = existingTerminals.firstWhere(
+        (t) => t.terminalCode == terminalCode,
+        orElse: () => PosTerminal()
+          ..terminalCode = terminalCode
+          ..name = name,
+      );
+
+      terminal.name = name;
+      if (deviceIp != null) terminal.deviceIp = deviceIp;
+      if (hardwareId != null) terminal.serialNumber = hardwareId;
+      if (branchCode != null) terminal.branchCode = branchCode;
+      terminal.status = 'ACTIVE';
+      terminal.lastActive = DateTime.now();
+
       await _db.isar.writeTxn(() async {
-        await _db.isar.posTerminals.put(savedTerminal);
+        await _db.isar.posTerminals.put(terminal);
       });
 
-      // 2. Track in active terminals map for live UI updates
-      _activeTerminals[terminalCode] = TerminalInfo(
-        terminalName: terminalCode,
-        cashierId: savedTerminal.assignedCashierId ?? '',
-        cashierName: savedTerminal.assignedCashierName ?? 'Waiting for Cashier...',
-        connectedAt: DateTime.now(),
-      );
-      _notifyTerminals();
-
-      debugPrint('TERMINAL_HANDSHAKE_SUCCESS: Till [$terminalCode] registered from IP [$deviceIp]');
+      final config = await _db.getStoreConfig();
 
       return Response.ok(
         jsonEncode({
           'success': true,
-          'message': 'Terminal $terminalCode linked and authorized on Master POS',
-          'terminal': {
-            'id': savedTerminal.id,
-            'terminalCode': savedTerminal.terminalCode,
-            'name': savedTerminal.name,
-            'status': savedTerminal.status,
-            'branchCode': savedTerminal.branchCode,
-            'branchName': savedTerminal.branchName,
-          },
+          'terminalId': terminal.id,
+          'terminalCode': terminal.terminalCode,
           'storeConfig': {
             'businessName': config?.businessName ?? 'Beleka POS',
             'branchName': config?.branchName ?? 'Main Branch',
-            'bhfId': config?.bhfId ?? '00',
-            'currencySymbol': config?.currencySymbol ?? 'ZK',
+            'bhfId': (config?.bhfId != null && config!.bhfId.isNotEmpty) ? config.bhfId : '00',
             'tpin': config?.tpin ?? '',
             'businessTaxType': config?.businessTaxType ?? 'TURNOVER_TAX',
-          },
+            'digitaxApiKey': config?.digitaxApiKey ?? '',
+            'digitaxEnvironment': config?.digitaxEnvironment ?? 'sandbox',
+            'sdcId': config?.sdcId ?? '',
+          }
         }),
         headers: _jsonHeaders,
       );
     } catch (e) {
-      debugPrint('REGISTER_TERMINAL_API_ERROR: $e');
-      return Response.internalServerError(body: jsonEncode({'error': '$e'}), headers: _jsonHeaders);
+      return Response.internalServerError(
+          body: jsonEncode({'error': '$e'}), headers: _jsonHeaders);
     }
   }
 
   Future<Response> _handleHeartbeat(Request request) async {
     try {
-      final body = jsonDecode(await request.readAsString()) as Map<String, dynamic>;
-      final terminalName = (body['terminalCode'] ?? body['terminalName']) as String?;
-      final cashierId = body['cashierId'] as String?;
-      final cashierName = body['cashierName'] as String?;
+      final body = jsonDecode(await request.readAsString());
+      final terminalName = body['terminalName'] as String?;
 
-      if (terminalName != null && terminalName.isNotEmpty) {
-        if (_activeTerminals.containsKey(terminalName)) {
-          final t = _activeTerminals[terminalName]!;
-          t.lastHeartbeat = DateTime.now();
-          if (cashierId != null && cashierId.isNotEmpty) t.cashierId = cashierId;
-          if (cashierName != null && cashierName.isNotEmpty) t.cashierName = cashierName;
-        } else {
-          _activeTerminals[terminalName] = TerminalInfo(
-            terminalName: terminalName,
-            cashierId: cashierId ?? '',
-            cashierName: cashierName ?? 'Cashier',
-            connectedAt: DateTime.now(),
-          );
-        }
-
-        // Keep PosTerminal record fresh in Isar
-        try {
-          final existing = await _db.isar.posTerminals.filter().terminalCodeEqualTo(terminalName).findFirst();
-          if (existing != null) {
-            existing.lastActive = DateTime.now();
-            existing.status = 'ACTIVE';
-            if (cashierId != null && cashierId.isNotEmpty) existing.assignedCashierId = cashierId;
-            if (cashierName != null && cashierName.isNotEmpty) existing.assignedCashierName = cashierName;
-            await _db.isar.writeTxn(() async {
-              await _db.isar.posTerminals.put(existing);
-            });
-          }
-        } catch (_) {}
-
-        _notifyTerminals();
+      if (terminalName != null && _activeTerminals.containsKey(terminalName)) {
+        _activeTerminals[terminalName]!.lastHeartbeat = DateTime.now();
       }
 
-      return Response.ok(
-        jsonEncode({'status': 'ok'}),
-        headers: _jsonHeaders,
-      );
+      return Response.ok(jsonEncode({'status': 'ok'}), headers: _jsonHeaders);
     } catch (e) {
       return Response.internalServerError(
           body: jsonEncode({'error': '$e'}), headers: _jsonHeaders);
     }
   }
 
+  // ─── User Management ─────────────────────────────────────────
+
   Future<Response> _handleGetUsers(Request request) async {
     try {
-      final users = await _db.getAllUsers();
+      final users = await _db.isar.users.where().findAll();
       final jsonList = users
           .map((u) => {
                 'id': u.id,
                 'numericId': u.numericId,
                 'name': u.name,
                 'role': u.role,
-                'branchCode': u.branchCode,
-                'branchName': u.branchName,
                 'isActive': u.isActive,
               })
           .toList();
@@ -517,53 +578,71 @@ class ApiService {
     }
   }
 
-
   Future<Response> _handleCreateUser(Request request) async {
     try {
       final body = jsonDecode(await request.readAsString());
-      final String numericId = body['numericId'] as String;
-      
-      // Check for uniqueness
-      final existing = await _db.getUserByNumericId(numericId);
+      final numericId = body['numericId'] as String?;
+      final name = body['name'] as String?;
+      final password = body['password'] as String?;
+      final role = body['role'] as String? ?? 'cashier';
+
+      if (numericId == null || name == null || password == null) {
+        return Response(400,
+            body: jsonEncode({'error': 'numericId, name, password required'}),
+            headers: _jsonHeaders);
+      }
+
+      final existing = await _db.isar.users
+          .filter()
+          .numericIdEqualTo(numericId)
+          .findFirst();
+
       if (existing != null) {
-        return Response.forbidden(
-          jsonEncode({'success': false, 'error': 'Staff ID already exists'}),
-          headers: _jsonHeaders,
-        );
+        return Response(400,
+            body: jsonEncode({'error': 'User with this ID already exists'}),
+            headers: _jsonHeaders);
       }
 
       final user = User()
         ..numericId = numericId
-        ..name = body['name'] as String
-        ..passwordHash = hashPin(body['password'] as String)
-        ..role = body['role'] as String? ?? 'cashier'
+        ..name = name
+        ..passwordHash = hashPin(password)
+        ..role = role
         ..isActive = true;
 
-      await _db.saveUser(user);
+      await _db.isar.writeTxn(() async {
+        await _db.isar.users.put(user);
+      });
 
       return Response.ok(
-        jsonEncode({'success': true, 'userId': user.id}),
-        headers: _jsonHeaders,
-      );
+          jsonEncode({'success': true, 'userId': user.id}),
+          headers: _jsonHeaders);
     } catch (e) {
       return Response.internalServerError(
           body: jsonEncode({'error': '$e'}), headers: _jsonHeaders);
     }
   }
 
-  Future<Response> _handleDeleteUser(Request request, String id) async {
+  Future<Response> _handleDeleteUser(Request request) async {
     try {
-      final userId = int.tryParse(id);
-      if (userId == null) {
+      final idStr = request.params['id'];
+      if (idStr == null) {
         return Response(400,
-            body: jsonEncode({'error': 'Invalid user ID'}),
+            body: jsonEncode({'error': 'User ID required'}),
             headers: _jsonHeaders);
       }
-      await _db.deleteUser(userId);
-      return Response.ok(
-        jsonEncode({'success': true}),
-        headers: _jsonHeaders,
-      );
+      final id = int.tryParse(idStr);
+      if (id == null) {
+        return Response(400,
+            body: jsonEncode({'error': 'Invalid User ID'}),
+            headers: _jsonHeaders);
+      }
+
+      await _db.isar.writeTxn(() async {
+        await _db.isar.users.delete(id);
+      });
+
+      return Response.ok(jsonEncode({'success': true}), headers: _jsonHeaders);
     } catch (e) {
       return Response.internalServerError(
           body: jsonEncode({'error': '$e'}), headers: _jsonHeaders);
@@ -577,21 +656,20 @@ class ApiService {
         'name': p.name,
         'sku': p.sku,
         'price': p.price,
+        'unitCost': p.unitCost,
         'stockLevel': p.stockLevel,
         'categoryId': p.categoryId,
-        'unitCost': p.unitCost,
         'isTaxInclusive': p.isTaxInclusive,
         'taxRate': p.taxRate,
         'isArchived': p.isArchived,
-        'discountPrice': p.discountPrice,
         'imagePath': p.imagePath,
       };
 
   static SaleTransaction _jsonToTransaction(Map<String, dynamic> j) {
     final tx = SaleTransaction(
       totalAmount: (j['totalAmount'] as num).toDouble(),
-      paymentMethod: j['paymentMethod'] as String,
-      cashierName: j['cashierName'] as String? ?? '',
+      paymentMethod: j['paymentMethod'] as String? ?? 'CASH',
+      cashierName: j['cashierName'] as String? ?? 'Cashier',
       status: j['status'] as String? ?? 'completed',
       subtotal: (j['subtotal'] as num?)?.toDouble() ?? 0.0,
       taxAmount: (j['taxAmount'] as num?)?.toDouble() ?? 0.0,
@@ -600,7 +678,6 @@ class ApiService {
       grossProfit: (j['grossProfit'] as num?)?.toDouble() ?? 0.0,
       tenderedAmount: (j['tenderedAmount'] as num?)?.toDouble() ?? 0.0,
       changeAmount: (j['changeAmount'] as num?)?.toDouble() ?? 0.0,
-      isSynced: true,
       cashierId: j['cashierId'] as String?,
       terminalName: j['terminalName'] as String?,
       transactionId: j['transactionId'] as String?,
@@ -640,5 +717,5 @@ class ApiService {
 /// Riverpod provider for the API service.
 final apiServiceProvider = Provider<ApiService>((ref) {
   final db = ref.watch(databaseServiceProvider);
-  return ApiService(db);
+  return ApiService(db, ref: ref);
 });

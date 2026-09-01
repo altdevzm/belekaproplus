@@ -1,4 +1,5 @@
 {
     "java.configuration.updateBuildConfiguration": "automatic",
-    "cmake.sourceDirectory": "/home/links/Documents/programs/beleka pos/linux"
+    "cmake.sourceDirectory": "/home/links/Documents/programs/beleka pos/linux",
+    "cmake.ignoreCMakeListsMissing": true
 }

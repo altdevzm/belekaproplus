@@ -211,7 +211,7 @@ class NetworkClient {
   // ─── Transactions ─────────────────────────────────────────────
 
   /// Push a single completed sale to the Manager's server.
-  Future<bool> pushTransaction(
+  Future<Map<String, dynamic>?> pushTransaction(
       SaleTransaction transaction, List<SaleItem> items) async {
     try {
       final response = await _dio.post('/transactions', data: {
@@ -223,16 +223,16 @@ class NetworkClient {
       final body = response.data is String
           ? jsonDecode(response.data as String)
           : response.data;
-      return body['success'] == true;
+      return body is Map<String, dynamic> ? body : {'success': true};
     } catch (e) {
       _isConnected = false;
       debugPrint('PUSH_TRANSACTION_ERROR: $e');
-      return false;
+      return null;
     }
   }
 
   /// Push a batch of offline sales to the Manager's server.
-  Future<int> pushBatchTransactions(
+  Future<Map<String, dynamic>?> pushBatchTransactions(
       List<Map<String, dynamic>> batch) async {
     try {
       final response =
@@ -242,11 +242,32 @@ class NetworkClient {
       final body = response.data is String
           ? jsonDecode(response.data as String)
           : response.data;
-      return body['synced'] as int? ?? 0;
+      return body is Map<String, dynamic> ? body : {'synced': 0};
     } catch (e) {
       _isConnected = false;
       debugPrint('BATCH_PUSH_ERROR: $e');
-      return 0;
+      return null;
+    }
+  }
+
+  /// Fetch updated ZRA fiscal details for transactions from the Manager server.
+  Future<List<Map<String, dynamic>>> fetchTransactionFiscalUpdates() async {
+    try {
+      final response = await _dio.get('/transactions/updates');
+      _isConnected = true;
+      if (response.statusCode == 200 && response.data != null) {
+        final data = response.data is String
+            ? jsonDecode(response.data as String)
+            : response.data;
+        if (data is List) {
+          return data.cast<Map<String, dynamic>>();
+        }
+      }
+      return [];
+    } catch (e) {
+      _isConnected = false;
+      debugPrint('FETCH_FISCAL_UPDATES_ERROR: $e');
+      return [];
     }
   }
 

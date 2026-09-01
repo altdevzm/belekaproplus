@@ -3131,10 +3131,18 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
 
       // Fiscalize with DigiTax VSDC Cloud (Live ZRA Smart Invoice & Server-Side Tax Calculations)
       final hasDigitax = config?.digitaxApiKey != null && config!.digitaxApiKey!.trim().isNotEmpty;
-      final fiscalized = await ref.read(digitaxInventoryServiceProvider).fiscalizeSaleTransaction(transaction, saleItems);
+      bool fiscalized = false;
 
-      // Attempt local real-time sync (or queue for offline)
-      ref.read(syncServiceProvider).trySyncTransaction(transaction, saleItems);
+      if (hasDigitax) {
+        fiscalized = await ref.read(digitaxInventoryServiceProvider).fiscalizeSaleTransaction(transaction, saleItems);
+      }
+
+      // Attempt local real-time sync with Manager Server over LAN (if cashier terminal).
+      // Manager Server auto-fiscalizes the transaction with DigiTax and returns official ZRA receipt data.
+      final syncSuccess = await ref.read(syncServiceProvider).trySyncTransaction(transaction, saleItems);
+      if (syncSuccess && (transaction.zraReceiptNumber?.isNotEmpty == true || transaction.zraStatus.toUpperCase() == 'APPROVED')) {
+        fiscalized = true;
+      }
       
       // Auto-kick Cash Drawer Hardware Driver on payment completion
       if (config?.autoOpenCashDrawer != false) {
@@ -3149,14 +3157,15 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         }
       }
 
-      // Option A: Print receipt immediately so customer always leaves with proof of purchase.
-      // Handled inside try-catch so printer hardware disconnection (e.g. Bluetooth error) does not abort completed sale flow
+      // Print official thermal receipt:
+      // Includes official ZRA Tax Invoice / SDC details if DigiTax is online,
+      // or prints OFFLINE PENDING notice if DigiTax / internet is currently unreachable.
       bool printSuccess = true;
       String? printErrorMessage;
       if (config?.autoPrintReceipt != false) {
         try {
           await printer.printReceipt(transaction, saleItems, config: config);
-          if (hasDigitax && !fiscalized) {
+          if (!fiscalized && (hasDigitax || syncSuccess)) {
             _scheduleDigitaxFiscalRefreshAndPrint(transaction, saleItems);
           }
         } catch (e) {

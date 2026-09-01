@@ -152,6 +152,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             await db.isar.users.put(remoteUser);
           });
           user = remoteUser;
+
+          // Pull store config (including DigiTax API credentials) from Manager Server
+          try {
+            final serverInfo = await networkClient.getServerInfo();
+            if (serverInfo != null) {
+              final activeConfig = config ?? await db.isar.storeConfigs.where().findFirst() ?? StoreConfig();
+              if (serverInfo['digitaxApiKey'] != null && (serverInfo['digitaxApiKey'] as String).isNotEmpty) {
+                activeConfig.digitaxApiKey = serverInfo['digitaxApiKey'].toString();
+              }
+              if (serverInfo['sdcId'] != null) activeConfig.sdcId = serverInfo['sdcId'].toString();
+              if (serverInfo['tpin'] != null) activeConfig.tpin = serverInfo['tpin'].toString();
+              if (serverInfo['businessTaxType'] != null) activeConfig.businessTaxType = serverInfo['businessTaxType'].toString();
+              if (serverInfo['bhfId'] != null) activeConfig.bhfId = serverInfo['bhfId'].toString();
+              await db.isar.writeTxn(() async {
+                await db.isar.storeConfigs.put(activeConfig);
+              });
+            }
+          } catch (e) {
+            debugPrint('LOGIN_STORE_SYNC_NOTICE: $e');
+          }
         }
       }
 
@@ -198,20 +218,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               await db.isar.users.put(remoteUser);
 
               // Update local store profile with cloud branch credentials
-              if (config != null) {
-                config.bhfId = branchBhfId;
-                if (sData != null) {
-                  if (sData['name'] != null) config.businessName = sData['name'].toString();
-                  if (sData['branch_name'] != null) config.branchName = sData['branch_name'].toString();
-                  if (sData['tpin'] != null && (sData['tpin'] as String).isNotEmpty) config.tpin = sData['tpin'].toString();
-                  if (sData['digitax_api_key'] != null && (sData['digitax_api_key'] as String).isNotEmpty) {
-                    config.digitaxApiKey = sData['digitax_api_key'].toString();
-                  }
-                  if (sData['digitax_environment'] != null) config.digitaxEnvironment = sData['digitax_environment'].toString();
-                  if (sData['business_tax_type'] != null) config.businessTaxType = sData['business_tax_type'].toString();
+              final activeConfig = config ?? await db.isar.storeConfigs.where().findFirst() ?? StoreConfig();
+              activeConfig.bhfId = branchBhfId;
+              if (sData != null) {
+                if (sData['name'] != null) activeConfig.businessName = sData['name'].toString();
+                if (sData['branch_name'] != null) activeConfig.branchName = sData['branch_name'].toString();
+                if (sData['tpin'] != null && (sData['tpin'] as String).isNotEmpty) activeConfig.tpin = sData['tpin'].toString();
+                if (sData['digitax_api_key'] != null && (sData['digitax_api_key'] as String).isNotEmpty) {
+                  activeConfig.digitaxApiKey = sData['digitax_api_key'].toString();
                 }
-                await db.isar.storeConfigs.put(config);
+                if (sData['digitax_environment'] != null) activeConfig.digitaxEnvironment = sData['digitax_environment'].toString();
+                if (sData['business_tax_type'] != null) activeConfig.businessTaxType = sData['business_tax_type'].toString();
               }
+              await db.isar.storeConfigs.put(activeConfig);
             });
             user = remoteUser;
           }
