@@ -333,7 +333,7 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
                       ),
                       child: Flex(
                         direction: isMobile ? Axis.vertical : Axis.horizontal,
-                        cross: isMobile ? CrossAxisAlignment.stretch : CrossAlignment.center,
+                        crossAxisAlignment: isMobile ? CrossAxisAlignment.stretch : CrossAxisAlignment.center,
                         children: [
                           Row(
                             children: [
