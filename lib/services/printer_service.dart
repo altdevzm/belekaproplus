@@ -653,7 +653,7 @@ class PrinterService {
         bytes += generator.text('TPIN: ${config.tpin!}', styles: const PosStyles(align: PosAlign.center, bold: true));
       }
 
-      final isFiscalApproved = transaction.zraStatus == 'APPROVED' &&
+      final isFiscalApproved = (transaction.zraStatus == 'APPROVED' || transaction.zraStatus == 'FISCALIZED' || transaction.isFiscalized) &&
                                transaction.zraMarkId != null &&
                                transaction.zraMarkId!.isNotEmpty &&
                                transaction.zraMarkId != 'PENDING';
@@ -1371,7 +1371,12 @@ class PrinterService {
     // 3. PrinterManager Platform Channel Driver (USB/Bluetooth/Network)
     if (_activeType != null) {
       try {
-        return await _printerManager.send(type: _activeType!, bytes: bytes);
+        return await _printerManager
+            .send(type: _activeType!, bytes: bytes)
+            .timeout(const Duration(seconds: 3), onTimeout: () {
+          debugPrint('PrinterManager Bluetooth/USB send timed out after 3 seconds.');
+          return false;
+        });
       } catch (e) {
         debugPrint('PrinterManager send error: $e');
       }

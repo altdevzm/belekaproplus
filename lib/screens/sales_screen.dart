@@ -3070,6 +3070,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
   }
 
   Future<void> _finalizeSale(CartNotifier cartNotifier) async {
+    if (_isProcessingPayment) return;
     setState(() => _isProcessingPayment = true);
     final total = cartNotifier.total;
     final change = _selectedPaymentMethod == 'CASH' ? (_tenderedAmount - total) : 0.0;
@@ -3124,6 +3125,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         setState(() {
           _tenderedAmount = 0;
           _selectedPaymentMethod = '';
+          _isProcessingPayment = false;
         });
       }
 

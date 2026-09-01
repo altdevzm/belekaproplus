@@ -1090,10 +1090,29 @@ class DigiTaxInventoryService {
         Map<String, dynamic> saleData = Map<String, dynamic>.from(data);
         final saleId = saleData['id']?.toString();
 
-        // If not immediately signed (DigiTax queue processing), poll for live ZRA signature
-        if (saleData['receipt_signature'] == null || saleData['receipt_signature'].toString().trim().isEmpty) {
-          for (int attempt = 1; attempt <= 5; attempt++) {
-            await Future.delayed(const Duration(milliseconds: 1000));
+        // Helper function to extract ZRA signature across top-level and nested maps
+        String? extractSig(Map<String, dynamic> m) {
+          final s = m['receipt_signature'] ?? m['signature'] ?? m['vsdc_signature'] ?? m['receipt_sign'] ?? m['qr_code'] ?? m['vsdc_sign'];
+          if (s != null && s.toString().trim().isNotEmpty && s.toString() != 'null') {
+            return s.toString().trim();
+          }
+          if (m['sale'] is Map) {
+            final inner = extractSig(Map<String, dynamic>.from(m['sale']));
+            if (inner != null) return inner;
+          }
+          if (m['data'] is Map) {
+            final inner = extractSig(Map<String, dynamic>.from(m['data']));
+            if (inner != null) return inner;
+          }
+          return null;
+        }
+
+        String? liveSignature = extractSig(saleData);
+
+        // If not immediately signed (DigiTax queue processing), fast-poll for live ZRA signature
+        if (liveSignature == null || liveSignature.isEmpty) {
+          for (int attempt = 1; attempt <= 8; attempt++) {
+            await Future.delayed(const Duration(milliseconds: 400));
             try {
               final pollResp = (saleId != null && saleId.isNotEmpty)
                   ? await _dio.get(
@@ -1112,9 +1131,11 @@ class DigiTaxInventoryService {
                   final list = pData['sales'] ?? pData['data'] ?? pData['items'] ?? pData['results'];
                   if (list is List && list.isNotEmpty) pData = list.first;
                   if (pData is Map) {
-                    final sig = pData['receipt_signature']?.toString();
-                    if (sig != null && sig.trim().isNotEmpty) {
-                      saleData = Map<String, dynamic>.from(pData);
+                    final mapData = Map<String, dynamic>.from(pData);
+                    final sig = extractSig(mapData);
+                    if (sig != null && sig.isNotEmpty) {
+                      saleData = mapData;
+                      liveSignature = sig;
                       debugPrint('DIGITAX_POLL_SUCCESS: Sale #$invoiceNo signed after $attempt attempt(s)!');
                       break;
                     }
@@ -1127,7 +1148,6 @@ class DigiTaxInventoryService {
           }
         }
 
-        final liveSignature = saleData['receipt_signature']?.toString().trim();
         if (liveSignature == null || liveSignature.isEmpty) {
           debugPrint('DIGITAX_PENDING: Sale $invoiceNo is queued in DigiTax VSDC. Waiting for background confirmation.');
           return false;
