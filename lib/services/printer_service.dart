@@ -8,6 +8,7 @@ import 'package:beleka_pos/models/models.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/services.dart';
 import 'package:image/image.dart' as img;
+import 'package:qr/qr.dart';
 import 'package:printing/printing.dart' as pnt;
 import 'package:pdf/pdf.dart' as pdf;
 import 'package:pdf/widgets.dart' as pw;
@@ -541,6 +542,137 @@ class PrinterService {
     return false;
   }
 
+  /// Converts an img.Image into universal ESC/POS 1-bit raster bit image bytes (GS v 0).
+  /// Properly handles transparency (treats transparent alpha pixels as white paper background)
+  /// and binarizes dark pixels into printable black dots.
+  List<int> _imageToRasterEscPos(
+    img.Image baseImage, {
+    int targetWidth = 384,
+    PosAlign align = PosAlign.center,
+  }) {
+    try {
+      final img.Image resized = img.copyResize(baseImage, width: targetWidth);
+      final int widthPx = resized.width;
+      final int heightPx = resized.height;
+      final int widthBytes = (widthPx + 7) ~/ 8;
+
+      final List<int> bytes = [];
+
+      // Alignment: ESC a n (0: Left, 1: Center, 2: Right)
+      int alignCode = 1;
+      if (align == PosAlign.left) alignCode = 0;
+      if (align == PosAlign.right) alignCode = 2;
+      bytes.addAll([0x1B, 0x61, alignCode]);
+
+      // GS v 0 0 xL xH yL yH
+      final int xL = widthBytes % 256;
+      final int xH = widthBytes ~/ 256;
+      final int yL = heightPx % 256;
+      final int yH = heightPx ~/ 256;
+      bytes.addAll([0x1D, 0x76, 0x30, 0x00, xL, xH, yL, yH]);
+
+      for (int y = 0; y < heightPx; y++) {
+        for (int byteX = 0; byteX < widthBytes; byteX++) {
+          int currentByte = 0;
+          for (int bit = 0; bit < 8; bit++) {
+            final int x = byteX * 8 + bit;
+            if (x < widthPx) {
+              final pixel = resized.getPixel(x, y);
+              final a = pixel.a;
+              final r = pixel.r;
+              final g = pixel.g;
+              final b = pixel.b;
+
+              // Transparent or semi-transparent pixels are treated as white paper (no dot)
+              if (a > 32) {
+                final luminance = (0.299 * r + 0.587 * g + 0.114 * b);
+                // If dark pixel on light background -> print dot (1)
+                if (luminance < 140) {
+                  currentByte |= (0x80 >> bit);
+                }
+              }
+            }
+          }
+          bytes.add(currentByte);
+        }
+      }
+
+      // Reset alignment to left
+      bytes.addAll([0x1B, 0x61, 0x00]);
+      return bytes;
+    } catch (e) {
+      debugPrint('ESC/POS Image rasterization notice: $e');
+      return [];
+    }
+  }
+
+  /// Converts any string data into a 100% universal ESC/POS 1-bit raster QR code (GS v 0).
+  /// Guaranteed to print cleanly on all generic ESC/POS thermal printers regardless of hardware QR support.
+  List<int> _qrToRasterEscPos(
+    String data, {
+    int scale = 4,
+    PosAlign align = PosAlign.center,
+  }) {
+    try {
+      final qrCode = QrCode.fromData(
+        data: data,
+        errorCorrectLevel: QrErrorCorrectLevel.M,
+      );
+      final qrImage = QrImage(qrCode);
+      final int moduleCount = qrImage.moduleCount;
+
+      // Add quiet zone margin (2 modules on each side)
+      const int margin = 2;
+      final int totalModules = moduleCount + (margin * 2);
+      final int widthPx = totalModules * scale;
+      final int heightPx = widthPx;
+      final int widthBytes = (widthPx + 7) ~/ 8;
+
+      final List<int> bytes = [];
+
+      // Alignment: ESC a n (0: Left, 1: Center, 2: Right)
+      int alignCode = 1;
+      if (align == PosAlign.left) alignCode = 0;
+      if (align == PosAlign.right) alignCode = 2;
+      bytes.addAll([0x1B, 0x61, alignCode]);
+
+      // GS v 0 0 xL xH yL yH
+      final int xL = widthBytes % 256;
+      final int xH = widthBytes ~/ 256;
+      final int yL = heightPx % 256;
+      final int yH = heightPx ~/ 256;
+      bytes.addAll([0x1D, 0x76, 0x30, 0x00, xL, xH, yL, yH]);
+
+      for (int y = 0; y < heightPx; y++) {
+        final int moduleY = (y ~/ scale) - margin;
+        for (int byteX = 0; byteX < widthBytes; byteX++) {
+          int currentByte = 0;
+          for (int bit = 0; bit < 8; bit++) {
+            final int x = byteX * 8 + bit;
+            if (x < widthPx) {
+              final int moduleX = (x ~/ scale) - margin;
+              bool isDark = false;
+              if (moduleY >= 0 && moduleY < moduleCount && moduleX >= 0 && moduleX < moduleCount) {
+                isDark = qrImage.isDark(moduleY, moduleX);
+              }
+              if (isDark) {
+                currentByte |= (0x80 >> bit);
+              }
+            }
+          }
+          bytes.add(currentByte);
+        }
+      }
+
+      // Reset alignment to left
+      bytes.addAll([0x1B, 0x61, 0x00]);
+      return bytes;
+    } catch (e) {
+      debugPrint('ESC/POS QR rasterization notice: $e');
+      return [];
+    }
+  }
+
   /// Master Method to Print High-Fidelity Designed Thermal Receipt
   Future<bool> printReceipt(
     SaleTransaction transaction, 
@@ -590,31 +722,26 @@ class PrinterService {
 
       final currency = config?.currencySymbol ?? 'K';
 
-      // 1. Dithered Store Logo
-      String? logoToPrint = config?.logoPath;
-      if (logoToPrint == null || !File(logoToPrint).existsSync()) {
-        logoToPrint = 'assets/images/logo.png';
-      }
-
-      try {
-        late Uint8List logoBytes;
-        if (logoToPrint == 'assets/images/logo.png') {
-          final byteData = await rootBundle.load('assets/images/logo.png');
-          logoBytes = byteData.buffer.asUint8List();
-        } else {
-          logoBytes = await File(logoToPrint).readAsBytes();
+      // 1. Store Logo — Rendered via universal 1-bit ESC/POS GS v 0 raster
+      final String? customLogoPath = config?.logoPath;
+      if (customLogoPath != null && File(customLogoPath).existsSync()) {
+        try {
+          final logoBytes = await File(customLogoPath).readAsBytes();
+          final img.Image? baseImage = img.decodeImage(logoBytes);
+          if (baseImage != null) {
+            final rasterLogo = _imageToRasterEscPos(
+              baseImage,
+              targetWidth: preset.logoPixelWidth,
+              align: PosAlign.center,
+            );
+            if (rasterLogo.isNotEmpty) {
+              bytes += rasterLogo;
+              bytes += generator.feed(1);
+            }
+          }
+        } catch (e) {
+          debugPrint('Thermal logo print notice: $e');
         }
-
-        final img.Image? baseImage = img.decodeImage(logoBytes);
-        if (baseImage != null) {
-          final int targetWidth = preset.logoPixelWidth;
-          final img.Image resized = img.copyResize(baseImage, width: targetWidth);
-          final img.Image monochrome = img.grayscale(resized);
-          bytes += generator.image(monochrome, align: PosAlign.center);
-          bytes += generator.feed(1);
-        }
-      } catch (e) {
-        debugPrint('Thermal logo print notice: $e');
       }
 
       // 2. Company Name & Branch Header
@@ -826,20 +953,46 @@ class PrinterService {
         bytes += generator.text(_formatRow2('Invoice Type:', transaction.zraInvoiceType ?? 'Normal Sale', colCount));
         bytes += generator.text(preset.singleDivider);
 
-        // Print Live ZRA Smart Invoice Verification QR Code
+        // Print Live ZRA Smart Invoice Verification QR Code via universal 1-bit ESC/POS raster
         final zraQrData = (transaction.zraQrCode != null && transaction.zraQrCode!.isNotEmpty)
             ? transaction.zraQrCode!
             : 'https://smartinvoice.zra.org.zm/verify?tpin=${config?.tpin ?? "1000000000"}&sdc=$sdcIdStr&rcpt=$sdcInvNoStr';
         bytes += generator.feed(1);
-        bytes += generator.qrcode(
-          zraQrData,
-          size: preset.qrSize,
-        );
-        bytes += generator.feed(1);
-        bytes += generator.text(
-          'Scan QR Code to Verify on ZRA Portal',
-          styles: const PosStyles(align: PosAlign.center, bold: true),
-        );
+        try {
+          final qrRasterBytes = _qrToRasterEscPos(
+            zraQrData,
+            scale: is58 ? 4 : 5,
+            align: PosAlign.center,
+          );
+          if (qrRasterBytes.isNotEmpty) {
+            bytes += qrRasterBytes;
+            bytes += generator.feed(1);
+            bytes += generator.text(
+              'Scan QR Code to Verify on ZRA Portal',
+              styles: const PosStyles(align: PosAlign.center, bold: true),
+            );
+          } else {
+            // Text fallback if QR raster fails
+            bytes += generator.text(
+              'VERIFY AT ZRA PORTAL:',
+              styles: const PosStyles(align: PosAlign.center, bold: true),
+            );
+            bytes += generator.text(
+              zraQrData,
+              styles: const PosStyles(align: PosAlign.center),
+            );
+          }
+        } catch (e) {
+          debugPrint('QR code generation notice: $e');
+          bytes += generator.text(
+            'VERIFY AT ZRA PORTAL:',
+            styles: const PosStyles(align: PosAlign.center, bold: true),
+          );
+          bytes += generator.text(
+            zraQrData,
+            styles: const PosStyles(align: PosAlign.center),
+          );
+        }
       } else {
         bytes += generator.text(
           '*** OFFLINE TRANSACTION - FISCAL PENDING ***',
@@ -870,7 +1023,8 @@ class PrinterService {
       bytes += generator.text('*** BELEKA POS RETAIL OS ***', styles: const PosStyles(align: PosAlign.center));
       bytes += generator.text(preset.doubleDivider);
       
-      bytes += generator.feed(3);
+      // generator.cut() already prepends 5 blank lines internally.
+      // Avoid extra feed here to prevent the long blank-paper runaway.
       bytes += generator.cut();
 
       // Send to active driver
@@ -977,7 +1131,7 @@ class PrinterService {
       bytes += generator.text(currentPreset.doubleDivider);
       bytes += generator.feed(1);
       bytes += generator.text('*** END OF ZRA FISCAL Z-REPORT ***', styles: const PosStyles(align: PosAlign.center, bold: true));
-      bytes += generator.feed(3);
+      // generator.cut() already prepends 5 blank lines — no extra feed needed.
       bytes += generator.cut();
 
       return await _sendBytes(bytes);
@@ -1212,7 +1366,7 @@ class PrinterService {
       }
       
       bytes += generator.text(preset.doubleDivider);
-      bytes += generator.feed(3);
+      // generator.cut() already prepends 5 blank lines — no extra feed needed.
       bytes += generator.cut();
 
       return await _sendBytes(bytes);
@@ -1324,7 +1478,7 @@ class PrinterService {
       bytes += generator.text(preset.doubleDivider);
       bytes += generator.setStyles(const PosStyles(align: PosAlign.center));
       bytes += generator.text('*** END OF SUMMARY SLIP ***');
-      bytes += generator.feed(3);
+      // generator.cut() already prepends 5 blank lines — no extra feed needed.
       bytes += generator.cut();
 
       return await _sendBytes(bytes);
