@@ -295,30 +295,65 @@ class LicenseService {
   }
 
   Future<File> _getLicenseFile() async {
-    final appDir = await getApplicationDocumentsDirectory();
+    Directory appDir;
+    try {
+      appDir = await getApplicationSupportDirectory();
+    } catch (_) {
+      appDir = await getApplicationDocumentsDirectory();
+    }
     return File('${appDir.path}/$_licenseFileName');
   }
 
   Future<String?> _readLocalLicenseFile() async {
     try {
-      // 1. Primary app docs dir
-      final appDir = await getApplicationDocumentsDirectory();
-      final standardPaths = [
-        '${appDir.path}/$_licenseFileName',
-        '${appDir.path}/beleka_license.lic',
-        '${appDir.path}/beleka_universal_master.lic',
-        '${appDir.path}/universal.lic',
+      // 1. Primary app support & docs dirs
+      final searchDirs = <Directory>[];
+      try {
+        searchDirs.add(await getApplicationSupportDirectory());
+      } catch (_) {}
+      try {
+        searchDirs.add(await getApplicationDocumentsDirectory());
+      } catch (_) {}
+
+      final licenseNames = [
+        _licenseFileName,
+        'beleka_license.lic',
+        'beleka_universal_master.lic',
+        'universal.lic',
       ];
 
-      for (final p in standardPaths) {
-        final f = File(p);
-        if (f.existsSync()) {
-          final content = await f.readAsString();
-          if (content.trim().isNotEmpty) return content;
+      for (final dir in searchDirs) {
+        for (final name in licenseNames) {
+          final f = File('${dir.path}/$name');
+          if (f.existsSync()) {
+            final content = await f.readAsString();
+            if (content.trim().isNotEmpty) return content;
+          }
         }
       }
 
-      // 2. Android Downloads and External Storage Paths
+      // 2. Windows Downloads and Documents Directory
+      if (Platform.isWindows) {
+        final userProfile = Platform.environment['USERPROFILE'];
+        if (userProfile != null && userProfile.isNotEmpty) {
+          final winPaths = [
+            '$userProfile\\Downloads',
+            '$userProfile\\Documents',
+            '$userProfile\\Desktop',
+          ];
+          for (final dirPath in winPaths) {
+            for (final name in licenseNames) {
+              final f = File('$dirPath\\$name');
+              if (f.existsSync()) {
+                final content = await f.readAsString();
+                if (content.trim().isNotEmpty) return content;
+              }
+            }
+          }
+        }
+      }
+
+      // 3. Android Downloads and External Storage Paths
       if (Platform.isAndroid) {
         final androidSearchPaths = [
           '/storage/emulated/0/Download/beleka_license.lic',
@@ -343,15 +378,8 @@ class LicenseService {
         }
       }
 
-      // 3. Current Working Directory fallback (Windows / Linux)
-      final localPaths = [
-        _licenseFileName,
-        'beleka_license.lic',
-        'beleka_universal_master.lic',
-        'universal.lic',
-      ];
-
-      for (final p in localPaths) {
+      // 4. Current Working Directory fallback (Windows / Linux)
+      for (final p in licenseNames) {
         final localFile = File(p);
         if (localFile.existsSync()) {
           final content = await localFile.readAsString();

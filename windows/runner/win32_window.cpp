@@ -153,6 +153,12 @@ bool Win32Window::Create(const std::wstring& title,
 bool Win32Window::Show() {
   bool result = ShowWindow(window_handle_, SW_SHOWNORMAL);
   UpdateWindow(window_handle_);
+  if (child_content_ != nullptr) {
+    ShowWindow(child_content_, SW_SHOW);
+    UpdateWindow(child_content_);
+    InvalidateRect(child_content_, nullptr, TRUE);
+    SetFocus(child_content_);
+  }
   return result;
 }
 
@@ -189,6 +195,10 @@ Win32Window::MessageHandler(HWND hwnd,
     case WM_PAINT: {
       PAINTSTRUCT ps;
       BeginPaint(hwnd, &ps);
+      if (child_content_ != nullptr) {
+        InvalidateRect(child_content_, nullptr, FALSE);
+        UpdateWindow(child_content_);
+      }
       EndPaint(hwnd, &ps);
       return 0;
     }
@@ -218,13 +228,17 @@ Win32Window::MessageHandler(HWND hwnd,
         MoveWindow(child_content_, rect.left, rect.top, rect.right - rect.left,
                    rect.bottom - rect.top, TRUE);
         InvalidateRect(child_content_, nullptr, FALSE);
+        UpdateWindow(child_content_);
       }
       return 0;
     }
 
     case WM_ACTIVATE:
+    case WM_SETFOCUS:
       if (child_content_ != nullptr) {
         SetFocus(child_content_);
+        InvalidateRect(child_content_, nullptr, FALSE);
+        UpdateWindow(child_content_);
       }
       return 0;
 
@@ -259,8 +273,11 @@ void Win32Window::SetChildContent(HWND content) {
   RECT frame = GetClientArea();
 
   MoveWindow(content, frame.left, frame.top, frame.right - frame.left,
-             frame.bottom - frame.top, true);
+             frame.bottom - frame.top, TRUE);
 
+  ShowWindow(content, SW_SHOW);
+  UpdateWindow(content);
+  InvalidateRect(content, nullptr, TRUE);
   SetFocus(child_content_);
 }
 

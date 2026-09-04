@@ -1,6 +1,7 @@
 #include "flutter_window.h"
 
 #include <optional>
+#include <algorithm>
 
 #include "flutter/generated_plugin_registrant.h"
 
@@ -15,11 +16,13 @@ bool FlutterWindow::OnCreate() {
   }
 
   RECT frame = GetClientArea();
+  int width = std::max(1, static_cast<int>(frame.right - frame.left));
+  int height = std::max(1, static_cast<int>(frame.bottom - frame.top));
 
   // The size here must match the window dimensions to avoid unnecessary surface
   // creation / destruction in the startup path.
   flutter_controller_ = std::make_unique<flutter::FlutterViewController>(
-      frame.right - frame.left, frame.bottom - frame.top, project_);
+      width, height, project_);
   // Ensure that basic setup of the controller was successful.
   if (!flutter_controller_->engine() || !flutter_controller_->view()) {
     return false;
@@ -29,6 +32,9 @@ bool FlutterWindow::OnCreate() {
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
     this->Show();
+    if (flutter_controller_) {
+      flutter_controller_->ForceRedraw();
+    }
   });
 
   // Flutter can complete the first frame before the "show window" callback is
@@ -63,7 +69,17 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
 
   switch (message) {
     case WM_FONTCHANGE:
-      flutter_controller_->engine()->ReloadSystemFonts();
+      if (flutter_controller_ && flutter_controller_->engine()) {
+        flutter_controller_->engine()->ReloadSystemFonts();
+      }
+      break;
+    case WM_ACTIVATE:
+    case WM_SETFOCUS:
+    case WM_SHOWWINDOW:
+    case WM_PAINT:
+      if (flutter_controller_) {
+        flutter_controller_->ForceRedraw();
+      }
       break;
   }
 
