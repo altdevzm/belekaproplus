@@ -11,6 +11,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:excel/excel.dart';
 import 'package:printing/printing.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:beleka_pos/utils/formatters.dart';
 
 final exportServiceProvider = Provider((ref) => ExportService());
@@ -3305,16 +3306,54 @@ class ExportService {
   }
 
   Future<void> _saveFile(Uint8List bytes, String fileName, {List<String>? extensions}) async {
-    String? outputFile = await FilePicker.platform.saveFile(
-      dialogTitle: 'Save Export',
-      fileName: fileName,
-      type: extensions != null ? FileType.custom : FileType.any,
-      allowedExtensions: extensions,
-    );
+    try {
+      if (Platform.isAndroid || Platform.isIOS) {
+        // 1. Direct file write to Download or app documents directory
+        try {
+          Directory? saveDir;
+          if (Platform.isAndroid) {
+            final downloadDir = Directory('/storage/emulated/0/Download');
+            if (await downloadDir.exists()) {
+              saveDir = downloadDir;
+            } else {
+              saveDir = await getExternalStorageDirectory();
+            }
+          } else {
+            saveDir = await getApplicationDocumentsDirectory();
+          }
 
-    if (outputFile != null) {
-      final file = File(outputFile);
-      await file.writeAsBytes(bytes);
+          if (saveDir != null) {
+            final file = File('${saveDir.path}/$fileName');
+            await file.writeAsBytes(bytes);
+            debugPrint('EXPORT_SUCCESS: Export file written to ${file.path}');
+          }
+        } catch (e) {
+          debugPrint('Mobile storage write warning: $e');
+        }
+
+        // 2. Open native mobile share/save sheet (Allows saving to Drive, WhatsApp, Files, etc.)
+        await Printing.sharePdf(
+          bytes: bytes,
+          filename: fileName,
+        );
+        return;
+      }
+
+      // Desktop (Windows, macOS, Linux)
+      String? outputFile = await FilePicker.platform.saveFile(
+        dialogTitle: 'Save Export',
+        fileName: fileName,
+        type: extensions != null ? FileType.custom : FileType.any,
+        allowedExtensions: extensions,
+      );
+
+      if (outputFile != null) {
+        final file = File(outputFile);
+        await file.writeAsBytes(bytes);
+        debugPrint('EXPORT_SUCCESS: Desktop export saved to $outputFile');
+      }
+    } catch (e) {
+      debugPrint('EXPORT_ERROR: Failed to save export: $e');
     }
   }
 

@@ -7,6 +7,7 @@ import 'package:isar/isar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:beleka_pos/models/models.dart';
 import 'package:intl/intl.dart';
+import 'package:path_provider/path_provider.dart';
 
 /// Hashes a plain-text PIN using SHA-256.
 String hashPin(String pin) {
@@ -1226,7 +1227,27 @@ class DatabaseService {
 
   Future<String?> backupDatabase(String targetDirectory) async {
     try {
-      final dbFolder = Directory(targetDirectory);
+      Directory dbFolder = Directory(targetDirectory);
+      
+      // Fallback if targetDirectory is empty or invalid
+      if (targetDirectory.trim().isEmpty || (!await dbFolder.exists() && !(await _canCreateDirectory(dbFolder)))) {
+        if (Platform.isAndroid) {
+          try {
+            final dlDir = Directory('/storage/emulated/0/Download/BelekaPOS_Backups');
+            if (!await dlDir.exists()) await dlDir.create(recursive: true);
+            dbFolder = dlDir;
+          } catch (_) {
+            final ext = await getExternalStorageDirectory();
+            dbFolder = Directory(ext != null ? '${ext.path}/BelekaPOS_Backups' : (await getApplicationDocumentsDirectory()).path);
+            if (!await dbFolder.exists()) await dbFolder.create(recursive: true);
+          }
+        } else {
+          final docs = await getApplicationDocumentsDirectory();
+          dbFolder = Directory('${docs.path}/BelekaPOS_Backups');
+          if (!await dbFolder.exists()) await dbFolder.create(recursive: true);
+        }
+      }
+
       if (!await dbFolder.exists()) {
         await dbFolder.create(recursive: true);
       }
@@ -1248,6 +1269,9 @@ class DatabaseService {
       if (config != null) {
         await isar.writeTxn(() async {
           config.lastBackupDate = DateTime.now();
+          if (config.backupPath == null || config.backupPath!.isEmpty) {
+            config.backupPath = dbFolder.path;
+          }
           await isar.storeConfigs.put(config);
         });
       }
@@ -1257,6 +1281,15 @@ class DatabaseService {
     } catch (e) {
       debugPrint('BACKUP_ERROR: Failed to backup database: $e');
       return null;
+    }
+  }
+
+  Future<bool> _canCreateDirectory(Directory dir) async {
+    try {
+      await dir.create(recursive: true);
+      return await dir.exists();
+    } catch (_) {
+      return false;
     }
   }
 

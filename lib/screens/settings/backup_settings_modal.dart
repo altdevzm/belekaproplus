@@ -1,7 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:beleka_pos/providers/store_provider.dart';
 import 'package:beleka_pos/services/database_service.dart';
 import 'package:beleka_pos/screens/auth/backup_restore_modal.dart';
@@ -48,26 +50,50 @@ class _BackupSettingsModalState extends ConsumerState<BackupSettingsModal> {
   }
 
   Future<void> _runManualBackup() async {
-    final config = ref.read(storeConfigProvider).value;
-    if (config?.backupPath == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a backup location first'), backgroundColor: Colors.orangeAccent),
-      );
-      return;
-    }
-
     setState(() => _isBackingUp = true);
     try {
       final db = ref.read(databaseServiceProvider);
-      await db.backupDatabase(config!.backupPath!);
+      final config = ref.read(storeConfigProvider).value;
       
-      // backupDatabase already updates lastBackupDate internally
+      String targetPath = config?.backupPath ?? '';
+      if (targetPath.trim().isEmpty) {
+        if (Platform.isAndroid) {
+          try {
+            final dlDir = Directory('/storage/emulated/0/Download/BelekaPOS_Backups');
+            if (!await dlDir.exists()) await dlDir.create(recursive: true);
+            targetPath = dlDir.path;
+          } catch (_) {
+            final ext = await getExternalStorageDirectory();
+            targetPath = ext != null ? '${ext.path}/BelekaPOS_Backups' : (await getApplicationDocumentsDirectory()).path;
+          }
+        } else {
+          final docs = await getApplicationDocumentsDirectory();
+          targetPath = '${docs.path}/BelekaPOS_Backups';
+        }
+
+        if (config != null) {
+          config.backupPath = targetPath;
+          await db.saveStoreConfig(config);
+        }
+      }
+
+      final backupFilePath = await db.backupDatabase(targetPath);
       ref.invalidate(storeConfigProvider);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Database backup completed successfully'), backgroundColor: Colors.green),
-        );
+        if (backupFilePath != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Database backup completed successfully:\n$backupFilePath'),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Backup failed to save to directory'), backgroundColor: Colors.redAccent),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -168,10 +194,12 @@ class _BackupSettingsModalState extends ConsumerState<BackupSettingsModal> {
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
-                            config?.backupPath ?? 'No location selected',
+                            (config?.backupPath != null && config!.backupPath!.isNotEmpty)
+                                ? config.backupPath!
+                                : (Platform.isAndroid ? 'Default (Downloads/BelekaPOS_Backups)' : 'Default (Documents/BelekaPOS_Backups)'),
                             style: GoogleFonts.inter(
                               fontSize: 12,
-                              color: config?.backupPath != null ? theme.colorScheme.onSurface : theme.colorScheme.onSurfaceVariant,
+                              color: theme.colorScheme.onSurface,
                             ),
                             overflow: TextOverflow.ellipsis,
                           ),

@@ -15,6 +15,31 @@ class BackupService {
 
   /// Gets the root folder dedicated to local and VPS backups.
   Future<Directory> _getBackupRootDirectory() async {
+    if (Platform.isAndroid) {
+      try {
+        final downloadBackupDir = Directory('/storage/emulated/0/Download/BelekaPOS_Backups');
+        if (!await downloadBackupDir.exists()) {
+          await downloadBackupDir.create(recursive: true);
+        }
+        return downloadBackupDir;
+      } catch (e) {
+        debugPrint('Public download backup dir not accessible on Android: $e');
+      }
+
+      try {
+        final extDir = await getExternalStorageDirectory();
+        if (extDir != null) {
+          final backupDir = Directory(p.join(extDir.path, 'BelekaPOS_Backups'));
+          if (!await backupDir.exists()) {
+            await backupDir.create(recursive: true);
+          }
+          return backupDir;
+        }
+      } catch (e) {
+        debugPrint('External storage backup dir not accessible on Android: $e');
+      }
+    }
+
     final docsDir = await getApplicationDocumentsDirectory();
     final backupDir = Directory(p.join(docsDir.path, 'BelekaPOS_Backups'));
     if (!await backupDir.exists()) {
