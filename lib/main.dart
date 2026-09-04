@@ -210,10 +210,24 @@ final appStartupProvider = FutureProvider<Map<String, dynamic>>((ref) async {
   final db = ref.watch(databaseServiceProvider);
   final licenseService = ref.watch(licenseServiceProvider);
 
-  // 1. Verify Cryptographic Hardware-Locked License for this Machine
-  final licenseResult = await licenseService.verifyCurrentMachineLicense();
+  LicenseVerificationResult licenseResult;
+  try {
+    licenseResult = await licenseService.verifyCurrentMachineLicense();
+  } catch (e) {
+    debugPrint('License verification startup error: $e');
+    licenseResult = LicenseVerificationResult(
+      status: LicenseStatus.noLicense,
+      isValid: false,
+      message: 'License verification error: $e',
+    );
+  }
 
-  final hasUsers = await db.hasUsers();
+  bool hasUsers = false;
+  try {
+    hasUsers = await db.hasUsers();
+  } catch (e) {
+    debugPrint('Database hasUsers startup check error: $e');
+  }
   
   // Auto-initialize Hardware Drivers & Multi-Terminal Network Sync in background without blocking UI startup
   Future.microtask(() async {
