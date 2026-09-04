@@ -7,7 +7,6 @@ import 'package:beleka_pos/services/export_service.dart';
 import 'package:beleka_pos/screens/settings/store_config_modal.dart';
 import 'package:beleka_pos/screens/settings/user_management_modal.dart';
 import 'package:beleka_pos/screens/settings/printer_settings_modal.dart';
-import 'package:beleka_pos/screens/settings/loyalty_settings_modal.dart';
 import 'package:beleka_pos/screens/settings/backup_settings_modal.dart';
 import 'package:beleka_pos/screens/settings/license_info_modal.dart';
 import 'package:beleka_pos/screens/settings/network_sync_modal.dart';
@@ -217,17 +216,6 @@ class SettingsScreen extends ConsumerWidget {
                           await ref.read(exportServiceProvider).exportTransactionsToCsv(transactions);
                         },
                         buttonLabel: 'Export CSV',
-                      ),
-                      _buildSettingsCard(
-                        context,
-                        'Loyalty & Rewards',
-                        'Setup customer points system, reward tiers and automated checkout discounts',
-                        Icons.loyalty_rounded,
-                        const Color(0xFFD97706),
-                        onPressed: () => showDialog(
-                          context: context,
-                          builder: (context) => const LoyaltySettingsModal(),
-                        ),
                       ),
                       _buildSettingsCard(
                         context,

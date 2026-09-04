@@ -33,8 +33,6 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
   late TextEditingController _mrcNoController;
   late TextEditingController _currencyController;
   late TextEditingController _terminalController;
-  late TextEditingController _loyaltyEarnRateController;
-  late TextEditingController _loyaltyValueController;
   late TextEditingController _serviceChargeRateController;
   late TextEditingController _serverIpController;
   late TextEditingController _brandColorHexController;
@@ -42,7 +40,6 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
   String? _logoPath;
   String _selectedBrandColorHex = '#C1F11D';
   CategorySector _selectedSector = CategorySector.other;
-  bool _loyaltyEnabled = false;
   bool _serviceChargeEnabled = false;
   bool _isManagerMode = true;
   
@@ -78,8 +75,6 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
     _mrcNoController = TextEditingController();
     _currencyController = TextEditingController();
     _terminalController = TextEditingController();
-    _loyaltyEarnRateController = TextEditingController();
-    _loyaltyValueController = TextEditingController();
     _serviceChargeRateController = TextEditingController(text: '10.0');
     _serverIpController = TextEditingController();
     _brandColorHexController = TextEditingController(text: '#C1F11D');
@@ -106,9 +101,6 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
       _terminalController.text = _currentConfig!.terminalName;
       _logoPath = _currentConfig!.logoPath;
       _selectedSector = _currentConfig!.primarySector;
-      _loyaltyEnabled = _currentConfig!.loyaltyEnabled;
-      _loyaltyEarnRateController.text = _currentConfig!.loyaltyEarnRate.toString();
-      _loyaltyValueController.text = _currentConfig!.loyaltyRedemptionValue.toString();
       _serviceChargeEnabled = _currentConfig!.serviceChargeEnabled;
       _serviceChargeRateController.text = _currentConfig!.defaultServiceChargeRate > 0 
           ? _currentConfig!.defaultServiceChargeRate.toString() 
@@ -125,8 +117,6 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
       _currencyController.text = 'ZK';
       _taxController.text = '16.0';
       _terminalController.text = 'TERMINAL-01';
-      _loyaltyEarnRateController.text = '1.0';
-      _loyaltyValueController.text = '0.01';
       _serviceChargeRateController.text = '10.0';
     }
 
@@ -150,8 +140,6 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
     _mrcNoController.dispose();
     _currencyController.dispose();
     _terminalController.dispose();
-    _loyaltyEarnRateController.dispose();
-    _loyaltyValueController.dispose();
     _serviceChargeRateController.dispose();
     _serverIpController.dispose();
     _brandColorHexController.dispose();
@@ -190,9 +178,7 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
     config.logoPath = _logoPath;
     config.brandColorHex = _selectedBrandColorHex;
     config.primarySector = _selectedSector;
-    config.loyaltyEnabled = _loyaltyEnabled;
-    config.loyaltyEarnRate = double.tryParse(_loyaltyEarnRateController.text) ?? 1.0;
-    config.loyaltyRedemptionValue = double.tryParse(_loyaltyValueController.text) ?? 0.01;
+    config.loyaltyEnabled = false;
     config.serviceChargeEnabled = _serviceChargeEnabled;
     config.defaultServiceChargeRate = double.tryParse(_serviceChargeRateController.text) ?? 0.0;
     config.isManagerMode = _isManagerMode;
@@ -446,36 +432,7 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
                         ),
 
                         const SizedBox(height: 32),
-                        // Section 5: Loyalty Program
-                        _buildSectionHeader('LOYALTY REWARDS PROGRAM', activeBrandColor),
-                        const SizedBox(height: 16),
-                        _buildLoyaltyToggle(activeBrandColor),
-                        if (_loyaltyEnabled) ...[
-                          const SizedBox(height: 16),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _buildTextField(
-                                  label: 'EARNRATE (PTS/ZK)', 
-                                  hint: '1.0',
-                                  controller: _loyaltyEarnRateController,
-                                  keyboardType: TextInputType.number,
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: _buildTextField(
-                                  label: 'POINT VALUE (ZK)', 
-                                  hint: '0.01',
-                                  controller: _loyaltyValueController,
-                                  keyboardType: TextInputType.number,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                        
-                        const SizedBox(height: 32),
+
                         // Section: Hospitality & Restaurant Service Charge
                         _buildSectionHeader('HOSPITALITY / RESTAURANT SERVICE CHARGE', activeBrandColor),
                         const SizedBox(height: 16),
@@ -926,55 +883,6 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildLoyaltyToggle(Color activeBrandColor) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: _loyaltyEnabled 
-            ? activeBrandColor.withValues(alpha: 0.05) 
-            : Colors.white.withValues(alpha: 0.02),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: _loyaltyEnabled 
-              ? activeBrandColor.withValues(alpha: 0.2) 
-              : Colors.white.withValues(alpha: 0.05),
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'ENABLE LOYALTY REWARDS',
-                style: GoogleFonts.inter(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 12,
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                'Reward customer points on sales & redemption',
-                style: GoogleFonts.inter(
-                  fontSize: 10.5,
-                  color: Colors.white.withValues(alpha: 0.4),
-                ),
-              ),
-            ],
-          ),
-          Switch(
-            value: _loyaltyEnabled,
-            onChanged: (v) => setState(() => _loyaltyEnabled = v),
-            activeThumbColor: activeBrandColor,
-            activeTrackColor: activeBrandColor.withValues(alpha: 0.3),
-          ),
-        ],
-      ),
     );
   }
 
