@@ -26,15 +26,49 @@ void main() async {
   GoogleFonts.config.allowRuntimeFetching = true;
   
   try {
+    // 1. Resolve Safe App Support Directory (Immune to OneDrive locks & Windows folder restrictions)
+    Directory dbDir;
+    try {
+      dbDir = await getApplicationSupportDirectory();
+    } catch (_) {
+      dbDir = await getApplicationDocumentsDirectory();
+    }
+
+    if (!dbDir.existsSync()) {
+      await dbDir.create(recursive: true);
+    }
+
+    // Windows / Desktop Migration: If database files exist in old Documents directory,
+    // migrate them cleanly to AppSupportDirectory so no merchant data is lost
+    try {
+      final docsDir = await getApplicationDocumentsDirectory();
+      if (docsDir.path != dbDir.path) {
+        final oldIsar = File('${docsDir.path}/default.isar');
+        final newIsar = File('${dbDir.path}/default.isar');
+        if (oldIsar.existsSync() && !newIsar.existsSync()) {
+          await oldIsar.copy(newIsar.path);
+          debugPrint('DB Migration: Migrated default.isar from Documents to AppSupport.');
+        }
+
+        final oldSql = File('${docsDir.path}/beleka_pos_local.db');
+        final newSql = File('${dbDir.path}/beleka_pos_local.db');
+        if (oldSql.existsSync() && !newSql.existsSync()) {
+          await oldSql.copy(newSql.path);
+          debugPrint('DB Migration: Migrated beleka_pos_local.db from Documents to AppSupport.');
+        }
+      }
+    } catch (e) {
+      debugPrint('DB Migration notice: $e');
+    }
+
     LocalSqlService? localSqlService;
     try {
       // Initialize Local SQLite SQL Database
-      localSqlService = await LocalSqlService.init();
+      localSqlService = await LocalSqlService.init(customDirectory: dbDir);
     } catch (e) {
       debugPrint('LocalSqlService init notice: $e');
     }
 
-    final dir = await getApplicationDocumentsDirectory();
     final isar = Isar.getInstance() ?? await Isar.open(
       [
         UserSchema,
@@ -60,7 +94,7 @@ void main() async {
         PosTerminalSchema,
         StockMovementSchema,
       ],
-      directory: dir.path,
+      directory: dbDir.path,
     );
 
     // Purge any legacy dummy mock seed branches from earlier development versions
@@ -181,14 +215,20 @@ final appStartupProvider = FutureProvider<Map<String, dynamic>>((ref) async {
 
   final hasUsers = await db.hasUsers();
   
-  // Auto-initialize Hardware Drivers & Multi-Terminal Network Sync
-  ref.read(barcodeServiceProvider).init();
-  ref.read(networkManagerProvider).initialize();
-  final config = await db.getStoreConfig();
-  ref.read(printerServiceProvider).autoConnect(
-    config: config,
-    stateNotifier: ref.read(selectedPrinterProvider.notifier),
-  );
+  // Auto-initialize Hardware Drivers & Multi-Terminal Network Sync in background without blocking UI startup
+  Future.microtask(() async {
+    try {
+      ref.read(barcodeServiceProvider).init();
+      ref.read(networkManagerProvider).initialize();
+      final config = await db.getStoreConfig();
+      ref.read(printerServiceProvider).autoConnect(
+        config: config,
+        stateNotifier: ref.read(selectedPrinterProvider.notifier),
+      );
+    } catch (e) {
+      debugPrint('Background hardware/network init notice: $e');
+    }
+  });
 
   return {
     'hasUsers': hasUsers,
@@ -255,7 +295,46 @@ class BelekaApp extends ConsumerWidget {
           ),
         ),
         error: (e, s) => Scaffold(
-          body: Center(child: Text('Error: $e')),
+          backgroundColor: const Color(0xFF141418),
+          body: Center(
+            child: Container(
+              width: 480,
+              padding: const EdgeInsets.all(32),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A1A1E),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.redAccent.withValues(alpha: 0.3)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.warning_amber_rounded, color: Colors.orangeAccent, size: 48),
+                  const SizedBox(height: 16),
+                  Text(
+                    'STARTUP WARNING',
+                    style: GoogleFonts.manrope(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    e.toString(),
+                    style: GoogleFonts.inter(color: Colors.white70, fontSize: 13),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
+                  ElevatedButton.icon(
+                    onPressed: () => ref.invalidate(appStartupProvider),
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: const Text('RETRY'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFC1F11D),
+                      foregroundColor: Colors.black,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
       routes: {

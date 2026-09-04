@@ -20,14 +20,17 @@ class LocalSqlService {
   }
 
   /// Initialize local SQLite SQL database with FFI desktop support.
-  static Future<LocalSqlService> init() async {
+  static Future<LocalSqlService> init({Directory? customDirectory}) async {
     if (kIsWeb || Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
       sqfliteFfiInit();
       databaseFactory = databaseFactoryFfi;
     }
 
-    final docsDir = await getApplicationDocumentsDirectory();
-    final dbPath = p.join(docsDir.path, 'beleka_pos_local.db');
+    final targetDir = customDirectory ?? await getApplicationSupportDirectory();
+    if (!targetDir.existsSync()) {
+      await targetDir.create(recursive: true);
+    }
+    final dbPath = p.join(targetDir.path, 'beleka_pos_local.db');
 
     _database = await openDatabase(
       dbPath,
