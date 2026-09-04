@@ -35,19 +35,20 @@ final reportStatsProvider = Provider<Map<String, double>>((ref) {
 
   double revenue = transactions.fold(0.0, (sum, t) {
     if (t.totalAmount.isNaN) return sum;
-    if (t.status == 'refunded' && !t.isCreditNote) return sum;
     if (t.isCreditNote) return sum - t.totalAmount;
+    if (t.status == 'refunded') return sum;
     return sum + t.totalAmount;
   });
   double profit = transactions.fold(0.0, (sum, t) {
     if (t.grossProfit.isNaN) return sum;
-    if (t.status == 'refunded' && !t.isCreditNote) return sum;
+    if (t.isCreditNote) return sum - (t.grossProfit < 0 ? -t.grossProfit : t.grossProfit);
+    if (t.status == 'refunded') return sum;
     return sum + t.grossProfit;
   });
   double tax = transactions.fold(0.0, (sum, t) {
     if (t.taxAmount.isNaN) return sum;
-    if (t.status == 'refunded' && !t.isCreditNote) return sum;
     if (t.isCreditNote) return sum - t.taxAmount;
+    if (t.status == 'refunded') return sum;
     return sum + t.taxAmount;
   });
 
@@ -60,7 +61,9 @@ final reportStatsProvider = Provider<Map<String, double>>((ref) {
     paymentBreakdown[method] = (paymentBreakdown[method] ?? 0) + amount;
   }
 
-  final activeCount = transactions.where((t) => t.status != 'refunded' && !t.isCreditNote).length;
+  final completedCount = transactions.where((t) => t.status != 'refunded' && !t.isCreditNote).length;
+  final refundedCount = transactions.where((t) => t.isCreditNote).length;
+  final activeCount = (completedCount - refundedCount).clamp(0, 999999);
 
   return {
     'revenue': revenue,
@@ -80,9 +83,9 @@ final reportTopProductsProvider = Provider<List<Map<String, dynamic>>>((ref) {
   final Map<int, String> productNames = {};
 
   for (var t in transactions) {
-    if (t.status == 'refunded') continue;
+    if (t.status == 'refunded' && !t.isCreditNote) continue;
     for (var item in t.items) {
-      if (item.isRefunded) continue;
+      if (item.isRefunded && !t.isCreditNote) continue;
       final qty = (item.isWeighted && item.weight > 0) ? item.weight.ceil() : item.quantity;
       final factor = t.isCreditNote ? -1 : 1;
       productQuantities[item.productId] = (productQuantities[item.productId] ?? 0) + (qty * factor);

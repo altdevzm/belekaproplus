@@ -43,8 +43,8 @@ final _totSummaryProvider = FutureProvider.family<TotMonthlySummary?, _SummaryKe
 
     double grossTurnover = monthTxs.fold(0.0, (sum, t) {
       if (t.totalAmount.isNaN) return sum;
-      if (t.status == 'refunded' && !t.isCreditNote) return sum;
       if (t.isCreditNote) return sum - t.totalAmount;
+      if (t.status == 'refunded') return sum;
       return sum + t.totalAmount;
     });
 
@@ -53,8 +53,8 @@ final _totSummaryProvider = FutureProvider.family<TotMonthlySummary?, _SummaryKe
     final ytdTxs = await db.getTransactionsInRange(startOfYear, endOfMonth);
     double ytdTurnover = ytdTxs.fold(0.0, (sum, t) {
       if (t.totalAmount.isNaN) return sum;
-      if (t.status == 'refunded' && !t.isCreditNote) return sum;
       if (t.isCreditNote) return sum - t.totalAmount;
+      if (t.status == 'refunded') return sum;
       return sum + t.totalAmount;
     });
 

@@ -622,41 +622,45 @@ class DatabaseService {
 
     double todayRevenue = todaySales.fold(0.0, (sum, t) {
       if (t.totalAmount.isNaN) return sum;
-      if (t.status == 'refunded') return sum;
       if (t.isCreditNote) return sum - t.totalAmount;
+      if (t.status == 'refunded') return sum;
       return sum + t.totalAmount;
     });
     double yesterdayRevenue = yesterdaySales.fold(0.0, (sum, t) {
       if (t.totalAmount.isNaN) return sum;
-      if (t.status == 'refunded') return sum;
       if (t.isCreditNote) return sum - t.totalAmount;
+      if (t.status == 'refunded') return sum;
       return sum + t.totalAmount;
     });
     double todayProfit = todaySales.fold(0.0, (sum, t) {
       if (t.grossProfit.isNaN) return sum;
+      if (t.isCreditNote) return sum - (t.grossProfit < 0 ? -t.grossProfit : t.grossProfit);
       if (t.status == 'refunded') return sum;
       return sum + t.grossProfit;
     });
     double yesterdayProfit = yesterdaySales.fold(0.0, (sum, t) {
       if (t.grossProfit.isNaN) return sum;
+      if (t.isCreditNote) return sum - (t.grossProfit < 0 ? -t.grossProfit : t.grossProfit);
       if (t.status == 'refunded') return sum;
       return sum + t.grossProfit;
     });
 
     double todayTax = todaySales.fold(0.0, (sum, t) {
       if (t.taxAmount.isNaN) return sum;
-      if (t.status == 'refunded') return sum;
       if (t.isCreditNote) return sum - t.taxAmount;
+      if (t.status == 'refunded') return sum;
       return sum + t.taxAmount;
     });
     double yesterdayTax = yesterdaySales.fold(0.0, (sum, t) {
       if (t.taxAmount.isNaN) return sum;
-      if (t.status == 'refunded') return sum;
       if (t.isCreditNote) return sum - t.taxAmount;
+      if (t.status == 'refunded') return sum;
       return sum + t.taxAmount;
     });
 
-    final activeTodayCount = todaySales.where((t) => t.status != 'refunded' && !t.isCreditNote).length;
+    final completedToday = todaySales.where((t) => t.status != 'refunded' && !t.isCreditNote).length;
+    final refundedToday = todaySales.where((t) => t.isCreditNote).length;
+    final activeTodayCount = (completedToday - refundedToday).clamp(0, 999999);
 
     return {
       'todayRevenue': todayRevenue,
@@ -714,8 +718,8 @@ class DatabaseService {
     final transactions = await getTodayTransactionsForTerminal(terminalCode, terminalName: terminalName, cashierId: cashierId);
     return transactions.fold<double>(0.0, (double sum, SaleTransaction t) {
       if (t.totalAmount.isNaN) return sum;
-      if (t.status == 'refunded') return sum;
       if (t.isCreditNote) return sum - t.totalAmount;
+      if (t.status == 'refunded') return sum;
       return sum + t.totalAmount;
     });
   }
@@ -773,8 +777,8 @@ class DatabaseService {
     final transactions = await getTodayTransactionsForBranch(branchCode, branchBhfId: branchBhfId, branchName: branchName);
     return transactions.fold<double>(0.0, (double sum, SaleTransaction t) {
       if (t.totalAmount.isNaN) return sum;
-      if (t.status == 'refunded') return sum;
       if (t.isCreditNote) return sum - t.totalAmount;
+      if (t.status == 'refunded') return sum;
       return sum + t.totalAmount;
     });
   }
@@ -799,25 +803,28 @@ class DatabaseService {
 
     double todayRevenue = todaySales.fold(0.0, (sum, t) {
       if (t.totalAmount.isNaN) return sum;
-      if (t.status == 'refunded') return sum;
       if (t.isCreditNote) return sum - t.totalAmount;
+      if (t.status == 'refunded') return sum;
       return sum + t.totalAmount;
     });
     double yesterdayRevenue = yesterdaySales.fold(0.0, (sum, t) {
       if (t.totalAmount.isNaN) return sum;
-      if (t.status == 'refunded') return sum;
       if (t.isCreditNote) return sum - t.totalAmount;
+      if (t.status == 'refunded') return sum;
       return sum + t.totalAmount;
     });
 
     int totalItems = 0;
     for (var t in todaySales) {
-      if (t.status == 'refunded') continue;
+      if (t.status == 'refunded' && !t.isCreditNote) continue;
       await t.items.load();
-      totalItems += t.items.where((i) => !i.isRefunded).fold(0, (sum, item) => sum + item.quantity);
+      final factor = t.isCreditNote ? -1 : 1;
+      totalItems += t.items.where((i) => !i.isRefunded).fold(0, (sum, item) => sum + (item.quantity * factor));
     }
 
-    final activeTodayCount = todaySales.where((t) => t.status != 'refunded' && !t.isCreditNote).length;
+    final completedToday = todaySales.where((t) => t.status != 'refunded' && !t.isCreditNote).length;
+    final refundedToday = todaySales.where((t) => t.isCreditNote).length;
+    final activeTodayCount = (completedToday - refundedToday).clamp(0, 999999);
 
     return {
       'todayRevenue': todayRevenue,
@@ -1006,19 +1013,20 @@ class DatabaseService {
 
     double revenue = transactions.fold(0.0, (sum, t) {
       if (t.totalAmount.isNaN) return sum;
-      if (t.status == 'refunded' && !t.isCreditNote) return sum;
       if (t.isCreditNote) return sum - t.totalAmount;
+      if (t.status == 'refunded') return sum;
       return sum + t.totalAmount;
     });
     double profit = transactions.fold(0.0, (sum, t) {
       if (t.grossProfit.isNaN) return sum;
-      if (t.status == 'refunded' && !t.isCreditNote) return sum;
+      if (t.isCreditNote) return sum - (t.grossProfit < 0 ? -t.grossProfit : t.grossProfit);
+      if (t.status == 'refunded') return sum;
       return sum + t.grossProfit;
     });
     double tax = transactions.fold(0.0, (sum, t) {
       if (t.taxAmount.isNaN) return sum;
-      if (t.status == 'refunded' && !t.isCreditNote) return sum;
       if (t.isCreditNote) return sum - t.taxAmount;
+      if (t.status == 'refunded') return sum;
       return sum + t.taxAmount;
     });
 
@@ -1031,7 +1039,9 @@ class DatabaseService {
       paymentBreakdown[method] = (paymentBreakdown[method] ?? 0) + amount;
     }
 
-    final activeCount = transactions.where((t) => t.status != 'refunded' && !t.isCreditNote).length;
+    final completedCount = transactions.where((t) => t.status != 'refunded' && !t.isCreditNote).length;
+    final refundedCount = transactions.where((t) => t.isCreditNote).length;
+    final activeCount = (completedCount - refundedCount).clamp(0, 999999);
 
     return {
       'revenue': revenue,
@@ -1051,10 +1061,10 @@ class DatabaseService {
     final Map<int, String> productNames = {};
 
     for (var t in transactions) {
-      if (t.status == 'refunded') continue;
+      if (t.status == 'refunded' && !t.isCreditNote) continue;
       await t.items.load();
       for (var item in t.items) {
-        if (item.isRefunded) continue;
+        if (item.isRefunded && !t.isCreditNote) continue;
         final qty = (item.isWeighted && item.weight > 0) ? item.weight.ceil() : item.quantity;
         final factor = t.isCreditNote ? -1 : 1;
         productQuantities[item.productId] = (productQuantities[item.productId] ?? 0) + (qty * factor);

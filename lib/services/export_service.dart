@@ -4033,10 +4033,10 @@ class ExportService {
     int transactionCount = 0;
 
     for (final tx in todayTransactions) {
-      if (tx.status == 'refunded') continue;
+      if (tx.status == 'refunded' && !tx.isCreditNote) continue;
       final amount = tx.isCreditNote ? -tx.totalAmount : tx.totalAmount;
       totalGrossSales += amount;
-      transactionCount++;
+      transactionCount += tx.isCreditNote ? -1 : 1;
 
       final method = tx.paymentMethod.toLowerCase();
       if (method.contains('cash')) {
@@ -4359,13 +4359,13 @@ class ExportService {
     int transactionCount = 0;
 
     for (final tx in branchTodayTransactions) {
-      if (tx.status == 'refunded') continue;
+      if (tx.status == 'refunded' && !tx.isCreditNote) continue;
       final factor = tx.isCreditNote ? -1.0 : 1.0;
       final amt = (tx.totalAmount.isNaN ? 0.0 : tx.totalAmount) * factor;
       totalRevenue += amt;
       totalTax += (tx.taxAmount.isNaN ? 0.0 : tx.taxAmount) * factor;
-      totalProfit += (tx.grossProfit.isNaN ? 0.0 : tx.grossProfit) * factor;
-      transactionCount++;
+      totalProfit += (tx.grossProfit.isNaN ? 0.0 : (tx.isCreditNote ? -(tx.grossProfit.abs()) : tx.grossProfit));
+      transactionCount += tx.isCreditNote ? -1 : 1;
 
       final method = tx.paymentMethod.toLowerCase();
       if (method.contains('cash')) {
