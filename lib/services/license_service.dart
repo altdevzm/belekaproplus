@@ -319,6 +319,7 @@ class LicenseService {
       final licenseNames = [
         _licenseFileName,
         'beleka_license.lic',
+        'beleka_developer.lic',
         'beleka_universal_master.lic',
         'universal.lic',
       ];
@@ -329,6 +330,28 @@ class LicenseService {
           if (f.existsSync()) {
             final content = await f.readAsString();
             if (content.trim().isNotEmpty) return content;
+          }
+        }
+      }
+
+      // 2. Linux / macOS User Home & Downloads
+      if (Platform.isLinux || Platform.isMacOS) {
+        final home = Platform.environment['HOME'];
+        if (home != null && home.isNotEmpty) {
+          final nixPaths = [
+            home,
+            '$home/Downloads',
+            '$home/Documents',
+            '$home/Desktop',
+          ];
+          for (final dirPath in nixPaths) {
+            for (final name in licenseNames) {
+              final f = File('$dirPath/$name');
+              if (f.existsSync()) {
+                final content = await f.readAsString();
+                if (content.trim().isNotEmpty) return content;
+              }
+            }
           }
         }
       }

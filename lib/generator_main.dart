@@ -24,7 +24,7 @@ class BelekaLicenseGeneratorApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Beleka POS - License Generator',
+      title: 'VReeca Generator',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         brightness: Brightness.dark,
@@ -109,7 +109,7 @@ class _GeneratorHomeScreenState extends State<GeneratorHomeScreen> with SingleTi
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'BELEKA POS LICENSE MANAGER',
+                  'VREECA GENERATOR',
                   style: GoogleFonts.manrope(
                     fontWeight: FontWeight.w900,
                     fontSize: 16,
@@ -118,7 +118,7 @@ class _GeneratorHomeScreenState extends State<GeneratorHomeScreen> with SingleTi
                   ),
                 ),
                 Text(
-                  'Official Cryptographic License Issuer & Verifier',
+                  'Universal License Issuer for Android & Windows',
                   style: GoogleFonts.inter(
                     fontSize: 11,
                     color: const Color(0xFF94A3B8),
@@ -190,9 +190,35 @@ class _IssueLicenseTabState extends State<IssueLicenseTab> {
   Future<void> _pasteHwid() async {
     final data = await Clipboard.getData(Clipboard.kTextPlain);
     if (data?.text != null) {
-      setState(() {
-        _hwidCtrl.text = data!.text!.trim().toUpperCase();
-      });
+      final text = data!.text!.trim();
+      final hwidRegex = RegExp(r'(BP-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4})', caseSensitive: false);
+      final match = hwidRegex.firstMatch(text);
+      if (match != null) {
+        setState(() {
+          _hwidCtrl.text = match.group(1)!.toUpperCase();
+        });
+        if (text.contains('1 Month') && !text.contains('11 Month') && !text.contains('12 Month')) {
+          setState(() => _durationOption = '1 Month');
+        } else if (text.contains('3 Month')) {
+          setState(() => _durationOption = '3 Months');
+        } else if (text.contains('6 Month')) {
+          setState(() => _durationOption = '6 Months');
+        } else if (text.contains('12 Month')) {
+          setState(() => _durationOption = '12 Months');
+        }
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Auto-extracted HWID: ${_hwidCtrl.text} ($_durationOption)'),
+              backgroundColor: const Color(0xFF059669),
+            ),
+          );
+        }
+      } else {
+        setState(() {
+          _hwidCtrl.text = text.toUpperCase();
+        });
+      }
     }
   }
 
@@ -956,15 +982,19 @@ class _MasterKeyTabState extends State<MasterKeyTab> {
 
   Future<void> _generateMasterKey() async {
     final now = DateTime.now().toUtc();
+    int newYear = now.year + 1;
+    final expiresAt = DateTime.utc(newYear, now.month, now.day, now.hour, now.minute, now.second);
     final payloadMap = {
       'product': 'Beleka Pro POS Master',
       'customer': 'Beleka Master Deployer',
       'installationId': 'BP-MASTER-UNIVERSAL',
       'hardwareId': 'BP-UNIVERSAL-MASTER-KEY',
       'branches': 999,
-      'term': 'Universal Master Deployment',
+      'term': 'Universal Master Deployment (12 Months)',
+      'months': 12,
+      'maxTills': 99,
       'issuedAt': now.toIso8601String(),
-      'expiresAt': null,
+      'expiresAt': expiresAt.toIso8601String(),
       'features': [
         'offline_pos',
         'inventory_management',

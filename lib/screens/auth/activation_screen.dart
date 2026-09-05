@@ -331,53 +331,94 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(color: accentBlue.withValues(alpha: 0.4)),
                       ),
-                      child: Flex(
-                        direction: isMobile ? Axis.vertical : Axis.horizontal,
-                        crossAxisAlignment: isMobile ? CrossAxisAlignment.stretch : CrossAxisAlignment.center,
-                        children: [
-                          Row(
-                            children: [
-                              const Icon(Icons.memory_rounded, color: accentBlue, size: 20),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: SelectableText(
-                                  _currentHwid,
-                                  style: GoogleFonts.ibmPlexMono(
-                                    fontSize: isMobile ? 13 : 16,
-                                    fontWeight: FontWeight.w800,
-                                    color: Colors.white,
-                                    letterSpacing: 1.5,
+                      child: isMobile
+                          ? Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Icon(Icons.memory_rounded, color: accentBlue, size: 20),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        _currentHwid,
+                                        style: GoogleFonts.ibmPlexMono(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w800,
+                                          color: Colors.white,
+                                          letterSpacing: 1.5,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 10),
+                                ElevatedButton.icon(
+                                  onPressed: () {
+                                    final durationStr = '$_selectedMonths Month${_selectedMonths > 1 ? 's' : ''}';
+                                    final req = 'BELEKA POS ACTIVATION REQUEST\nHardware ID: $_currentHwid\nRequested Term: $durationStr\nMax Tills: 3 Tills (Standard)';
+                                    Clipboard.setData(ClipboardData(text: req));
+                                    setState(() => _hasCopied = true);
+                                    Future.delayed(const Duration(seconds: 2), () {
+                                      if (mounted) setState(() => _hasCopied = false);
+                                    });
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: _hasCopied ? const Color(0xFF10B981) : primaryBlue,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                    elevation: 0,
+                                  ),
+                                  icon: Icon(_hasCopied ? Icons.check_rounded : Icons.copy_rounded, size: 14),
+                                  label: Text(
+                                    _hasCopied ? 'COPIED REQUEST!' : 'COPY REQUEST',
+                                    style: GoogleFonts.inter(fontWeight: FontWeight.w900, fontSize: 11),
                                   ),
                                 ),
-                              ),
-                            ],
-                          ),
-                          if (isMobile) const SizedBox(height: 10),
-                          ElevatedButton.icon(
-                            onPressed: () {
-                              final durationStr = '$_selectedMonths Month${_selectedMonths > 1 ? 's' : ''}';
-                              final req = 'BELEKA POS ACTIVATION REQUEST\nHardware ID: $_currentHwid\nRequested Term: $durationStr\nMax Tills: 3 Tills (Standard)';
-                              Clipboard.setData(ClipboardData(text: req));
-                              setState(() => _hasCopied = true);
-                              Future.delayed(const Duration(seconds: 2), () {
-                                if (mounted) setState(() => _hasCopied = false);
-                              });
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: _hasCopied ? const Color(0xFF10B981) : primaryBlue,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                              elevation: 0,
+                              ],
+                            )
+                          : Row(
+                              children: [
+                                const Icon(Icons.memory_rounded, color: accentBlue, size: 20),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    _currentHwid,
+                                    style: GoogleFonts.ibmPlexMono(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w800,
+                                      color: Colors.white,
+                                      letterSpacing: 1.5,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                ElevatedButton.icon(
+                                  onPressed: () {
+                                    final durationStr = '$_selectedMonths Month${_selectedMonths > 1 ? 's' : ''}';
+                                    final req = 'BELEKA POS ACTIVATION REQUEST\nHardware ID: $_currentHwid\nRequested Term: $durationStr\nMax Tills: 3 Tills (Standard)';
+                                    Clipboard.setData(ClipboardData(text: req));
+                                    setState(() => _hasCopied = true);
+                                    Future.delayed(const Duration(seconds: 2), () {
+                                      if (mounted) setState(() => _hasCopied = false);
+                                    });
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: _hasCopied ? const Color(0xFF10B981) : primaryBlue,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                    elevation: 0,
+                                  ),
+                                  icon: Icon(_hasCopied ? Icons.check_rounded : Icons.copy_rounded, size: 14),
+                                  label: Text(
+                                    _hasCopied ? 'COPIED REQUEST!' : 'COPY REQUEST',
+                                    style: GoogleFonts.inter(fontWeight: FontWeight.w900, fontSize: 11),
+                                  ),
+                                ),
+                              ],
                             ),
-                            icon: Icon(_hasCopied ? Icons.check_rounded : Icons.copy_rounded, size: 14),
-                            label: Text(
-                              _hasCopied ? 'COPIED REQUEST!' : 'COPY REQUEST',
-                              style: GoogleFonts.inter(fontWeight: FontWeight.w900, fontSize: 11),
-                            ),
-                          ),
-                        ],
-                      ),
                     ),
                     const SizedBox(height: 20),
 
@@ -529,29 +570,29 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
                       ),
                     ),
 
-                    if (Platform.isAndroid) ...[
-                      const SizedBox(height: 10),
-                      SizedBox(
-                        height: 46,
-                        child: OutlinedButton.icon(
-                          onPressed: _isLoading ? null : _handleAutoScanStorage,
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: accentBlue,
-                            side: const BorderSide(color: accentBlue, width: 1.2),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                          icon: const Icon(Icons.search_rounded, size: 18),
-                          label: Text(
-                            'SCAN ANDROID DOWNLOADS / STORAGE',
-                            style: GoogleFonts.manrope(
-                              fontWeight: FontWeight.w800,
-                              fontSize: 12,
-                              letterSpacing: 0.5,
-                            ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      height: 46,
+                      child: OutlinedButton.icon(
+                        onPressed: _isLoading ? null : _handleAutoScanStorage,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: accentBlue,
+                          side: const BorderSide(color: accentBlue, width: 1.2),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        icon: const Icon(Icons.search_rounded, size: 18),
+                        label: Text(
+                          Platform.isAndroid
+                              ? 'SCAN ANDROID DOWNLOADS / STORAGE'
+                              : 'AUTO-DETECT LICENSE FILE',
+                          style: GoogleFonts.manrope(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 12,
+                            letterSpacing: 0.5,
                           ),
                         ),
                       ),
-                    ],
+                    ),
 
                     const SizedBox(height: 16),
 
