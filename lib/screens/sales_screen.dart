@@ -620,6 +620,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                                 spacing: 6,
                                 runSpacing: 6,
                                 children: [
+                                  _buildSquareQuickNoteChip(context, 1, currency),
+                                  _buildSquareQuickNoteChip(context, 2, currency),
+                                  _buildSquareQuickNoteChip(context, 5, currency),
+                                  _buildSquareQuickNoteChip(context, 10, currency),
                                   _buildSquareQuickNoteChip(context, 20, currency),
                                   _buildSquareQuickNoteChip(context, 50, currency),
                                   _buildSquareQuickNoteChip(context, 100, currency),
