@@ -30,9 +30,9 @@ final licensePeriodicCheckProvider = Provider<void>((ref) {
   ref.onDispose(() => timer?.cancel());
 });
 
-/// A slim banner that appears above main content when the active license
-/// is about to expire. Shows amber at ≤30 days and red at ≤7 days.
-/// Invisible for permanent licenses or when no license warning is needed.
+/// A slim banner that appears above main content only when the active license
+/// is about to expire (1 week / 7 days or fewer remaining).
+/// Completely hidden when license is healthy (>7 days) or permanent.
 class LicenseExpiryBanner extends ConsumerWidget {
   const LicenseExpiryBanner({super.key});
 
@@ -44,13 +44,14 @@ class LicenseExpiryBanner extends ConsumerWidget {
     final licenseService = ref.read(licenseServiceProvider);
     final license = licenseService.activeLicense;
 
-    // No banner for permanent, no-license, or healthy (>30 days) licenses
+    // No banner for permanent, no-license, or healthy (>7 days) licenses
     if (license == null || license.expiresAt == null) return const SizedBox.shrink();
     if (license.isExpired) return const SizedBox.shrink(); // handled by startup gate
     final days = license.remainingDays;
-    if (days > 30) return const SizedBox.shrink();
+    // Only display reminder 1 week before expiry (≤7 days)
+    if (days > 7) return const SizedBox.shrink();
 
-    final isCritical = days <= 7;
+    final isCritical = days <= 3;
 
     final bgColor = isCritical
         ? const Color(0xFF3B0A0A)
@@ -67,7 +68,7 @@ class LicenseExpiryBanner extends ConsumerWidget {
 
     final message = isCritical
         ? '⚠️ LICENSE EXPIRING IN $days DAY${days != 1 ? 'S' : ''}! Renew immediately to avoid a system lock.'
-        : '🕒 License expires in $days days. Contact Beleka Support to renew.';
+        : '🕒 License expires in $days days. Please renew before expiry.';
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
@@ -137,7 +138,8 @@ class LicenseExpiryBanner extends ConsumerWidget {
 }
 
 /// A compact card for the Dashboard showing license expiry countdown.
-/// Only rendered for managers/owners and only when license is timed.
+/// Only displayed when the license is about to expire (1 week / 7 days or fewer)
+/// or if it has expired. Hidden when healthy (>7 days) to keep dashboard clean.
 class LicenseExpiryDashboardCard extends ConsumerWidget {
   const LicenseExpiryDashboardCard({super.key});
 
@@ -149,7 +151,11 @@ class LicenseExpiryDashboardCard extends ConsumerWidget {
     if (license == null || license.expiresAt == null) return const SizedBox.shrink();
 
     final days = license.isExpired ? 0 : license.remainingDays;
-    final isCritical = days <= 7;
+
+    // Do NOT show reminder if there is still plenty of time (>7 days remaining)
+    if (!license.isExpired && days > 7) return const SizedBox.shrink();
+
+    final isCritical = days <= 3;
     final isExpired = license.isExpired;
 
     final Color primaryColor;
@@ -170,18 +176,12 @@ class LicenseExpiryDashboardCard extends ConsumerWidget {
       borderColor = const Color(0xFFEF4444);
       icon = Icons.warning_rounded;
       statusLabel = 'CRITICAL';
-    } else if (days <= 30) {
+    } else {
       primaryColor = const Color(0xFFF59E0B);
       bgColor = const Color(0xFF1F1400);
       borderColor = const Color(0xFFF59E0B);
       icon = Icons.schedule_rounded;
       statusLabel = 'EXPIRING SOON';
-    } else {
-      primaryColor = const Color(0xFF10B981);
-      bgColor = const Color(0xFF052E16).withValues(alpha: 0.4);
-      borderColor = const Color(0xFF10B981);
-      icon = Icons.verified_rounded;
-      statusLabel = 'ACTIVE';
     }
 
     final expiryStr = license.expiresAt != null
@@ -244,21 +244,19 @@ class LicenseExpiryDashboardCard extends ConsumerWidget {
                 Text(
                   isExpired
                       ? 'License expired on $expiryStr'
-                      : days > 300
-                          ? '${license.term} · Expires: $expiryStr'
-                          : '$days day${days != 1 ? 's' : ''} remaining · Expires: $expiryStr',
+                      : '$days day${days != 1 ? 's' : ''} remaining · Expires: $expiryStr',
                   style: GoogleFonts.inter(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w700,
                     color: Colors.white.withValues(alpha: 0.9),
                   ),
                 ),
-                if (!isExpired && days <= 30) ...[
+                if (!isExpired && days <= 7) ...[
                   const SizedBox(height: 6),
                   ClipRRect(
                     borderRadius: BorderRadius.circular(4),
                     child: LinearProgressIndicator(
-                      value: days / 30,
+                      value: (days / 7).clamp(0.0, 1.0),
                       backgroundColor: primaryColor.withValues(alpha: 0.15),
                       valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
                       minHeight: 4,
