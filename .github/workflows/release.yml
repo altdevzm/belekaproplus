@@ -57,10 +57,12 @@ jobs:
             |----------|------|-------|
             | 🪟 Windows | `Beleka_POS_Setup_v${{ steps.meta.outputs.version }}.exe` | Standalone installer for Windows 8, 8.1, 10, and 11 |
             | 📱 Android | `Beleka_POS_v${{ steps.meta.outputs.version }}.apk` | Universal APK for Android phones, tablets, and POS devices |
+            | 🔑 Generator | `Beleka_License_Generator_v${{ steps.meta.outputs.version }}.apk` | Standalone License Generator Tool for Android |
 
             ### 🚀 Installation Guide
             - **Windows**: Download and run `Beleka_POS_Setup_v${{ steps.meta.outputs.version }}.exe` as Administrator.
             - **Android**: Download and install `Beleka_POS_v${{ steps.meta.outputs.version }}.apk` on your mobile/tablet POS.
+            - **License Tool**: Install `Beleka_License_Generator_v${{ steps.meta.outputs.version }}.apk` on your phone to issue customer licenses on the go.
 
             ---
             *Built automatically by GitHub Actions · `${{ github.sha }}`*
@@ -165,11 +167,20 @@ jobs:
         run: |
           cp build/app/outputs/flutter-apk/app-release.apk Beleka_POS_v${{ needs.create-release.outputs.version }}.apk
 
-      - name: Upload APK to release
+      - name: Build License Generator APK
+        run: flutter build apk -t lib/generator_main.dart --release --build-name=${{ needs.create-release.outputs.version }}
+
+      - name: Stage License Generator APK
+        run: |
+          cp build/app/outputs/flutter-apk/app-release.apk Beleka_License_Generator_v${{ needs.create-release.outputs.version }}.apk
+
+      - name: Upload APKs to release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.create-release.outputs.tag }}
-          files: Beleka_POS_v${{ needs.create-release.outputs.version }}.apk
+          files: |
+            Beleka_POS_v${{ needs.create-release.outputs.version }}.apk
+            Beleka_License_Generator_v${{ needs.create-release.outputs.version }}.apk
 
   # ─────────────────────────────────────────────────────────────────────────────
   # Job 4: Publish the release + version.json (OTA update manifest)
@@ -187,7 +198,7 @@ jobs:
         run: |
           VER="${{ needs.create-release.outputs.version }}"
           TAG="${{ needs.create-release.outputs.tag }}"
-          BASE="https://github.com/altdevzm/belekapro/releases/download/${TAG}"
+          BASE="https://github.com/${{ github.repository }}/releases/download/${TAG}"
 
           # Extract release notes from pubspec or CHANGELOG if present
           NOTES=$(git log --oneline -10 --pretty=format:"• %s" 2>/dev/null | head -5 || echo "Bug fixes and improvements.")
