@@ -28,7 +28,7 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
   BelekaLicense? _activatedLicense;
   bool _showDiagnostics = false;
   Map<String, String> _diagnostics = {};
-  int _selectedMonths = 12; // 1 to 12 months, or 0 for Lifetime
+  int _selectedMonths = 12; // 1 to 12 months
 
   @override
   void initState() {
@@ -355,7 +355,7 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
                           if (isMobile) const SizedBox(height: 10),
                           ElevatedButton.icon(
                             onPressed: () {
-                              final durationStr = _selectedMonths == 0 ? 'Permanent / Lifetime' : '$_selectedMonths Month${_selectedMonths > 1 ? 's' : ''}';
+                              final durationStr = '$_selectedMonths Month${_selectedMonths > 1 ? 's' : ''}';
                               final req = 'BELEKA POS ACTIVATION REQUEST\nHardware ID: $_currentHwid\nRequested Term: $durationStr\nMax Tills: 3 Tills (Standard)';
                               Clipboard.setData(ClipboardData(text: req));
                               setState(() => _hasCopied = true);
@@ -430,10 +430,6 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
                                       value: m,
                                       child: Text('$m Month${m > 1 ? 's' : ''} License (Up to 3 Tills)'),
                                     ),
-                                  const DropdownMenuItem<int>(
-                                    value: 0,
-                                    child: Text('Permanent / Lifetime (Enterprise)'),
-                                  ),
                                 ],
                                 onChanged: (val) {
                                   if (val != null) setState(() => _selectedMonths = val);

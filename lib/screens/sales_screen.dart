@@ -615,25 +615,19 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                                 ),
                               ),
                               const SizedBox(height: 6),
-                              // Quick Cash Chips
-                              SizedBox(
-                                height: 34,
-                                child: ListView(
-                                  scrollDirection: Axis.horizontal,
-                                  children: [
-                                    _buildSquareQuickNoteChip(context, 20, currency),
-                                    const SizedBox(width: 6),
-                                    _buildSquareQuickNoteChip(context, 50, currency),
-                                    const SizedBox(width: 6),
-                                    _buildSquareQuickNoteChip(context, 100, currency),
-                                    const SizedBox(width: 6),
-                                    _buildSquareQuickNoteChip(context, 200, currency),
-                                    const SizedBox(width: 6),
-                                    _buildSquareQuickNoteChip(context, 500, currency),
-                                    const SizedBox(width: 6),
-                                    _buildSquareExactChip(context, cartNotifier, currency),
-                                  ],
-                                ),
+                              // Quick Cash Chips — Wrap so all are visible on PC without horizontal scroll
+                              Wrap(
+                                spacing: 6,
+                                runSpacing: 6,
+                                children: [
+                                  _buildSquareQuickNoteChip(context, 20, currency),
+                                  _buildSquareQuickNoteChip(context, 50, currency),
+                                  _buildSquareQuickNoteChip(context, 100, currency),
+                                  _buildSquareQuickNoteChip(context, 200, currency),
+                                  _buildSquareQuickNoteChip(context, 500, currency),
+                                  _buildSquareClearChip(context),
+                                  _buildSquareExactChip(context, cartNotifier, currency),
+                                ],
                               ),
                             ],
                           ),
@@ -681,6 +675,19 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       side: BorderSide(color: primaryColor.withValues(alpha: 0.3)),
       padding: const EdgeInsets.symmetric(horizontal: 4),
       onPressed: () => setState(() => _tenderedAmount = cartNotifier.total),
+    );
+  }
+
+  Widget _buildSquareClearChip(BuildContext context) {
+    return ActionChip(
+      label: Text(
+        'CLEAR',
+        style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.redAccent),
+      ),
+      backgroundColor: Colors.redAccent.withValues(alpha: 0.10),
+      side: BorderSide(color: Colors.redAccent.withValues(alpha: 0.3)),
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      onPressed: () => setState(() => _tenderedAmount = 0),
     );
   }
 

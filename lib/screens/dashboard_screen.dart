@@ -1491,7 +1491,7 @@ class _LicenseExpiryCardSpacer extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final license = ref.read(licenseServiceProvider).activeLicense;
-    if (license == null || license.isPermanent) return const SizedBox.shrink();
+    if (license == null || license.expiresAt == null) return const SizedBox.shrink();
     return const SizedBox(height: 16);
   }
 }

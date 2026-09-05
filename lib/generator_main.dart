@@ -170,7 +170,7 @@ class _IssueLicenseTabState extends State<IssueLicenseTab> {
   final _hwidCtrl = TextEditingController();
   final _customDaysCtrl = TextEditingController(text: '30');
 
-  String _durationOption = '1 Month'; // '1 Month', '3 Months', '6 Months', '12 Months', 'Permanent', 'Custom Days'
+  String _durationOption = '1 Month'; // '1 Month', '3 Months', '6 Months', '12 Months', 'Custom Days'
   int _maxTills = 3;
   int _branches = 1;
   bool _isGenerating = false;
@@ -220,7 +220,7 @@ class _IssueLicenseTabState extends State<IssueLicenseTab> {
     try {
       final now = DateTime.now().toUtc();
       DateTime? expiresAt;
-      String term = 'Permanent Lifetime';
+      String term = 'Custom Period';
       int? months;
 
       if (_durationOption == '1 Month') {
@@ -239,14 +239,11 @@ class _IssueLicenseTabState extends State<IssueLicenseTab> {
         months = 12;
         expiresAt = _addMonths(now, 12);
         term = '12 Months (1 Year) License';
-      } else if (_durationOption == 'Custom Days') {
+      } else {
+        // Custom Days
         final days = int.tryParse(_customDaysCtrl.text.trim()) ?? 30;
         expiresAt = now.add(Duration(days: days));
         term = '$days Days License';
-      } else {
-        // Permanent
-        expiresAt = null;
-        term = 'Permanent Lifetime';
       }
 
       final randomId = 'BP-${now.millisecondsSinceEpoch.toString().substring(7)}';
@@ -261,7 +258,7 @@ class _IssueLicenseTabState extends State<IssueLicenseTab> {
         'months': months,
         'maxTills': _maxTills,
         'issuedAt': now.toIso8601String(),
-        'expiresAt': expiresAt?.toIso8601String(),
+        'expiresAt': expiresAt.toIso8601String(),
         'features': [
           'offline_pos',
           'inventory_management',
@@ -486,7 +483,6 @@ class _IssueLicenseTabState extends State<IssueLicenseTab> {
                           _buildDurationChip('3 Months'),
                           _buildDurationChip('6 Months'),
                           _buildDurationChip('12 Months'),
-                          _buildDurationChip('Permanent'),
                           _buildDurationChip('Custom Days'),
                         ],
                       ),
@@ -912,9 +908,9 @@ class _VerifyLicenseTabState extends State<VerifyLicenseTab> {
                           _buildDetailRow('Customer Name', _decodedLicense!['customer'] ?? 'Unknown'),
                           _buildDetailRow('Target HWID', _decodedLicense!['hardwareId'] ?? 'N/A'),
                           _buildDetailRow('Product', _decodedLicense!['product'] ?? 'Beleka POS'),
-                          _buildDetailRow('License Term', _decodedLicense!['term'] ?? 'Permanent'),
+                          _buildDetailRow('License Term', _decodedLicense!['term'] ?? 'Timed License'),
                           _buildDetailRow('Max Tills', '${_decodedLicense!['maxTills'] ?? 3} Tills'),
-                          _buildDetailRow('Expires At', _decodedLicense!['expiresAt'] ?? 'Never (Permanent)'),
+                          _buildDetailRow('Expires At', _decodedLicense!['expiresAt'] ?? 'Not Set (Invalid)'),
                           _buildDetailRow('Issued At', _decodedLicense!['issuedAt'] ?? 'N/A'),
                         ],
                       ],

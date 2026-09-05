@@ -762,15 +762,15 @@ class ShellScreen extends ConsumerWidget {
               ),
             ),
           ),
-          if (!isCompact) ...[
-            const SizedBox(width: 12),
-            // Logout
-            IconButton(
-              icon: const Icon(Icons.logout_rounded, color: Color(0xFFEF4444), size: 18),
-              onPressed: () => _confirmLogout(context, ref),
-              tooltip: 'Sign Out',
-            ),
-          ],
+          const SizedBox(width: 6),
+          // Logout — always visible on all screen sizes
+          IconButton(
+            icon: const Icon(Icons.logout_rounded, color: Color(0xFFEF4444), size: 18),
+            onPressed: () => _confirmLogout(context, ref),
+            tooltip: 'Sign Out',
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+          ),
         ],
       ),
     );

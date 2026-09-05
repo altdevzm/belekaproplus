@@ -45,7 +45,7 @@ class LicenseExpiryBanner extends ConsumerWidget {
     final license = licenseService.activeLicense;
 
     // No banner for permanent, no-license, or healthy (>30 days) licenses
-    if (license == null || license.isPermanent) return const SizedBox.shrink();
+    if (license == null || license.expiresAt == null) return const SizedBox.shrink();
     if (license.isExpired) return const SizedBox.shrink(); // handled by startup gate
     final days = license.remainingDays;
     if (days > 30) return const SizedBox.shrink();
@@ -146,7 +146,7 @@ class LicenseExpiryDashboardCard extends ConsumerWidget {
     final licenseService = ref.read(licenseServiceProvider);
     final license = licenseService.activeLicense;
 
-    if (license == null || license.isPermanent) return const SizedBox.shrink();
+    if (license == null || license.expiresAt == null) return const SizedBox.shrink();
 
     final days = license.isExpired ? 0 : license.remainingDays;
     final isCritical = days <= 7;

@@ -180,14 +180,14 @@ class _LicenseInfoModalState extends ConsumerState<LicenseInfoModal> {
                       'Active Duration', 
                       license?.months != null 
                           ? '${license!.months} Month${license.months! > 1 ? 's' : ''}'
-                          : (license?.isPermanent == true ? 'Permanent Lifetime' : 'Custom Period'),
+                          : 'Custom Period',
                     ),
                     _buildDetailRow(
                       context,
                       'Expiry Date',
                       license?.expiresAt != null
                           ? '${license!.expiresAt!.toLocal().toString().substring(0, 10)} (${license.remainingDays} days left)'
-                          : 'Never Expires (Permanent)',
+                          : 'No Expiry Set — License Inactive',
                     ),
                     _buildDetailRow(context, 'Max Tills Allowed', '${license?.maxTills ?? 3} Tills (Standard Limit: 3)'),
                     _buildDetailRow(context, 'Authorized Branches', '${license?.branches ?? 1} Branch'),

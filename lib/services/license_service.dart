@@ -52,10 +52,11 @@ class BelekaLicense {
     required this.rawJson,
   });
 
-  bool get isPermanent => expiresAt == null || term.toLowerCase().contains('permanent');
+  /// Whether the license has an expiry date (all valid licenses must have one)
+  bool get hasExpiry => expiresAt != null;
 
   bool get isExpired {
-    if (expiresAt == null) return false;
+    if (expiresAt == null) return true; // No expiry = treat as expired (timed licenses only)
     return DateTime.now().toUtc().isAfter(expiresAt!);
   }
 
