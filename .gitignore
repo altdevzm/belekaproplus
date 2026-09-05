@@ -57,7 +57,8 @@ app.*.map.json
 # Large binaries — downloaded by CI instead
 innosetup-6.7.3.exe
 *.exe.bak
+*.apk
 
-# License files (sensitive)
-# beleka_license.lic
-# beleka_universal_master.lic
+# License files (sensitive / test artifacts)
+*.lic
+

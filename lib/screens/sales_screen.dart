@@ -16,6 +16,7 @@ import 'package:beleka_pos/widgets/camera_barcode_scanner_modal.dart';
 import 'package:beleka_pos/widgets/product_image_widget.dart';
 import 'package:beleka_pos/utils/formatters.dart';
 import 'package:beleka_pos/providers/auth_provider.dart';
+import 'package:beleka_pos/core/core.dart';
 
 final productsProvider = StreamProvider<List<Product>>((ref) {
   final db = ref.watch(databaseServiceProvider);
@@ -218,7 +219,11 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       backgroundColor: theme.scaffoldBackgroundColor,
       body: LayoutBuilder(
         builder: (context, constraints) {
-          if (constraints.maxWidth >= 1050) {
+          final size = MediaQuery.of(context).size;
+          final isSquare = AppBreakpoints.isSquare(size.width, size.height);
+
+          if (constraints.maxWidth >= 1250 && !isSquare) {
+            // Widescreen 3-Column POS
             return _buildDesktopSalesLayout(
               context,
               productsAsync,
@@ -228,7 +233,19 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
               cartNotifier,
               currency,
             );
+          } else if (constraints.maxWidth >= 680) {
+            // Square Monitor / Near-Square POS terminal (4:3, 5:4, 1:1) or Tablet 2-Column POS
+            return _buildSquareSalesLayout(
+              context,
+              productsAsync,
+              filteredProducts,
+              allCategories,
+              cartState,
+              cartNotifier,
+              currency,
+            );
           } else {
+            // Compact Mobile Phone 1-Column Layout
             return _buildMobileSalesLayout(
               context,
               productsAsync,
@@ -239,6 +256,528 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
               currency,
             );
           }
+        },
+      ),
+    );
+  }
+
+  // --- Adaptive Square Monitor & Tablet 2-Column POS Layout ---
+
+  Widget _buildSquareSalesLayout(
+    BuildContext context,
+    AsyncValue<List<Product>> productsAsync,
+    List<Product> filteredProducts,
+    List<Category> allCategories,
+    CartState cartState,
+    CartNotifier cartNotifier,
+    String currency,
+  ) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final panelBg = isDark ? const Color(0xFF151F32) : const Color(0xFFFFFFFF);
+    final borderColor = isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0);
+    final primaryColor = theme.colorScheme.primary;
+
+    if (_selectedPaymentMethod.isEmpty) {
+      _selectedPaymentMethod = 'CASH';
+    }
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // PANEL 1: Product Catalog & Touch Selection (Left, flex: 6)
+        Expanded(
+          flex: 6,
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: panelBg,
+              border: Border(right: BorderSide(color: borderColor, width: 1)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Top Header with View Mode Switcher & Quick Tools
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      child: _buildPanelHeader(
+                        context,
+                        Icons.grid_view_rounded,
+                        'PRODUCT CATALOG',
+                        primaryColor,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Camera Barcode / QR Scanner
+                        Tooltip(
+                          message: 'Scan Barcode / QR',
+                          child: InkWell(
+                            onTap: _openCameraScanner,
+                            borderRadius: BorderRadius.circular(8),
+                            child: Container(
+                              height: 34,
+                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                              decoration: BoxDecoration(
+                                color: isDark ? const Color(0xFF293548) : const Color(0xFFF1F5F9),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.qr_code_scanner_rounded, size: 16, color: primaryColor),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'SCAN',
+                                    style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontSize: 11, fontWeight: FontWeight.w700),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        // Quick Cash Drawer button
+                        Tooltip(
+                          message: 'Open Cash Drawer',
+                          child: InkWell(
+                            onTap: () async {
+                              final config = ref.read(storeConfigProvider).value;
+                              final ok = await ref.read(printerServiceProvider).openCashDrawer(config: config);
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Row(
+                                      children: [
+                                        Icon(
+                                          ok ? Icons.check_circle_rounded : Icons.warning_amber_rounded,
+                                          color: ok ? const Color(0xFF059669) : const Color(0xFFDC2626),
+                                          size: 18,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(ok ? 'Cash drawer opened' : 'Kick command sent'),
+                                      ],
+                                    ),
+                                    duration: const Duration(seconds: 2),
+                                    behavior: SnackBarBehavior.floating,
+                                  ),
+                                );
+                              }
+                            },
+                            borderRadius: BorderRadius.circular(8),
+                            child: Container(
+                              height: 34,
+                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                              decoration: BoxDecoration(
+                                color: isDark ? const Color(0xFF293548) : const Color(0xFFF1F5F9),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.point_of_sale_rounded, size: 16, color: theme.colorScheme.onSurfaceVariant),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'DRAWER',
+                                    style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontSize: 11, fontWeight: FontWeight.w700),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        // Grid / List View Toggle
+                        Container(
+                          height: 34,
+                          padding: const EdgeInsets.all(2),
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF293548) : const Color(0xFFF1F5F9),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _buildViewModeBtn(
+                                context,
+                                icon: Icons.grid_view_rounded,
+                                tooltip: 'Grid View',
+                                isSelected: _isGridView,
+                                onTap: () => setState(() => _isGridView = true),
+                              ),
+                              _buildViewModeBtn(
+                                context,
+                                icon: Icons.view_list_rounded,
+                                tooltip: 'List View',
+                                isSelected: !_isGridView,
+                                onTap: () => setState(() => _isGridView = false),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+
+                // Search Bar with Instant Filter
+                TextField(
+                  controller: _searchController,
+                  focusNode: _searchFocusNode,
+                  onChanged: (_) => setState(() {}),
+                  onSubmitted: (_) {
+                    if (filteredProducts.length == 1) {
+                      _handleProductSelection(filteredProducts.first);
+                      _searchController.clear();
+                      setState(() {});
+                    }
+                  },
+                  style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface),
+                  decoration: _searchInputDecoration(context),
+                ),
+                const SizedBox(height: 8),
+
+                // Category Ribbon
+                _buildCategoryRibbon(context, allCategories),
+                const SizedBox(height: 10),
+
+                // Products Grid / List
+                Expanded(
+                  child: productsAsync.when(
+                    data: (_) {
+                      if (filteredProducts.isEmpty) {
+                        return _buildEmptyCatalogState(context);
+                      }
+                      if (_isGridView) {
+                        return _buildProductsGrid(context, filteredProducts, currency);
+                      } else {
+                        return _buildProductsList(context, filteredProducts, currency);
+                      }
+                    },
+                    loading: () => const Center(child: CircularProgressIndicator()),
+                    error: (err, _) => Center(
+                      child: Text('Error loading products: $err', style: const TextStyle(color: Color(0xFFDC2626))),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        // PANEL 2: Cashier Order Review & Payment Checkout Console (Right, flex: 5)
+        Expanded(
+          flex: 5,
+          child: Container(
+            color: isDark ? const Color(0xFF131D2E) : const Color(0xFFF8FAFC),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Cart Header
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: panelBg,
+                    border: Border(bottom: BorderSide(color: borderColor, width: 1)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.shopping_cart_rounded, size: 18, color: primaryColor),
+                          const SizedBox(width: 8),
+                          Text('CURRENT ORDER', style: _headerTextStyle(context)),
+                        ],
+                      ),
+                      if (cartState.items.isNotEmpty)
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: primaryColor.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                '${cartState.items.fold<int>(0, (sum, item) => sum + item.quantity)} items',
+                                style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: primaryColor),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            InkWell(
+                              onTap: () {
+                                cartNotifier.clear();
+                                setState(() {
+                                  _tenderedAmount = 0;
+                                  _selectedPaymentMethod = 'CASH';
+                                });
+                              },
+                              borderRadius: BorderRadius.circular(4),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                child: Text(
+                                  'CLEAR',
+                                  style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w800, color: const Color(0xFFDC2626)),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                    ],
+                  ),
+                ),
+
+                // Cart Item List
+                Expanded(
+                  child: cartState.items.isEmpty
+                      ? _buildEmptyState(
+                          context,
+                          'Cart is empty\nTap products or scan barcode to add items',
+                          icon: Icons.shopping_cart_outlined,
+                        )
+                      : ListView.builder(
+                          padding: const EdgeInsets.symmetric(vertical: 6),
+                          itemCount: cartState.items.length,
+                          itemBuilder: (context, index) => _buildCartRow(context, cartState.items[index], cartNotifier, currency),
+                        ),
+                ),
+
+                // Integrated Square Checkout Panel (Payment Methods, Tender, Totals & Pay)
+                Container(
+                  decoration: BoxDecoration(
+                    color: panelBg,
+                    border: Border(top: BorderSide(color: borderColor, width: 1)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 8,
+                        offset: const Offset(0, -2),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Payment Methods Row
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+                        child: _buildPaymentMethodSelector(context),
+                      ),
+
+                      // Tender / Quick Note Buttons (When CASH and cart not empty)
+                      if (cartState.items.isNotEmpty && _selectedPaymentMethod == 'CASH')
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // Tender display row with tap to open numpad
+                              InkWell(
+                                onTap: () => _showQuickNumpadSheet(context, cartNotifier, currency),
+                                borderRadius: BorderRadius.circular(8),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: borderColor),
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        'TENDERED:',
+                                        style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurfaceVariant),
+                                      ),
+                                      Row(
+                                        children: [
+                                          Text(
+                                            _tenderedAmount == 0 ? 'ENTER AMOUNT' : CurrencyFormatter.format(_tenderedAmount, currency),
+                                            style: GoogleFonts.inter(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w800,
+                                              color: _tenderedAmount == 0 ? theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6) : primaryColor,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Icon(Icons.dialpad_rounded, size: 16, color: primaryColor),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              // Quick Cash Chips
+                              SizedBox(
+                                height: 34,
+                                child: ListView(
+                                  scrollDirection: Axis.horizontal,
+                                  children: [
+                                    _buildSquareQuickNoteChip(context, 20, currency),
+                                    const SizedBox(width: 6),
+                                    _buildSquareQuickNoteChip(context, 50, currency),
+                                    const SizedBox(width: 6),
+                                    _buildSquareQuickNoteChip(context, 100, currency),
+                                    const SizedBox(width: 6),
+                                    _buildSquareQuickNoteChip(context, 200, currency),
+                                    const SizedBox(width: 6),
+                                    _buildSquareQuickNoteChip(context, 500, currency),
+                                    const SizedBox(width: 6),
+                                    _buildSquareExactChip(context, cartNotifier, currency),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                      // Totals & Complete Sale Button
+                      _buildOrderSummary(context, cartState, cartNotifier, currency),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSquareQuickNoteChip(BuildContext context, double amount, String currency) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return ActionChip(
+      label: Text(
+        CurrencyFormatter.format(amount, currency),
+        style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurface),
+      ),
+      backgroundColor: isDark ? const Color(0xFF293548) : const Color(0xFFF1F5F9),
+      side: BorderSide(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      onPressed: () => setState(() => _tenderedAmount += amount),
+    );
+  }
+
+  Widget _buildSquareExactChip(BuildContext context, CartNotifier cartNotifier, String currency) {
+    final theme = Theme.of(context);
+    final primaryColor = theme.colorScheme.primary;
+
+    return ActionChip(
+      label: Text(
+        'EXACT',
+        style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w800, color: primaryColor),
+      ),
+      backgroundColor: primaryColor.withValues(alpha: 0.12),
+      side: BorderSide(color: primaryColor.withValues(alpha: 0.3)),
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      onPressed: () => setState(() => _tenderedAmount = cartNotifier.total),
+    );
+  }
+
+  void _showQuickNumpadSheet(BuildContext context, CartNotifier cartNotifier, String currency) {
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final theme = Theme.of(context);
+          final isDark = theme.brightness == Brightness.dark;
+
+          return Dialog(
+            backgroundColor: Colors.transparent,
+            child: Container(
+              width: 320,
+              height: 440,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.4),
+                    blurRadius: 24,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Cash Tender Keypad',
+                        style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurface),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded, size: 20),
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      _tenderedAmount == 0 ? 'K0.00' : CurrencyFormatter.format(_tenderedAmount, currency),
+                      style: GoogleFonts.inter(fontSize: 24, fontWeight: FontWeight.w900, color: theme.colorScheme.primary),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: _buildNumericKeypad(context),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () {
+                            setState(() => _tenderedAmount = cartNotifier.total);
+                            setDialogState(() {});
+                          },
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                          child: const Text('EXACT'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: theme.colorScheme.primary,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                          child: const Text('DONE', style: TextStyle(fontWeight: FontWeight.w700)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
         },
       ),
     );

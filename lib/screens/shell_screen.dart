@@ -18,6 +18,7 @@ import 'dart:io';
 import 'package:beleka_pos/services/network_client.dart';
 import 'package:beleka_pos/core/core.dart';
 import 'package:beleka_pos/widgets/update_banner.dart';
+import 'package:beleka_pos/widgets/license_expiry_banner.dart';
 import 'package:beleka_pos/widgets/camera_barcode_scanner_modal.dart';
 import 'package:beleka_pos/providers/cart_provider.dart';
 import 'package:beleka_pos/services/database_service.dart';
@@ -72,6 +73,7 @@ class ShellScreen extends ConsumerWidget {
       children: [
         _buildStatusBar(context, ref, isCompact: isCompact),
         const UpdateBanner(),
+        const LicenseExpiryBanner(),
         Expanded(child: _buildMainContent(current)),
         
         // Ergonomic Mobile Lower Navigation Bar
@@ -370,6 +372,7 @@ class ShellScreen extends ConsumerWidget {
             children: [
               _buildStatusBar(context, ref, isCompact: false),
               const UpdateBanner(),
+              const LicenseExpiryBanner(),
               Expanded(child: _buildMainContent(current)),
             ],
           ),
@@ -385,14 +388,18 @@ class ShellScreen extends ConsumerWidget {
     bool isManager, {
     required bool isUltraWide,
   }) {
+    final size = MediaQuery.of(context).size;
+    final isSquare = AppBreakpoints.isSquare(size.width, size.height) || size.width < 1200;
+
     return Row(
       children: [
-        _buildSidebar(context, ref, current, isCompactRail: false),
+        _buildSidebar(context, ref, current, isCompactRail: isSquare),
         Expanded(
           child: Column(
             children: [
-              _buildStatusBar(context, ref, isCompact: false),
+              _buildStatusBar(context, ref, isCompact: isSquare || size.width < 1100),
               const UpdateBanner(),
+              const LicenseExpiryBanner(),
               Expanded(
                 child: (isUltraWide && current != ScreenType.sales)
                     ? ConstrainedContent(child: _buildMainContent(current))

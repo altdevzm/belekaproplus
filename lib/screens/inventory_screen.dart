@@ -333,52 +333,83 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     required int outOfStockCount,
     required String currency,
   }) {
-    return Row(
-      children: [
-        _buildStockMetricCard(
-          context,
-          label: 'Total Products',
-          value: '$totalSkus SKUs',
-          growthText: 'Active Catalog',
-          isPositive: true,
-          icon: Icons.inventory_2_rounded,
-          iconBgColor: const Color(0xFFEFF6FF),
-          iconColor: const Color(0xFF1D4ED8),
-        ),
-        const SizedBox(width: 14),
-        _buildStockMetricCard(
-          context,
-          label: 'Stock Valuation',
-          value: CurrencyFormatter.format(totalValue, currency),
-          growthText: 'Retail Value',
-          isPositive: true,
-          icon: Icons.monetization_on_rounded,
-          iconBgColor: const Color(0xFFECFDF5),
-          iconColor: const Color(0xFF059669),
-        ),
-        const SizedBox(width: 14),
-        _buildStockMetricCard(
-          context,
-          label: 'Low Stock Alert',
-          value: '$lowStockCount Items',
-          growthText: lowStockCount > 0 ? 'Needs Reorder' : 'Optimal',
-          isPositive: lowStockCount == 0,
-          icon: Icons.warning_amber_rounded,
-          iconBgColor: const Color(0xFFFFFBEB),
-          iconColor: const Color(0xFFD97706),
-        ),
-        const SizedBox(width: 14),
-        _buildStockMetricCard(
-          context,
-          label: 'Out of Stock',
-          value: '$outOfStockCount Items',
-          growthText: outOfStockCount > 0 ? 'Action Required' : 'All Available',
-          isPositive: outOfStockCount == 0,
-          icon: Icons.error_outline_rounded,
-          iconBgColor: const Color(0xFFFEF2F2),
-          iconColor: const Color(0xFFDC2626),
-        ),
-      ],
+    final card1 = _buildStockMetricCard(
+      context,
+      label: 'Total Products',
+      value: '$totalSkus SKUs',
+      growthText: 'Active Catalog',
+      isPositive: true,
+      icon: Icons.inventory_2_rounded,
+      iconBgColor: const Color(0xFFEFF6FF),
+      iconColor: const Color(0xFF1D4ED8),
+    );
+    final card2 = _buildStockMetricCard(
+      context,
+      label: 'Stock Valuation',
+      value: CurrencyFormatter.format(totalValue, currency),
+      growthText: 'Retail Value',
+      isPositive: true,
+      icon: Icons.monetization_on_rounded,
+      iconBgColor: const Color(0xFFECFDF5),
+      iconColor: const Color(0xFF059669),
+    );
+    final card3 = _buildStockMetricCard(
+      context,
+      label: 'Low Stock Alert',
+      value: '$lowStockCount Items',
+      growthText: lowStockCount > 0 ? 'Needs Reorder' : 'Optimal',
+      isPositive: lowStockCount == 0,
+      icon: Icons.warning_amber_rounded,
+      iconBgColor: const Color(0xFFFFFBEB),
+      iconColor: const Color(0xFFD97706),
+    );
+    final card4 = _buildStockMetricCard(
+      context,
+      label: 'Out of Stock',
+      value: '$outOfStockCount Items',
+      growthText: outOfStockCount > 0 ? 'Action Required' : 'All Available',
+      isPositive: outOfStockCount == 0,
+      icon: Icons.error_outline_rounded,
+      iconBgColor: const Color(0xFFFEF2F2),
+      iconColor: const Color(0xFFDC2626),
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 1050) {
+          return Column(
+            children: [
+              Row(
+                children: [
+                  card1,
+                  const SizedBox(width: 14),
+                  card2,
+                ],
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  card3,
+                  const SizedBox(width: 14),
+                  card4,
+                ],
+              ),
+            ],
+          );
+        }
+
+        return Row(
+          children: [
+            card1,
+            const SizedBox(width: 14),
+            card2,
+            const SizedBox(width: 14),
+            card3,
+            const SizedBox(width: 14),
+            card4,
+          ],
+        );
+      },
     );
   }
 

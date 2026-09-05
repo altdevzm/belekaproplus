@@ -12,6 +12,8 @@ import 'package:beleka_pos/utils/formatters.dart';
 import 'package:beleka_pos/services/api_service.dart';
 import 'package:beleka_pos/screens/shell_screen.dart';
 import 'package:beleka_pos/providers/auth_provider.dart';
+import 'package:beleka_pos/widgets/license_expiry_banner.dart';
+import 'package:beleka_pos/services/license_service.dart';
 
 final recentTransactionsProvider = StreamProvider<List<SaleTransaction>>((ref) {
   final db = ref.watch(databaseServiceProvider);
@@ -107,7 +109,11 @@ class DashboardScreen extends ConsumerWidget {
 
           // Greeting Header Bar
           _buildGreetingHeader(context, ref),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
+
+          // License Expiry Warning Card (only shown for timed licenses ≤30 days)
+          const LicenseExpiryDashboardCard(),
+          const _LicenseExpiryCardSpacer(),
 
           // 4 Stats Cards Row
           statsAsync.when(
@@ -547,56 +553,87 @@ class DashboardScreen extends ConsumerWidget {
     final marginPct = todayRev > 0 ? (todayProfit / todayRev * 100) : 0.0;
     final avgValue = todayCount > 0 ? todayRev / todayCount : 0.0;
 
-    return Row(
-      children: [
-        _buildSingleMetricCard(
-          context,
-          label: 'Total revenue',
-          value: CurrencyFormatter.format(todayRev, currency),
-          growthText: '${revGrowth >= 0 ? '↗' : '↘'} ${revGrowth.abs().toStringAsFixed(1)}%',
-          isPositive: revGrowth >= 0,
-          subtitle: 'vs. yesterday (${CurrencyFormatter.format(yesterdayRev, currency)})',
-          icon: Icons.attach_money_rounded,
-          iconBgColor: const Color(0xFFEFF6FF),
-          iconColor: const Color(0xFF1D4ED8),
-        ),
-        const SizedBox(width: 14),
-        _buildSingleMetricCard(
-          context,
-          label: 'Gross profit',
-          value: CurrencyFormatter.format(todayProfit, currency),
-          growthText: '${profitGrowth >= 0 ? '↗' : '↘'} ${profitGrowth.abs().toStringAsFixed(1)}%',
-          isPositive: profitGrowth >= 0,
-          subtitle: '${marginPct.toStringAsFixed(1)}% margin',
-          icon: Icons.trending_up_rounded,
-          iconBgColor: const Color(0xFFECFDF5),
-          iconColor: const Color(0xFF059669),
-        ),
-        const SizedBox(width: 14),
-        _buildSingleMetricCard(
-          context,
-          label: 'Total orders',
-          value: '$todayCount',
-          growthText: todayCount > 0 ? '↗ Active' : '0 today',
-          isPositive: todayCount > 0,
-          subtitle: '$todayCount orders today',
-          icon: Icons.shopping_bag_outlined,
-          iconBgColor: const Color(0xFFFFFBEB),
-          iconColor: const Color(0xFFD97706),
-        ),
-        const SizedBox(width: 14),
-        _buildSingleMetricCard(
-          context,
-          label: 'Average order value',
-          value: CurrencyFormatter.format(avgValue, currency),
-          growthText: avgValue > 0 ? '↗ Live' : '0.00',
-          isPositive: avgValue > 0,
-          subtitle: 'Based on $todayCount orders',
-          icon: Icons.bar_chart_rounded,
-          iconBgColor: const Color(0xFFF0F9FF),
-          iconColor: const Color(0xFF0284C7),
-        ),
-      ],
+    final card1 = _buildSingleMetricCard(
+      context,
+      label: 'Total revenue',
+      value: CurrencyFormatter.format(todayRev, currency),
+      growthText: '${revGrowth >= 0 ? '↗' : '↘'} ${revGrowth.abs().toStringAsFixed(1)}%',
+      isPositive: revGrowth >= 0,
+      subtitle: 'vs. yesterday (${CurrencyFormatter.format(yesterdayRev, currency)})',
+      icon: Icons.attach_money_rounded,
+      iconBgColor: const Color(0xFFEFF6FF),
+      iconColor: const Color(0xFF1D4ED8),
+    );
+    final card2 = _buildSingleMetricCard(
+      context,
+      label: 'Gross profit',
+      value: CurrencyFormatter.format(todayProfit, currency),
+      growthText: '${profitGrowth >= 0 ? '↗' : '↘'} ${profitGrowth.abs().toStringAsFixed(1)}%',
+      isPositive: profitGrowth >= 0,
+      subtitle: '${marginPct.toStringAsFixed(1)}% margin',
+      icon: Icons.trending_up_rounded,
+      iconBgColor: const Color(0xFFECFDF5),
+      iconColor: const Color(0xFF059669),
+    );
+    final card3 = _buildSingleMetricCard(
+      context,
+      label: 'Total orders',
+      value: '$todayCount',
+      growthText: todayCount > 0 ? '↗ Active' : '0 today',
+      isPositive: todayCount > 0,
+      subtitle: '$todayCount orders today',
+      icon: Icons.shopping_bag_outlined,
+      iconBgColor: const Color(0xFFFFFBEB),
+      iconColor: const Color(0xFFD97706),
+    );
+    final card4 = _buildSingleMetricCard(
+      context,
+      label: 'Average order value',
+      value: CurrencyFormatter.format(avgValue, currency),
+      growthText: avgValue > 0 ? '↗ Live' : '0.00',
+      isPositive: avgValue > 0,
+      subtitle: 'Based on $todayCount orders',
+      icon: Icons.bar_chart_rounded,
+      iconBgColor: const Color(0xFFF0F9FF),
+      iconColor: const Color(0xFF0284C7),
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 1050) {
+          return Column(
+            children: [
+              Row(
+                children: [
+                  card1,
+                  const SizedBox(width: 14),
+                  card2,
+                ],
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  card3,
+                  const SizedBox(width: 14),
+                  card4,
+                ],
+              ),
+            ],
+          );
+        }
+
+        return Row(
+          children: [
+            card1,
+            const SizedBox(width: 14),
+            card2,
+            const SizedBox(width: 14),
+            card3,
+            const SizedBox(width: 14),
+            card4,
+          ],
+        );
+      },
     );
   }
 
@@ -1443,5 +1480,18 @@ class DashboardScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+}
+
+/// Renders a spacing gap only when the LicenseExpiryDashboardCard is visible.
+/// Avoids extra spacing when the card returns SizedBox.shrink().
+class _LicenseExpiryCardSpacer extends ConsumerWidget {
+  const _LicenseExpiryCardSpacer();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final license = ref.read(licenseServiceProvider).activeLicense;
+    if (license == null || license.isPermanent) return const SizedBox.shrink();
+    return const SizedBox(height: 16);
   }
 }

@@ -335,7 +335,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     // Left Branding Pane (Full Bleed)
                     Expanded(
                       flex: 5,
-                      child: _buildHeroImageSection(context),
+                      child: _buildHeroImageSection(
+                        context,
+                        isCompact: constraints.maxHeight < 720 || constraints.maxWidth < 1000,
+                      ),
                     ),
                     // Seam Divider Line
                     Container(
