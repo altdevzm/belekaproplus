@@ -24,12 +24,15 @@ class PostgresSyncService {
   /// Push/Sync a specific user or branch manager to Cloud PostgreSQL DB.
   Future<bool> syncUser(User user, {String? plainPin}) async {
     final config = await isar.storeConfigs.where().findFirst();
-    final cloudUrl = config?.cloudApiUrl ?? (config?.serverIp != null ? 'http://${config!.serverIp}:8000' : null);
-    if (cloudUrl == null || cloudUrl.isEmpty) return false;
+    if (config?.isCloudSyncEnabled != true) return false;
+    final cloudUrl = config?.cloudApiUrl;
+    if (cloudUrl == null || cloudUrl.trim().isEmpty) return false;
 
-    final storeId = config?.cloudStoreId ?? 1;
+    final storeId = config?.cloudStoreId;
+    if (storeId == null) return false;
+
     return await cloudDb.syncUser(
-      baseUrl: cloudUrl,
+      baseUrl: cloudUrl.trim(),
       storeId: storeId,
       user: user,
       plainPin: plainPin,
@@ -39,12 +42,12 @@ class PostgresSyncService {
   /// Push/Sync a Store Branch to Cloud PostgreSQL DB.
   Future<bool> syncBranch(StoreBranch branch) async {
     final config = await isar.storeConfigs.where().findFirst();
-    final cloudUrl = config?.cloudApiUrl?.isNotEmpty == true 
-        ? config!.cloudApiUrl! 
-        : (config?.serverIp?.isNotEmpty == true ? 'http://${config!.serverIp}:8003' : 'http://23.139.36.20:8003');
+    if (config?.isCloudSyncEnabled != true) return false;
+    final cloudUrl = config?.cloudApiUrl;
+    if (cloudUrl == null || cloudUrl.trim().isEmpty) return false;
 
     return await cloudDb.syncBranch(
-      baseUrl: cloudUrl,
+      baseUrl: cloudUrl.trim(),
       branch: branch,
       tpin: config?.tpin,
       digitaxApiKey: config?.digitaxApiKey,
@@ -56,13 +59,15 @@ class PostgresSyncService {
 
   /// Push/Sync Store Configuration (TPIN, DigiTax Key, Tax Settings) to Cloud DB.
   Future<bool> syncStoreConfigToCloud(StoreConfig config) async {
-    final cloudUrl = config.cloudApiUrl?.isNotEmpty == true 
-        ? config.cloudApiUrl! 
-        : (config.serverIp?.isNotEmpty == true ? 'http://${config.serverIp}:8003' : 'http://23.139.36.20:8003');
+    if (!config.isCloudSyncEnabled) return false;
+    final cloudUrl = config.cloudApiUrl;
+    if (cloudUrl == null || cloudUrl.trim().isEmpty) return false;
 
-    final storeId = config.cloudStoreId ?? 1;
+    final storeId = config.cloudStoreId;
+    if (storeId == null) return false;
+
     return await cloudDb.updateStoreConfig(
-      baseUrl: cloudUrl,
+      baseUrl: cloudUrl.trim(),
       storeId: storeId,
       data: {
         'name': config.businessName,
@@ -84,17 +89,22 @@ class PostgresSyncService {
   /// Pull latest Store Configuration (TPIN, DigiTax Key, etc.) from Cloud DB into local Isar DB
   Future<bool> pullStoreConfigFromCloud() async {
     final config = await isar.storeConfigs.where().findFirst();
-    if (config == null) return false;
-    final cloudUrl = config.cloudApiUrl?.isNotEmpty == true 
-        ? config.cloudApiUrl! 
-        : (config.serverIp?.isNotEmpty == true ? 'http://${config.serverIp}:8003' : 'http://23.139.36.20:8003');
+    if (config == null || !config.isCloudSyncEnabled) return false;
+    final cloudUrl = config.cloudApiUrl;
+    if (cloudUrl == null || cloudUrl.trim().isEmpty) return false;
+
+    final storeId = config.cloudStoreId;
+    if (storeId == null) return false;
 
     try {
-      final stores = await cloudDb.getStores(cloudUrl);
+      final stores = await cloudDb.getStores(cloudUrl.trim());
       if (stores.isEmpty) return false;
 
-      final storeId = config.cloudStoreId ?? 1;
-      final targetStore = stores.where((s) => s['id'] == storeId).firstOrNull ?? stores.first;
+      final targetStore = stores.where((s) => s['id'] == storeId).firstOrNull;
+      if (targetStore == null) {
+        debugPrint('Cloud store ID $storeId not found on server $cloudUrl');
+        return false;
+      }
 
       await isar.writeTxn(() async {
         if (targetStore['tpin'] != null && (targetStore['tpin'] as String).isNotEmpty) {
@@ -121,15 +131,18 @@ class PostgresSyncService {
   /// Sync all local users up to Cloud PostgreSQL DB.
   Future<int> syncAllUsersToCloud() async {
     final config = await isar.storeConfigs.where().findFirst();
-    final cloudUrl = config?.cloudApiUrl ?? (config?.serverIp != null ? 'http://${config!.serverIp}:8000' : null);
-    if (cloudUrl == null || cloudUrl.isEmpty) return 0;
+    if (config?.isCloudSyncEnabled != true) return 0;
+    final cloudUrl = config?.cloudApiUrl;
+    if (cloudUrl == null || cloudUrl.trim().isEmpty) return 0;
 
-    final storeId = config?.cloudStoreId ?? 1;
+    final storeId = config?.cloudStoreId;
+    if (storeId == null) return 0;
+
     final allUsers = await isar.users.where().findAll();
     int count = 0;
     for (final u in allUsers) {
       final success = await cloudDb.syncUser(
-        baseUrl: cloudUrl,
+        baseUrl: cloudUrl.trim(),
         storeId: storeId,
         user: u,
       );
@@ -141,13 +154,18 @@ class PostgresSyncService {
   /// Sync unsynced transactions from local Isar cache up to online PostgreSQL Cloud DB.
   Future<int> syncPendingTransactions() async {
     final config = await isar.storeConfigs.where().findFirst();
-    final cloudUrl = config?.cloudApiUrl ?? (config?.serverIp != null ? 'http://${config!.serverIp}:8000' : null);
-    if (cloudUrl == null || cloudUrl.isEmpty) {
-      debugPrint('Cloud PostgreSQL sync skipped: Cloud sync not configured');
+    if (config?.isCloudSyncEnabled != true) {
+      return 0;
+    }
+    final cloudUrl = config?.cloudApiUrl;
+    if (cloudUrl == null || cloudUrl.trim().isEmpty) {
       return 0;
     }
 
-    final storeId = config?.cloudStoreId ?? 1;
+    final storeId = config?.cloudStoreId;
+    if (storeId == null) {
+      return 0;
+    }
 
     // Query unsynced sales from local storage
     final unsyncedSales = await isar.saleTransactions

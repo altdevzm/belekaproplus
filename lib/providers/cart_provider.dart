@@ -36,21 +36,27 @@ class CartItem {
 
   double get baseUnitPrice {
     if (product.isTaxInclusive) {
-      return unitPrice / (1 + (product.taxRate / 100));
+      if (product.taxRate > 0) {
+        return double.parse((unitPrice / (1 + (product.taxRate / 100))).toStringAsFixed(2));
+      }
+      return unitPrice;
     }
     return unitPrice;
   }
 
   double get taxAmountPerUnit {
     if (product.isTaxInclusive) {
-      return unitPrice - baseUnitPrice;
+      if (product.taxRate > 0) {
+        return double.parse((unitPrice - baseUnitPrice).toStringAsFixed(2));
+      }
+      return 0.0;
     }
-    return unitPrice * (product.taxRate / 100);
+    return double.parse((unitPrice * (product.taxRate / 100)).toStringAsFixed(2));
   }
 
-  double get subtotal => baseUnitPrice * effectiveQuantity;
-  double get totalTax => taxAmountPerUnit * effectiveQuantity;
-  double get total => (baseUnitPrice + taxAmountPerUnit) * effectiveQuantity;
+  double get subtotal => double.parse((baseUnitPrice * effectiveQuantity).toStringAsFixed(2));
+  double get totalTax => double.parse((taxAmountPerUnit * effectiveQuantity).toStringAsFixed(2));
+  double get total => double.parse(((baseUnitPrice + taxAmountPerUnit) * effectiveQuantity).toStringAsFixed(2));
 
   CartItem copyWith({int? quantity, double? weight, bool? isWeighted}) {
     return CartItem(

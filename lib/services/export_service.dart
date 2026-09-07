@@ -616,18 +616,23 @@ class ExportService {
                 final Map<double, Map<String, double>> exportBreakdown = {};
                 for (var item in items) {
                   final rate = item.taxRateAtSale;
-                  final total = item.priceAtSale * item.quantity;
+                  final total = double.parse((item.priceAtSale * item.quantity).toStringAsFixed(2));
                   double vat = 0;
                   if (item.isTaxInclusiveAtSale) {
-                    vat = total - (total / (1 + (rate / 100)));
+                    if (rate > 0) {
+                      final taxable = double.parse((total / (1 + (rate / 100))).toStringAsFixed(2));
+                      vat = double.parse((total - taxable).toStringAsFixed(2));
+                    } else {
+                      vat = 0.0;
+                    }
                   } else {
-                    vat = total * (rate / 100);
+                    vat = double.parse((total * (rate / 100)).toStringAsFixed(2));
                   }
                   if (!exportBreakdown.containsKey(rate)) {
                     exportBreakdown[rate] = {'vat': 0.0, 'total': 0.0};
                   }
-                  exportBreakdown[rate]!['vat'] = exportBreakdown[rate]!['vat']! + vat;
-                  exportBreakdown[rate]!['total'] = exportBreakdown[rate]!['total']! + total;
+                  exportBreakdown[rate]!['vat'] = double.parse((exportBreakdown[rate]!['vat']! + vat).toStringAsFixed(2));
+                  exportBreakdown[rate]!['total'] = double.parse((exportBreakdown[rate]!['total']! + total).toStringAsFixed(2));
                 }
                 return exportBreakdown.entries.map((entry) {
                   final letter = entry.key >= 16.0 ? 'A' : (entry.key > 0 ? 'B' : 'C');

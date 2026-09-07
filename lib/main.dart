@@ -436,8 +436,8 @@ class _AppExitBackupHandlerState extends State<AppExitBackupHandler> with Widget
       if (isar != null) {
         debugPrint('App closing detected: Initiating automatic local & VPS cloud backup sequence...');
         final storeConfig = await isar.storeConfigs.where().findFirst();
-        final cloudUrl = storeConfig?.cloudApiUrl;
-        final storeId = storeConfig?.cloudStoreId ?? 1;
+        final cloudUrl = (storeConfig?.isCloudSyncEnabled == true) ? storeConfig?.cloudApiUrl : null;
+        final storeId = (storeConfig?.isCloudSyncEnabled == true) ? storeConfig?.cloudStoreId : null;
 
         final backupService = BackupService();
         final results = await backupService.performFullExitBackup(

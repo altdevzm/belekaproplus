@@ -2340,21 +2340,26 @@ class PrinterService {
       final effectiveQty = (item.isWeighted && item.weight > 0)
           ? item.weight
           : item.quantity.toDouble();
-      final total = item.priceAtSale * effectiveQty;
+      final total = double.parse((item.priceAtSale * effectiveQty).toStringAsFixed(2));
       
       double vat = 0;
       if (item.isTaxInclusiveAtSale) {
-        vat = total - (total / (1 + (rate / 100)));
+        if (rate > 0) {
+          final taxable = double.parse((total / (1 + (rate / 100))).toStringAsFixed(2));
+          vat = double.parse((total - taxable).toStringAsFixed(2));
+        } else {
+          vat = 0.0;
+        }
       } else {
-        vat = total * (rate / 100);
+        vat = double.parse((total * (rate / 100)).toStringAsFixed(2));
       }
       
       if (!breakdown.containsKey(rate)) {
         breakdown[rate] = {'vat': 0.0, 'total': 0.0};
       }
       
-      breakdown[rate]!['vat'] = breakdown[rate]!['vat']! + vat;
-      breakdown[rate]!['total'] = breakdown[rate]!['total']! + total;
+      breakdown[rate]!['vat'] = double.parse((breakdown[rate]!['vat']! + vat).toStringAsFixed(2));
+      breakdown[rate]!['total'] = double.parse((breakdown[rate]!['total']! + total).toStringAsFixed(2));
     }
     
     return breakdown;

@@ -308,10 +308,12 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
         ..currencySymbol = 'ZK'
         ..isManagerMode = _isManagerMode
         ..serverIp = _isManagerMode ? '' : _serverIpController.text.trim()
-        ..isCloudSyncEnabled = true
-        ..cloudApiUrl = 'http://23.139.36.20:8003'
-        ..cloudStoreId = 1
-        ..cloudStoreCode = 'STORE-001'
+        ..isCloudSyncEnabled = false
+        ..cloudApiUrl = null
+        ..cloudStoreId = null
+        ..cloudStoreCode = null
+        ..digitaxApiKey = null
+        ..tpin = null
         ..recoveryCodeHash = hashPin(recoveryCode);
       
       await db.saveStoreConfig(config);

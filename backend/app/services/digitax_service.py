@@ -44,9 +44,20 @@ class DigiTaxZraService:
             unit_price = float(item.get("price_at_sale", 0.0))
             tax_rate = float(item.get("tax_rate_at_sale", 16.0))
             tax_code = item.get("zra_tax_code", "A")
+            is_inclusive = item.get("is_tax_inclusive", True)
 
-            sply_amt = unit_price * qty
-            tax_amt = sply_amt * (tax_rate / 100.0) if tax_code in ["A", "TOT"] else 0.0
+            tot_item_amt = round(unit_price * qty, 2)
+            if tax_code in ["A", "TOT"] and tax_rate > 0:
+                if is_inclusive:
+                    sply_amt = round(tot_item_amt / (1.0 + (tax_rate / 100.0)), 2)
+                    tax_amt = round(tot_item_amt - sply_amt, 2)
+                else:
+                    sply_amt = tot_item_amt
+                    tax_amt = round(tot_item_amt * (tax_rate / 100.0), 2)
+                    tot_item_amt = round(sply_amt + tax_amt, 2)
+            else:
+                sply_amt = tot_item_amt
+                tax_amt = 0.0
 
             digitax_items.append({
                 "itemSeq": idx,
@@ -64,7 +75,7 @@ class DigiTaxZraService:
                 "taxTyCd": tax_code,
                 "taxblAmt": sply_amt,
                 "taxAmt": tax_amt,
-                "totAmt": sply_amt + tax_amt,
+                "totAmt": tot_item_amt,
             })
 
         # Format payload for ZRA Smart Invoice VSDC
