@@ -47,25 +47,37 @@ class BarcodeService {
       final diff = now.difference(_lastTime).inMilliseconds;
       _lastTime = now;
 
-      // Typical scanner speed is < 50ms between characters. 
-      // If a gap is too large, it may be human typing unless the buffer is empty.
-      if (diff > 80 && _buffer.isNotEmpty) {
+      // Typical scanner speed is < 50ms between characters, but some HID scanners or OS event loops
+      // introduce 100-200ms inter-character latency.
+      if (diff > 250 && _buffer.isNotEmpty) {
         _buffer = '';
       }
 
-      if (event.logicalKey == LogicalKeyboardKey.enter) {
-        if (_buffer.isNotEmpty && _buffer.length >= 3) {
-          final code = _buffer;
+      final isEnter = event.logicalKey == LogicalKeyboardKey.enter ||
+          event.logicalKey == LogicalKeyboardKey.numpadEnter ||
+          event.character == '\n' ||
+          event.character == '\r';
+
+      if (isEnter) {
+        final cleanBuffer = _buffer.trim();
+        if (cleanBuffer.length >= 2) {
           _buffer = '';
-          _controller.add(code);
+          _controller.add(cleanBuffer);
           _playBeep();
-          debugPrint('Barcode Detected: $code');
-          return true; // We consumed the Enter key if it capped a barcode
+          debugPrint('BarcodeService: Scanned barcode detected: $cleanBuffer');
+          return true; // Consumed the enter key
         }
         _buffer = '';
       } else {
-        // Only accept alphanumeric and basic symbols for barcodes
-        final char = event.character;
+        // Extract character from event.character or keyLabel
+        String? char = event.character;
+        if (char == null || char.isEmpty) {
+          final label = event.logicalKey.keyLabel;
+          if (label.length == 1 && _isValidBarcodeChar(label)) {
+            char = label;
+          }
+        }
+
         if (char != null && _isValidBarcodeChar(char)) {
           _buffer += char;
         }

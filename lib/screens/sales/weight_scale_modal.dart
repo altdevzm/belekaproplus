@@ -46,9 +46,14 @@ class _WeightScaleModalState extends ConsumerState<WeightScaleModal> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final scaleService = ref.read(scaleServiceProvider);
       
-      // Auto-trigger read or simulation if no weight
-      if (_currentNetWeight == 0.0) {
-        scaleService.startSimulation(targetWeight: 1.250);
+      _isScaleConnected = scaleService.isConnected;
+      if (!_isManualInput && scaleService.isConnected && scaleService.currentReading.netWeight > 0) {
+        setState(() {
+          _currentNetWeight = scaleService.currentReading.netWeight;
+          _isScaleStable = scaleService.currentReading.isStable;
+          _isScaleConnected = scaleService.currentReading.isConnected;
+          _manualWeightController.text = _currentNetWeight.toStringAsFixed(3);
+        });
       }
 
       _scaleSubscription = scaleService.weightStream.listen((reading) {
@@ -213,19 +218,23 @@ class _WeightScaleModalState extends ConsumerState<WeightScaleModal> {
                               width: 8,
                               height: 8,
                               decoration: BoxDecoration(
-                                color: _isScaleStable ? const Color(0xFF059669) : const Color(0xFFD97706),
+                                color: _isScaleConnected
+                                    ? (_isScaleStable ? const Color(0xFF059669) : const Color(0xFFD97706))
+                                    : const Color(0xFF94A3B8),
                                 shape: BoxShape.circle,
                               ),
                             ),
                             const SizedBox(width: 6),
                             Text(
                               _isScaleConnected 
-                                  ? (_isScaleStable ? 'STABLE READOUT' : 'STABILIZING...') 
-                                  : 'SCALE SIMULATION MODE',
+                                  ? (_isScaleStable ? 'LIVE SCALE • STABLE' : 'LIVE SCALE • STABILIZING...') 
+                                  : 'MANUAL WEIGHT / NO HARDWARE SCALE',
                               style: GoogleFonts.jetBrainsMono(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w800,
-                                color: _isScaleStable ? const Color(0xFF059669) : const Color(0xFFD97706),
+                                color: _isScaleConnected
+                                    ? (_isScaleStable ? const Color(0xFF059669) : const Color(0xFFD97706))
+                                    : theme.colorScheme.onSurfaceVariant,
                                 letterSpacing: 1.0,
                               ),
                             ),
@@ -539,10 +548,25 @@ class _WeightScaleModalState extends ConsumerState<WeightScaleModal> {
       child: Padding(
         padding: const EdgeInsets.all(3),
         child: InkWell(
-          onTap: () {
+          onTap: () async {
             HapticFeedback.mediumImpact();
             setState(() => _isManualInput = false);
-            ref.read(scaleServiceProvider).startSimulation(targetWeight: 1.450);
+            final scaleService = ref.read(scaleServiceProvider);
+            if (scaleService.isConnected) {
+              final reading = scaleService.currentReading;
+              if (reading.netWeight > 0) {
+                setState(() {
+                  _currentNetWeight = reading.netWeight;
+                  _isScaleStable = reading.isStable;
+                  _isScaleConnected = true;
+                  _manualWeightController.text = reading.netWeight.toStringAsFixed(3);
+                });
+              }
+            } else {
+              // Attempt reconnect
+              await scaleService.connect();
+              setState(() => _isScaleConnected = scaleService.isConnected);
+            }
           },
           borderRadius: BorderRadius.circular(8),
           child: Container(

@@ -156,43 +156,106 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     }
   }
 
-  Future<void> _lookupProduct(String barcode) async {
+  Future<void> _lookupProduct(String barcode, {bool showNotFoundAlert = true}) async {
+    final cleanBarcode = barcode.trim();
+    if (cleanBarcode.isEmpty) return;
+
     final scaleService = ref.read(scaleServiceProvider);
-    final scaleBarcodeResult = scaleService.parseScaleBarcode(barcode);
+    final scaleBarcodeResult = scaleService.parseScaleBarcode(cleanBarcode);
     final db = ref.read(databaseServiceProvider);
     
+    // A. Handle Embedded Weight Scale Barcodes (e.g. 2000123014502)
     if (scaleBarcodeResult != null) {
-      // Find product matching the PLU code or SKU prefix
       final products = await db.getAllProducts();
       final matchedProduct = products.where((p) => 
-        p.isWeighted && (p.scalePlu == scaleBarcodeResult.pluCode || p.sku == scaleBarcodeResult.pluCode || p.sku == barcode)
+        !p.isArchived && p.isWeighted && (p.scalePlu == scaleBarcodeResult.pluCode || p.sku == scaleBarcodeResult.pluCode || p.sku == cleanBarcode)
       ).firstOrNull;
 
       if (matchedProduct != null) {
         final cartNotifier = ref.read(cartProvider.notifier);
-        cartNotifier.addWeightedProduct(
+        final success = cartNotifier.addWeightedProduct(
           matchedProduct,
           weight: scaleBarcodeResult.weightInKg,
           tareWeight: matchedProduct.tareWeight,
         );
         if (mounted) {
-          HapticFeedback.mediumImpact();
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Added ${matchedProduct.name} (${scaleBarcodeResult.weightInKg.toStringAsFixed(3)} kg)'),
-              backgroundColor: const Color(0xFF10B981),
-              duration: const Duration(milliseconds: 1500),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
+          if (success) {
+            HapticFeedback.mediumImpact();
+            _searchController.clear();
+            setState(() {});
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Added ${matchedProduct.name} (${scaleBarcodeResult.weightInKg.toStringAsFixed(3)} kg) to cart'),
+                backgroundColor: const Color(0xFF10B981),
+                duration: const Duration(milliseconds: 1500),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Cannot add item: ${matchedProduct.name} is currently out of stock'),
+                backgroundColor: Colors.orange,
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
         }
         return;
       }
     }
 
-    final product = await db.getProductBySku(barcode);
+    // B. Exact SKU Match from Database
+    var product = await db.getProductBySku(cleanBarcode);
+
+    // C. Case-Insensitive SKU / Scale PLU / Exact Name Match
+    if (product == null) {
+      final allProducts = await db.getAllProducts();
+      final lower = cleanBarcode.toLowerCase();
+      product = allProducts.where((p) =>
+        !p.isArchived && (
+          p.sku.toLowerCase() == lower ||
+          (p.scalePlu != null && p.scalePlu!.toLowerCase() == lower) ||
+          p.name.toLowerCase() == lower
+        )
+      ).firstOrNull;
+    }
+
     if (product != null) {
-      _handleProductSelection(product);
+      _searchController.clear();
+      setState(() {});
+      await _handleProductSelection(product);
+      return;
+    }
+
+    // D. Single Filtered Search Fallback
+    final allProducts = await db.getAllProducts();
+    final filtered = _getFilteredProducts(allProducts);
+    if (filtered.length == 1) {
+      _searchController.clear();
+      setState(() {});
+      await _handleProductSelection(filtered.first);
+      return;
+    }
+
+    // E. Alert User if Barcode is Unrecognized
+    if (mounted && showNotFoundAlert) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.qr_code_scanner_rounded, color: Colors.white, size: 20),
+              const SizedBox(width: 10),
+              Expanded(child: Text('Product not found for barcode: "$cleanBarcode"')),
+            ],
+          ),
+          backgroundColor: const Color(0xFFDC2626),
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 
@@ -431,13 +494,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                   controller: _searchController,
                   focusNode: _searchFocusNode,
                   onChanged: (_) => setState(() {}),
-                  onSubmitted: (_) {
-                    if (filteredProducts.length == 1) {
-                      _handleProductSelection(filteredProducts.first);
-                      _searchController.clear();
-                      setState(() {});
-                    }
-                  },
+                  onSubmitted: (val) => _lookupProduct(val),
                   style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface),
                   decoration: _searchInputDecoration(context),
                 ),
@@ -960,13 +1017,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                   controller: _searchController,
                   focusNode: _searchFocusNode,
                   onChanged: (_) => setState(() {}),
-                  onSubmitted: (_) {
-                    if (filteredProducts.length == 1) {
-                      _handleProductSelection(filteredProducts.first);
-                      _searchController.clear();
-                      setState(() {});
-                    }
-                  },
+                  onSubmitted: (val) => _lookupProduct(val),
                   style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface),
                   decoration: _searchInputDecoration(context),
                 ),
@@ -1201,13 +1252,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                     controller: _searchController,
                     focusNode: _searchFocusNode,
                     onChanged: (_) => setState(() {}),
-                    onSubmitted: (_) {
-                      if (filteredProducts.length == 1) {
-                        _handleProductSelection(filteredProducts.first);
-                        _searchController.clear();
-                        setState(() {});
-                      }
-                    },
+                    onSubmitted: (val) => _lookupProduct(val),
                     style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface),
                     decoration: InputDecoration(
                       hintText: 'Search product or SKU...',

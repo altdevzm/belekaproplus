@@ -20,17 +20,18 @@ class _ScaleSettingsModalState extends ConsumerState<ScaleSettingsModal> {
   late TextEditingController _defaultTareController;
   late String _scaleProtocol;
   bool _isTesting = false;
-  ScaleWeightReading? _testReading;
+  bool _isScanning = false;
+  ScaleTestResult? _testResult;
+  List<ScalePortInfo> _discoveredPorts = [];
 
   final List<String> _commonPorts = [
+    '/dev/ttyUSB0',
+    '/dev/ttyACM0',
     'COM1',
     'COM2',
     'COM3',
     'COM4',
-    '/dev/ttyUSB0',
-    '/dev/ttyACM0',
     '127.0.0.1:9001',
-    'localhost:9001',
   ];
 
   final List<Map<String, String>> _protocols = [
@@ -52,6 +53,10 @@ class _ScaleSettingsModalState extends ConsumerState<ScaleSettingsModal> {
     _defaultTareController = TextEditingController(text: (config?.defaultTareWeight ?? 0.0).toStringAsFixed(3));
     final rawProtocol = config?.scaleProtocol.trim();
     _scaleProtocol = (_protocols.any((p) => p['id'] == rawProtocol)) ? rawProtocol! : 'generic';
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scanPorts();
+    });
   }
 
   @override
@@ -62,26 +67,92 @@ class _ScaleSettingsModalState extends ConsumerState<ScaleSettingsModal> {
     super.dispose();
   }
 
+  Future<void> _scanPorts() async {
+    if (!mounted) return;
+    setState(() => _isScanning = true);
+    try {
+      final scaleService = ref.read(scaleServiceProvider);
+      final ports = await scaleService.scanAvailablePorts();
+      if (mounted) {
+        setState(() {
+          _discoveredPorts = ports;
+          _isScanning = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isScanning = false);
+    }
+  }
+
+  Future<void> _autoDetectScale() async {
+    setState(() => _isScanning = true);
+    final scaleService = ref.read(scaleServiceProvider);
+    final detected = await scaleService.autoDetectScale();
+    if (mounted) {
+      setState(() => _isScanning = false);
+      if (detected != null) {
+        _portController.text = detected.path;
+        HapticFeedback.mediumImpact();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Auto-detected scale device: ${detected.label} (${detected.path})'),
+            backgroundColor: const Color(0xFF10B981),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No active USB/Serial scale port detected. Check physical connection.'),
+            backgroundColor: Colors.orange,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _testScale() async {
     setState(() {
       _isTesting = true;
-      _testReading = null;
+      _testResult = null;
     });
 
     final scaleService = ref.read(scaleServiceProvider);
-    await scaleService.connect(
+    final baud = int.tryParse(_baudRateController.text) ?? 9600;
+    
+    final result = await scaleService.testScaleCommunication(
       port: _portController.text.trim(),
-      baudRate: int.tryParse(_baudRateController.text) ?? 9600,
+      baudRate: baud,
       protocol: _scaleProtocol,
     );
 
-    scaleService.startSimulation(targetWeight: 1.750);
-
-    await Future.delayed(const Duration(milliseconds: 1500));
     if (mounted) {
       setState(() {
         _isTesting = false;
-        _testReading = scaleService.currentReading;
+        _testResult = result;
+      });
+    }
+  }
+
+  Future<void> _testWithSimulator() async {
+    setState(() {
+      _isTesting = true;
+      _testResult = null;
+    });
+
+    final scaleService = ref.read(scaleServiceProvider);
+    scaleService.startSimulation(targetWeight: 1.450);
+
+    await Future.delayed(const Duration(milliseconds: 1600));
+    if (mounted) {
+      setState(() {
+        _isTesting = false;
+        _testResult = ScaleTestResult(
+          success: true,
+          message: 'Demo Simulation: 1.450 KG (Stable)',
+          reading: scaleService.currentReading,
+        );
       });
     }
   }
@@ -100,7 +171,6 @@ class _ScaleSettingsModalState extends ConsumerState<ScaleSettingsModal> {
       await db.saveStoreConfig(config);
       ref.invalidate(storeConfigProvider);
 
-      // Reconnect scale service with updated configuration
       final scaleService = ref.read(scaleServiceProvider);
       await scaleService.connect(
         port: config.scalePort,
@@ -135,7 +205,7 @@ class _ScaleSettingsModalState extends ConsumerState<ScaleSettingsModal> {
         side: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
       ),
       child: Container(
-        width: 540,
+        width: 580,
         constraints: BoxConstraints(
           maxHeight: MediaQuery.of(context).size.height * 0.9,
         ),
@@ -145,7 +215,6 @@ class _ScaleSettingsModalState extends ConsumerState<ScaleSettingsModal> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Header
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -187,7 +256,6 @@ class _ScaleSettingsModalState extends ConsumerState<ScaleSettingsModal> {
               Divider(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0), height: 1),
               const SizedBox(height: 16),
 
-              // Enable Scale Switch Card
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: BoxDecoration(
@@ -225,7 +293,53 @@ class _ScaleSettingsModalState extends ConsumerState<ScaleSettingsModal> {
 
               const SizedBox(height: 16),
 
-              // Port & Baud Rate Row
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF1A2234) : const Color(0xFFEFF6FF),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: isDark ? const Color(0xFF25334D) : const Color(0xFFBFDBFE)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.sensors_rounded, color: primaryColor, size: 22),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Auto-Detect Hardware Scale',
+                            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurface),
+                          ),
+                          Text(
+                            'Scan USB and serial ports for attached weighing scales',
+                            style: GoogleFonts.inter(fontSize: 10.5, color: theme.colorScheme.onSurfaceVariant),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton.icon(
+                      onPressed: _isScanning ? null : _autoDetectScale,
+                      icon: _isScanning
+                          ? const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : const Icon(Icons.refresh_rounded, size: 14),
+                      label: Text(_isScanning ? 'Scanning...' : 'Auto-Detect', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: primaryColor,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                        elevation: 0,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
               Row(
                 children: [
                   Expanded(
@@ -234,7 +348,7 @@ class _ScaleSettingsModalState extends ConsumerState<ScaleSettingsModal> {
                       context: context,
                       controller: _portController,
                       label: 'SERIAL PORT / SOCKET BRIDGE',
-                      hint: 'e.g. COM1, COM3, /dev/ttyUSB0',
+                      hint: 'e.g. /dev/ttyUSB0, COM1, 127.0.0.1:9001',
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -253,37 +367,93 @@ class _ScaleSettingsModalState extends ConsumerState<ScaleSettingsModal> {
 
               const SizedBox(height: 10),
 
-              // Quick Port Preset Pills
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: _commonPorts.map((p) {
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 6),
-                      child: InkWell(
-                        onTap: () => setState(() => _portController.text = p),
-                        borderRadius: BorderRadius.circular(6),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                          decoration: BoxDecoration(
-                            color: isDark ? const Color(0xFF1C283D) : const Color(0xFFF8FAFC),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
-                          ),
-                          child: Text(
-                            p,
-                            style: GoogleFonts.inter(fontSize: 11, color: theme.colorScheme.onSurfaceVariant, fontWeight: FontWeight.w600),
-                          ),
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'PORT PRESETS & DISCOVERED DEVICES',
+                    style: GoogleFonts.inter(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.5,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        ..._discoveredPorts.map((p) {
+                          final isSelected = _portController.text.trim() == p.path;
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 6),
+                            child: InkWell(
+                              onTap: () => setState(() => _portController.text = p.path),
+                              borderRadius: BorderRadius.circular(6),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                decoration: BoxDecoration(
+                                  color: isSelected
+                                      ? primaryColor.withValues(alpha: 0.2)
+                                      : (isDark ? const Color(0xFF1C283D) : const Color(0xFFF8FAFC)),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(
+                                    color: isSelected ? primaryColor : (isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      p.type == 'serial_usb' ? Icons.usb_rounded : Icons.settings_input_hdmi_rounded,
+                                      size: 12,
+                                      color: isSelected ? primaryColor : theme.colorScheme.onSurfaceVariant,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      p.label,
+                                      style: GoogleFonts.inter(
+                                        fontSize: 11,
+                                        color: isSelected ? primaryColor : theme.colorScheme.onSurface,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        }),
+                        ..._commonPorts.where((p) => !_discoveredPorts.any((dp) => dp.path == p)).map((p) {
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 6),
+                            child: InkWell(
+                              onTap: () => setState(() => _portController.text = p),
+                              borderRadius: BorderRadius.circular(6),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                decoration: BoxDecoration(
+                                  color: isDark ? const Color(0xFF1C283D) : const Color(0xFFF8FAFC),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+                                ),
+                                child: Text(
+                                  p,
+                                  style: GoogleFonts.inter(fontSize: 11, color: theme.colorScheme.onSurfaceVariant, fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                            ),
+                          );
+                        }),
+                      ],
+                    ),
+                  ),
+                ],
               ),
 
               const SizedBox(height: 16),
 
-              // Scale Protocol Selector
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -330,55 +500,85 @@ class _ScaleSettingsModalState extends ConsumerState<ScaleSettingsModal> {
 
               const SizedBox(height: 16),
 
-              // Test Scale Connection Card
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   color: isDark ? const Color(0xFF1C283D) : const Color(0xFFF8FAFC),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+                  border: Border.all(
+                    color: _testResult != null
+                        ? (_testResult!.success ? const Color(0xFF059669) : const Color(0xFFDC2626))
+                        : (isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+                  ),
                 ),
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _testReading != null
-                                ? 'LIVE: ${_testReading!.netWeight.toStringAsFixed(3)} ${_testReading!.unit.toUpperCase()}'
-                                : 'SCALE TEST & DIAGNOSTIC',
-                            style: GoogleFonts.inter(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
-                              color: _testReading != null ? const Color(0xFF059669) : theme.colorScheme.onSurface,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _testResult != null
+                                    ? (_testResult!.success ? 'SCALE RESPONDING' : 'SCALE NOT DETECTED')
+                                    : 'SCALE TEST & DIAGNOSTIC',
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                  color: _testResult != null
+                                      ? (_testResult!.success ? const Color(0xFF059669) : const Color(0xFFDC2626))
+                                      : theme.colorScheme.onSurface,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                _testResult != null
+                                    ? _testResult!.message
+                                    : 'Listen to hardware stream on ${_portController.text.trim()}',
+                                style: GoogleFonts.inter(
+                                  fontSize: 11,
+                                  color: _testResult != null && !_testResult!.success
+                                      ? const Color(0xFFDC2626)
+                                      : theme.colorScheme.onSurfaceVariant,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 2),
-                          Text(
-                            _testReading != null ? 'Status: Stable • Connected' : 'Verify communication with scale driver',
-                            style: GoogleFonts.inter(fontSize: 11, color: theme.colorScheme.onSurfaceVariant),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton.icon(
+                          onPressed: _isTesting ? null : _testScale,
+                          icon: _isTesting
+                              ? const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                              : const Icon(Icons.play_arrow_rounded, size: 16),
+                          label: Text(_isTesting ? 'Listening...' : 'Test Port', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: primaryColor,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            elevation: 0,
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 8),
-                    ElevatedButton.icon(
-                      onPressed: _isTesting ? null : _testScale,
-                      icon: _isTesting
-                          ? const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                          : const Icon(Icons.play_arrow_rounded, size: 16),
-                      label: Text(_isTesting ? 'Testing...' : 'Test Scale', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: primaryColor,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        elevation: 0,
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        onPressed: _isTesting ? null : _testWithSimulator,
+                        icon: const Icon(Icons.smart_toy_rounded, size: 13),
+                        label: const Text('Test with Simulator (Demo)'),
+                        style: TextButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                          textStyle: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600),
+                        ),
                       ),
                     ),
                   ],
@@ -387,7 +587,6 @@ class _ScaleSettingsModalState extends ConsumerState<ScaleSettingsModal> {
 
               const SizedBox(height: 20),
 
-              // Save Button
               SizedBox(
                 height: 44,
                 child: ElevatedButton(
