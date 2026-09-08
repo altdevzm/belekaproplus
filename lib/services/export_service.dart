@@ -4648,4 +4648,416 @@ class ExportService {
       await _saveFile(bytes, 'Branch_Daily_${branch.code}_${DateFormat('ddMMyyyy').format(now)}.pdf', extensions: ['pdf']);
     }
   }
+
+  /// Export or Print Comprehensive Branch Performance, Profitability & Inventory Audit Report (PDF)
+  Future<void> exportBranchComprehensiveReportToPdf({
+    required StoreBranch branch,
+    required String periodLabel,
+    required DateTime startDate,
+    required DateTime endDate,
+    required List<SaleTransaction> transactions,
+    required List<Expense> expenses,
+    required List<StockMovement> stockMovements,
+    required List<Product> products,
+    StoreConfig? config,
+    bool printDirectly = false,
+  }) async {
+    final pdf = pw.Document();
+    final brandColor = _getBrandColor(config);
+    final logoImage = await _loadLogoImage(config);
+    final currency = config?.currencySymbol ?? 'K';
+    final now = DateTime.now();
+    final dateFmt = DateFormat('dd MMM yyyy');
+
+    // 1. Sales metrics
+    double grossSales = 0.0;
+    double refundsAndVoids = 0.0;
+    double discountsGiven = 0.0;
+    double cogs = 0.0;
+    double cashSales = 0.0;
+    double cardSales = 0.0;
+    double momoSales = 0.0;
+    double creditSales = 0.0;
+    int completedTxCount = 0;
+    int refundTxCount = 0;
+
+    // Fast-moving & items sold calculation
+    final Map<int, Map<String, dynamic>> productSalesMap = {};
+
+    for (final tx in transactions) {
+      if (tx.status == 'refunded' || tx.isCreditNote) {
+        refundTxCount++;
+        refundsAndVoids += tx.totalAmount.abs();
+      } else {
+        completedTxCount++;
+        grossSales += tx.totalAmount;
+        discountsGiven += tx.discountAmount;
+        cogs += tx.totalCost;
+
+        final method = tx.paymentMethod.toLowerCase();
+        if (method.contains('cash')) {
+          cashSales += tx.totalAmount;
+        } else if (method.contains('airtel') || method.contains('mtn') || method.contains('momo') || method.contains('money') || method.contains('zamtel')) {
+          momoSales += tx.totalAmount;
+        } else if (method.contains('credit') || method.contains('invoice') || method.contains('acc')) {
+          creditSales += tx.totalAmount;
+        } else {
+          cardSales += tx.totalAmount;
+        }
+
+        // Aggregate items sold
+        for (final item in tx.items) {
+          final pid = item.productId;
+          if (!productSalesMap.containsKey(pid)) {
+            productSalesMap[pid] = {
+              'name': item.productName,
+              'qty': 0,
+              'revenue': 0.0,
+            };
+          }
+          productSalesMap[pid]!['qty'] = (productSalesMap[pid]!['qty'] as int) + item.quantity;
+          productSalesMap[pid]!['revenue'] = (productSalesMap[pid]!['revenue'] as double) + (item.priceAtSale * item.quantity);
+        }
+      }
+    }
+
+    final double netSales = (grossSales - refundsAndVoids).clamp(0.0, double.infinity);
+    final double grossProfit = (netSales - cogs);
+    final double grossProfitMargin = netSales > 0 ? (grossProfit / netSales * 100) : 0.0;
+    final double avgTxValue = completedTxCount > 0 ? (netSales / completedTxCount) : 0.0;
+
+    // 2. Profitability & Expenses
+    final double totalBranchExpenses = expenses.fold(0.0, (sum, e) => sum + e.amount);
+    final double netProfitEstimate = grossProfit - totalBranchExpenses;
+    final double netProfitMargin = netSales > 0 ? (netProfitEstimate / netSales * 100) : 0.0;
+
+    // Expenses breakdown by category
+    final Map<String, double> expensesByCategory = {};
+    for (final exp in expenses) {
+      expensesByCategory[exp.category] = (expensesByCategory[exp.category] ?? 0.0) + exp.amount;
+    }
+
+    // 3. Inventory metrics
+    int totalItemsSold = 0;
+    for (final p in productSalesMap.values) {
+      totalItemsSold += (p['qty'] as int);
+    }
+
+    double currentStockCostVal = 0.0;
+    double currentStockRetailVal = 0.0;
+    int lowStockCount = 0;
+    int outOfStockCount = 0;
+
+    for (final prod in products) {
+      if (!prod.isArchived) {
+        final qty = prod.stockLevel;
+        currentStockCostVal += (qty * prod.unitCost);
+        currentStockRetailVal += (qty * prod.price);
+        if (qty <= 0) {
+          outOfStockCount++;
+        } else if (qty < 10) {
+          lowStockCount++;
+        }
+      }
+    }
+
+    // Stock movements metrics
+    int stockReceivedQty = 0;
+    double stockReceivedCost = 0.0;
+    int stockTransferredInQty = 0;
+    int stockTransferredOutQty = 0;
+    int stockDamagedExpiredQty = 0;
+    double stockDamagedExpiredCost = 0.0;
+    int stockAdjustmentsQty = 0;
+
+    for (final sm in stockMovements) {
+      final rCat = sm.reasonCategory.toLowerCase();
+      final act = sm.actionType.toUpperCase();
+
+      if (rCat.contains('restock') || rCat.contains('purchase') || rCat.contains('received')) {
+        stockReceivedQty += sm.quantityChanged;
+        stockReceivedCost += sm.totalCostImpact > 0 ? sm.totalCostImpact : (sm.quantityChanged * sm.unitCost);
+      } else if (rCat.contains('transfer in')) {
+        stockTransferredInQty += sm.quantityChanged;
+      } else if (rCat.contains('transfer out')) {
+        stockTransferredOutQty += sm.quantityChanged;
+      } else if (rCat.contains('damage') || rCat.contains('broken') || rCat.contains('expired') || rCat.contains('theft') || rCat.contains('loss')) {
+        stockDamagedExpiredQty += sm.quantityChanged;
+        stockDamagedExpiredCost += sm.totalCostImpact > 0 ? sm.totalCostImpact : (sm.quantityChanged * sm.unitCost);
+      } else if (act == 'RECOUNT' || rCat.contains('shrinkage') || rCat.contains('audit') || rCat.contains('adjustment')) {
+        stockAdjustmentsQty += sm.quantityChanged;
+      }
+    }
+
+    // Sort fast-moving items
+    final sortedFastMoving = productSalesMap.entries.toList()
+      ..sort((a, b) => (b.value['qty'] as int).compareTo(a.value['qty'] as int));
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(28),
+        build: (pw.Context context) {
+          return [
+            _buildDocumentHeader(
+              config,
+              title: 'HEADQUARTERS BRANCH AUDIT & PERFORMANCE REPORT',
+              brandColor: brandColor,
+              logoImage: logoImage,
+            ),
+            pw.SizedBox(height: 10),
+
+            // Branch Details Header
+            pw.Container(
+              padding: const pw.EdgeInsets.all(10),
+              decoration: pw.BoxDecoration(
+                color: PdfColors.grey100,
+                borderRadius: const pw.BorderRadius.all(pw.Radius.circular(6)),
+                border: pw.Border.all(color: PdfColors.grey300),
+              ),
+              child: pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text('BRANCH: ${branch.name.toUpperCase()}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11)),
+                      pw.Text('Branch Code: ${branch.code} | DigiTax bhfId: ${branch.bhfId}', style: const pw.TextStyle(fontSize: 8.5)),
+                      pw.Text('Manager: ${branch.managerName ?? "Unassigned"} (${branch.managerPhone ?? "No contact"})', style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: brandColor)),
+                      pw.Text('Address: ${branch.address ?? "Not specified"}', style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700)),
+                    ],
+                  ),
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.end,
+                    children: [
+                      pw.Text('Audit Period: $periodLabel', style: pw.TextStyle(fontSize: 9.5, fontWeight: pw.FontWeight.bold, color: brandColor)),
+                      pw.Text('${dateFmt.format(startDate)} - ${dateFmt.format(endDate)}', style: const pw.TextStyle(fontSize: 8.5)),
+                      pw.Text('Generated: ${DateFormat('dd MMM yyyy, HH:mm').format(now)}', style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700)),
+                      pw.Text('Status: ${branch.status} • Fiscal: ${branch.zraStatus}', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: PdfColors.green800)),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            pw.SizedBox(height: 14),
+
+            // Section 1: Sales Performance
+            pw.Container(
+              padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: pw.BoxDecoration(color: brandColor, borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4))),
+              child: pw.Text('1. SALES PERFORMANCE', style: pw.TextStyle(color: PdfColors.white, fontWeight: pw.FontWeight.bold, fontSize: 9.5)),
+            ),
+            pw.SizedBox(height: 6),
+            pw.Table(
+              border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
+              children: [
+                pw.TableRow(
+                  decoration: const pw.BoxDecoration(color: PdfColors.grey100),
+                  children: [
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Gross Sales', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Discounts Given', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Refunds / Voids', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('NET SALES', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Transactions', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Avg Ticket (ATV)', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold))),
+                  ],
+                ),
+                pw.TableRow(
+                  children: [
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('$currency ${grossSales.toStringAsFixed(2)}', style: const pw.TextStyle(fontSize: 8))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('$currency ${discountsGiven.toStringAsFixed(2)}', style: const pw.TextStyle(fontSize: 8))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('-$currency ${refundsAndVoids.toStringAsFixed(2)}', style: const pw.TextStyle(fontSize: 8, color: PdfColors.red800))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('$currency ${netSales.toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: PdfColors.green900))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('$completedTxCount ($refundTxCount ret)', style: const pw.TextStyle(fontSize: 8))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('$currency ${avgTxValue.toStringAsFixed(2)}', style: const pw.TextStyle(fontSize: 8))),
+                  ],
+                ),
+              ],
+            ),
+            pw.SizedBox(height: 6),
+            pw.Text('Payment Channel Breakdown:', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+            pw.SizedBox(height: 3),
+            pw.Table(
+              border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
+              children: [
+                pw.TableRow(
+                  decoration: const pw.BoxDecoration(color: PdfColors.grey50),
+                  children: [
+                    pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('Cash Sales: $currency ${cashSales.toStringAsFixed(2)} (${netSales > 0 ? (cashSales / netSales * 100).toStringAsFixed(1) : "0"}%)', style: const pw.TextStyle(fontSize: 7.5))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('Card/POS: $currency ${cardSales.toStringAsFixed(2)} (${netSales > 0 ? (cardSales / netSales * 100).toStringAsFixed(1) : "0"}%)', style: const pw.TextStyle(fontSize: 7.5))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('Mobile Money: $currency ${momoSales.toStringAsFixed(2)} (${netSales > 0 ? (momoSales / netSales * 100).toStringAsFixed(1) : "0"}%)', style: const pw.TextStyle(fontSize: 7.5))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('Credit/Invoice: $currency ${creditSales.toStringAsFixed(2)} (${netSales > 0 ? (creditSales / netSales * 100).toStringAsFixed(1) : "0"}%)', style: const pw.TextStyle(fontSize: 7.5))),
+                  ],
+                ),
+              ],
+            ),
+            pw.SizedBox(height: 12),
+
+            // Section 2: Profitability
+            pw.Container(
+              padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: pw.BoxDecoration(color: brandColor, borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4))),
+              child: pw.Text('2. PROFITABILITY & EXPENSE STATEMENT', style: pw.TextStyle(color: PdfColors.white, fontWeight: pw.FontWeight.bold, fontSize: 9.5)),
+            ),
+            pw.SizedBox(height: 6),
+            pw.Table(
+              border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
+              children: [
+                pw.TableRow(
+                  decoration: const pw.BoxDecoration(color: PdfColors.grey100),
+                  children: [
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Cost of Goods (COGS)', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Gross Profit', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Gross Margin %', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Branch Expenses', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('NET PROFIT ESTIMATE', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Net Margin %', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold))),
+                  ],
+                ),
+                pw.TableRow(
+                  children: [
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('$currency ${cogs.toStringAsFixed(2)}', style: const pw.TextStyle(fontSize: 8))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('$currency ${grossProfit.toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('${grossProfitMargin.toStringAsFixed(1)}%', style: const pw.TextStyle(fontSize: 8))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('$currency ${totalBranchExpenses.toStringAsFixed(2)}', style: const pw.TextStyle(fontSize: 8, color: PdfColors.orange800))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('$currency ${netProfitEstimate.toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: netProfitEstimate >= 0 ? PdfColors.green900 : PdfColors.red800))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('${netProfitMargin.toStringAsFixed(1)}%', style: const pw.TextStyle(fontSize: 8))),
+                  ],
+                ),
+              ],
+            ),
+            if (expensesByCategory.isNotEmpty) ...[
+              pw.SizedBox(height: 6),
+              pw.Text('Allocated Branch Expenses by Category:', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+              pw.SizedBox(height: 3),
+              pw.Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                children: expensesByCategory.entries.map((e) => pw.Text('${e.key}: $currency ${e.value.toStringAsFixed(2)}', style: const pw.TextStyle(fontSize: 7.5, color: PdfColors.grey800))).toList(),
+              ),
+            ],
+            pw.SizedBox(height: 12),
+
+            // Section 3: Inventory
+            pw.Container(
+              padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: pw.BoxDecoration(color: brandColor, borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4))),
+              child: pw.Text('3. INVENTORY VALUATION & STOCK MOVEMENTS', style: pw.TextStyle(color: PdfColors.white, fontWeight: pw.FontWeight.bold, fontSize: 9.5)),
+            ),
+            pw.SizedBox(height: 6),
+            pw.Table(
+              border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
+              children: [
+                pw.TableRow(
+                  decoration: const pw.BoxDecoration(color: PdfColors.grey100),
+                  children: [
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Stock Value (Cost)', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Stock Value (Retail)', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Units Sold', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Low Stock Items', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Out of Stock Items', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold))),
+                  ],
+                ),
+                pw.TableRow(
+                  children: [
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('$currency ${currentStockCostVal.toStringAsFixed(2)}', style: const pw.TextStyle(fontSize: 8))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('$currency ${currentStockRetailVal.toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('$totalItemsSold units', style: const pw.TextStyle(fontSize: 8))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('$lowStockCount products', style: const pw.TextStyle(fontSize: 8, color: PdfColors.orange800))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('$outOfStockCount products', style: const pw.TextStyle(fontSize: 8, color: PdfColors.red800))),
+                  ],
+                ),
+              ],
+            ),
+            pw.SizedBox(height: 6),
+            pw.Table(
+              border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
+              children: [
+                pw.TableRow(
+                  decoration: const pw.BoxDecoration(color: PdfColors.grey50),
+                  children: [
+                    pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('Received: $stockReceivedQty units ($currency ${stockReceivedCost.toStringAsFixed(2)})', style: const pw.TextStyle(fontSize: 7.5))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('Transfers: In $stockTransferredInQty | Out $stockTransferredOutQty units', style: const pw.TextStyle(fontSize: 7.5))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('Damaged/Expired: $stockDamagedExpiredQty units ($currency ${stockDamagedExpiredCost.toStringAsFixed(2)})', style: const pw.TextStyle(fontSize: 7.5, color: PdfColors.red800))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('Audit Adjustments: $stockAdjustmentsQty units', style: const pw.TextStyle(fontSize: 7.5))),
+                  ],
+                ),
+              ],
+            ),
+            pw.SizedBox(height: 8),
+
+            // Top Fast-Moving Products
+            if (sortedFastMoving.isNotEmpty) ...[
+              pw.Text('Top Fast-Moving Products (by Quantity Sold):', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+              pw.SizedBox(height: 3),
+              pw.Table(
+                border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
+                children: [
+                  pw.TableRow(
+                    decoration: const pw.BoxDecoration(color: PdfColors.grey100),
+                    children: [
+                      pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('#', style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold))),
+                      pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('Product Name', style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold))),
+                      pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('Units Sold', textAlign: pw.TextAlign.right, style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold))),
+                      pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('Revenue ($currency)', textAlign: pw.TextAlign.right, style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold))),
+                    ],
+                  ),
+                  ...sortedFastMoving.take(5).map((entry) {
+                    final rank = sortedFastMoving.indexOf(entry) + 1;
+                    return pw.TableRow(
+                      children: [
+                        pw.Padding(padding: const pw.EdgeInsets.all(3.5), child: pw.Text('$rank', style: const pw.TextStyle(fontSize: 7.5))),
+                        pw.Padding(padding: const pw.EdgeInsets.all(3.5), child: pw.Text(entry.value['name'] as String, style: const pw.TextStyle(fontSize: 7.5))),
+                        pw.Padding(padding: const pw.EdgeInsets.all(3.5), child: pw.Text(entry.value['qty'].toString(), textAlign: pw.TextAlign.right, style: const pw.TextStyle(fontSize: 7.5))),
+                        pw.Padding(padding: const pw.EdgeInsets.all(3.5), child: pw.Text((entry.value['revenue'] as double).toStringAsFixed(2), textAlign: pw.TextAlign.right, style: const pw.TextStyle(fontSize: 7.5))),
+                      ],
+                    );
+                  }),
+                ],
+              ),
+            ],
+            pw.SizedBox(height: 18),
+
+            // Signatures
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Container(width: 170, height: 1, color: PdfColors.grey600),
+                    pw.SizedBox(height: 3),
+                    pw.Text('Branch Manager Verification', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+                    pw.Text(branch.managerName ?? 'Branch Manager', style: const pw.TextStyle(fontSize: 7.5, color: PdfColors.grey700)),
+                    pw.Text('Date: ________________________', style: const pw.TextStyle(fontSize: 7.5, color: PdfColors.grey700)),
+                  ],
+                ),
+                pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Container(width: 170, height: 1, color: PdfColors.grey600),
+                    pw.SizedBox(height: 3),
+                    pw.Text('Corporate HQ / Owner Acceptance', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+                    pw.Text('Executive Audit Review', style: const pw.TextStyle(fontSize: 7.5, color: PdfColors.grey700)),
+                    pw.Text('Date: ________________________', style: const pw.TextStyle(fontSize: 7.5, color: PdfColors.grey700)),
+                  ],
+                ),
+              ],
+            ),
+          ];
+        },
+      ),
+    );
+
+    if (printDirectly) {
+      await Printing.layoutPdf(
+        onLayout: (PdfPageFormat format) async => pdf.save(),
+        name: 'HQ_Branch_Report_${branch.code}_${DateFormat('ddMMyyyy').format(now)}.pdf',
+      );
+    } else {
+      final bytes = await pdf.save();
+      await _saveFile(bytes, 'HQ_Branch_Report_${branch.code}_${DateFormat('ddMMyyyy').format(now)}.pdf', extensions: ['pdf']);
+    }
+  }
 }
+

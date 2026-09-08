@@ -61,4 +61,5 @@ innosetup-6.7.3.exe
 
 # License files (sensitive / test artifacts)
 *.lic
+*.pdf
 

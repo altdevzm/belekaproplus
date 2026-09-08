@@ -9,6 +9,7 @@ import 'package:beleka_pos/services/database_service.dart';
 import 'package:beleka_pos/services/export_service.dart';
 import 'package:beleka_pos/services/postgres_sync_service.dart';
 import 'package:beleka_pos/providers/auth_provider.dart';
+import 'package:beleka_pos/screens/branches/branch_report_screen.dart';
 
 class BranchesScreen extends ConsumerStatefulWidget {
   const BranchesScreen({super.key});
@@ -308,6 +309,21 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
                     ),
                   ),
                   const SizedBox(width: 12),
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      if (branches.isNotEmpty) {
+                        _openBranchReports(context, branches.first);
+                      }
+                    },
+                    icon: const Icon(Icons.analytics_rounded, size: 16, color: Color(0xFF2563EB)),
+                    label: Text('Branch Reports Hub', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13, color: const Color(0xFF2563EB))),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      side: const BorderSide(color: Color(0xFF2563EB)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
                   ElevatedButton.icon(
                     onPressed: () => _showAddEditBranchDialog(context, primaryColor, users),
                     icon: const Icon(Icons.add_business_rounded, size: 18),
@@ -477,7 +493,9 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
                                       icon: Icon(Icons.more_vert_rounded, size: 18, color: theme.colorScheme.onSurfaceVariant),
                                       padding: EdgeInsets.zero,
                                       onSelected: (val) async {
-                                        if (val == 'daily_report_pdf') {
+                                        if (val == 'view_reports') {
+                                          _openBranchReports(context, b);
+                                        } else if (val == 'daily_report_pdf') {
                                           _generateBranchDailyReport(context, b, printDirectly: false);
                                         } else if (val == 'daily_report_print') {
                                           _generateBranchDailyReport(context, b, printDirectly: true);
@@ -495,6 +513,17 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
                                         }
                                       },
                                       itemBuilder: (context) => [
+                                        const PopupMenuItem(
+                                          value: 'view_reports',
+                                          child: Row(
+                                            children: [
+                                              Icon(Icons.analytics_rounded, color: Color(0xFF2563EB), size: 16),
+                                              SizedBox(width: 8),
+                                              Text('Branch Reports (Sales, Profit, Stock)', style: TextStyle(fontWeight: FontWeight.bold)),
+                                            ],
+                                          ),
+                                        ),
+                                        const PopupMenuDivider(),
                                         const PopupMenuItem(
                                           value: 'daily_report_pdf',
                                           child: Row(
@@ -589,6 +618,17 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
                                 ),
                                 Row(
                                   children: [
+                                    TextButton.icon(
+                                      onPressed: () => _openBranchReports(context, b),
+                                      icon: const Icon(Icons.analytics_rounded, size: 15, color: Color(0xFF2563EB)),
+                                      label: Text('Reports', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF2563EB))),
+                                      style: TextButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                        backgroundColor: const Color(0xFF2563EB).withValues(alpha: 0.1),
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
                                     IconButton(
                                       onPressed: () => _generateBranchDailyReport(context, b, printDirectly: false),
                                       icon: const Icon(Icons.picture_as_pdf_rounded, size: 16, color: Color(0xFFDC2626)),
@@ -612,6 +652,14 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
                   ),
           ),
         ],
+      ),
+    );
+  }
+
+  void _openBranchReports(BuildContext context, StoreBranch branch) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => BranchReportScreen(initialBranch: branch),
       ),
     );
   }

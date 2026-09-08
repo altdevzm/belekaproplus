@@ -725,14 +725,16 @@ class DatabaseService {
     });
   }
 
-  Future<List<SaleTransaction>> getTodayTransactionsForBranch(String branchCode, {String? branchBhfId, String? branchName}) async {
-    final now = DateTime.now();
-    final startOfToday = DateTime(now.year, now.month, now.day);
-    final endOfToday = startOfToday.add(const Duration(days: 1));
-
-    final todaySales = await isar.saleTransactions
+  Future<List<SaleTransaction>> getTransactionsForBranchInRange(
+    String branchCode, {
+    String? branchBhfId,
+    String? branchName,
+    required DateTime start,
+    required DateTime end,
+  }) async {
+    final sales = await isar.saleTransactions
         .filter()
-        .timestampBetween(startOfToday, endOfToday)
+        .timestampBetween(start, end)
         .findAll();
 
     final branchTerminals = await isar.posTerminals
@@ -750,7 +752,7 @@ class DatabaseService {
     final bNameUpper = branchName?.trim().toUpperCase();
     final results = <SaleTransaction>[];
 
-    for (final t in todaySales) {
+    for (final t in sales) {
       final tTerm = t.terminalName?.trim().toUpperCase();
       bool matched = false;
 
@@ -772,6 +774,80 @@ class DatabaseService {
       }
     }
     return results;
+  }
+
+  Future<List<StockMovement>> getStockMovementsForBranchInRange(
+    String branchCode, {
+    String? branchName,
+    required DateTime start,
+    required DateTime end,
+  }) async {
+    final allMovements = await isar.stockMovements
+        .filter()
+        .timestampBetween(start, end)
+        .sortByTimestampDesc()
+        .findAll();
+
+    final bCodeUpper = branchCode.trim().toUpperCase();
+    final bNameUpper = branchName?.trim().toUpperCase();
+
+    return allMovements.where((m) {
+      final mCode = m.branchCode.trim().toUpperCase();
+      final mName = m.branchName?.trim().toUpperCase();
+
+      if (mCode == bCodeUpper || (bCodeUpper == '00' && (mCode.isEmpty || mCode == '00' || mCode == 'HQ'))) {
+        return true;
+      }
+      if (bNameUpper != null && bNameUpper.isNotEmpty && mName != null && (mName == bNameUpper || mName.contains(bNameUpper))) {
+        return true;
+      }
+      return false;
+    }).toList();
+  }
+
+  Future<List<Expense>> getExpensesForBranchInRange(
+    String branchName, {
+    String? branchCode,
+    required DateTime start,
+    required DateTime end,
+  }) async {
+    final allExpenses = await isar.expenses
+        .filter()
+        .expenseDateBetween(start, end)
+        .sortByExpenseDateDesc()
+        .findAll();
+
+    final bNameUpper = branchName.trim().toUpperCase();
+    final bCodeUpper = branchCode?.trim().toUpperCase();
+
+    return allExpenses.where((e) {
+      final eBranch = e.branch.trim().toUpperCase();
+      if (eBranch == bNameUpper || eBranch.contains(bNameUpper)) {
+        return true;
+      }
+      if (bCodeUpper != null && bCodeUpper.isNotEmpty && eBranch.contains(bCodeUpper)) {
+        return true;
+      }
+      if ((bCodeUpper == '00' || bNameUpper.contains('HQ') || bNameUpper.contains('MAIN')) &&
+          (eBranch.isEmpty || eBranch == 'MAIN BRANCH' || eBranch == 'HQ' || eBranch == 'ALL')) {
+        return true;
+      }
+      return false;
+    }).toList();
+  }
+
+  Future<List<SaleTransaction>> getTodayTransactionsForBranch(String branchCode, {String? branchBhfId, String? branchName}) async {
+    final now = DateTime.now();
+    final startOfToday = DateTime(now.year, now.month, now.day);
+    final endOfToday = startOfToday.add(const Duration(days: 1));
+
+    return getTransactionsForBranchInRange(
+      branchCode,
+      branchBhfId: branchBhfId,
+      branchName: branchName,
+      start: startOfToday,
+      end: endOfToday,
+    );
   }
 
   Future<double> getTodaySalesForBranch(String branchCode, {String? branchBhfId, String? branchName}) async {
