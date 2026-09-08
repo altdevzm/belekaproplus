@@ -131,12 +131,20 @@ class DigiTaxZraService:
                 if resp.status_code in [200, 201]:
                     data = resp.json()
                     logger.info(f"DigiTax Live API Successful for {transaction.get('transaction_uuid')}")
+                    tax_summary = data.get("sales_tax_summary") or {}
+                    vat_tax = float(tax_summary.get("tax_amount_vat") or 0.0)
+                    tot_tax = float(tax_summary.get("tax_amount_tot") or 0.0)
+                    server_tax = round(vat_tax + tot_tax, 2) if (vat_tax > 0 or tot_tax > 0) else payload.get("totTaxAmt", 0.0)
+                    server_subtotal = round(float(tax_summary.get("taxable_amount_vat") or 0.0) + float(tax_summary.get("taxable_amount_tot") or 0.0), 2) or payload.get("totTaxblAmt", 0.0)
+
                     return {
                         "status": "SUCCESS",
                         "zra_receipt_number": data.get("sdcReceiptNo") or data.get("zra_receipt_number"),
                         "zra_mark_id": data.get("vsdcMarkId") or data.get("zra_mark_id"),
                         "zra_qr_code": data.get("qrCodeUrl") or data.get("zra_qr_code"),
                         "zra_status": "APPROVED",
+                        "tax_amount": server_tax,
+                        "subtotal": server_subtotal,
                         "timestamp": time.strftime("%Y%m%d%H%M%S"),
                         "tpin": tpin,
                         "sdc_id": sdc_id
@@ -161,6 +169,8 @@ class DigiTaxZraService:
             "zra_mark_id": mark_id,
             "zra_qr_code": qr_data_url,
             "zra_status": "APPROVED",
+            "tax_amount": payload.get("totTaxAmt", 0.0),
+            "subtotal": payload.get("totTaxblAmt", 0.0),
             "timestamp": timestamp_str,
             "tpin": tpin,
             "sdc_id": sdc_id

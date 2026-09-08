@@ -65,16 +65,18 @@ def _vat_figures(db: Session, store_id: int, year: int, month: int) -> dict:
     net_sales_ex_vat = 0.0
 
     for item in items:
-        line = float(item.price_at_sale) * int(item.quantity)
+        line = round(float(item.price_at_sale) * int(item.quantity), 2)
         rate = float(item.tax_rate_at_sale or 0.0)
         gross_sales += line
         if rate > 0:
             if item.is_tax_inclusive_at_sale:
-                vat = line * rate / (100.0 + rate)
+                # DigiTax / ZRA standard line-level formula:
+                taxable_base = round(line / (1.0 + (rate / 100.0)), 2)
+                vat = round(line - taxable_base, 2)
                 output_vat += vat
-                net_sales_ex_vat += (line - vat)
+                net_sales_ex_vat += taxable_base
             else:
-                vat = line * rate / 100.0
+                vat = round(line * (rate / 100.0), 2)
                 output_vat += vat
                 net_sales_ex_vat += line
         else:
@@ -90,8 +92,9 @@ def _vat_figures(db: Session, store_id: int, year: int, month: int) -> dict:
         )
         .scalar() or 0.0
     )
-    input_vat = po_total * VAT_RATE / (100.0 + VAT_RATE)
-    net_purchases_ex_vat = po_total - input_vat
+    taxable_po = round(po_total / (1.0 + (VAT_RATE / 100.0)), 2)
+    input_vat = round(po_total - taxable_po, 2)
+    net_purchases_ex_vat = taxable_po
 
     net_vat_payable = max(0.0, output_vat - input_vat)
     vat_refund_claim = max(0.0, input_vat - output_vat)

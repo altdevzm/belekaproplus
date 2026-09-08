@@ -1019,6 +1019,21 @@ class DigiTaxInventoryService {
       final effectiveQty = (item.isWeighted && item.weight > 0)
           ? item.weight
           : item.quantity.toDouble();
+      String vatCategoryCode;
+      if (isTot) {
+        vatCategoryCode = "D";
+      } else {
+        final prodCode = (localProd?.zraTaxCode ?? '').trim().toUpperCase();
+        if (prodCode.isNotEmpty && ['A', 'B', 'C', 'D', 'E', 'TOT'].contains(prodCode)) {
+          vatCategoryCode = prodCode == 'TOT' ? 'D' : prodCode;
+        } else if (item.taxRateAtSale == 0) {
+          vatCategoryCode = 'C'; // 0% Exempt
+        } else if (item.taxRateAtSale > 0 && item.taxRateAtSale < 16.0) {
+          vatCategoryCode = 'B'; // 0% Zero-rated / reduced
+        } else {
+          vatCategoryCode = 'A'; // 16% Standard VAT
+        }
+      }
 
       digitaxItemsPayload.add({
         if (digitaxItemId != null && digitaxItemId.isNotEmpty) "item_id": digitaxItemId,
@@ -1030,8 +1045,8 @@ class DigiTaxInventoryService {
         "discount_rate": 0.0000,
         "discount_amount": 0.0000,
         "total_amount": double.parse((effectiveQty * item.priceAtSale).toStringAsFixed(4)),
-        "vat_category_code": isTot ? "D" : "A",
-        if (isTot) "tot_category_code": "TOT",
+        "vat_category_code": vatCategoryCode,
+        if (isTot || vatCategoryCode == "D") "tot_category_code": "TOT",
       });
     }
 
@@ -1088,6 +1103,11 @@ class DigiTaxInventoryService {
         if (data is! Map) return false;
 
         Map<String, dynamic> saleData = Map<String, dynamic>.from(data);
+        if (saleData['sale'] is Map) {
+          saleData = Map<String, dynamic>.from(saleData['sale']);
+        } else if (saleData['data'] is Map) {
+          saleData = Map<String, dynamic>.from(saleData['data']);
+        }
         final saleId = saleData['id']?.toString();
 
         // Helper function to extract ZRA signature across top-level and nested maps
@@ -1134,7 +1154,13 @@ class DigiTaxInventoryService {
                     final mapData = Map<String, dynamic>.from(pData);
                     final sig = extractSig(mapData);
                     if (sig != null && sig.isNotEmpty) {
-                      saleData = mapData;
+                      if (mapData['sale'] is Map) {
+                        saleData = Map<String, dynamic>.from(mapData['sale']);
+                      } else if (mapData['data'] is Map) {
+                        saleData = Map<String, dynamic>.from(mapData['data']);
+                      } else {
+                        saleData = mapData;
+                      }
                       liveSignature = sig;
                       debugPrint('DIGITAX_POLL_SUCCESS: Sale #$invoiceNo signed after $attempt attempt(s)!');
                       break;
@@ -1153,28 +1179,34 @@ class DigiTaxInventoryService {
           return false;
         }
 
-        // SDC Invoice Number (ZRA Smart Invoice format: INV1/{number})
+        // Virtual SDC Device ID (from DigiTax registration)
+        final rawSdc = saleData['sdc_id'] ?? saleData['sdcId'] ?? saleData['serial_number'];
+        String sdcId = (rawSdc != null && rawSdc.toString().trim().isNotEmpty && rawSdc.toString() != 'null')
+            ? rawSdc.toString().trim()
+            : (config?.sdcId?.isNotEmpty == true ? config!.sdcId! : '');
+
+        // SDC Invoice Number (ZRA Smart Invoice format: INV{SDC_ID}/{number})
         final rawRcpt = saleData['receipt_number'] ?? saleData['invoice_number'] ?? saleData['sdc_invoice_number'] ?? saleData['sale_number'];
         String sdcRcptNo = 'PENDING';
         if (rawRcpt != null && rawRcpt.toString().trim().isNotEmpty && rawRcpt.toString() != 'null') {
           final rcptStr = rawRcpt.toString().trim();
-          if (rcptStr.toUpperCase().startsWith('INV1/') || rcptStr.toUpperCase().startsWith('INV/') || rcptStr.toUpperCase().startsWith('CN')) {
+          if (rcptStr.toUpperCase().startsWith('INV0') || rcptStr.toUpperCase().startsWith('INV1/') || rcptStr.toUpperCase().startsWith('INV/') || rcptStr.toUpperCase().startsWith('CN')) {
             sdcRcptNo = rcptStr;
           } else {
             final cleanNum = rcptStr.replaceFirst(RegExp(r'^(INV|CN)-0*'), '').replaceFirst(RegExp(r'^(INV|CN)-'), '');
-            sdcRcptNo = 'INV1/$cleanNum';
+            final sdcClean = sdcId.replaceAll(RegExp(r'^SDC', caseSensitive: false), '');
+            sdcRcptNo = sdcClean.isNotEmpty ? 'INV$sdcClean/$cleanNum' : 'INV1/$cleanNum';
+          }
+        }
+        if (sdcId.isEmpty) {
+          final match = RegExp(r'INV(\d+)/', caseSensitive: false).firstMatch(sdcRcptNo);
+          if (match != null && match.group(1) != null && match.group(1) != '1') {
+            sdcId = 'SDC${match.group(1)}';
           }
         }
 
         // ZRA VSDC Internal Data
         final internalData = saleData['internal_data']?.toString() ?? (config?.mrcNo ?? '');
-
-        // Virtual SDC Device ID (from DigiTax registration)
-        final sdcId = (saleData['sdc_id']?.toString().isNotEmpty == true)
-            ? saleData['sdc_id'].toString()
-            : ((saleData['serial_number']?.toString().isNotEmpty == true)
-                ? saleData['serial_number'].toString()
-                : (config?.sdcId?.isNotEmpty == true ? config!.sdcId! : ''));
 
         // ZRA Verification QR URL
         final qrData = (saleData['receipt_url']?.toString().isNotEmpty == true)
@@ -1205,13 +1237,13 @@ class DigiTaxInventoryService {
           final exciseTaxable = double.tryParse((taxSummary['taxable_amount_excise'] ?? '0').toString()) ?? 0.0;
           final exciseTax = double.tryParse((taxSummary['tax_amount_excise'] ?? '0').toString()) ?? 0.0;
 
-          final serverTax = vatTax + totTax + iplTax + tlTax + exciseTax;
-          final serverSubtotal = vatTaxable + totTaxable + iplTaxable + tlTaxable + exciseTaxable;
+          final serverTax = double.parse((vatTax + totTax + iplTax + tlTax + exciseTax).toStringAsFixed(2));
+          final serverSubtotal = double.parse((vatTaxable + totTaxable + iplTaxable + tlTaxable + exciseTaxable).toStringAsFixed(2));
 
-          if (serverSubtotal > 0) {
+          if (serverSubtotal > 0 || serverTax > 0) {
             transaction.subtotal = serverSubtotal;
             transaction.taxAmount = serverTax;
-            transaction.totalAmount = serverSubtotal + serverTax;
+            transaction.totalAmount = double.parse((serverSubtotal + serverTax).toStringAsFixed(2));
           }
         }
 
@@ -2211,13 +2243,13 @@ class DigiTaxInventoryService {
             final exciseTaxable = double.tryParse((taxSummary['taxable_amount_excise'] ?? '0').toString()) ?? 0.0;
             final exciseTax = double.tryParse((taxSummary['tax_amount_excise'] ?? '0').toString()) ?? 0.0;
 
-            final serverTax = vatTax + totTax + iplTax + tlTax + exciseTax;
-            final serverSubtotal = vatTaxable + totTaxable + iplTaxable + tlTaxable + exciseTaxable;
+            final serverTax = double.parse((vatTax + totTax + iplTax + tlTax + exciseTax).toStringAsFixed(2));
+            final serverSubtotal = double.parse((vatTaxable + totTaxable + iplTaxable + tlTaxable + exciseTaxable).toStringAsFixed(2));
 
-            if (serverSubtotal > 0) {
+            if (serverSubtotal > 0 || serverTax > 0) {
               transaction.subtotal = serverSubtotal;
               transaction.taxAmount = serverTax;
-              transaction.totalAmount = serverSubtotal + serverTax;
+              transaction.totalAmount = double.parse((serverSubtotal + serverTax).toStringAsFixed(2));
             }
           }
 

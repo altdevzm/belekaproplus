@@ -91,23 +91,33 @@ def sync_batch_sales(
             )
             db.add(item)
 
+            # Resolve ZRA tax code: use value from client if provided, else look up
+            # the product record; fall back to 'C' (Exempt) if tax_rate==0 else 'A' (16%)
+            resolved_tax_code = item_in.zra_tax_code if item_in.zra_tax_code else None
+
+            # Deduct stock level in cloud PostgreSQL database and resolve tax code
+            product_rec = None
+            if item_in.product_id:
+                product_rec = db.query(models.Product).filter(
+                    models.Product.id == item_in.product_id,
+                    models.Product.store_id == payload.store_id
+                ).first()
+                if product_rec:
+                    product_rec.stock_level = max(0, product_rec.stock_level - item_in.quantity)
+                    if not resolved_tax_code:
+                        resolved_tax_code = product_rec.zra_tax_code if product_rec.zra_tax_code else None
+
+            if not resolved_tax_code:
+                resolved_tax_code = "C" if float(item_in.tax_rate_at_sale or 0) == 0 else "A"
+
             items_for_fiscal.append({
                 "product_id": item_in.product_id,
                 "product_name": item_in.product_name,
                 "price_at_sale": float(item_in.price_at_sale),
                 "quantity": item_in.quantity,
-                "zra_tax_code": "A",
+                "zra_tax_code": resolved_tax_code,
                 "tax_rate_at_sale": float(item_in.tax_rate_at_sale),
             })
-
-            # Deduct stock level in cloud PostgreSQL database
-            if item_in.product_id:
-                product = db.query(models.Product).filter(
-                    models.Product.id == item_in.product_id,
-                    models.Product.store_id == payload.store_id
-                ).first()
-                if product:
-                    product.stock_level = max(0, product.stock_level - item_in.quantity)
 
         # Auto-fiscalize via DigiTax on cloud backend if API key configured and transaction not yet fiscalized
         if store.digitax_api_key and store.digitax_api_key.strip():
@@ -131,6 +141,10 @@ def sync_batch_sales(
                     tx.zra_mark_id = res.get("zra_mark_id")
                     tx.zra_qr_code = res.get("zra_qr_code")
                     tx.zra_status = "APPROVED"
+                    if res.get("tax_amount") is not None:
+                        tx.tax_amount = res["tax_amount"]
+                    if res.get("subtotal") is not None and res["subtotal"] > 0:
+                        tx.subtotal = res["subtotal"]
             except Exception as e:
                 print(f"Backend auto-fiscalize notice for {tx.transaction_uuid}: {e}")
 

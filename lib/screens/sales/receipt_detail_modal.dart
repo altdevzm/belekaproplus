@@ -542,18 +542,29 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
     final dateFormatted = DateFormat('dd/MM/yyyy').format(widget.transaction.timestamp);
     final timeFormatted = DateFormat('HH:mm:ss').format(widget.transaction.timestamp);
     
-    String formatZraInvoiceNo(String? raw) {
+    String formatZraInvoiceNo(String? raw, {String? sdcId}) {
       if (raw == null || raw.trim().isEmpty || raw.trim() == 'PENDING' || raw.trim() == 'null') return 'PENDING';
       final trimmed = raw.trim();
-      if (trimmed.toUpperCase().startsWith('INV1/') || trimmed.toUpperCase().startsWith('INV/') || trimmed.toUpperCase().startsWith('CN')) return trimmed;
+      if (trimmed.toUpperCase().startsWith('INV0') || trimmed.toUpperCase().startsWith('INV1/') || trimmed.toUpperCase().startsWith('INV/') || trimmed.toUpperCase().startsWith('CN')) return trimmed;
       final clean = trimmed.replaceFirst(RegExp(r'^(INV|CN)-0*'), '').replaceFirst(RegExp(r'^(INV|CN)-'), '');
+      final sdcClean = (sdcId ?? '').replaceAll(RegExp(r'^SDC', caseSensitive: false), '');
+      if (sdcClean.isNotEmpty) {
+        return 'INV$sdcClean/$clean';
+      }
       return 'INV1/$clean';
     }
 
-    final sdcIdStr = (widget.transaction.zraSdcId != null && widget.transaction.zraSdcId!.isNotEmpty)
+    String sdcIdStr = (widget.transaction.zraSdcId != null && widget.transaction.zraSdcId!.isNotEmpty && widget.transaction.zraSdcId != 'PENDING')
         ? widget.transaction.zraSdcId!
-        : (config?.sdcId?.isNotEmpty == true ? config!.sdcId! : 'PENDING');
-    final sdcInvNoStr = formatZraInvoiceNo(widget.transaction.zraReceiptNumber);
+        : (config?.sdcId?.isNotEmpty == true ? config!.sdcId! : '');
+    if (sdcIdStr.isEmpty && widget.transaction.zraReceiptNumber != null) {
+      final match = RegExp(r'INV(\d+)/', caseSensitive: false).firstMatch(widget.transaction.zraReceiptNumber!);
+      if (match != null && match.group(1) != null && match.group(1) != '1') {
+        sdcIdStr = 'SDC${match.group(1)}';
+      }
+    }
+    if (sdcIdStr.isEmpty) sdcIdStr = 'PENDING';
+    final sdcInvNoStr = formatZraInvoiceNo(widget.transaction.zraReceiptNumber, sdcId: sdcIdStr);
     final signatureStr = (widget.transaction.zraMarkId != null && widget.transaction.zraMarkId!.isNotEmpty)
         ? widget.transaction.zraMarkId!
         : 'PENDING';
@@ -992,12 +1003,15 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
         final origTraderInvNo = widget.transaction.zraReceiptNumber?.isNotEmpty == true
             ? widget.transaction.zraReceiptNumber!
             : 'INV-${widget.transaction.id}';
-        final refundAmount = refundedItems.fold(0.0, (s, i) => s + (i.priceAtSale * i.quantity));
-        final refundCost = refundedItems.fold(0.0, (s, i) => s + (i.unitCostAtSale * i.quantity));
+        final refundAmount = double.parse(refundedItems.fold(0.0, (s, i) => s + (i.priceAtSale * i.quantity)).toStringAsFixed(2));
+        final refundCost = double.parse(refundedItems.fold(0.0, (s, i) => s + (i.unitCostAtSale * i.quantity)).toStringAsFixed(2));
+        final taxableRefund = double.parse((refundAmount / 1.16).toStringAsFixed(2));
+        final refundTax = double.parse((refundAmount - taxableRefund).toStringAsFixed(2));
 
         final refundTx = SaleTransaction(
           totalAmount: refundAmount,
-          taxAmount: refundAmount - (refundAmount / 1.16),
+          subtotal: taxableRefund,
+          taxAmount: refundTax,
           grossProfit: -(refundAmount - refundCost),
           paymentMethod: widget.transaction.paymentMethod,
           cashierName: widget.transaction.cashierName,

@@ -636,7 +636,7 @@ class ExportService {
                 }
                 return exportBreakdown.entries.map((entry) {
                   final letter = entry.key >= 16.0 ? 'A' : (entry.key > 0 ? 'B' : 'C');
-                  final vatFormatted = '$currency${entry.value['vat']!.toStringAsFixed(4)}';
+                  final vatFormatted = '$currency${entry.value['vat']!.toStringAsFixed(2)}';
                   final totFormatted = '$currency${entry.value['total']!.toStringAsFixed(2)}';
                   return pw.Row(
                     mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,

@@ -98,6 +98,7 @@ class SaleItemBase(BaseModel):
     quantity: int
     tax_rate_at_sale: Optional[float] = 0.0
     is_tax_inclusive_at_sale: Optional[bool] = True
+    zra_tax_code: Optional[str] = None
 
 class SaleTransactionCreate(BaseModel):
     transaction_uuid: str

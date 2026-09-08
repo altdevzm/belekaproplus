@@ -80,11 +80,15 @@ def fiscalize_transaction(
 
     result = DigiTaxZraService.fiscalize_sale_invoice(store_config, tx_dict, items_list)
 
-    # Save ZRA fiscal metadata to PostgreSQL
+    # Save ZRA fiscal metadata and server-calculated tax to PostgreSQL
     tx.zra_receipt_number = result["zra_receipt_number"]
     tx.zra_mark_id = result["zra_mark_id"]
     tx.zra_qr_code = result["zra_qr_code"]
     tx.zra_status = "APPROVED"
+    if result.get("tax_amount") is not None:
+        tx.tax_amount = result["tax_amount"]
+    if result.get("subtotal") is not None and result["subtotal"] > 0:
+        tx.subtotal = result["subtotal"]
     db.commit()
 
     return result

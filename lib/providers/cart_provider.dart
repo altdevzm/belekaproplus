@@ -34,29 +34,52 @@ class CartItem {
     return product.price;
   }
 
-  double get baseUnitPrice {
+  double get total {
+    final rawTotal = unitPrice * effectiveQuantity;
+    return double.parse(rawTotal.toStringAsFixed(2));
+  }
+
+  double get subtotal {
     if (product.isTaxInclusive) {
       if (product.taxRate > 0) {
-        return double.parse((unitPrice / (1 + (product.taxRate / 100))).toStringAsFixed(2));
+        // DigiTax / ZRA standard: supply price is rounded to 2 decimals first
+        return double.parse((total / (1 + (product.taxRate / 100))).toStringAsFixed(2));
       }
-      return unitPrice;
+      return total;
+    }
+    return total;
+  }
+
+  double get totalTax {
+    if (product.isTaxInclusive) {
+      if (product.taxRate > 0) {
+        // DigiTax / ZRA standard: tax is the exact difference between line total and supply price
+        return double.parse((total - subtotal).toStringAsFixed(2));
+      }
+      return 0.0;
+    }
+    return double.parse((total * (product.taxRate / 100)).toStringAsFixed(2));
+  }
+
+  double get baseUnitPrice {
+    if (effectiveQuantity > 0) {
+      return double.parse((subtotal / effectiveQuantity).toStringAsFixed(2));
+    }
+    if (product.isTaxInclusive && product.taxRate > 0) {
+      return double.parse((unitPrice / (1 + (product.taxRate / 100))).toStringAsFixed(2));
     }
     return unitPrice;
   }
 
   double get taxAmountPerUnit {
-    if (product.isTaxInclusive) {
-      if (product.taxRate > 0) {
-        return double.parse((unitPrice - baseUnitPrice).toStringAsFixed(2));
-      }
-      return 0.0;
+    if (effectiveQuantity > 0) {
+      return double.parse((totalTax / effectiveQuantity).toStringAsFixed(2));
+    }
+    if (product.isTaxInclusive && product.taxRate > 0) {
+      return double.parse((unitPrice - baseUnitPrice).toStringAsFixed(2));
     }
     return double.parse((unitPrice * (product.taxRate / 100)).toStringAsFixed(2));
   }
-
-  double get subtotal => double.parse((baseUnitPrice * effectiveQuantity).toStringAsFixed(2));
-  double get totalTax => double.parse((taxAmountPerUnit * effectiveQuantity).toStringAsFixed(2));
-  double get total => double.parse(((baseUnitPrice + taxAmountPerUnit) * effectiveQuantity).toStringAsFixed(2));
 
   CartItem copyWith({int? quantity, double? weight, bool? isWeighted}) {
     return CartItem(
@@ -283,16 +306,16 @@ class CartNotifier extends StateNotifier<CartState> {
     );
   }
 
-  double get subtotal => state.items.fold(0, (sum, item) => sum + item.subtotal);
-  double get tax => state.items.fold(0, (sum, item) => sum + item.totalTax);
+  double get subtotal => double.parse(state.items.fold(0.0, (sum, item) => sum + item.subtotal).toStringAsFixed(2));
+  double get tax => double.parse(state.items.fold(0.0, (sum, item) => sum + item.totalTax).toStringAsFixed(2));
   
   // Non-taxable restaurant service charge calculated on subtotal
   double get serviceChargeAmount => state.serviceChargeEnabled
-      ? (subtotal * (state.serviceChargeRate / 100))
+      ? double.parse((subtotal * (state.serviceChargeRate / 100)).toStringAsFixed(2))
       : 0.0;
 
-  double get totalBeforeDiscount => subtotal + tax + serviceChargeAmount;
-  double get total => (totalBeforeDiscount - state.discountAmount).clamp(0.0, double.infinity);
+  double get totalBeforeDiscount => double.parse((subtotal + tax + serviceChargeAmount).toStringAsFixed(2));
+  double get total => double.parse(((totalBeforeDiscount - state.discountAmount).clamp(0.0, double.infinity)).toStringAsFixed(2));
 }
 
 final cartProvider = StateNotifierProvider<CartNotifier, CartState>((ref) {

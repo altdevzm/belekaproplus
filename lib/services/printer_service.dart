@@ -924,10 +924,17 @@ class PrinterService {
       // 9. SDC / ZRA Smart Invoice Compliance Block
       final dateFormatted = DateFormat('dd/MM/yyyy').format(transaction.timestamp);
       final timeFormatted = DateFormat('HH:mm:ss').format(transaction.timestamp);
-      final sdcIdStr = (transaction.zraSdcId != null && transaction.zraSdcId!.isNotEmpty)
+      String sdcIdStr = (transaction.zraSdcId != null && transaction.zraSdcId!.isNotEmpty && transaction.zraSdcId != 'PENDING')
           ? transaction.zraSdcId!
-          : (config?.sdcId?.isNotEmpty == true ? config!.sdcId! : 'PENDING');
-      final sdcInvNoStr = _formatZraSdcInvoiceNo(transaction.zraReceiptNumber);
+          : (config?.sdcId?.isNotEmpty == true ? config!.sdcId! : '');
+      if (sdcIdStr.isEmpty && transaction.zraReceiptNumber != null) {
+        final match = RegExp(r'INV(\d+)/', caseSensitive: false).firstMatch(transaction.zraReceiptNumber!);
+        if (match != null && match.group(1) != null && match.group(1) != '1') {
+          sdcIdStr = 'SDC${match.group(1)}';
+        }
+      }
+      if (sdcIdStr.isEmpty) sdcIdStr = 'PENDING';
+      final sdcInvNoStr = _formatZraSdcInvoiceNo(transaction.zraReceiptNumber, sdcId: sdcIdStr);
       final signatureStr = (transaction.zraMarkId != null && transaction.zraMarkId!.isNotEmpty)
           ? transaction.zraMarkId!
           : 'PENDING';
@@ -1669,10 +1676,17 @@ class PrinterService {
     });
 
     // ZRA Fiscal Control Block for Star
-    final sdcIdStr = (transaction.zraSdcId != null && transaction.zraSdcId!.isNotEmpty)
+    String sdcIdStr = (transaction.zraSdcId != null && transaction.zraSdcId!.isNotEmpty && transaction.zraSdcId != 'PENDING')
         ? transaction.zraSdcId!
-        : (config?.sdcId?.isNotEmpty == true ? config!.sdcId! : 'PENDING');
-    final sdcInvNoStr = _formatZraSdcInvoiceNo(transaction.zraReceiptNumber);
+        : (config?.sdcId?.isNotEmpty == true ? config!.sdcId! : '');
+    if (sdcIdStr.isEmpty && transaction.zraReceiptNumber != null) {
+      final match = RegExp(r'INV(\d+)/', caseSensitive: false).firstMatch(transaction.zraReceiptNumber!);
+      if (match != null && match.group(1) != null && match.group(1) != '1') {
+        sdcIdStr = 'SDC${match.group(1)}';
+      }
+    }
+    if (sdcIdStr.isEmpty) sdcIdStr = 'PENDING';
+    final sdcInvNoStr = _formatZraSdcInvoiceNo(transaction.zraReceiptNumber, sdcId: sdcIdStr);
     final signatureStr = (transaction.zraMarkId != null && transaction.zraMarkId!.isNotEmpty)
         ? transaction.zraMarkId!
         : 'PENDING';
@@ -2391,15 +2405,19 @@ class PrinterService {
     }
   }
 
-  String _formatZraSdcInvoiceNo(String? raw) {
+  String _formatZraSdcInvoiceNo(String? raw, {String? sdcId}) {
     if (raw == null || raw.trim().isEmpty || raw.trim() == 'PENDING' || raw.trim() == 'null') {
       return 'PENDING';
     }
     final trimmed = raw.trim();
-    if (trimmed.toUpperCase().startsWith('INV1/') || trimmed.toUpperCase().startsWith('INV/') || trimmed.toUpperCase().startsWith('CN')) {
+    if (trimmed.toUpperCase().startsWith('INV0') || trimmed.toUpperCase().startsWith('INV1/') || trimmed.toUpperCase().startsWith('INV/') || trimmed.toUpperCase().startsWith('CN')) {
       return trimmed;
     }
     final clean = trimmed.replaceFirst(RegExp(r'^(INV|CN)-0*'), '').replaceFirst(RegExp(r'^(INV|CN)-'), '');
+    final sdcClean = (sdcId ?? '').replaceAll(RegExp(r'^SDC', caseSensitive: false), '');
+    if (sdcClean.isNotEmpty) {
+      return 'INV$sdcClean/$clean';
+    }
     return 'INV1/$clean';
   }
 }
