@@ -22,6 +22,7 @@ class LoginScreen extends ConsumerStatefulWidget {
 }
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
+  final _companyController = TextEditingController();
   final _idController = TextEditingController();
   final _pinController = TextEditingController();
   String _pin = '';
@@ -33,11 +34,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   void initState() {
     super.initState();
     _idController.addListener(_onIdChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final config = ref.read(storeConfigProvider).value;
+      final bName = config?.businessName;
+      if (bName != null && bName.isNotEmpty) {
+        if (_companyController.text.isEmpty) {
+          _companyController.text = bName;
+        }
+      }
+    });
   }
 
   @override
   void dispose() {
     _idController.removeListener(_onIdChanged);
+    _companyController.dispose();
     _idController.dispose();
     _pinController.dispose();
     super.dispose();
@@ -186,6 +197,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           baseUrl: cloudUrl,
           numericId: _idController.text.trim(),
           pin: _pin.trim(),
+          companyName: _companyController.text.trim(),
           terminalName: config?.terminalName ?? 'BRANCH-POS',
         );
 
@@ -744,6 +756,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   const SizedBox(height: 10),
                 ],
 
+                // Company / Business Name Field
+                _buildInputField(context, 'COMPANY / BUSINESS NAME', _companyController, Icons.business_outlined, 'Company, Store Name or Code'),
+                const SizedBox(height: 10),
+
                 // Staff ID Field
                 _buildInputField(context, 'EMPLOYEE ID', _idController, Icons.person_outline, 'Staff ID (e.g. 1001)'),
                 const SizedBox(height: 10),
@@ -1094,6 +1110,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 // Terminal & Network Mode Status Indicator
                 _buildTerminalBadge(context),
                 const SizedBox(height: 16),
+
+                // Company / Business Name Field
+                _buildInputField(context, 'COMPANY / BUSINESS NAME', _companyController, Icons.business_outlined, 'Company, Store Name or Code'),
+                const SizedBox(height: 12),
 
                 // Staff ID Field
                 _buildInputField(context, 'EMPLOYEE ID', _idController, Icons.person_outline, 'Staff ID or Username'),

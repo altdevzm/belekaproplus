@@ -32,17 +32,22 @@ class CloudDatabaseService {
     required String baseUrl,
     required String numericId,
     required String pin,
+    String? companyName,
     String? terminalName,
   }) async {
     try {
       final sanitizedUrl = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+      final payload = <String, dynamic>{
+        'numeric_id': numericId.trim(),
+        'pin': pin.trim(),
+        'terminal_name': terminalName ?? 'POS-TERMINAL',
+      };
+      if (companyName != null && companyName.trim().isNotEmpty) {
+        payload['company_name'] = companyName.trim();
+      }
       final response = await _dio.post(
         '$sanitizedUrl/api/v1/auth/login',
-        data: {
-          'numeric_id': numericId.trim(),
-          'pin': pin.trim(),
-          'terminal_name': terminalName ?? 'POS-TERMINAL',
-        },
+        data: payload,
       );
 
       if (response.statusCode == 200 && response.data is Map) {
