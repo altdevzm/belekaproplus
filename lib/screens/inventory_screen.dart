@@ -496,15 +496,16 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     final isDark = theme.brightness == Brightness.dark;
     final primaryColor = theme.colorScheme.primary;
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isPhone = constraints.maxWidth < 700;
+
+        final titleRow = Row(
           children: [
             Text(
               'Inventory',
               style: GoogleFonts.inter(
-                fontSize: 22,
+                fontSize: isPhone ? 18 : 22,
                 fontWeight: FontWeight.w800,
                 color: theme.colorScheme.onSurface,
               ),
@@ -519,31 +520,25 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
               ),
               child: Text(
                 '${products.length} Items',
-                style: GoogleFonts.inter(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
+                style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurfaceVariant),
               ),
             ),
           ],
-        ),
-        Row(
+        );
+
+        final actionButtons = Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          alignment: isPhone ? WrapAlignment.start : WrapAlignment.end,
           children: [
             // Export Dropdown
             PopupMenuButton<String>(
               onSelected: (value) {
                 final config = ref.read(storeConfigProvider).value;
                 switch (value) {
-                  case 'csv':
-                    ref.read(exportServiceProvider).exportInventoryToCsv(products, config: config);
-                    break;
-                  case 'excel':
-                    ref.read(exportServiceProvider).exportInventoryToExcel(products, config: config);
-                    break;
-                  case 'pdf':
-                    ref.read(exportServiceProvider).exportInventoryToPdf(products, config: config);
-                    break;
+                  case 'csv': ref.read(exportServiceProvider).exportInventoryToCsv(products, config: config); break;
+                  case 'excel': ref.read(exportServiceProvider).exportInventoryToExcel(products, config: config); break;
+                  case 'pdf': ref.read(exportServiceProvider).exportInventoryToPdf(products, config: config); break;
                 }
               },
               itemBuilder: (context) => [
@@ -560,129 +555,83 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(Icons.download_rounded, size: 16, color: theme.colorScheme.onSurfaceVariant),
                     const SizedBox(width: 6),
-                    Text(
-                      'Export',
-                      style: GoogleFonts.inter(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                        color: theme.colorScheme.onSurface,
-                      ),
-                    ),
+                    Text('Export', style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 13, color: theme.colorScheme.onSurface)),
                   ],
                 ),
               ),
             ),
-            const SizedBox(width: 8),
-
             // Instant DigiTax Sync Button
             OutlinedButton.icon(
               onPressed: _isSyncingDigitax ? null : () => _performInstantDigiTaxSync(silent: false),
               icon: _isSyncingDigitax
-                  ? const SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF059669)),
-                    )
+                  ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF059669)))
                   : const Icon(Icons.sync_rounded, size: 16, color: Color(0xFF059669)),
-              label: Text(
-                _isSyncingDigitax ? 'Syncing...' : 'Sync DigiTax',
-                style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13, color: const Color(0xFF059669)),
-              ),
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Color(0xFF059669), width: 1),
-                backgroundColor: const Color(0xFFECFDF5),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
+              label: Text(_isSyncingDigitax ? 'Syncing...' : 'Sync DigiTax', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13, color: const Color(0xFF059669))),
+              style: OutlinedButton.styleFrom(side: const BorderSide(color: Color(0xFF059669), width: 1), backgroundColor: const Color(0xFFECFDF5), padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
             ),
-            const SizedBox(width: 8),
-
             // DigiTax Stock Reconciliation Button
             OutlinedButton.icon(
-              onPressed: () => showDialog(
-                context: context,
-                builder: (context) => const DigiTaxStockReconcileModal(),
-              ),
+              onPressed: () => showDialog(context: context, builder: (context) => const DigiTaxStockReconcileModal()),
               icon: const Icon(Icons.compare_arrows_rounded, size: 16, color: Color(0xFF0284C7)),
-              label: Text(
-                'Reconcile Stock',
-                style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13, color: const Color(0xFF0284C7)),
-              ),
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Color(0xFF0284C7), width: 1),
-                backgroundColor: const Color(0xFFF0F9FF),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
+              label: Text('Reconcile Stock', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13, color: const Color(0xFF0284C7))),
+              style: OutlinedButton.styleFrom(side: const BorderSide(color: Color(0xFF0284C7), width: 1), backgroundColor: const Color(0xFFF0F9FF), padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
             ),
-            const SizedBox(width: 8),
-
             // Stock Movements Audit History Button
             OutlinedButton.icon(
-              onPressed: () => showDialog(
-                context: context,
-                builder: (context) => const StockMovementHistoryModal(),
-              ),
+              onPressed: () => showDialog(context: context, builder: (context) => const StockMovementHistoryModal()),
               icon: Icon(Icons.history_rounded, size: 16, color: theme.colorScheme.onSurfaceVariant),
               label: Text('Stock Movements', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13, color: theme.colorScheme.onSurface)),
-              style: OutlinedButton.styleFrom(
-                side: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0), width: 1),
-                backgroundColor: isDark ? const Color(0xFF151F32) : const Color(0xFFFFFFFF),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
+              style: OutlinedButton.styleFrom(side: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0), width: 1), backgroundColor: isDark ? const Color(0xFF151F32) : const Color(0xFFFFFFFF), padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
             ),
-            const SizedBox(width: 8),
-
             // Manage Categories Button
             OutlinedButton.icon(
-              onPressed: () => showDialog(
-                context: context,
-                builder: (context) => const CategoryManagementModal(),
-              ),
+              onPressed: () => showDialog(context: context, builder: (context) => const CategoryManagementModal()),
               icon: Icon(Icons.category_rounded, size: 16, color: theme.colorScheme.onSurfaceVariant),
               label: Text('Categories', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13, color: theme.colorScheme.onSurface)),
-              style: OutlinedButton.styleFrom(
-                side: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
-                backgroundColor: isDark ? const Color(0xFF151F32) : const Color(0xFFFFFFFF),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
+              style: OutlinedButton.styleFrom(side: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)), backgroundColor: isDark ? const Color(0xFF151F32) : const Color(0xFFFFFFFF), padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
             ),
-            const SizedBox(width: 8),
-
             // Add Product Button
             SizedBox(
               height: 40,
               child: ElevatedButton.icon(
                 onPressed: () async {
-                  final result = await showDialog<bool>(
-                    context: context,
-                    builder: (context) => const ProductEditorModal(),
-                  );
-                  if (result == true) {
-                    ref.invalidate(inventoryProductsProvider);
-                  }
+                  final result = await showDialog<bool>(context: context, builder: (context) => const ProductEditorModal());
+                  if (result == true) ref.invalidate(inventoryProductsProvider);
                 },
                 icon: const Icon(Icons.add_rounded, size: 18, color: Colors.white),
                 label: Text('Add Product', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13, color: Colors.white)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: primaryColor,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  elevation: 0,
-                ),
+                style: ElevatedButton.styleFrom(backgroundColor: primaryColor, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)), elevation: 0),
               ),
             ),
           ],
-        ),
-      ],
+        );
+
+        if (isPhone) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              titleRow,
+              const SizedBox(height: 10),
+              actionButtons,
+            ],
+          );
+        }
+
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            titleRow,
+            actionButtons,
+          ],
+        );
+      },
     );
   }
+
 
   Widget _buildFilters(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);

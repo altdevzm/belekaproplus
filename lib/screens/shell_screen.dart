@@ -144,7 +144,23 @@ class ShellScreen extends ConsumerWidget {
                       },
                     ),
 
-                    // Admin/Manager Tab 2: Stock
+                    // Admin/Manager Tab 2: Sales
+                    _buildMobileNavItem(
+                      context,
+                      icon: Icons.point_of_sale_rounded,
+                      label: 'Sales',
+                      isSelected: current == ScreenType.sales,
+                      accentColor: accentColor,
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        ref.read(navigationProvider.notifier).state = ScreenType.sales;
+                      },
+                    ),
+
+                    // Admin/Manager Center: Scanner
+                    _buildCenterScanButton(context, ref, accentColor),
+
+                    // Admin/Manager Tab 3: Stock
                     _buildMobileNavItem(
                       context,
                       icon: Icons.inventory_2_rounded,
@@ -157,38 +173,163 @@ class ShellScreen extends ConsumerWidget {
                       },
                     ),
 
-                    // Admin/Manager Center: Scanner
-                    _buildCenterScanButton(context, ref, accentColor),
-
-                    // Admin/Manager Tab 3: Reports
+                    // Admin/Manager Tab 4: More Hub (Branches, Reports, Terminals, Purchases, Settings)
                     _buildMobileNavItem(
                       context,
-                      icon: Icons.assessment_rounded,
-                      label: 'Reports',
-                      isSelected: current == ScreenType.reports,
+                      icon: Icons.grid_view_rounded,
+                      label: 'More',
+                      isSelected: current != ScreenType.dashboard && current != ScreenType.sales && current != ScreenType.inventory,
                       accentColor: accentColor,
                       onTap: () {
-                        HapticFeedback.lightImpact();
-                        ref.read(navigationProvider.notifier).state = ScreenType.reports;
-                      },
-                    ),
-
-                    // Admin/Manager Tab 4: Settings
-                    _buildMobileNavItem(
-                      context,
-                      icon: Icons.settings_rounded,
-                      label: 'Settings',
-                      isSelected: current == ScreenType.settings,
-                      accentColor: accentColor,
-                      onTap: () {
-                        HapticFeedback.lightImpact();
-                        ref.read(navigationProvider.notifier).state = ScreenType.settings;
+                        HapticFeedback.mediumImpact();
+                        _showMoreNavSheet(context, ref, current, user);
                       },
                     ),
                   ],
           ),
         ),
       ],
+    );
+  }
+
+  void _showMoreNavSheet(BuildContext context, WidgetRef ref, ScreenType current, User? user) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
+    final destinations = _getNavigationDestinations(user);
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: isDark ? const Color(0xFF151F32) : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'ALL MODULES & WORKSPACES',
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.5,
+                        color: theme.colorScheme.onSurface,
+                      ),
+                    ),
+                    Text(
+                      user?.role.toUpperCase() ?? '',
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: primaryColor,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                GridView.count(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisCount: 3,
+                  mainAxisSpacing: 12,
+                  crossAxisSpacing: 12,
+                  childAspectRatio: 1.1,
+                  children: [
+                    ...destinations.map((dest) {
+                      final isSelected = current == dest.type;
+                      return InkWell(
+                        onTap: () {
+                          Navigator.pop(ctx);
+                          HapticFeedback.lightImpact();
+                          ref.read(navigationProvider.notifier).state = dest.type;
+                        },
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? primaryColor.withValues(alpha: 0.15)
+                                : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9)),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isSelected
+                                  ? primaryColor
+                                  : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+                            ),
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                dest.icon,
+                                size: 24,
+                                color: isSelected ? primaryColor : theme.colorScheme.onSurface,
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                dest.label,
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                                  color: isSelected ? primaryColor : theme.colorScheme.onSurface,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }),
+                    // Sign Out item
+                    InkWell(
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _confirmLogout(context, ref);
+                      },
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEF4444).withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.3)),
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.logout_rounded, size: 24, color: Color(0xFFEF4444)),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Sign Out',
+                              style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFFEF4444)),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 

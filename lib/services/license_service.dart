@@ -18,6 +18,7 @@ enum LicenseStatus {
   tampered,
   hwidMismatch,
   expired,
+  alreadyUsed,
   invalidFormat,
 }
 
@@ -254,6 +255,17 @@ class LicenseService {
 
     // PROTECTION 3: Expiration Date Check
     if (license.isExpired) {
+      final isAlreadyConsumed = await _isLicenseConsumed(license.signature);
+      if (isAlreadyConsumed) {
+        return LicenseVerificationResult(
+          status: LicenseStatus.alreadyUsed,
+          isValid: false,
+          license: license,
+          message: 'You have already used this license key. Please request a new license key from the administrator.',
+          currentHwid: currentHwid,
+        );
+      }
+
       return LicenseVerificationResult(
         status: LicenseStatus.expired,
         isValid: false,
@@ -281,10 +293,76 @@ class LicenseService {
       return result;
     }
 
-    _cachedActiveLicense = result.license;
-    await _syncLicense(result.license!.rawJson);
+    final license = result.license!;
+
+    // Check if this specific license was already consumed and expired previously
+    final wasAlreadyConsumed = await _isLicenseConsumed(license.signature);
+    if (wasAlreadyConsumed && license.isExpired) {
+      return LicenseVerificationResult(
+        status: LicenseStatus.alreadyUsed,
+        isValid: false,
+        license: license,
+        message: 'You have already used this license key. Please request a new license key from the administrator.',
+        currentHwid: result.currentHwid,
+      );
+    }
+
+    _cachedActiveLicense = license;
+    await _syncLicense(license.rawJson);
+    await _recordConsumedLicense(license);
 
     return result;
+  }
+
+  static const String _consumedLicensesFileName = '.beleka_consumed_licenses.json';
+
+  Future<File> _getConsumedLicensesFile() async {
+    Directory appDir;
+    try {
+      appDir = await getApplicationSupportDirectory();
+    } catch (_) {
+      appDir = await getApplicationDocumentsDirectory();
+    }
+    return File('${appDir.path}/$_consumedLicensesFileName');
+  }
+
+  Future<bool> _isLicenseConsumed(String signature) async {
+    if (signature.isEmpty) return false;
+    try {
+      final file = await _getConsumedLicensesFile();
+      if (!file.existsSync()) return false;
+      final content = await file.readAsString();
+      final list = (jsonDecode(content) as List<dynamic>?) ?? [];
+      return list.any((item) => item is Map && item['signature'] == signature);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _recordConsumedLicense(BelekaLicense license) async {
+    if (license.signature.isEmpty) return;
+    try {
+      final file = await _getConsumedLicensesFile();
+      List<dynamic> list = [];
+      if (file.existsSync()) {
+        try {
+          final content = await file.readAsString();
+          list = (jsonDecode(content) as List<dynamic>?) ?? [];
+        } catch (_) {}
+      }
+
+      final alreadyExists = list.any((item) => item is Map && item['signature'] == license.signature);
+      if (!alreadyExists) {
+        list.add({
+          'signature': license.signature,
+          'customer': license.customer,
+          'hardwareId': license.hardwareId,
+          'activatedAt': DateTime.now().toUtc().toIso8601String(),
+          'expiresAt': license.expiresAt?.toUtc().toIso8601String(),
+        });
+        await file.writeAsString(jsonEncode(list));
+      }
+    } catch (_) {}
   }
 
   /// Saves the active license to local file and DB

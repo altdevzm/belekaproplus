@@ -188,8 +188,11 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
     final hostIp = apiService.hostIp ?? '127.0.0.1';
     final hostPort = apiService.port;
 
+    return LayoutBuilder(
+      builder: (context, rootConstraints) {
+        final isPhone = rootConstraints.maxWidth < 700;
     return Padding(
-      padding: const EdgeInsets.all(24.0),
+      padding: EdgeInsets.all(isPhone ? 14 : 24.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -197,47 +200,88 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
           _buildTopBreadcrumbBar(context),
           const SizedBox(height: 16),
 
-          // Header Bar
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
+          // Header Bar – responsive
+          if (isPhone) ...
+            [
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'TILLS & CASHIER TERMINALS MANAGEMENT',
+                    'TILLS & CASHIER TERMINALS',
                     style: GoogleFonts.inter(
-                      fontSize: 20,
+                      fontSize: 17,
                       fontWeight: FontWeight.w900,
-                      letterSpacing: 0.5,
+                      letterSpacing: 0.3,
                       color: theme.colorScheme.onSurface,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Monitor connected cashier registers, assign cashier shifts, generate per-till PDF reports, and balance till floats.',
-                    style: GoogleFonts.inter(fontSize: 13, color: theme.colorScheme.onSurfaceVariant),
+                    'Monitor registers, shifts and reconcile till floats.',
+                    style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
                   ),
-                ],
-              ),
-              Row(
-                children: [
+                  const SizedBox(height: 10),
                   ElevatedButton.icon(
                     onPressed: () => _showAddEditTerminalDialog(context, primaryColor, branches, users),
-                    icon: const Icon(Icons.add_to_queue_rounded, size: 18),
-                    label: Text('+ Pre-Authorize Till', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13)),
+                    icon: const Icon(Icons.add_to_queue_rounded, size: 16),
+                    label: Text('+ Pre-Authorize Till', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 12)),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: primaryColor,
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       elevation: 0,
                     ),
                   ),
                 ],
               ),
+            ]
+          else ...
+            [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'TILLS & CASHIER TERMINALS MANAGEMENT',
+                          style: GoogleFonts.inter(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.5,
+                            color: theme.colorScheme.onSurface,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Monitor connected cashier registers, assign cashier shifts, generate per-till PDF reports, and balance till floats.',
+                          style: GoogleFonts.inter(fontSize: 13, color: theme.colorScheme.onSurfaceVariant),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Row(
+                    children: [
+                      ElevatedButton.icon(
+                        onPressed: () => _showAddEditTerminalDialog(context, primaryColor, branches, users),
+                        icon: const Icon(Icons.add_to_queue_rounded, size: 18),
+                        label: Text('+ Pre-Authorize Till', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: primaryColor,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          elevation: 0,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ],
-          ),
           const SizedBox(height: 16),
 
           // Master POS Host Hub Status Card
@@ -311,6 +355,8 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
         ],
       ),
     );
+    },
+  );
   }
 
   // =========================================================================
@@ -337,49 +383,35 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen> with SingleTi
 
     return Column(
       children: [
-        // KPI Stats Overview Bar
-        Row(
-          children: [
-            Expanded(
-              child: _buildMetricCard(
-                title: 'CONNECTED TILLS',
-                value: '${terminals.length} / $maxAllowedTills',
-                subtitle: '$activeTerminalsCount Active (Max $maxAllowedTills on License)',
-                icon: Icons.point_of_sale_rounded,
-                color: primaryColor,
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: _buildMetricCard(
-                title: 'ACTIVE SHIFT TILLS',
-                value: '${activeShifts.length}',
-                subtitle: '${activeShifts.length} Cashiers Live On Shift',
-                icon: Icons.person_pin_circle_rounded,
-                color: const Color(0xFF059669),
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: _buildMetricCard(
-                title: 'CONNECTED BRANCHES',
-                value: '${branches.length}',
-                subtitle: 'ZRA Fiscal Branches Linked',
-                icon: Icons.storefront_rounded,
-                color: const Color(0xFF0284C7),
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: _buildMetricCard(
-                title: 'TERMINAL SALES TODAY',
-                value: CurrencyFormatter.format(totalSalesToday, currency),
-                subtitle: 'Aggregate Live Till Revenue',
-                icon: Icons.payments_rounded,
-                color: const Color(0xFFD97706),
-              ),
-            ),
-          ],
+        // KPI Stats Overview Bar – responsive 2x2 on phones
+        LayoutBuilder(
+          builder: (context, c) {
+            final narrow = c.maxWidth < 700;
+            final card1 = Expanded(child: _buildMetricCard(title: 'CONNECTED TILLS', value: '${terminals.length} / $maxAllowedTills', subtitle: '$activeTerminalsCount Active (Max $maxAllowedTills on License)', icon: Icons.point_of_sale_rounded, color: primaryColor));
+            final card2 = Expanded(child: _buildMetricCard(title: 'ACTIVE SHIFT TILLS', value: '${activeShifts.length}', subtitle: '${activeShifts.length} Cashiers Live On Shift', icon: Icons.person_pin_circle_rounded, color: const Color(0xFF059669)));
+            final card3 = Expanded(child: _buildMetricCard(title: 'CONNECTED BRANCHES', value: '${branches.length}', subtitle: 'ZRA Fiscal Branches Linked', icon: Icons.storefront_rounded, color: const Color(0xFF0284C7)));
+            final card4 = Expanded(child: _buildMetricCard(title: 'TERMINAL SALES TODAY', value: CurrencyFormatter.format(totalSalesToday, currency), subtitle: 'Aggregate Live Till Revenue', icon: Icons.payments_rounded, color: const Color(0xFFD97706)));
+            if (narrow) {
+              return Column(
+                children: [
+                  Row(children: [card1, const SizedBox(width: 16), card2]),
+                  const SizedBox(height: 14),
+                  Row(children: [card3, const SizedBox(width: 16), card4]),
+                ],
+              );
+            }
+            return Row(
+              children: [
+                card1,
+                const SizedBox(width: 16),
+                card2,
+                const SizedBox(width: 16),
+                card3,
+                const SizedBox(width: 16),
+                card4,
+              ],
+            );
+          },
         ),
         const SizedBox(height: 20),
 

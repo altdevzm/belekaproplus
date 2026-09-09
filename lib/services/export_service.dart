@@ -3313,34 +3313,60 @@ class ExportService {
   Future<void> _saveFile(Uint8List bytes, String fileName, {List<String>? extensions}) async {
     try {
       if (Platform.isAndroid || Platform.isIOS) {
+        File? writtenFile;
+
         // 1. Direct file write to Download or app documents directory
         try {
-          Directory? saveDir;
+          final candidateDirs = <Directory>[];
           if (Platform.isAndroid) {
             final downloadDir = Directory('/storage/emulated/0/Download');
             if (await downloadDir.exists()) {
-              saveDir = downloadDir;
-            } else {
-              saveDir = await getExternalStorageDirectory();
+              candidateDirs.add(downloadDir);
             }
-          } else {
-            saveDir = await getApplicationDocumentsDirectory();
+            final sdDownload = Directory('/sdcard/Download');
+            if (await sdDownload.exists()) {
+              candidateDirs.add(sdDownload);
+            }
+            try {
+              final extDir = await getExternalStorageDirectory();
+              if (extDir != null) candidateDirs.add(extDir);
+            } catch (_) {}
           }
 
-          if (saveDir != null) {
-            final file = File('${saveDir.path}/$fileName');
-            await file.writeAsBytes(bytes);
-            debugPrint('EXPORT_SUCCESS: Export file written to ${file.path}');
+          try {
+            candidateDirs.add(await getApplicationDocumentsDirectory());
+          } catch (_) {}
+
+          for (final dir in candidateDirs) {
+            try {
+              final file = File('${dir.path}/$fileName');
+              await file.writeAsBytes(bytes);
+              writtenFile = file;
+              debugPrint('EXPORT_SUCCESS: Export file written to ${file.path}');
+              break;
+            } catch (e) {
+              debugPrint('Failed writing to dir ${dir.path}: $e');
+            }
           }
         } catch (e) {
           debugPrint('Mobile storage write warning: $e');
         }
 
         // 2. Open native mobile share/save sheet (Allows saving to Drive, WhatsApp, Files, etc.)
-        await Printing.sharePdf(
-          bytes: bytes,
-          filename: fileName,
-        );
+        if (fileName.toLowerCase().endsWith('.pdf')) {
+          await Printing.sharePdf(
+            bytes: bytes,
+            filename: fileName,
+          );
+        } else if (writtenFile != null && writtenFile.existsSync()) {
+          // For Excel / CSV on mobile, share bytes via printing or system
+          try {
+            await Printing.sharePdf(
+              bytes: bytes,
+              filename: fileName,
+            );
+          } catch (_) {}
+        }
         return;
       }
 

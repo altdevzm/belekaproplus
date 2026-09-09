@@ -123,79 +123,98 @@ class DashboardScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 20),
 
-          // Middle Charts Section (Revenue Overview + Payment Methods)
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Revenue Overview Chart (Flex 2)
-              Expanded(
-                flex: 2,
-                child: velocityAsync.when(
-                  data: (v) => _buildRevenueOverviewCard(context, v, statsAsync.valueOrNull, currency),
-                  loading: () => const SizedBox(height: 340, child: Center(child: CircularProgressIndicator())),
-                  error: (e, _) => Text('$e'),
-                ),
-              ),
-              const SizedBox(width: 16),
+          // Middle Charts Section (Revenue Overview + Payment Methods) - Adaptive
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isCompact = constraints.maxWidth < 850;
+              final revenueWidget = velocityAsync.when(
+                data: (v) => _buildRevenueOverviewCard(context, v, statsAsync.valueOrNull, currency),
+                loading: () => const SizedBox(height: 340, child: Center(child: CircularProgressIndicator())),
+                error: (e, _) => Text('$e'),
+              );
+              final paymentDistWidget = paymentDistAsync.when(
+                data: (dist) => _buildPaymentMethodsDonutCard(context, dist, statsAsync.valueOrNull, currency),
+                loading: () => const SizedBox(height: 340, child: Center(child: CircularProgressIndicator())),
+                error: (_, _) => const SizedBox.shrink(),
+              );
 
-              // Payment Methods Donut Chart (Flex 1)
-              Expanded(
-                flex: 1,
-                child: paymentDistAsync.when(
-                  data: (dist) => _buildPaymentMethodsDonutCard(context, dist, statsAsync.valueOrNull, currency),
-                  loading: () => const SizedBox(height: 340, child: Center(child: CircularProgressIndicator())),
-                  error: (_, _) => const SizedBox.shrink(),
-                ),
-              ),
-            ],
+              if (isCompact) {
+                return Column(
+                  children: [
+                    revenueWidget,
+                    const SizedBox(height: 16),
+                    paymentDistWidget,
+                  ],
+                );
+              }
+
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(flex: 2, child: revenueWidget),
+                  const SizedBox(width: 16),
+                  Expanded(flex: 1, child: paymentDistWidget),
+                ],
+              );
+            },
           ),
           const SizedBox(height: 20),
 
-          // Bottom Row (Recent Transactions + Top Products)
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Recent Transactions (Flex 2)
-              Expanded(
-                flex: 2,
-                child: SizedBox(
-                  height: 360,
-                  child: transactionsAsync.when(
-                    data: (transactions) => _buildRecentTransactionsCard(context, ref, transactions, currency),
-                    loading: () => const Center(child: CircularProgressIndicator()),
-                    error: (error, stack) => Center(child: Text('Error: $error')),
-                  ),
+          // Bottom Row (Recent Transactions + Top Products) - Adaptive
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isCompact = constraints.maxWidth < 850;
+              final transactionsWidget = SizedBox(
+                height: 360,
+                child: transactionsAsync.when(
+                  data: (transactions) => _buildRecentTransactionsCard(context, ref, transactions, currency),
+                  loading: () => const Center(child: CircularProgressIndicator()),
+                  error: (error, stack) => Center(child: Text('Error: $error')),
                 ),
-              ),
-              const SizedBox(width: 16),
+              );
 
-              // Top Products (Flex 1)
-              Expanded(
-                flex: 1,
-                child: SizedBox(
-                  height: 360,
-                  child: Column(
-                    children: [
-                      Expanded(
-                        child: topProductsAsync.when(
-                          data: (products) => _buildTopProductsCard(context, products),
-                          loading: () => const SizedBox.shrink(),
-                          error: (_, _) => const SizedBox.shrink(),
-                        ),
+              final topProductsWidget = SizedBox(
+                height: 360,
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: topProductsAsync.when(
+                        data: (products) => _buildTopProductsCard(context, products),
+                        loading: () => const SizedBox.shrink(),
+                        error: (_, _) => const SizedBox.shrink(),
                       ),
-                      if (lowStockAsync.valueOrNull?.isNotEmpty ?? false) ...[
-                        const SizedBox(height: 12),
-                        lowStockAsync.when(
-                          data: (products) => _buildLowStockAlert(context, products),
-                          loading: () => const SizedBox.shrink(),
-                          error: (_, _) => const SizedBox.shrink(),
-                        ),
-                      ],
+                    ),
+                    if (lowStockAsync.valueOrNull?.isNotEmpty ?? false) ...[
+                      const SizedBox(height: 12),
+                      lowStockAsync.when(
+                        data: (products) => _buildLowStockAlert(context, products),
+                        loading: () => const SizedBox.shrink(),
+                        error: (_, _) => const SizedBox.shrink(),
+                      ),
                     ],
-                  ),
+                  ],
                 ),
-              ),
-            ],
+              );
+
+              if (isCompact) {
+                return Column(
+                  children: [
+                    transactionsWidget,
+                    const SizedBox(height: 16),
+                    topProductsWidget,
+                  ],
+                );
+              }
+
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(flex: 2, child: transactionsWidget),
+                  const SizedBox(width: 16),
+                  Expanded(flex: 1, child: topProductsWidget),
+                ],
+              );
+            },
           ),
         ],
       ),
@@ -225,30 +244,42 @@ class DashboardScreen extends ConsumerWidget {
             error: (e, s) => Text('Error: $e'),
           ),
           const SizedBox(height: 20),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                flex: 2,
-                child: velocityAsync.when(
-                  data: (v) => _buildRevenueOverviewCard(context, v, statsAsync.valueOrNull, currency),
-                  loading: () => const SizedBox(height: 340, child: Center(child: CircularProgressIndicator())),
-                  error: (e, _) => Text('$e'),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isCompact = constraints.maxWidth < 850;
+              final velocityWidget = velocityAsync.when(
+                data: (v) => _buildRevenueOverviewCard(context, v, statsAsync.valueOrNull, currency),
+                loading: () => const SizedBox(height: 340, child: Center(child: CircularProgressIndicator())),
+                error: (e, _) => Text('$e'),
+              );
+              final topProductsWidget = SizedBox(
+                height: 340,
+                child: topProductsAsync.when(
+                  data: (products) => _buildTopProductsCard(context, products),
+                  loading: () => const SizedBox.shrink(),
+                  error: (_, _) => const SizedBox.shrink(),
                 ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                flex: 1,
-                child: SizedBox(
-                  height: 340,
-                  child: topProductsAsync.when(
-                    data: (products) => _buildTopProductsCard(context, products),
-                    loading: () => const SizedBox.shrink(),
-                    error: (_, _) => const SizedBox.shrink(),
-                  ),
-                ),
-              ),
-            ],
+              );
+
+              if (isCompact) {
+                return Column(
+                  children: [
+                    velocityWidget,
+                    const SizedBox(height: 16),
+                    topProductsWidget,
+                  ],
+                );
+              }
+
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(flex: 2, child: velocityWidget),
+                  const SizedBox(width: 16),
+                  Expanded(flex: 1, child: topProductsWidget),
+                ],
+              );
+            },
           ),
           const SizedBox(height: 20),
           SizedBox(
@@ -378,9 +409,11 @@ class DashboardScreen extends ConsumerWidget {
     final hour = DateTime.now().hour;
     final timeGreeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      crossAxisAlignment: CrossAxisAlignment.end,
+    return Wrap(
+      alignment: WrapAlignment.spaceBetween,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 16,
+      runSpacing: 12,
       children: [
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -413,7 +446,10 @@ class DashboardScreen extends ConsumerWidget {
             ),
           ],
         ),
-        Row(
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             // Export report button
             PopupMenuButton<String>(
@@ -443,6 +479,7 @@ class DashboardScreen extends ConsumerWidget {
                   border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
                 ),
                 child: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(Icons.file_upload_outlined, size: 16, color: theme.colorScheme.onSurface),
                     const SizedBox(width: 6),
@@ -458,7 +495,6 @@ class DashboardScreen extends ConsumerWidget {
                 ),
               ),
             ),
-            const SizedBox(width: 10),
             // New sale primary button
             ElevatedButton.icon(
               onPressed: () {
@@ -491,8 +527,11 @@ class DashboardScreen extends ConsumerWidget {
     final theme = Theme.of(context);
     final primaryColor = theme.colorScheme.primary;
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Wrap(
+      alignment: WrapAlignment.spaceBetween,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 16,
+      runSpacing: 12,
       children: [
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -600,22 +639,36 @@ class DashboardScreen extends ConsumerWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
+        if (constraints.maxWidth < 600) {
+          return Column(
+            children: [
+              card1,
+              const SizedBox(height: 12),
+              card2,
+              const SizedBox(height: 12),
+              card3,
+              const SizedBox(height: 12),
+              card4,
+            ],
+          );
+        }
+
         if (constraints.maxWidth < 1050) {
           return Column(
             children: [
               Row(
                 children: [
-                  card1,
+                  Expanded(child: card1),
                   const SizedBox(width: 14),
-                  card2,
+                  Expanded(child: card2),
                 ],
               ),
               const SizedBox(height: 14),
               Row(
                 children: [
-                  card3,
+                  Expanded(child: card3),
                   const SizedBox(width: 14),
-                  card4,
+                  Expanded(child: card4),
                 ],
               ),
             ],
@@ -624,13 +677,13 @@ class DashboardScreen extends ConsumerWidget {
 
         return Row(
           children: [
-            card1,
+            Expanded(child: card1),
             const SizedBox(width: 14),
-            card2,
+            Expanded(child: card2),
             const SizedBox(width: 14),
-            card3,
+            Expanded(child: card3),
             const SizedBox(width: 14),
-            card4,
+            Expanded(child: card4),
           ],
         );
       },
@@ -651,43 +704,42 @@ class DashboardScreen extends ConsumerWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF151F32) : Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  label,
-                  style: GoogleFonts.inter(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF151F32) : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                label,
+                style: GoogleFonts.inter(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: theme.colorScheme.onSurfaceVariant,
                 ),
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: isDark ? iconColor.withValues(alpha: 0.15) : iconBgColor,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(icon, size: 16, color: iconColor),
+              ),
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: isDark ? iconColor.withValues(alpha: 0.15) : iconBgColor,
+                  shape: BoxShape.circle,
                 ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
+                child: Icon(icon, size: 16, color: iconColor),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
               children: [
                 Text(
                   value,
@@ -725,9 +777,8 @@ class DashboardScreen extends ConsumerWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
+      );
+    }
 
   Widget _buildRevenueOverviewCard(
     BuildContext context,

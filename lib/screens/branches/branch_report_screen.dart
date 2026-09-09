@@ -264,157 +264,184 @@ class _BranchReportScreenState extends ConsumerState<BranchReportScreen> with Si
   Widget _buildTopNavHeader(BuildContext context, bool isDark, List<StoreBranch> branches) {
     final theme = Theme.of(context);
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF151F32) : Colors.white,
-        border: Border(bottom: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0))),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            children: [
-              IconButton(
-                onPressed: () => Navigator.of(context).pop(),
-                icon: const Icon(Icons.arrow_back_rounded),
-                tooltip: 'Back to Store Network',
-                splashRadius: 20,
-              ),
-              const SizedBox(width: 8),
-              Column(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isPhone = constraints.maxWidth < 750;
+
+        final titleWidget = Row(
+          children: [
+            IconButton(
+              onPressed: () => Navigator.of(context).pop(),
+              icon: const Icon(Icons.arrow_back_rounded),
+              tooltip: 'Back to Store Network',
+              splashRadius: 20,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Text(
-                        'Branch Module',
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          color: theme.colorScheme.onSurfaceVariant,
-                          fontWeight: FontWeight.w500,
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        Text(
+                          'Branch Module',
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            color: theme.colorScheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
-                      ),
-                      Icon(Icons.chevron_right_rounded, size: 16, color: theme.colorScheme.onSurfaceVariant),
-                      Text(
-                        'Executive Branch Reports',
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          color: theme.colorScheme.onSurface,
-                          fontWeight: FontWeight.w700,
+                        Icon(Icons.chevron_right_rounded, size: 16, color: theme.colorScheme.onSurfaceVariant),
+                        Text(
+                          'Executive Branch Reports',
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            color: theme.colorScheme.onSurface,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     'HEADQUARTERS AUDIT & BRANCH REPORT HUB',
                     style: GoogleFonts.inter(
-                      fontSize: 16,
+                      fontSize: isPhone ? 13 : 16,
                       fontWeight: FontWeight.w900,
                       letterSpacing: 0.4,
                       color: theme.colorScheme.onSurface,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
-            ],
-          ),
-          Row(
-            children: [
-              // Branch Switcher Dropdown
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<int>(
-                    value: _selectedBranch.id,
-                    dropdownColor: isDark ? const Color(0xFF1E293B) : Colors.white,
-                    icon: const Icon(Icons.store_rounded, size: 18),
-                    items: branches.map((b) {
-                      return DropdownMenuItem<int>(
-                        value: b.id,
-                        child: Row(
-                          children: [
+            ),
+          ],
+        );
+
+        final actionButtons = Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            // Branch Switcher Dropdown
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<int>(
+                  value: _selectedBranch.id,
+                  dropdownColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+                  icon: const Icon(Icons.store_rounded, size: 18),
+                  items: branches.map((b) {
+                    return DropdownMenuItem<int>(
+                      value: b.id,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: b.status == 'ONLINE' ? const Color(0xFF059669) : Colors.grey,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${b.name} (${b.code})',
+                            style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700),
+                          ),
+                          if (b.isHQ) ...[
+                            const SizedBox(width: 6),
                             Container(
-                              width: 8,
-                              height: 8,
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(
-                                color: b.status == 'ONLINE' ? const Color(0xFF059669) : Colors.grey,
-                                shape: BoxShape.circle,
+                                color: const Color(0xFF2563EB).withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(4),
                               ),
+                              child: Text('HQ', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: const Color(0xFF2563EB))),
                             ),
-                            const SizedBox(width: 8),
-                            Text(
-                              '${b.name} (${b.code})',
-                              style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700),
-                            ),
-                            if (b.isHQ) ...[
-                              const SizedBox(width: 6),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF2563EB).withValues(alpha: 0.15),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text('HQ', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: const Color(0xFF2563EB))),
-                              ),
-                            ],
                           ],
-                        ),
-                      );
-                    }).toList(),
-                    onChanged: (val) {
-                      if (val != null) {
-                        final found = branches.firstWhere((b) => b.id == val, orElse: () => _selectedBranch);
-                        setState(() {
-                          _selectedBranch = found;
-                        });
-                        _loadReportData();
-                      }
-                    },
-                  ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (val) {
+                    if (val != null) {
+                      final found = branches.firstWhere((b) => b.id == val, orElse: () => _selectedBranch);
+                      setState(() {
+                        _selectedBranch = found;
+                      });
+                      _loadReportData();
+                    }
+                  },
                 ),
               ),
-              const SizedBox(width: 10),
-              // Refresh Button
-              IconButton(
-                onPressed: _loadReportData,
-                icon: const Icon(Icons.refresh_rounded, size: 20),
-                tooltip: 'Refresh Report',
-                splashRadius: 20,
+            ),
+            // Refresh Button
+            IconButton(
+              onPressed: _loadReportData,
+              icon: const Icon(Icons.refresh_rounded, size: 20),
+              tooltip: 'Refresh Report',
+              splashRadius: 20,
+            ),
+            // Print Button
+            OutlinedButton.icon(
+              onPressed: () => _exportPdf(printDirectly: true),
+              icon: const Icon(Icons.print_rounded, size: 16),
+              label: Text('Print', style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w600)),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
-              const SizedBox(width: 6),
-              // Print Button
-              OutlinedButton.icon(
-                onPressed: () => _exportPdf(printDirectly: true),
-                icon: const Icon(Icons.print_rounded, size: 16),
-                label: Text('Print', style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w600)),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
+            ),
+            // PDF Export Button
+            ElevatedButton.icon(
+              onPressed: () => _exportPdf(printDirectly: false),
+              icon: const Icon(Icons.picture_as_pdf_rounded, size: 16, color: Colors.white),
+              label: Text('Export PDF', style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w700, color: Colors.white)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFDC2626),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
-              const SizedBox(width: 8),
-              // PDF Export Button
-              ElevatedButton.icon(
-                onPressed: () => _exportPdf(printDirectly: false),
-                icon: const Icon(Icons.picture_as_pdf_rounded, size: 16, color: Colors.white),
-                label: Text('Export PDF', style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w700, color: Colors.white)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFDC2626),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-              ),
-            ],
+            ),
+          ],
+        );
+
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF151F32) : Colors.white,
+            border: Border(bottom: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0))),
           ),
-        ],
-      ),
+          child: isPhone
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    titleWidget,
+                    const SizedBox(height: 10),
+                    actionButtons,
+                  ],
+                )
+              : Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(child: titleWidget),
+                    actionButtons,
+                  ],
+                ),
+        );
+      },
     );
   }
 

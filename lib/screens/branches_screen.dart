@@ -220,8 +220,12 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
     final totalNetworkSales = branches.fold<double>(0.0, (sum, b) => sum + b.salesToday);
     final activeCount = branches.where((b) => b.status == 'ONLINE' || b.status == 'ACTIVE').length;
 
+    return LayoutBuilder(
+      builder: (context, rootConstraints) {
+        final isPhone = rootConstraints.maxWidth < 700;
+        final isTablet = rootConstraints.maxWidth < 1050;
     return Padding(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(isPhone ? 14 : 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -229,127 +233,168 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
           _buildTopBreadcrumbBar(context),
           const SizedBox(height: 16),
 
-          // Header Bar
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
+          // Header Bar – adaptive: Row on wide screens, Column on phones
+          if (isPhone) ...
+            [
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     'MULTI-BRANCH & STORE NETWORK',
                     style: GoogleFonts.inter(
-                      fontSize: 20,
+                      fontSize: 17,
                       fontWeight: FontWeight.w900,
-                      letterSpacing: 0.5,
+                      letterSpacing: 0.4,
                       color: theme.colorScheme.onSurface,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Create store branches, assign Branch Managers from your user list, and configure ZRA DigiTax codes (bhfId)',
-                    style: GoogleFonts.inter(fontSize: 13, color: theme.colorScheme.onSurfaceVariant),
+                    'Manage branches, assign managers and ZRA DigiTax codes.',
+                    style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      PopupMenuButton<String>(
+                        onSelected: (value) async {
+                          final export = ref.read(exportServiceProvider);
+                          final config = ref.read(storeConfigProvider).value;
+                          final branchesList = await ref.read(storeBranchesProvider.future);
+                          if (value == 'pdf') export.exportBranchesReportToPdf(branchesList, config: config);
+                          if (value == 'excel') export.exportBranchesReportToExcel(branchesList, config: config);
+                        },
+                        itemBuilder: (context) => [
+                          const PopupMenuItem(value: 'pdf', child: Row(children: [Icon(Icons.picture_as_pdf_rounded, color: Color(0xFFDC2626), size: 16), SizedBox(width: 8), Text('Export PDF')])),
+                          const PopupMenuItem(value: 'excel', child: Row(children: [Icon(Icons.table_chart_rounded, color: Color(0xFF059669), size: 16), SizedBox(width: 8), Text('Export Excel')])),
+                        ],
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          decoration: BoxDecoration(color: isDark ? const Color(0xFF151F32) : Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0))),
+                          child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.download_rounded, size: 15, color: theme.colorScheme.onSurfaceVariant), const SizedBox(width: 5), Text('Export', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 12, color: theme.colorScheme.onSurface))]),
+                        ),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: () { if (branches.isNotEmpty) _openBranchReports(context, branches.first); },
+                        icon: const Icon(Icons.analytics_rounded, size: 15, color: Color(0xFF2563EB)),
+                        label: Text('Reports', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 12, color: const Color(0xFF2563EB))),
+                        style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10), side: const BorderSide(color: Color(0xFF2563EB)), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+                      ),
+                      ElevatedButton.icon(
+                        onPressed: () => _showAddEditBranchDialog(context, primaryColor, users),
+                        icon: const Icon(Icons.add_business_rounded, size: 16),
+                        label: Text('+ New Branch', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 12)),
+                        style: ElevatedButton.styleFrom(backgroundColor: primaryColor, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)), elevation: 0),
+                      ),
+                    ],
                   ),
                 ],
               ),
+            ]
+          else ...
+            [
               Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  // Export & Reports Dropdown
-                  PopupMenuButton<String>(
-                    onSelected: (value) async {
-                      final export = ref.read(exportServiceProvider);
-                      final config = ref.read(storeConfigProvider).value;
-                      final branchesList = await ref.read(storeBranchesProvider.future);
-
-                      switch (value) {
-                        case 'pdf':
-                          export.exportBranchesReportToPdf(branchesList, config: config);
-                          break;
-                        case 'excel':
-                          export.exportBranchesReportToExcel(branchesList, config: config);
-                          break;
-                      }
-                    },
-                    itemBuilder: (context) => [
-                      const PopupMenuItem(
-                        value: 'pdf',
-                        child: Row(
-                          children: [
-                            Icon(Icons.picture_as_pdf_rounded, color: Color(0xFFDC2626), size: 16),
-                            SizedBox(width: 8),
-                            Text('Export Branches (PDF)'),
-                          ],
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'MULTI-BRANCH & STORE NETWORK',
+                          style: GoogleFonts.inter(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.5,
+                            color: theme.colorScheme.onSurface,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Create store branches, assign Branch Managers from your user list, and configure ZRA DigiTax codes (bhfId)',
+                          style: GoogleFonts.inter(fontSize: 13, color: theme.colorScheme.onSurfaceVariant),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 8,
+                    alignment: WrapAlignment.end,
+                    children: [
+                      // Export & Reports Dropdown
+                      PopupMenuButton<String>(
+                        onSelected: (value) async {
+                          final export = ref.read(exportServiceProvider);
+                          final config = ref.read(storeConfigProvider).value;
+                          final branchesList = await ref.read(storeBranchesProvider.future);
+                          if (value == 'pdf') export.exportBranchesReportToPdf(branchesList, config: config);
+                          if (value == 'excel') export.exportBranchesReportToExcel(branchesList, config: config);
+                        },
+                        itemBuilder: (context) => [
+                          const PopupMenuItem(
+                            value: 'pdf',
+                            child: Row(children: [Icon(Icons.picture_as_pdf_rounded, color: Color(0xFFDC2626), size: 16), SizedBox(width: 8), Text('Export Branches (PDF)')]),
+                          ),
+                          const PopupMenuItem(
+                            value: 'excel',
+                            child: Row(children: [Icon(Icons.table_chart_rounded, color: Color(0xFF059669), size: 16), SizedBox(width: 8), Text('Export Branches (Excel)')]),
+                          ),
+                        ],
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF151F32) : Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+                          ),
+                          child: Row(children: [
+                            Icon(Icons.download_rounded, size: 16, color: theme.colorScheme.onSurfaceVariant),
+                            const SizedBox(width: 6),
+                            Text('Export & Print', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13, color: theme.colorScheme.onSurface)),
+                          ]),
                         ),
                       ),
-                      const PopupMenuItem(
-                        value: 'excel',
-                        child: Row(
-                          children: [
-                            Icon(Icons.table_chart_rounded, color: Color(0xFF059669), size: 16),
-                            SizedBox(width: 8),
-                            Text('Export Branches (Excel)'),
-                          ],
+                      OutlinedButton.icon(
+                        onPressed: () { if (branches.isNotEmpty) _openBranchReports(context, branches.first); },
+                        icon: const Icon(Icons.analytics_rounded, size: 16, color: Color(0xFF2563EB)),
+                        label: Text('Branch Reports Hub', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13, color: const Color(0xFF2563EB))),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          side: const BorderSide(color: Color(0xFF2563EB)),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                      ),
+                      ElevatedButton.icon(
+                        onPressed: () => _showAddEditBranchDialog(context, primaryColor, users),
+                        icon: const Icon(Icons.add_business_rounded, size: 18),
+                        label: Text('+ Create New Branch', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: primaryColor,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          elevation: 0,
                         ),
                       ),
                     ],
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-                      decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF151F32) : Colors.white,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.download_rounded, size: 16, color: theme.colorScheme.onSurfaceVariant),
-                          const SizedBox(width: 6),
-                          Text('Export & Print', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13, color: theme.colorScheme.onSurface)),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      if (branches.isNotEmpty) {
-                        _openBranchReports(context, branches.first);
-                      }
-                    },
-                    icon: const Icon(Icons.analytics_rounded, size: 16, color: Color(0xFF2563EB)),
-                    label: Text('Branch Reports Hub', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13, color: const Color(0xFF2563EB))),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                      side: const BorderSide(color: Color(0xFF2563EB)),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  ElevatedButton.icon(
-                    onPressed: () => _showAddEditBranchDialog(context, primaryColor, users),
-                    icon: const Icon(Icons.add_business_rounded, size: 18),
-                    label: Text('+ Create New Branch', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: primaryColor,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      elevation: 0,
-                    ),
                   ),
                 ],
               ),
             ],
-          ),
           const SizedBox(height: 20),
 
-          // Top Executive Metric Cards Grid
+          // Top Executive Metric Cards Grid – responsive
           GridView.count(
-            crossAxisCount: 4,
-            crossAxisSpacing: 16,
-            mainAxisSpacing: 16,
+            crossAxisCount: isPhone ? 2 : (isTablet ? 2 : 4),
+            crossAxisSpacing: 14,
+            mainAxisSpacing: 14,
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            childAspectRatio: 2.5,
+            childAspectRatio: isPhone ? 2.0 : 2.5,
             children: [
               _buildKpiCard('TOTAL BRANCHES', '${branches.length} Locations', 'Store network size', Icons.store_mall_directory_rounded, primaryColor),
               _buildKpiCard('ACTIVE HQ STORE', currentConfig?.businessName ?? 'Main HQ Branch', 'bhfId: ${currentConfig?.bhfId ?? "00"}', Icons.storefront_rounded, const Color(0xFF0284C7)),
@@ -654,6 +699,8 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
         ],
       ),
     );
+    },
+  );
   }
 
   void _openBranchReports(BuildContext context, StoreBranch branch) {

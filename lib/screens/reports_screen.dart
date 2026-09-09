@@ -307,105 +307,155 @@ class ReportsScreen extends ConsumerWidget {
     final dateFormat = DateFormat('MMM d, yyyy');
     final todayStr = DateFormat('EEE, dd MMM yyyy').format(DateTime.now());
 
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isPhone = constraints.maxWidth < 700;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Top Enterprise Breadcrumb Bar
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Row(
-              children: [
-                Text('Workspace', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w500, color: theme.colorScheme.onSurfaceVariant)),
-                Icon(Icons.chevron_right_rounded, size: 14, color: theme.colorScheme.onSurfaceVariant),
-                Text('Financial Reports & ZRA Compliance', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: primaryColor)),
-              ],
-            ),
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFECFDF5),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: const Color(0xFFA7F3D0)),
+        if (isPhone)
+          Wrap(
+            spacing: 4,
+            runSpacing: 4,
+            children: [
+              Text('Workspace', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w500, color: theme.colorScheme.onSurfaceVariant)),
+              Icon(Icons.chevron_right_rounded, size: 14, color: theme.colorScheme.onSurfaceVariant),
+              Text('Financial Reports & ZRA Compliance', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: primaryColor)),
+            ],
+          )
+        else
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Text('Workspace', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w500, color: theme.colorScheme.onSurfaceVariant)),
+                  Icon(Icons.chevron_right_rounded, size: 14, color: theme.colorScheme.onSurfaceVariant),
+                  Text('Financial Reports & ZRA Compliance', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: primaryColor)),
+                ],
+              ),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFECFDF5),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: const Color(0xFFA7F3D0)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(width: 6, height: 6, decoration: const BoxDecoration(color: Color(0xFF059669), shape: BoxShape.circle)),
+                        const SizedBox(width: 6),
+                        Text('ZRA DigiTax Audit & Fiscal Reporting Active', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: const Color(0xFF059669))),
+                      ],
+                    ),
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(width: 6, height: 6, decoration: const BoxDecoration(color: Color(0xFF059669), shape: BoxShape.circle)),
-                      const SizedBox(width: 6),
-                      Text('ZRA DigiTax Audit & Fiscal Reporting Active', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: const Color(0xFF059669))),
-                    ],
+                  const SizedBox(width: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF151F32) : Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+                    ),
+                    child: Text(todayStr, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurfaceVariant)),
                   ),
-                ),
-                const SizedBox(width: 10),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF151F32) : Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
-                  ),
-                  child: Text(todayStr, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurfaceVariant)),
-                ),
-              ],
-            ),
-          ],
-        ),
+                ],
+              ),
+            ],
+          ),
         const SizedBox(height: 14),
 
         // Main Header Title and Action Menus Row
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'FINANCIAL & FISCAL REPORTS MANAGEMENT',
-                  style: GoogleFonts.inter(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: -0.3,
-                    color: theme.colorScheme.onSurface,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'Audit range: ${dateFormat.format(range.start)} - ${dateFormat.format(range.end)}',
-                  style: GoogleFonts.inter(
-                    fontSize: 12.5,
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
+        if (isPhone) ...
+          [
+            Text(
+              'FINANCIAL & FISCAL REPORTS',
+              style: GoogleFonts.inter(
+                fontSize: 17,
+                fontWeight: FontWeight.w900,
+                letterSpacing: -0.2,
+                color: theme.colorScheme.onSurface,
+              ),
             ),
+            const SizedBox(height: 2),
+            Text(
+              'Audit: ${dateFormat.format(range.start)} - ${dateFormat.format(range.end)}',
+              style: GoogleFonts.inter(fontSize: 11.5, color: theme.colorScheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 10),
             Consumer(
               builder: (context, ref, child) {
                 final config = ref.watch(storeConfigProvider).value;
                 final isTot = config?.businessTaxType == 'TURNOVER_TAX' || config?.businessTaxType == 'COMPOSITE';
-                return Row(
+                return Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
                   children: [
                     _buildFinancialSummaryMenu(context, ref, range, activePeriod, stats, topProducts),
-                    const SizedBox(width: 10),
                     _buildStockAdjustmentReportMenu(context, ref, range),
-                    const SizedBox(width: 10),
                     _buildZraZReportMenu(context, ref, range),
-                    if (isTot) ...[
-                      const SizedBox(width: 10),
-                      _buildTotReturnButton(context),
-                    ],
-                    const SizedBox(width: 10),
+                    if (isTot) _buildTotReturnButton(context),
                     _buildExportMenu(context, ref),
                   ],
                 );
               },
             ),
+          ]
+        else ...
+          [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'FINANCIAL & FISCAL REPORTS MANAGEMENT',
+                        style: GoogleFonts.inter(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.3,
+                          color: theme.colorScheme.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Audit range: ${dateFormat.format(range.start)} - ${dateFormat.format(range.end)}',
+                        style: GoogleFonts.inter(fontSize: 12.5, color: theme.colorScheme.onSurfaceVariant),
+                      ),
+                    ],
+                  ),
+                ),
+                Consumer(
+                  builder: (context, ref, child) {
+                    final config = ref.watch(storeConfigProvider).value;
+                    final isTot = config?.businessTaxType == 'TURNOVER_TAX' || config?.businessTaxType == 'COMPOSITE';
+                    return Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      alignment: WrapAlignment.end,
+                      children: [
+                        _buildFinancialSummaryMenu(context, ref, range, activePeriod, stats, topProducts),
+                        _buildStockAdjustmentReportMenu(context, ref, range),
+                        _buildZraZReportMenu(context, ref, range),
+                        if (isTot) _buildTotReturnButton(context),
+                        _buildExportMenu(context, ref),
+                      ],
+                    );
+                  },
+                ),
+              ],
+            ),
           ],
-        ),
       ],
     );
+    },
+  );
   }
 
   Widget _buildFinancialSummaryMenu(
