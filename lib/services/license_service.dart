@@ -295,16 +295,19 @@ class LicenseService {
 
     final license = result.license!;
 
-    // Check if this specific license was already consumed and expired previously
+    // Check if this specific license key was already consumed previously
     final wasAlreadyConsumed = await _isLicenseConsumed(license.signature);
-    if (wasAlreadyConsumed && license.isExpired) {
-      return LicenseVerificationResult(
-        status: LicenseStatus.alreadyUsed,
-        isValid: false,
-        license: license,
-        message: 'You have already used this license key. Please request a new license key from the administrator.',
-        currentHwid: result.currentHwid,
-      );
+    if (wasAlreadyConsumed) {
+      // Refuse reuse if the key is expired or not the currently active license
+      if (license.isExpired || _cachedActiveLicense?.signature != license.signature) {
+        return LicenseVerificationResult(
+          status: LicenseStatus.alreadyUsed,
+          isValid: false,
+          license: license,
+          message: 'You have already used this license key. Please request a new license key from the administrator.',
+          currentHwid: result.currentHwid,
+        );
+      }
     }
 
     _cachedActiveLicense = license;
