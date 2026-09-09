@@ -152,6 +152,8 @@ class PostgresSyncService {
         ? config.cloudApiUrl!.trim()
         : 'http://23.139.36.20:8003';
     final storeId = config?.cloudStoreId ?? 1;
+    // JWT token saved on cloud login — required for authenticated VPS API calls
+    final authToken = config?.cloudAuthToken;
 
     // Query unsynced sales from local storage
     final unsyncedSales = await isar.saleTransactions
@@ -168,6 +170,7 @@ class PostgresSyncService {
         baseUrl: cloudUrl,
         storeId: storeId,
         transactions: unsyncedSales,
+        authToken: authToken,
       );
 
       if (syncedUuids.isNotEmpty) {
@@ -204,11 +207,14 @@ class PostgresSyncService {
         : 'http://23.139.36.20:8003';
 
     final storeId = config?.cloudStoreId ?? 1;
+    // JWT token saved on cloud login — required for authenticated VPS API calls
+    final authToken = config?.cloudAuthToken;
 
     try {
       final backup = await cloudDb.downloadVpsBackup(
         baseUrl: cloudUrl,
         storeId: storeId,
+        token: authToken,
       );
 
       if (backup == null || backup['sales'] == null) return 0;

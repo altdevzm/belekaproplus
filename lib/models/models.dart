@@ -316,6 +316,8 @@ class StoreConfig {
   int? cloudStoreId;
   String? cloudStoreCode;
   DateTime? lastCloudSyncDate;
+  // JWT bearer token issued after successful cloud login — required for authenticated VPS API calls
+  String? cloudAuthToken;
 
 
   // ZRA Smart Invoice / DigiTax API Configuration

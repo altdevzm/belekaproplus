@@ -181,6 +181,7 @@ class CloudDatabaseService {
     required String baseUrl,
     required int storeId,
     required List<SaleTransaction> transactions,
+    String? authToken,
   }) async {
     if (transactions.isEmpty) return [];
 
@@ -225,9 +226,14 @@ class CloudDatabaseService {
         'sales': salesData,
       };
 
+      final options = authToken != null && authToken.isNotEmpty
+          ? Options(headers: {'Authorization': 'Bearer $authToken'})
+          : null;
+
       final response = await _dio.post(
         '$sanitizedUrl/api/v1/sync/batch',
         data: payload,
+        options: options,
       );
 
       if (response.statusCode == 201 || response.statusCode == 200) {

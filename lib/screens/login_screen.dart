@@ -220,6 +220,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               // Update local store profile with cloud branch credentials
               final activeConfig = config ?? await db.isar.storeConfigs.where().findFirst() ?? StoreConfig();
               activeConfig.bhfId = branchBhfId;
+              // Save the JWT token so branch devices can authenticate future VPS sync calls
+              final jwtToken = cloudAuth['token']?.toString();
+              if (jwtToken != null && jwtToken.isNotEmpty) {
+                activeConfig.cloudAuthToken = jwtToken;
+              }
+              // Persist the VPS URL so it's always set on branch devices
+              if (cloudUrl.isNotEmpty) {
+                activeConfig.cloudApiUrl = cloudUrl;
+              }
+              // Save cloud store ID from the store data
+              if (sData != null && sData['id'] != null) {
+                activeConfig.cloudStoreId = (sData['id'] as num).toInt();
+              }
               if (sData != null) {
                 if (sData['name'] != null) activeConfig.businessName = sData['name'].toString();
                 if (sData['branch_name'] != null) activeConfig.branchName = sData['branch_name'].toString();
