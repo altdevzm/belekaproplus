@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:isar/isar.dart';
@@ -12,14 +13,68 @@ final cloudDatabaseServiceProvider = Provider<CloudDatabaseService>((ref) {
 final postgresSyncServiceProvider = Provider<PostgresSyncService>((ref) {
   final isar = ref.watch(isarProvider);
   final cloudDb = ref.watch(cloudDatabaseServiceProvider);
-  return PostgresSyncService(isar: isar, cloudDb: cloudDb);
+  final service = PostgresSyncService(isar: isar, cloudDb: cloudDb);
+  service.startAutoSyncLoop();
+  return service;
 });
 
 class PostgresSyncService {
   final Isar isar;
   final CloudDatabaseService cloudDb;
+  Timer? _syncTimer;
+  bool _isSyncing = false;
 
   PostgresSyncService({required this.isar, required this.cloudDb});
+
+  /// Starts periodic 30-second background sync loop for seamless branch-to-HQ transmission
+  void startAutoSyncLoop({Duration interval = const Duration(seconds: 30)}) {
+    _syncTimer?.cancel();
+    _syncTimer = Timer.periodic(interval, (_) async {
+      if (_isSyncing) return;
+      _isSyncing = true;
+      try {
+        await syncPendingTransactions();
+      } catch (e) {
+        debugPrint('[AutoSync Loop] Background sync tick notice: $e');
+      } finally {
+        _isSyncing = false;
+      }
+    });
+    debugPrint('[PostgresSyncService] Started background sync loop (every ${interval.inSeconds}s)');
+  }
+
+  void stopAutoSyncLoop() {
+    _syncTimer?.cancel();
+    _syncTimer = null;
+  }
+
+  /// Automatically authenticate against Cloud VPS DB and update token in StoreConfig
+  Future<String?> _refreshCloudAuthToken(StoreConfig? config, String cloudUrl) async {
+    final numericId = config?.cloudAuthUserId ?? '1001';
+    final pin = config?.cloudAuthPin ?? '0000';
+
+    debugPrint('[PostgresSyncService] Attempting auto auth token refresh for user $numericId (TPIN: ${config?.tpin})...');
+    final authResult = await cloudDb.authenticateUser(
+      baseUrl: cloudUrl,
+      numericId: numericId,
+      pin: pin,
+      tpin: config?.tpin,
+    );
+
+    if (authResult != null && authResult['access_token'] != null) {
+      final newToken = authResult['access_token'] as String;
+      if (config != null) {
+        await isar.writeTxn(() async {
+          config.cloudAuthToken = newToken;
+          await isar.storeConfigs.put(config);
+        });
+      }
+      debugPrint('[PostgresSyncService] Successfully refreshed cloud auth token.');
+      return newToken;
+    }
+    debugPrint('[PostgresSyncService] Auto auth token refresh failed.');
+    return null;
+  }
 
   /// Push/Sync a specific user or branch manager to Cloud PostgreSQL DB.
   Future<bool> syncUser(User user, {String? plainPin}) async {
@@ -28,13 +83,29 @@ class PostgresSyncService {
         ? config.cloudApiUrl!.trim()
         : 'http://23.139.36.20:8003';
     final storeId = config?.cloudStoreId ?? 1;
+    var token = config?.cloudAuthToken;
 
-    return await cloudDb.syncUser(
+    bool result = await cloudDb.syncUser(
       baseUrl: cloudUrl,
       storeId: storeId,
       user: user,
       plainPin: plainPin,
+      authToken: token,
     );
+
+    if (!result && (token == null || token.isEmpty)) {
+      token = await _refreshCloudAuthToken(config, cloudUrl);
+      if (token != null) {
+        result = await cloudDb.syncUser(
+          baseUrl: cloudUrl,
+          storeId: storeId,
+          user: user,
+          plainPin: plainPin,
+          authToken: token,
+        );
+      }
+    }
+    return result;
   }
 
   /// Push/Sync a Store Branch to Cloud PostgreSQL DB.
@@ -43,8 +114,9 @@ class PostgresSyncService {
     final cloudUrl = (config?.cloudApiUrl != null && config!.cloudApiUrl!.trim().isNotEmpty)
         ? config.cloudApiUrl!.trim()
         : 'http://23.139.36.20:8003';
+    var token = config?.cloudAuthToken;
 
-    return await cloudDb.syncBranch(
+    bool result = await cloudDb.syncBranch(
       baseUrl: cloudUrl,
       branch: branch,
       tpin: config?.tpin,
@@ -52,7 +124,25 @@ class PostgresSyncService {
       digitaxEnvironment: config?.digitaxEnvironment,
       businessTaxType: config?.businessTaxType,
       currencySymbol: config?.currencySymbol,
+      authToken: token,
     );
+
+    if (!result) {
+      token = await _refreshCloudAuthToken(config, cloudUrl);
+      if (token != null) {
+        result = await cloudDb.syncBranch(
+          baseUrl: cloudUrl,
+          branch: branch,
+          tpin: config?.tpin,
+          digitaxApiKey: config?.digitaxApiKey,
+          digitaxEnvironment: config?.digitaxEnvironment,
+          businessTaxType: config?.businessTaxType,
+          currencySymbol: config?.currencySymbol,
+          authToken: token,
+        );
+      }
+    }
+    return result;
   }
 
   /// Push/Sync Store Configuration (TPIN, DigiTax Key, Tax Settings) to Cloud DB.
@@ -61,10 +151,12 @@ class PostgresSyncService {
         ? config.cloudApiUrl!.trim()
         : 'http://23.139.36.20:8003';
     final storeId = config.cloudStoreId ?? 1;
+    var token = config.cloudAuthToken;
 
     return await cloudDb.updateStoreConfig(
       baseUrl: cloudUrl,
       storeId: storeId,
+      authToken: token,
       data: {
         'name': config.businessName,
         'tpin': config.tpin,
@@ -91,7 +183,7 @@ class PostgresSyncService {
     final storeId = config?.cloudStoreId ?? 1;
 
     try {
-      final stores = await cloudDb.getStores(cloudUrl);
+      final stores = await cloudDb.getStores(cloudUrl, authToken: config?.cloudAuthToken);
       if (stores.isEmpty) return false;
 
       final targetStore = stores.where((s) => s['id'] == storeId).firstOrNull;
@@ -126,20 +218,10 @@ class PostgresSyncService {
 
   /// Sync all local users up to Cloud PostgreSQL DB.
   Future<int> syncAllUsersToCloud() async {
-    final config = await isar.storeConfigs.where().findFirst();
-    final cloudUrl = (config?.cloudApiUrl != null && config!.cloudApiUrl!.trim().isNotEmpty)
-        ? config.cloudApiUrl!.trim()
-        : 'http://23.139.36.20:8003';
-    final storeId = config?.cloudStoreId ?? 1;
-
     final allUsers = await isar.users.where().findAll();
     int count = 0;
     for (final u in allUsers) {
-      final success = await cloudDb.syncUser(
-        baseUrl: cloudUrl,
-        storeId: storeId,
-        user: u,
-      );
+      final success = await syncUser(u);
       if (success) count++;
     }
     return count;
@@ -152,8 +234,7 @@ class PostgresSyncService {
         ? config.cloudApiUrl!.trim()
         : 'http://23.139.36.20:8003';
     final storeId = config?.cloudStoreId ?? 1;
-    // JWT token saved on cloud login — required for authenticated VPS API calls
-    final authToken = config?.cloudAuthToken;
+    var authToken = config?.cloudAuthToken;
 
     // Query unsynced sales from local storage
     final unsyncedSales = await isar.saleTransactions
@@ -166,12 +247,34 @@ class PostgresSyncService {
     }
 
     try {
-      final syncedUuids = await cloudDb.syncBatchSales(
-        baseUrl: cloudUrl,
-        storeId: storeId,
-        transactions: unsyncedSales,
-        authToken: authToken,
-      );
+      // Auto-refresh token if missing before making network request
+      if (authToken == null || authToken.isEmpty) {
+        authToken = await _refreshCloudAuthToken(config, cloudUrl);
+      }
+
+      List<String> syncedUuids = [];
+      try {
+        syncedUuids = await cloudDb.syncBatchSales(
+          baseUrl: cloudUrl,
+          storeId: storeId,
+          transactions: unsyncedSales,
+          authToken: authToken,
+        );
+      } catch (e) {
+        // If 401 or Auth error occurs, attempt 1 auto-refresh & retry
+        debugPrint('[PostgresSyncService] Batch sync failed ($e), attempting token refresh...');
+        authToken = await _refreshCloudAuthToken(config, cloudUrl);
+        if (authToken != null) {
+          syncedUuids = await cloudDb.syncBatchSales(
+            baseUrl: cloudUrl,
+            storeId: storeId,
+            transactions: unsyncedSales,
+            authToken: authToken,
+          );
+        } else {
+          rethrow;
+        }
+      }
 
       if (syncedUuids.isNotEmpty) {
         // Mark items as synced in local DB
@@ -207,15 +310,30 @@ class PostgresSyncService {
         : 'http://23.139.36.20:8003';
 
     final storeId = config?.cloudStoreId ?? 1;
-    // JWT token saved on cloud login — required for authenticated VPS API calls
-    final authToken = config?.cloudAuthToken;
+    var authToken = config?.cloudAuthToken;
 
     try {
-      final backup = await cloudDb.downloadVpsBackup(
+      if (authToken == null || authToken.isEmpty) {
+        authToken = await _refreshCloudAuthToken(config, cloudUrl);
+      }
+
+      var backup = await cloudDb.downloadVpsBackup(
         baseUrl: cloudUrl,
         storeId: storeId,
         token: authToken,
       );
+
+      if (backup == null) {
+        // Retry with refreshed token
+        authToken = await _refreshCloudAuthToken(config, cloudUrl);
+        if (authToken != null) {
+          backup = await cloudDb.downloadVpsBackup(
+            baseUrl: cloudUrl,
+            storeId: storeId,
+            token: authToken,
+          );
+        }
+      }
 
       if (backup == null || backup['sales'] == null) return 0;
       final List rawSales = backup['sales'] as List;

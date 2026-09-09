@@ -20,7 +20,7 @@ def get_users(
 ):
     """Fetch active users from Cloud PostgreSQL (tenant-scoped)."""
     target_store_id = store_id or current_user.store_id
-    verify_store_access(target_store_id, current_user)
+    verify_store_access(target_store_id, current_user, db)
 
     query = db.query(models.User).filter(
         models.User.is_active == True,
@@ -38,7 +38,7 @@ def create_or_update_user(
     Create or update a user in the Cloud PostgreSQL database.
     Requires Manager or Owner privileges.
     """
-    verify_store_access(user_in.store_id, current_user)
+    verify_store_access(user_in.store_id, current_user, db)
 
     store = db.query(models.Store).filter(models.Store.id == user_in.store_id).first()
     if not store:
@@ -92,7 +92,7 @@ def sync_users_batch(
     """
     synced_ids = []
     for u_in in payload.users:
-        verify_store_access(u_in.store_id, current_user)
+        verify_store_access(u_in.store_id, current_user, db)
         formatted_hash = u_in.password_hash
         if formatted_hash and not (formatted_hash.startswith("$2b$") or formatted_hash.startswith("$2a$")):
             formatted_hash = hash_password(formatted_hash)

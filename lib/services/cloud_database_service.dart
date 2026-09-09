@@ -27,11 +27,12 @@ class CloudDatabaseService {
     }
   }
 
-  /// Authenticate any user (Manager, Cashier, Owner) against Cloud PostgreSQL DB.
+  /// Authenticate any user (Manager, Cashier, Owner) against Cloud PostgreSQL DB via TPIN + ID + Password.
   Future<Map<String, dynamic>?> authenticateUser({
     required String baseUrl,
     required String numericId,
     required String pin,
+    String? tpin,
     String? companyName,
     String? terminalName,
   }) async {
@@ -42,6 +43,9 @@ class CloudDatabaseService {
         'pin': pin.trim(),
         'terminal_name': terminalName ?? 'POS-TERMINAL',
       };
+      if (tpin != null && tpin.trim().isNotEmpty) {
+        payload['tpin'] = tpin.trim();
+      }
       if (companyName != null && companyName.trim().isNotEmpty) {
         payload['company_name'] = companyName.trim();
       }
@@ -60,12 +64,20 @@ class CloudDatabaseService {
     }
   }
 
+  Options? _buildAuthOptions(String? authToken) {
+    if (authToken != null && authToken.trim().isNotEmpty) {
+      return Options(headers: {'Authorization': 'Bearer ${authToken.trim()}'});
+    }
+    return null;
+  }
+
   /// Push/Sync a user or Branch Manager to Cloud PostgreSQL DB.
   Future<bool> syncUser({
     required String baseUrl,
     required int storeId,
     required User user,
     String? plainPin,
+    String? authToken,
   }) async {
     try {
       final sanitizedUrl = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
@@ -81,6 +93,7 @@ class CloudDatabaseService {
           'password_hash': user.passwordHash,
           'is_active': user.isActive,
         },
+        options: _buildAuthOptions(authToken),
       );
       return response.statusCode == 200 || response.statusCode == 201;
     } catch (e) {
@@ -98,6 +111,7 @@ class CloudDatabaseService {
     String? digitaxEnvironment,
     String? businessTaxType,
     String? currencySymbol,
+    String? authToken,
   }) async {
     try {
       final sanitizedUrl = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
@@ -120,6 +134,7 @@ class CloudDatabaseService {
           'business_tax_type': businessTaxType ?? 'VAT_STANDARD',
           'currency_symbol': currencySymbol ?? 'K',
         },
+        options: _buildAuthOptions(authToken),
       );
       return response.statusCode == 200 || response.statusCode == 201;
     } catch (e) {
@@ -133,12 +148,14 @@ class CloudDatabaseService {
     required String baseUrl,
     required int storeId,
     required Map<String, dynamic> data,
+    String? authToken,
   }) async {
     try {
       final sanitizedUrl = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
       final response = await _dio.put(
         '$sanitizedUrl/api/v1/stores/$storeId',
         data: data,
+        options: _buildAuthOptions(authToken),
       );
       return response.statusCode == 200 || response.statusCode == 201;
     } catch (e) {
@@ -148,10 +165,13 @@ class CloudDatabaseService {
   }
 
   /// Fetch list of available store branches from Cloud PostgreSQL DB.
-  Future<List<Map<String, dynamic>>> getStores(String baseUrl) async {
+  Future<List<Map<String, dynamic>>> getStores(String baseUrl, {String? authToken}) async {
     try {
       final sanitizedUrl = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
-      final response = await _dio.get('$sanitizedUrl/api/v1/stores');
+      final response = await _dio.get(
+        '$sanitizedUrl/api/v1/stores',
+        options: _buildAuthOptions(authToken),
+      );
       if (response.statusCode == 200 && response.data is List) {
         return List<Map<String, dynamic>>.from(response.data);
       }
@@ -163,13 +183,14 @@ class CloudDatabaseService {
   }
 
   /// Fetch list of users from Cloud PostgreSQL DB.
-  Future<List<Map<String, dynamic>>> getUsers(String baseUrl, {int? storeId}) async {
+  Future<List<Map<String, dynamic>>> getUsers(String baseUrl, {int? storeId, String? authToken}) async {
     try {
       final sanitizedUrl = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
       final queryParams = storeId != null ? {'store_id': storeId} : null;
       final response = await _dio.get(
         '$sanitizedUrl/api/v1/users',
         queryParameters: queryParams,
+        options: _buildAuthOptions(authToken),
       );
       if (response.statusCode == 200 && response.data is List) {
         return List<Map<String, dynamic>>.from(response.data);
@@ -231,14 +252,10 @@ class CloudDatabaseService {
         'sales': salesData,
       };
 
-      final options = authToken != null && authToken.isNotEmpty
-          ? Options(headers: {'Authorization': 'Bearer $authToken'})
-          : null;
-
       final response = await _dio.post(
         '$sanitizedUrl/api/v1/sync/batch',
         data: payload,
-        options: options,
+        options: _buildAuthOptions(authToken),
       );
 
       if (response.statusCode == 201 || response.statusCode == 200) {
@@ -253,12 +270,13 @@ class CloudDatabaseService {
   }
 
   /// Fetch list of products from Cloud PostgreSQL DB for a specific store branch.
-  Future<List<Map<String, dynamic>>> getProducts(String baseUrl, {required int storeId}) async {
+  Future<List<Map<String, dynamic>>> getProducts(String baseUrl, {required int storeId, String? authToken}) async {
     try {
       final sanitizedUrl = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
       final response = await _dio.get(
         '$sanitizedUrl/api/v1/products',
         queryParameters: {'store_id': storeId},
+        options: _buildAuthOptions(authToken),
       );
       if (response.statusCode == 200 && response.data is List) {
         return List<Map<String, dynamic>>.from(response.data);
@@ -278,13 +296,10 @@ class CloudDatabaseService {
   }) async {
     try {
       final sanitizedUrl = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
-      final options = Options(
-        headers: token != null && token.isNotEmpty ? {'Authorization': 'Bearer $token'} : null,
-      );
       final response = await _dio.get(
         '$sanitizedUrl/api/v1/sync/export-backup',
         queryParameters: {'store_id': storeId},
-        options: options,
+        options: _buildAuthOptions(token),
       );
 
       if (response.statusCode == 200 && response.data is Map) {

@@ -1,15 +1,16 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.database import engine, Base
+from app.database import engine, Base, seed_initial_data
 from app.routers import auth, users, stores, sync, products, reports, zra_digitax, purchases, tot, tax_statement
 
-# Initialize PostgreSQL tables
+# Initialize PostgreSQL tables and seed default data
 Base.metadata.create_all(bind=engine)
+seed_initial_data()
 
 app = FastAPI(
     title="Beleka POS Cloud PostgreSQL API",
     description="Multi-Store Cloud Database API Service for Beleka Point of Sale System",
-    version="2.0.1",
+    version="2.6.0",
 
 )
 

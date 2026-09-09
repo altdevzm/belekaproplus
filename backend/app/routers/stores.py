@@ -12,9 +12,17 @@ def get_all_stores(
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Fetch active store branches. Regular users only see their assigned store."""
+    """Fetch active store branches. Regular users only see their assigned store; owners see organization branches."""
     if current_user.role in ["owner", "super_admin"]:
+        user_store = current_user.store or db.query(models.Store).filter(models.Store.id == current_user.store_id).first()
+        user_tpin = (user_store.tpin or "").strip() if user_store else ""
+        if user_tpin and current_user.role != "super_admin":
+            return db.query(models.Store).filter(
+                models.Store.tpin == user_tpin,
+                models.Store.is_active == True
+            ).all()
         return db.query(models.Store).filter(models.Store.is_active == True).all()
+
     return db.query(models.Store).filter(
         models.Store.id == current_user.store_id,
         models.Store.is_active == True
@@ -26,25 +34,24 @@ def create_store(
     current_user: models.User = Depends(require_roles(["owner"])),
     db: Session = Depends(get_db)
 ):
-    """Register a new store branch in the PostgreSQL Cloud Database. Requires Owner role."""
+    """Register a new store branch under the owner's organization TPIN. Requires Owner role."""
     existing = db.query(models.Store).filter(models.Store.store_code == store_in.store_code).first()
     if existing:
         raise HTTPException(status_code=400, detail="Store code already registered")
 
     store_data = store_in.model_dump()
     
-    # Auto-inherit corporate tax & DigiTax credentials from HQ (Store 1) if not provided
-    if not store_data.get("tpin") or not store_data.get("digitax_api_key"):
-        hq_store = db.query(models.Store).filter(models.Store.id == 1).first()
-        if hq_store:
-            if not store_data.get("tpin"):
-                store_data["tpin"] = hq_store.tpin
-            if not store_data.get("digitax_api_key"):
-                store_data["digitax_api_key"] = hq_store.digitax_api_key
-            if not store_data.get("digitax_environment"):
-                store_data["digitax_environment"] = hq_store.digitax_environment
-            if not store_data.get("business_tax_type"):
-                store_data["business_tax_type"] = hq_store.business_tax_type
+    # Auto-inherit corporate TPIN & DigiTax credentials from owner's store
+    owner_store = current_user.store or db.query(models.Store).filter(models.Store.id == current_user.store_id).first()
+    if owner_store:
+        if not store_data.get("tpin"):
+            store_data["tpin"] = owner_store.tpin
+        if not store_data.get("digitax_api_key"):
+            store_data["digitax_api_key"] = owner_store.digitax_api_key
+        if not store_data.get("digitax_environment"):
+            store_data["digitax_environment"] = owner_store.digitax_environment
+        if not store_data.get("business_tax_type"):
+            store_data["business_tax_type"] = owner_store.business_tax_type
 
     store = models.Store(**store_data)
     db.add(store)
@@ -60,7 +67,7 @@ def update_store(
     db: Session = Depends(get_db)
 ):
     """Update store details, TPIN, or DigiTax credentials on Cloud PostgreSQL DB (tenant-scoped)."""
-    verify_store_access(store_id, current_user)
+    verify_store_access(store_id, current_user, db)
 
     store = db.query(models.Store).filter(models.Store.id == store_id).first()
     if not store:

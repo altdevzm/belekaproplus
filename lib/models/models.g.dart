@@ -14967,204 +14967,214 @@ const StoreConfigSchema = CollectionSchema(
       name: r'cloudApiUrl',
       type: IsarType.string,
     ),
-    r'cloudAuthToken': PropertySchema(
+    r'cloudAuthPin': PropertySchema(
       id: 13,
+      name: r'cloudAuthPin',
+      type: IsarType.string,
+    ),
+    r'cloudAuthToken': PropertySchema(
+      id: 14,
       name: r'cloudAuthToken',
       type: IsarType.string,
     ),
+    r'cloudAuthUserId': PropertySchema(
+      id: 15,
+      name: r'cloudAuthUserId',
+      type: IsarType.string,
+    ),
     r'cloudStoreCode': PropertySchema(
-      id: 14,
+      id: 16,
       name: r'cloudStoreCode',
       type: IsarType.string,
     ),
     r'cloudStoreId': PropertySchema(
-      id: 15,
+      id: 17,
       name: r'cloudStoreId',
       type: IsarType.long,
     ),
     r'contactNumber': PropertySchema(
-      id: 16,
+      id: 18,
       name: r'contactNumber',
       type: IsarType.string,
     ),
     r'currencySymbol': PropertySchema(
-      id: 17,
+      id: 19,
       name: r'currencySymbol',
       type: IsarType.string,
     ),
     r'defaultPrinterAddress': PropertySchema(
-      id: 18,
+      id: 20,
       name: r'defaultPrinterAddress',
       type: IsarType.string,
     ),
     r'defaultPrinterModel': PropertySchema(
-      id: 19,
+      id: 21,
       name: r'defaultPrinterModel',
       type: IsarType.string,
     ),
     r'defaultPrinterName': PropertySchema(
-      id: 20,
+      id: 22,
       name: r'defaultPrinterName',
       type: IsarType.string,
     ),
     r'defaultPrinterType': PropertySchema(
-      id: 21,
+      id: 23,
       name: r'defaultPrinterType',
       type: IsarType.string,
     ),
     r'defaultServiceChargeRate': PropertySchema(
-      id: 22,
+      id: 24,
       name: r'defaultServiceChargeRate',
       type: IsarType.double,
     ),
     r'defaultTareWeight': PropertySchema(
-      id: 23,
+      id: 25,
       name: r'defaultTareWeight',
       type: IsarType.double,
     ),
     r'digitaxApiKey': PropertySchema(
-      id: 24,
+      id: 26,
       name: r'digitaxApiKey',
       type: IsarType.string,
     ),
     r'digitaxEnvironment': PropertySchema(
-      id: 25,
+      id: 27,
       name: r'digitaxEnvironment',
       type: IsarType.string,
     ),
     r'email': PropertySchema(
-      id: 26,
+      id: 28,
       name: r'email',
       type: IsarType.string,
     ),
     r'isCloudSyncEnabled': PropertySchema(
-      id: 27,
+      id: 29,
       name: r'isCloudSyncEnabled',
       type: IsarType.bool,
     ),
     r'isManagerMode': PropertySchema(
-      id: 28,
+      id: 30,
       name: r'isManagerMode',
       type: IsarType.bool,
     ),
     r'lastBackupDate': PropertySchema(
-      id: 29,
+      id: 31,
       name: r'lastBackupDate',
       type: IsarType.dateTime,
     ),
     r'lastCloudSyncDate': PropertySchema(
-      id: 30,
+      id: 32,
       name: r'lastCloudSyncDate',
       type: IsarType.dateTime,
     ),
     r'logoPath': PropertySchema(
-      id: 31,
+      id: 33,
       name: r'logoPath',
       type: IsarType.string,
     ),
     r'loyaltyEarnRate': PropertySchema(
-      id: 32,
+      id: 34,
       name: r'loyaltyEarnRate',
       type: IsarType.double,
     ),
     r'loyaltyEnabled': PropertySchema(
-      id: 33,
+      id: 35,
       name: r'loyaltyEnabled',
       type: IsarType.bool,
     ),
     r'loyaltyRedemptionValue': PropertySchema(
-      id: 34,
+      id: 36,
       name: r'loyaltyRedemptionValue',
       type: IsarType.double,
     ),
     r'mrcNo': PropertySchema(
-      id: 35,
+      id: 37,
       name: r'mrcNo',
       type: IsarType.string,
     ),
     r'openDrawerCashOnly': PropertySchema(
-      id: 36,
+      id: 38,
       name: r'openDrawerCashOnly',
       type: IsarType.bool,
     ),
     r'paperWidthMm': PropertySchema(
-      id: 37,
+      id: 39,
       name: r'paperWidthMm',
       type: IsarType.long,
     ),
     r'port': PropertySchema(
-      id: 38,
+      id: 40,
       name: r'port',
       type: IsarType.long,
     ),
     r'primarySector': PropertySchema(
-      id: 39,
+      id: 41,
       name: r'primarySector',
       type: IsarType.byte,
       enumMap: _StoreConfigprimarySectorEnumValueMap,
     ),
     r'recoveryCodeHash': PropertySchema(
-      id: 40,
+      id: 42,
       name: r'recoveryCodeHash',
       type: IsarType.string,
     ),
     r'scaleBaudRate': PropertySchema(
-      id: 41,
+      id: 43,
       name: r'scaleBaudRate',
       type: IsarType.long,
     ),
     r'scaleEnabled': PropertySchema(
-      id: 42,
+      id: 44,
       name: r'scaleEnabled',
       type: IsarType.bool,
     ),
     r'scalePort': PropertySchema(
-      id: 43,
+      id: 45,
       name: r'scalePort',
       type: IsarType.string,
     ),
     r'scaleProtocol': PropertySchema(
-      id: 44,
+      id: 46,
       name: r'scaleProtocol',
       type: IsarType.string,
     ),
     r'sdcId': PropertySchema(
-      id: 45,
+      id: 47,
       name: r'sdcId',
       type: IsarType.string,
     ),
     r'serverIp': PropertySchema(
-      id: 46,
+      id: 48,
       name: r'serverIp',
       type: IsarType.string,
     ),
     r'serviceChargeEnabled': PropertySchema(
-      id: 47,
+      id: 49,
       name: r'serviceChargeEnabled',
       type: IsarType.bool,
     ),
     r'taxId': PropertySchema(
-      id: 48,
+      id: 50,
       name: r'taxId',
       type: IsarType.string,
     ),
     r'taxRate': PropertySchema(
-      id: 49,
+      id: 51,
       name: r'taxRate',
       type: IsarType.double,
     ),
     r'terminalName': PropertySchema(
-      id: 50,
+      id: 52,
       name: r'terminalName',
       type: IsarType.string,
     ),
     r'tpin': PropertySchema(
-      id: 51,
+      id: 53,
       name: r'tpin',
       type: IsarType.string,
     ),
     r'website': PropertySchema(
-      id: 52,
+      id: 54,
       name: r'website',
       type: IsarType.string,
     )
@@ -15223,7 +15233,19 @@ int _storeConfigEstimateSize(
     }
   }
   {
+    final value = object.cloudAuthPin;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
+  {
     final value = object.cloudAuthToken;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
+  {
+    final value = object.cloudAuthUserId;
     if (value != null) {
       bytesCount += 3 + value.length * 3;
     }
@@ -15356,46 +15378,48 @@ void _storeConfigSerialize(
   writer.writeLong(offsets[10], object.cashDrawerPulseOffMs);
   writer.writeLong(offsets[11], object.cashDrawerPulseOnMs);
   writer.writeString(offsets[12], object.cloudApiUrl);
-  writer.writeString(offsets[13], object.cloudAuthToken);
-  writer.writeString(offsets[14], object.cloudStoreCode);
-  writer.writeLong(offsets[15], object.cloudStoreId);
-  writer.writeString(offsets[16], object.contactNumber);
-  writer.writeString(offsets[17], object.currencySymbol);
-  writer.writeString(offsets[18], object.defaultPrinterAddress);
-  writer.writeString(offsets[19], object.defaultPrinterModel);
-  writer.writeString(offsets[20], object.defaultPrinterName);
-  writer.writeString(offsets[21], object.defaultPrinterType);
-  writer.writeDouble(offsets[22], object.defaultServiceChargeRate);
-  writer.writeDouble(offsets[23], object.defaultTareWeight);
-  writer.writeString(offsets[24], object.digitaxApiKey);
-  writer.writeString(offsets[25], object.digitaxEnvironment);
-  writer.writeString(offsets[26], object.email);
-  writer.writeBool(offsets[27], object.isCloudSyncEnabled);
-  writer.writeBool(offsets[28], object.isManagerMode);
-  writer.writeDateTime(offsets[29], object.lastBackupDate);
-  writer.writeDateTime(offsets[30], object.lastCloudSyncDate);
-  writer.writeString(offsets[31], object.logoPath);
-  writer.writeDouble(offsets[32], object.loyaltyEarnRate);
-  writer.writeBool(offsets[33], object.loyaltyEnabled);
-  writer.writeDouble(offsets[34], object.loyaltyRedemptionValue);
-  writer.writeString(offsets[35], object.mrcNo);
-  writer.writeBool(offsets[36], object.openDrawerCashOnly);
-  writer.writeLong(offsets[37], object.paperWidthMm);
-  writer.writeLong(offsets[38], object.port);
-  writer.writeByte(offsets[39], object.primarySector.index);
-  writer.writeString(offsets[40], object.recoveryCodeHash);
-  writer.writeLong(offsets[41], object.scaleBaudRate);
-  writer.writeBool(offsets[42], object.scaleEnabled);
-  writer.writeString(offsets[43], object.scalePort);
-  writer.writeString(offsets[44], object.scaleProtocol);
-  writer.writeString(offsets[45], object.sdcId);
-  writer.writeString(offsets[46], object.serverIp);
-  writer.writeBool(offsets[47], object.serviceChargeEnabled);
-  writer.writeString(offsets[48], object.taxId);
-  writer.writeDouble(offsets[49], object.taxRate);
-  writer.writeString(offsets[50], object.terminalName);
-  writer.writeString(offsets[51], object.tpin);
-  writer.writeString(offsets[52], object.website);
+  writer.writeString(offsets[13], object.cloudAuthPin);
+  writer.writeString(offsets[14], object.cloudAuthToken);
+  writer.writeString(offsets[15], object.cloudAuthUserId);
+  writer.writeString(offsets[16], object.cloudStoreCode);
+  writer.writeLong(offsets[17], object.cloudStoreId);
+  writer.writeString(offsets[18], object.contactNumber);
+  writer.writeString(offsets[19], object.currencySymbol);
+  writer.writeString(offsets[20], object.defaultPrinterAddress);
+  writer.writeString(offsets[21], object.defaultPrinterModel);
+  writer.writeString(offsets[22], object.defaultPrinterName);
+  writer.writeString(offsets[23], object.defaultPrinterType);
+  writer.writeDouble(offsets[24], object.defaultServiceChargeRate);
+  writer.writeDouble(offsets[25], object.defaultTareWeight);
+  writer.writeString(offsets[26], object.digitaxApiKey);
+  writer.writeString(offsets[27], object.digitaxEnvironment);
+  writer.writeString(offsets[28], object.email);
+  writer.writeBool(offsets[29], object.isCloudSyncEnabled);
+  writer.writeBool(offsets[30], object.isManagerMode);
+  writer.writeDateTime(offsets[31], object.lastBackupDate);
+  writer.writeDateTime(offsets[32], object.lastCloudSyncDate);
+  writer.writeString(offsets[33], object.logoPath);
+  writer.writeDouble(offsets[34], object.loyaltyEarnRate);
+  writer.writeBool(offsets[35], object.loyaltyEnabled);
+  writer.writeDouble(offsets[36], object.loyaltyRedemptionValue);
+  writer.writeString(offsets[37], object.mrcNo);
+  writer.writeBool(offsets[38], object.openDrawerCashOnly);
+  writer.writeLong(offsets[39], object.paperWidthMm);
+  writer.writeLong(offsets[40], object.port);
+  writer.writeByte(offsets[41], object.primarySector.index);
+  writer.writeString(offsets[42], object.recoveryCodeHash);
+  writer.writeLong(offsets[43], object.scaleBaudRate);
+  writer.writeBool(offsets[44], object.scaleEnabled);
+  writer.writeString(offsets[45], object.scalePort);
+  writer.writeString(offsets[46], object.scaleProtocol);
+  writer.writeString(offsets[47], object.sdcId);
+  writer.writeString(offsets[48], object.serverIp);
+  writer.writeBool(offsets[49], object.serviceChargeEnabled);
+  writer.writeString(offsets[50], object.taxId);
+  writer.writeDouble(offsets[51], object.taxRate);
+  writer.writeString(offsets[52], object.terminalName);
+  writer.writeString(offsets[53], object.tpin);
+  writer.writeString(offsets[54], object.website);
 }
 
 StoreConfig _storeConfigDeserialize(
@@ -15418,49 +15442,51 @@ StoreConfig _storeConfigDeserialize(
   object.cashDrawerPulseOffMs = reader.readLong(offsets[10]);
   object.cashDrawerPulseOnMs = reader.readLong(offsets[11]);
   object.cloudApiUrl = reader.readStringOrNull(offsets[12]);
-  object.cloudAuthToken = reader.readStringOrNull(offsets[13]);
-  object.cloudStoreCode = reader.readStringOrNull(offsets[14]);
-  object.cloudStoreId = reader.readLongOrNull(offsets[15]);
-  object.contactNumber = reader.readStringOrNull(offsets[16]);
-  object.currencySymbol = reader.readStringOrNull(offsets[17]);
-  object.defaultPrinterAddress = reader.readStringOrNull(offsets[18]);
-  object.defaultPrinterModel = reader.readStringOrNull(offsets[19]);
-  object.defaultPrinterName = reader.readStringOrNull(offsets[20]);
-  object.defaultPrinterType = reader.readStringOrNull(offsets[21]);
-  object.defaultServiceChargeRate = reader.readDouble(offsets[22]);
-  object.defaultTareWeight = reader.readDouble(offsets[23]);
-  object.digitaxApiKey = reader.readStringOrNull(offsets[24]);
-  object.digitaxEnvironment = reader.readString(offsets[25]);
-  object.email = reader.readStringOrNull(offsets[26]);
+  object.cloudAuthPin = reader.readStringOrNull(offsets[13]);
+  object.cloudAuthToken = reader.readStringOrNull(offsets[14]);
+  object.cloudAuthUserId = reader.readStringOrNull(offsets[15]);
+  object.cloudStoreCode = reader.readStringOrNull(offsets[16]);
+  object.cloudStoreId = reader.readLongOrNull(offsets[17]);
+  object.contactNumber = reader.readStringOrNull(offsets[18]);
+  object.currencySymbol = reader.readStringOrNull(offsets[19]);
+  object.defaultPrinterAddress = reader.readStringOrNull(offsets[20]);
+  object.defaultPrinterModel = reader.readStringOrNull(offsets[21]);
+  object.defaultPrinterName = reader.readStringOrNull(offsets[22]);
+  object.defaultPrinterType = reader.readStringOrNull(offsets[23]);
+  object.defaultServiceChargeRate = reader.readDouble(offsets[24]);
+  object.defaultTareWeight = reader.readDouble(offsets[25]);
+  object.digitaxApiKey = reader.readStringOrNull(offsets[26]);
+  object.digitaxEnvironment = reader.readString(offsets[27]);
+  object.email = reader.readStringOrNull(offsets[28]);
   object.id = id;
-  object.isCloudSyncEnabled = reader.readBool(offsets[27]);
-  object.isManagerMode = reader.readBool(offsets[28]);
-  object.lastBackupDate = reader.readDateTimeOrNull(offsets[29]);
-  object.lastCloudSyncDate = reader.readDateTimeOrNull(offsets[30]);
-  object.logoPath = reader.readStringOrNull(offsets[31]);
-  object.loyaltyEarnRate = reader.readDouble(offsets[32]);
-  object.loyaltyEnabled = reader.readBool(offsets[33]);
-  object.loyaltyRedemptionValue = reader.readDouble(offsets[34]);
-  object.mrcNo = reader.readStringOrNull(offsets[35]);
-  object.openDrawerCashOnly = reader.readBool(offsets[36]);
-  object.paperWidthMm = reader.readLong(offsets[37]);
-  object.port = reader.readLong(offsets[38]);
+  object.isCloudSyncEnabled = reader.readBool(offsets[29]);
+  object.isManagerMode = reader.readBool(offsets[30]);
+  object.lastBackupDate = reader.readDateTimeOrNull(offsets[31]);
+  object.lastCloudSyncDate = reader.readDateTimeOrNull(offsets[32]);
+  object.logoPath = reader.readStringOrNull(offsets[33]);
+  object.loyaltyEarnRate = reader.readDouble(offsets[34]);
+  object.loyaltyEnabled = reader.readBool(offsets[35]);
+  object.loyaltyRedemptionValue = reader.readDouble(offsets[36]);
+  object.mrcNo = reader.readStringOrNull(offsets[37]);
+  object.openDrawerCashOnly = reader.readBool(offsets[38]);
+  object.paperWidthMm = reader.readLong(offsets[39]);
+  object.port = reader.readLong(offsets[40]);
   object.primarySector = _StoreConfigprimarySectorValueEnumMap[
-          reader.readByteOrNull(offsets[39])] ??
+          reader.readByteOrNull(offsets[41])] ??
       CategorySector.pharmacy;
-  object.recoveryCodeHash = reader.readStringOrNull(offsets[40]);
-  object.scaleBaudRate = reader.readLong(offsets[41]);
-  object.scaleEnabled = reader.readBool(offsets[42]);
-  object.scalePort = reader.readString(offsets[43]);
-  object.scaleProtocol = reader.readString(offsets[44]);
-  object.sdcId = reader.readStringOrNull(offsets[45]);
-  object.serverIp = reader.readStringOrNull(offsets[46]);
-  object.serviceChargeEnabled = reader.readBool(offsets[47]);
-  object.taxId = reader.readStringOrNull(offsets[48]);
-  object.taxRate = reader.readDouble(offsets[49]);
-  object.terminalName = reader.readString(offsets[50]);
-  object.tpin = reader.readStringOrNull(offsets[51]);
-  object.website = reader.readStringOrNull(offsets[52]);
+  object.recoveryCodeHash = reader.readStringOrNull(offsets[42]);
+  object.scaleBaudRate = reader.readLong(offsets[43]);
+  object.scaleEnabled = reader.readBool(offsets[44]);
+  object.scalePort = reader.readString(offsets[45]);
+  object.scaleProtocol = reader.readString(offsets[46]);
+  object.sdcId = reader.readStringOrNull(offsets[47]);
+  object.serverIp = reader.readStringOrNull(offsets[48]);
+  object.serviceChargeEnabled = reader.readBool(offsets[49]);
+  object.taxId = reader.readStringOrNull(offsets[50]);
+  object.taxRate = reader.readDouble(offsets[51]);
+  object.terminalName = reader.readString(offsets[52]);
+  object.tpin = reader.readStringOrNull(offsets[53]);
+  object.website = reader.readStringOrNull(offsets[54]);
   return object;
 }
 
@@ -15502,11 +15528,11 @@ P _storeConfigDeserializeProp<P>(
     case 14:
       return (reader.readStringOrNull(offset)) as P;
     case 15:
-      return (reader.readLongOrNull(offset)) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 16:
       return (reader.readStringOrNull(offset)) as P;
     case 17:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readLongOrNull(offset)) as P;
     case 18:
       return (reader.readStringOrNull(offset)) as P;
     case 19:
@@ -15516,68 +15542,72 @@ P _storeConfigDeserializeProp<P>(
     case 21:
       return (reader.readStringOrNull(offset)) as P;
     case 22:
-      return (reader.readDouble(offset)) as P;
-    case 23:
-      return (reader.readDouble(offset)) as P;
-    case 24:
       return (reader.readStringOrNull(offset)) as P;
+    case 23:
+      return (reader.readStringOrNull(offset)) as P;
+    case 24:
+      return (reader.readDouble(offset)) as P;
     case 25:
-      return (reader.readString(offset)) as P;
+      return (reader.readDouble(offset)) as P;
     case 26:
       return (reader.readStringOrNull(offset)) as P;
     case 27:
-      return (reader.readBool(offset)) as P;
+      return (reader.readString(offset)) as P;
     case 28:
-      return (reader.readBool(offset)) as P;
-    case 29:
-      return (reader.readDateTimeOrNull(offset)) as P;
-    case 30:
-      return (reader.readDateTimeOrNull(offset)) as P;
-    case 31:
       return (reader.readStringOrNull(offset)) as P;
-    case 32:
-      return (reader.readDouble(offset)) as P;
-    case 33:
+    case 29:
       return (reader.readBool(offset)) as P;
+    case 30:
+      return (reader.readBool(offset)) as P;
+    case 31:
+      return (reader.readDateTimeOrNull(offset)) as P;
+    case 32:
+      return (reader.readDateTimeOrNull(offset)) as P;
+    case 33:
+      return (reader.readStringOrNull(offset)) as P;
     case 34:
       return (reader.readDouble(offset)) as P;
     case 35:
-      return (reader.readStringOrNull(offset)) as P;
-    case 36:
       return (reader.readBool(offset)) as P;
+    case 36:
+      return (reader.readDouble(offset)) as P;
     case 37:
-      return (reader.readLong(offset)) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 38:
-      return (reader.readLong(offset)) as P;
+      return (reader.readBool(offset)) as P;
     case 39:
+      return (reader.readLong(offset)) as P;
+    case 40:
+      return (reader.readLong(offset)) as P;
+    case 41:
       return (_StoreConfigprimarySectorValueEnumMap[
               reader.readByteOrNull(offset)] ??
           CategorySector.pharmacy) as P;
-    case 40:
-      return (reader.readStringOrNull(offset)) as P;
-    case 41:
-      return (reader.readLong(offset)) as P;
     case 42:
-      return (reader.readBool(offset)) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 43:
-      return (reader.readString(offset)) as P;
+      return (reader.readLong(offset)) as P;
     case 44:
-      return (reader.readString(offset)) as P;
-    case 45:
-      return (reader.readStringOrNull(offset)) as P;
-    case 46:
-      return (reader.readStringOrNull(offset)) as P;
-    case 47:
       return (reader.readBool(offset)) as P;
+    case 45:
+      return (reader.readString(offset)) as P;
+    case 46:
+      return (reader.readString(offset)) as P;
+    case 47:
+      return (reader.readStringOrNull(offset)) as P;
     case 48:
       return (reader.readStringOrNull(offset)) as P;
     case 49:
-      return (reader.readDouble(offset)) as P;
+      return (reader.readBool(offset)) as P;
     case 50:
-      return (reader.readString(offset)) as P;
-    case 51:
       return (reader.readStringOrNull(offset)) as P;
+    case 51:
+      return (reader.readDouble(offset)) as P;
     case 52:
+      return (reader.readString(offset)) as P;
+    case 53:
+      return (reader.readStringOrNull(offset)) as P;
+    case 54:
       return (reader.readStringOrNull(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -17055,6 +17085,160 @@ extension StoreConfigQueryFilter
   }
 
   QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      cloudAuthPinIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'cloudAuthPin',
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      cloudAuthPinIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'cloudAuthPin',
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      cloudAuthPinEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'cloudAuthPin',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      cloudAuthPinGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'cloudAuthPin',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      cloudAuthPinLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'cloudAuthPin',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      cloudAuthPinBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'cloudAuthPin',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      cloudAuthPinStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'cloudAuthPin',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      cloudAuthPinEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'cloudAuthPin',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      cloudAuthPinContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'cloudAuthPin',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      cloudAuthPinMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'cloudAuthPin',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      cloudAuthPinIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'cloudAuthPin',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      cloudAuthPinIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'cloudAuthPin',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
       cloudAuthTokenIsNull() {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(const FilterCondition.isNull(
@@ -17203,6 +17387,160 @@ extension StoreConfigQueryFilter
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.greaterThan(
         property: r'cloudAuthToken',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      cloudAuthUserIdIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'cloudAuthUserId',
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      cloudAuthUserIdIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'cloudAuthUserId',
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      cloudAuthUserIdEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'cloudAuthUserId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      cloudAuthUserIdGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'cloudAuthUserId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      cloudAuthUserIdLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'cloudAuthUserId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      cloudAuthUserIdBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'cloudAuthUserId',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      cloudAuthUserIdStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'cloudAuthUserId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      cloudAuthUserIdEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'cloudAuthUserId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      cloudAuthUserIdContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'cloudAuthUserId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      cloudAuthUserIdMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'cloudAuthUserId',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      cloudAuthUserIdIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'cloudAuthUserId',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      cloudAuthUserIdIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'cloudAuthUserId',
         value: '',
       ));
     });
@@ -21401,6 +21739,19 @@ extension StoreConfigQuerySortBy
     });
   }
 
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy> sortByCloudAuthPin() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'cloudAuthPin', Sort.asc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy>
+      sortByCloudAuthPinDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'cloudAuthPin', Sort.desc);
+    });
+  }
+
   QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy> sortByCloudAuthToken() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'cloudAuthToken', Sort.asc);
@@ -21411,6 +21762,19 @@ extension StoreConfigQuerySortBy
       sortByCloudAuthTokenDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'cloudAuthToken', Sort.desc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy> sortByCloudAuthUserId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'cloudAuthUserId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy>
+      sortByCloudAuthUserIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'cloudAuthUserId', Sort.desc);
     });
   }
 
@@ -22094,6 +22458,19 @@ extension StoreConfigQuerySortThenBy
     });
   }
 
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy> thenByCloudAuthPin() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'cloudAuthPin', Sort.asc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy>
+      thenByCloudAuthPinDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'cloudAuthPin', Sort.desc);
+    });
+  }
+
   QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy> thenByCloudAuthToken() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'cloudAuthToken', Sort.asc);
@@ -22104,6 +22481,19 @@ extension StoreConfigQuerySortThenBy
       thenByCloudAuthTokenDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'cloudAuthToken', Sort.desc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy> thenByCloudAuthUserId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'cloudAuthUserId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy>
+      thenByCloudAuthUserIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'cloudAuthUserId', Sort.desc);
     });
   }
 
@@ -22723,10 +23113,25 @@ extension StoreConfigQueryWhereDistinct
     });
   }
 
+  QueryBuilder<StoreConfig, StoreConfig, QDistinct> distinctByCloudAuthPin(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'cloudAuthPin', caseSensitive: caseSensitive);
+    });
+  }
+
   QueryBuilder<StoreConfig, StoreConfig, QDistinct> distinctByCloudAuthToken(
       {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'cloudAuthToken',
+          caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QDistinct> distinctByCloudAuthUserId(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'cloudAuthUserId',
           caseSensitive: caseSensitive);
     });
   }
@@ -23096,10 +23501,23 @@ extension StoreConfigQueryProperty
     });
   }
 
+  QueryBuilder<StoreConfig, String?, QQueryOperations> cloudAuthPinProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'cloudAuthPin');
+    });
+  }
+
   QueryBuilder<StoreConfig, String?, QQueryOperations>
       cloudAuthTokenProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'cloudAuthToken');
+    });
+  }
+
+  QueryBuilder<StoreConfig, String?, QQueryOperations>
+      cloudAuthUserIdProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'cloudAuthUserId');
     });
   }
 

@@ -1,14 +1,49 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from datetime import datetime
 from sqlalchemy.sql import func
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from app.database import get_db
 from app import models, schemas
 from app.auth_deps import get_current_user, verify_store_access
 from app.services.digitax_service import DigiTaxZraService
 
+logger = logging.getLogger("beleka.sync")
+
 router = APIRouter(prefix="/api/v1/sync", tags=["Sync"])
+
+
+def _resolve_product_id(
+    db: Session, store_id: int, local_product_id: Optional[int], product_name: str
+) -> Optional[int]:
+    """Resolve a branch's local product ID to a valid PostgreSQL product ID.
+    
+    Strategy:
+    1. Try exact ID match within the same store.
+    2. Fall back to name match within the same store.
+    3. Return None (FK-safe) if no match is found — the sale item is still
+       stored with full name, price, cost, and tax data for reporting.
+    """
+    if local_product_id:
+        product = db.query(models.Product).filter(
+            models.Product.id == local_product_id,
+            models.Product.store_id == store_id,
+        ).first()
+        if product:
+            return product.id
+
+    # Fallback: match by name within the store
+    if product_name:
+        product = db.query(models.Product).filter(
+            models.Product.store_id == store_id,
+            models.Product.name == product_name,
+        ).first()
+        if product:
+            return product.id
+
+    # No match found — return None so the SaleItem is stored without FK
+    return None
 
 @router.post("/batch", status_code=status.HTTP_201_CREATED)
 def sync_batch_sales(
@@ -22,10 +57,15 @@ def sync_batch_sales(
     Auto-fiscalizes un-fiscalized sales with DigiTax if API key present.
     Requires authentication & store verification.
     """
-    verify_store_access(payload.store_id, current_user)
+    logger.info(
+        "SYNC_BATCH: Received %d sales from user=%s (store_id=%d)",
+        len(payload.sales), current_user.numeric_id, payload.store_id
+    )
+    verify_store_access(payload.store_id, current_user, db)
     
     store = db.query(models.Store).filter(models.Store.id == payload.store_id).first()
     if not store:
+        logger.error("SYNC_BATCH: Store %d not found. Rejecting batch.", payload.store_id)
         raise HTTPException(status_code=404, detail="Store branch not found")
 
     synced_uuids = []
@@ -79,9 +119,19 @@ def sync_batch_sales(
                     detail=f"Invalid sale item quantity ({item_in.quantity}) or price ({item_in.price_at_sale})"
                 )
 
+            # FK-safe product resolution: map local Isar ID to PostgreSQL ID
+            resolved_product_id = _resolve_product_id(
+                db, payload.store_id, item_in.product_id, item_in.product_name
+            )
+            if item_in.product_id and not resolved_product_id:
+                logger.info(
+                    "SYNC_BATCH: Product ID %d ('%s') not found in store %d — storing without FK.",
+                    item_in.product_id, item_in.product_name, payload.store_id
+                )
+
             item = models.SaleItem(
                 sale_transaction_id=tx.id,
-                product_id=item_in.product_id,
+                product_id=resolved_product_id,
                 product_name=item_in.product_name,
                 price_at_sale=item_in.price_at_sale,
                 unit_cost_at_sale=item_in.unit_cost_at_sale,
@@ -97,9 +147,9 @@ def sync_batch_sales(
 
             # Deduct stock level in cloud PostgreSQL database and resolve tax code
             product_rec = None
-            if item_in.product_id:
+            if resolved_product_id:
                 product_rec = db.query(models.Product).filter(
-                    models.Product.id == item_in.product_id,
+                    models.Product.id == resolved_product_id,
                     models.Product.store_id == payload.store_id
                 ).first()
                 if product_rec:
@@ -151,6 +201,10 @@ def sync_batch_sales(
         synced_uuids.append(sale_in.transaction_uuid)
 
     db.commit()
+    logger.info(
+        "SYNC_BATCH: Committed %d transactions for store_id=%d (user=%s)",
+        len(synced_uuids), payload.store_id, current_user.numeric_id
+    )
     return {"status": "success", "synced_uuids": synced_uuids}
 
 @router.get("/export-backup")
@@ -160,20 +214,27 @@ def export_vps_backup(
     db: Session = Depends(get_db)
 ):
     """
-    Exports a complete backup snapshot of the VPS cloud database for a given store (or all stores for owner).
+    Exports a complete backup snapshot of the VPS cloud database for a given store (or organization stores for owner).
+    Enforces strict organization (TPIN) scoping on server side.
     """
-    verify_store_access(store_id, current_user)
+    verify_store_access(store_id, current_user, db)
 
-    if current_user.role in ["owner", "super_admin"]:
-        store = db.query(models.Store).filter(models.Store.id == store_id).first() or db.query(models.Store).first()
+    user_store = current_user.store or db.query(models.Store).filter(models.Store.id == current_user.store_id).first()
+    user_tpin = (user_store.tpin or "").strip() if user_store else ""
+
+    if current_user.role in ["owner", "super_admin"] and user_tpin:
+        org_stores = db.query(models.Store).filter(models.Store.tpin == user_tpin).all()
+        org_store_ids = [s.id for s in org_stores]
+        store = db.query(models.Store).filter(models.Store.id == store_id, models.Store.id.in_(org_store_ids)).first() or (org_stores[0] if org_stores else None)
         if not store:
-            raise HTTPException(status_code=404, detail="Store branch not found")
-        users = db.query(models.User).all()
-        categories = db.query(models.Category).all()
-        products = db.query(models.Product).all()
-        sales = db.query(models.SaleTransaction).all()
-        customers = db.query(models.Customer).all()
-        stock_movements = db.query(models.StockMovement).all()
+            raise HTTPException(status_code=404, detail="Store branch not found in organization")
+
+        users = db.query(models.User).filter(models.User.store_id.in_(org_store_ids)).all()
+        categories = db.query(models.Category).filter(models.Category.store_id.in_(org_store_ids)).all()
+        products = db.query(models.Product).filter(models.Product.store_id.in_(org_store_ids)).all()
+        sales = db.query(models.SaleTransaction).filter(models.SaleTransaction.store_id.in_(org_store_ids)).all()
+        customers = db.query(models.Customer).filter(models.Customer.store_id.in_(org_store_ids)).all()
+        stock_movements = db.query(models.StockMovement).filter(models.StockMovement.store_id.in_(org_store_ids)).all()
     else:
         store = db.query(models.Store).filter(models.Store.id == store_id).first()
         if not store:

@@ -15,7 +15,7 @@ def get_products(
     db: Session = Depends(get_db)
 ):
     """Fetch all inventory products for a specific store branch (tenant-scoped)."""
-    verify_store_access(store_id, current_user)
+    verify_store_access(store_id, current_user, db)
     query = db.query(models.Product).filter(models.Product.store_id == store_id)
     if not include_archived:
         query = query.filter(models.Product.is_archived == False)
@@ -28,7 +28,7 @@ def create_product(
     db: Session = Depends(get_db)
 ):
     """Create or update a product in the cloud PostgreSQL database for a store. Requires Manager or Owner role."""
-    verify_store_access(product_in.store_id, current_user)
+    verify_store_access(product_in.store_id, current_user, db)
 
     if product_in.price < 0 or (product_in.unit_cost is not None and product_in.unit_cost < 0):
         raise HTTPException(status_code=400, detail="Product price and unit cost cannot be negative.")

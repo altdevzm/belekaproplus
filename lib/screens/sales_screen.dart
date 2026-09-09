@@ -3730,12 +3730,14 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
 
       await db.saveTransaction(transaction, saleItems);
       
-      // Real-time push to Cloud VPS Server (http://23.139.36.20:8003) so HQ receives sales reports immediately
-      try {
-        ref.read(postgresSyncServiceProvider).syncPendingTransactions();
-      } catch (e) {
-        debugPrint('Cloud VPS push notice: $e');
-      }
+      // Real-time push to Cloud VPS Server so HQ receives sales reports immediately
+      ref.read(postgresSyncServiceProvider).syncPendingTransactions().then((count) {
+        if (count > 0) {
+          debugPrint('[SalesScreen Sync] Real-time pushed $count transaction(s) to Cloud VPS (tx: ${transaction.transactionId}).');
+        }
+      }).catchError((e, stack) {
+        debugPrint('[SalesScreen Sync Warning] Cloud VPS push queued offline for tx ${transaction.transactionId}: $e');
+      });
       
       // Clear cart & reset payment state immediately so sale is marked done and cart is ready for next sale
       cartNotifier.clear();

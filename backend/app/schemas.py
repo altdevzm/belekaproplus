@@ -151,3 +151,24 @@ class PurchaseOrderResponse(BaseModel):
     created_at: datetime
     approved_at: Optional[datetime] = None
     model_config = ConfigDict(from_attributes=True)
+
+class LoginRequest(BaseModel):
+    numeric_id: str
+    pin: str
+    tpin: Optional[str] = None
+    company_name: Optional[str] = None
+    terminal_name: Optional[str] = "TERMINAL"
+
+class AuditLogResponse(BaseModel):
+    id: int
+    timestamp: datetime
+    event_type: str
+    tpin: Optional[str] = None
+    store_id: Optional[int] = None
+    numeric_id: Optional[str] = None
+    user_id: Optional[int] = None
+    ip_address: Optional[str] = None
+    details: Optional[str] = None
+    is_success: bool
+    model_config = ConfigDict(from_attributes=True)
+

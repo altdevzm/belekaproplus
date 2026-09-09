@@ -248,3 +248,20 @@ class TotReturn(Base):
     __table_args__ = (
         UniqueConstraint("store_id", "charge_year", "charge_month", name="uk_tot_store_year_month"),
     )
+
+
+class AuditLog(Base):
+    """Audit Trail Log for security, remote login, tenant resolution, sync, and access control events."""
+    __tablename__ = "audit_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    timestamp = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    event_type = Column(String(50), nullable=False, index=True)  # e.g., 'LOGIN_SUCCESS', 'LOGIN_FAILURE', 'UNAUTHORIZED_ACCESS_ATTEMPT', 'DATA_SYNC_BATCH'
+    tpin = Column(String(100), nullable=True, index=True)
+    store_id = Column(Integer, nullable=True, index=True)
+    numeric_id = Column(String(50), nullable=True)
+    user_id = Column(Integer, nullable=True)
+    ip_address = Column(String(50), nullable=True)
+    details = Column(Text, nullable=True)
+    is_success = Column(Boolean, default=True)
+
