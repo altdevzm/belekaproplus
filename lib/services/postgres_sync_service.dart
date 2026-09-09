@@ -213,16 +213,15 @@ class PostgresSyncService {
   /// Pull sales transactions from Cloud PostgreSQL DB into local Isar DB cache.
   Future<int> pullSalesFromCloud() async {
     final config = await isar.storeConfigs.where().findFirst();
-    if (config?.isCloudSyncEnabled != true) return 0;
-    final cloudUrl = config?.cloudApiUrl;
-    if (cloudUrl == null || cloudUrl.trim().isEmpty) return 0;
+    final cloudUrl = (config?.cloudApiUrl != null && config!.cloudApiUrl!.trim().isNotEmpty)
+        ? config.cloudApiUrl!.trim()
+        : 'http://23.139.36.20:8003';
 
-    final storeId = config?.cloudStoreId;
-    if (storeId == null) return 0;
+    final storeId = config?.cloudStoreId ?? 1;
 
     try {
       final backup = await cloudDb.downloadVpsBackup(
-        baseUrl: cloudUrl.trim(),
+        baseUrl: cloudUrl,
         storeId: storeId,
       );
 
