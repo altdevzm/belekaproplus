@@ -175,79 +175,82 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         }
       }
 
-      // 3. If local & LAN fail, authenticate against Cloud PostgreSQL Backend
-      if (user == null) {
-        final cloudDb = ref.read(cloudDatabaseServiceProvider);
-        final cloudUrl = config?.cloudApiUrl ?? (config?.serverIp != null ? 'http://${config!.serverIp}:8000' : null);
-        if (cloudUrl != null && cloudUrl.isNotEmpty) {
-          final cloudAuth = await cloudDb.authenticateUser(
-            baseUrl: cloudUrl,
-            numericId: _idController.text.trim(),
-            pin: _pin.trim(),
-            terminalName: config?.terminalName ?? 'BRANCH-POS',
-          );
+      // 3. Authenticate / Refresh credentials against Cloud PostgreSQL VPS Backend
+      final cloudDb = ref.read(cloudDatabaseServiceProvider);
+      final cloudUrl = (config?.cloudApiUrl != null && config!.cloudApiUrl!.trim().isNotEmpty)
+          ? config.cloudApiUrl!.trim()
+          : 'http://23.139.36.20:8003';
 
-          if (cloudAuth != null && cloudAuth['user'] is Map) {
-            final uData = cloudAuth['user'] as Map;
-            final sData = (cloudAuth['store'] is Map) ? cloudAuth['store'] as Map : null;
-            final branchBhfId = sData?['bhf_id']?.toString() ?? uData['branch_code']?.toString() ?? '00';
-            final branchName = sData?['branch_name']?.toString() ?? sData?['name']?.toString() ?? uData['branch_name']?.toString() ?? 'Main Branch';
-            final rawRole = uData['role']?.toString().toLowerCase().trim() ?? 'cashier';
+      try {
+        final cloudAuth = await cloudDb.authenticateUser(
+          baseUrl: cloudUrl,
+          numericId: _idController.text.trim(),
+          pin: _pin.trim(),
+          terminalName: config?.terminalName ?? 'BRANCH-POS',
+        );
 
-            final normalizedRole = (rawRole == 'owner' || rawRole == 'admin' || rawRole == 'super_admin')
-                ? 'owner'
-                : (rawRole == 'manager' || rawRole == 'branch_manager')
-                    ? 'branch_manager'
-                    : rawRole;
+        if (cloudAuth != null && cloudAuth['user'] is Map) {
+          final uData = cloudAuth['user'] as Map;
+          final sData = (cloudAuth['store'] is Map) ? cloudAuth['store'] as Map : null;
+          final branchBhfId = sData?['bhf_id']?.toString() ?? uData['branch_code']?.toString() ?? '00';
+          final branchName = sData?['branch_name']?.toString() ?? sData?['name']?.toString() ?? uData['branch_name']?.toString() ?? 'Main Branch';
+          final rawRole = uData['role']?.toString().toLowerCase().trim() ?? 'cashier';
 
-            final remoteUser = User()
-              ..numericId = uData['numeric_id']?.toString() ?? _idController.text.trim()
-              ..name = uData['name']?.toString() ?? (normalizedRole == 'owner' ? 'Owner' : 'Staff')
-              ..role = normalizedRole
-              ..branchCode = branchBhfId
-              ..branchName = branchName
-              ..phone = uData['phone']?.toString()
-              ..passwordHash = hashPin(_pin.trim())
-              ..isActive = true;
+          final normalizedRole = (rawRole == 'owner' || rawRole == 'admin' || rawRole == 'super_admin')
+              ? 'owner'
+              : (rawRole == 'manager' || rawRole == 'branch_manager')
+                  ? 'branch_manager'
+                  : rawRole;
 
-            await db.isar.writeTxn(() async {
-              final existing = await db.isar.users.filter().numericIdEqualTo(remoteUser.numericId).findFirst();
-              if (existing != null) {
-                remoteUser.id = existing.id;
-              }
-              await db.isar.users.put(remoteUser);
+          final remoteUser = User()
+            ..numericId = uData['numeric_id']?.toString() ?? _idController.text.trim()
+            ..name = uData['name']?.toString() ?? (normalizedRole == 'owner' ? 'Owner' : 'Staff')
+            ..role = normalizedRole
+            ..branchCode = branchBhfId
+            ..branchName = branchName
+            ..phone = uData['phone']?.toString()
+            ..passwordHash = hashPin(_pin.trim())
+            ..isActive = true;
 
-              // Update local store profile with cloud branch credentials
-              final activeConfig = config ?? await db.isar.storeConfigs.where().findFirst() ?? StoreConfig();
-              activeConfig.bhfId = branchBhfId;
-              // Save the JWT token so branch devices can authenticate future VPS sync calls
-              final jwtToken = cloudAuth['token']?.toString();
-              if (jwtToken != null && jwtToken.isNotEmpty) {
-                activeConfig.cloudAuthToken = jwtToken;
+          await db.isar.writeTxn(() async {
+            final existing = await db.isar.users.filter().numericIdEqualTo(remoteUser.numericId).findFirst();
+            if (existing != null) {
+              remoteUser.id = existing.id;
+            }
+            await db.isar.users.put(remoteUser);
+
+            // Update local store profile with cloud branch credentials
+            final activeConfig = config ?? await db.isar.storeConfigs.where().findFirst() ?? StoreConfig();
+            activeConfig.bhfId = branchBhfId;
+            activeConfig.cloudApiUrl = cloudUrl;
+
+            // Save the JWT token so branch devices can authenticate future VPS sync calls
+            final jwtToken = cloudAuth['token']?.toString();
+            if (jwtToken != null && jwtToken.isNotEmpty) {
+              activeConfig.cloudAuthToken = jwtToken;
+            }
+
+            // Save cloud store ID from the store data
+            if (sData != null && sData['id'] != null) {
+              activeConfig.cloudStoreId = (sData['id'] as num).toInt();
+            }
+            if (sData != null) {
+              if (sData['name'] != null) activeConfig.businessName = sData['name'].toString();
+              if (sData['branch_name'] != null) activeConfig.branchName = sData['branch_name'].toString();
+              if (sData['tpin'] != null && (sData['tpin'] as String).isNotEmpty) activeConfig.tpin = sData['tpin'].toString();
+              if (sData['digitax_api_key'] != null && (sData['digitax_api_key'] as String).isNotEmpty) {
+                activeConfig.digitaxApiKey = sData['digitax_api_key'].toString();
               }
-              // Persist the VPS URL so it's always set on branch devices
-              if (cloudUrl.isNotEmpty) {
-                activeConfig.cloudApiUrl = cloudUrl;
-              }
-              // Save cloud store ID from the store data
-              if (sData != null && sData['id'] != null) {
-                activeConfig.cloudStoreId = (sData['id'] as num).toInt();
-              }
-              if (sData != null) {
-                if (sData['name'] != null) activeConfig.businessName = sData['name'].toString();
-                if (sData['branch_name'] != null) activeConfig.branchName = sData['branch_name'].toString();
-                if (sData['tpin'] != null && (sData['tpin'] as String).isNotEmpty) activeConfig.tpin = sData['tpin'].toString();
-                if (sData['digitax_api_key'] != null && (sData['digitax_api_key'] as String).isNotEmpty) {
-                  activeConfig.digitaxApiKey = sData['digitax_api_key'].toString();
-                }
-                if (sData['digitax_environment'] != null) activeConfig.digitaxEnvironment = sData['digitax_environment'].toString();
-                if (sData['business_tax_type'] != null) activeConfig.businessTaxType = sData['business_tax_type'].toString();
-              }
-              await db.isar.storeConfigs.put(activeConfig);
-            });
-            user = remoteUser;
-          }
+              if (sData['digitax_environment'] != null) activeConfig.digitaxEnvironment = sData['digitax_environment'].toString();
+              if (sData['business_tax_type'] != null) activeConfig.businessTaxType = sData['business_tax_type'].toString();
+            }
+            await db.isar.storeConfigs.put(activeConfig);
+          });
+          user = remoteUser;
         }
+      } catch (e) {
+        debugPrint('Cloud VPS Login notice: $e');
+        // If offline but local login succeeded, proceed with local user
       }
 
       if (user != null) {

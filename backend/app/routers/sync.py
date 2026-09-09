@@ -160,20 +160,31 @@ def export_vps_backup(
     db: Session = Depends(get_db)
 ):
     """
-    Exports a complete backup snapshot of the VPS cloud database for a given store.
+    Exports a complete backup snapshot of the VPS cloud database for a given store (or all stores for owner).
     """
     verify_store_access(store_id, current_user)
 
-    store = db.query(models.Store).filter(models.Store.id == store_id).first()
-    if not store:
-        raise HTTPException(status_code=404, detail="Store branch not found")
+    if current_user.role in ["owner", "super_admin"]:
+        store = db.query(models.Store).filter(models.Store.id == store_id).first() or db.query(models.Store).first()
+        if not store:
+            raise HTTPException(status_code=404, detail="Store branch not found")
+        users = db.query(models.User).all()
+        categories = db.query(models.Category).all()
+        products = db.query(models.Product).all()
+        sales = db.query(models.SaleTransaction).all()
+        customers = db.query(models.Customer).all()
+        stock_movements = db.query(models.StockMovement).all()
+    else:
+        store = db.query(models.Store).filter(models.Store.id == store_id).first()
+        if not store:
+            raise HTTPException(status_code=404, detail="Store branch not found")
 
-    users = db.query(models.User).filter(models.User.store_id == store_id).all()
-    categories = db.query(models.Category).filter(models.Category.store_id == store_id).all()
-    products = db.query(models.Product).filter(models.Product.store_id == store_id).all()
-    sales = db.query(models.SaleTransaction).filter(models.SaleTransaction.store_id == store_id).all()
-    customers = db.query(models.Customer).filter(models.Customer.store_id == store_id).all()
-    stock_movements = db.query(models.StockMovement).filter(models.StockMovement.store_id == store_id).all()
+        users = db.query(models.User).filter(models.User.store_id == store_id).all()
+        categories = db.query(models.Category).filter(models.Category.store_id == store_id).all()
+        products = db.query(models.Product).filter(models.Product.store_id == store_id).all()
+        sales = db.query(models.SaleTransaction).filter(models.SaleTransaction.store_id == store_id).all()
+        customers = db.query(models.Customer).filter(models.Customer.store_id == store_id).all()
+        stock_movements = db.query(models.StockMovement).filter(models.StockMovement.store_id == store_id).all()
 
     def serialize_obj(obj):
         if obj is None:
