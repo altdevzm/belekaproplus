@@ -315,10 +315,10 @@ class _AddUserModalState extends ConsumerState<AddUserModal> {
               isExpanded: true,
               style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontSize: 13, fontWeight: FontWeight.w600),
               borderRadius: BorderRadius.circular(8),
-              items: ['owner', 'manager', 'cashier'].map((String value) {
+              items: (ref.watch(isOwnerProvider) ? ['owner', 'manager', 'cashier'] : ['manager', 'cashier']).map((String value) {
                 return DropdownMenuItem<String>(
                   value: value,
-                  child: Text(value == 'owner' ? 'OWNER / CORPORATE ADMIN' : value.toUpperCase()),
+                  child: Text(value == 'owner' ? 'OWNER / CORPORATE ADMIN' : (value == 'manager' ? 'BRANCH MANAGER' : 'CASHIER / WORKER')),
                 );
               }).toList(),
               onChanged: (v) {
@@ -352,13 +352,20 @@ class _AddUserModalState extends ConsumerState<AddUserModal> {
 
       final storeConfig = ref.read(storeConfigProvider).value;
       final currentUser = ref.read(authProvider);
+      final isOwner = ref.read(isOwnerProvider);
 
       final user = widget.userToEdit ?? User();
-      user.name = _nameController.text;
-      user.numericId = _numericIdController.text;
+      user.name = _nameController.text.trim();
+      user.numericId = _numericIdController.text.trim();
       user.role = _role;
-      user.branchCode ??= (storeConfig?.bhfId.isNotEmpty == true) ? storeConfig!.bhfId : (currentUser?.branchCode ?? '00');
-      user.branchName ??= (storeConfig?.branchName?.isNotEmpty == true) ? storeConfig!.branchName : (currentUser?.branchName ?? 'Main Branch');
+      
+      if (!isOwner && currentUser != null) {
+        user.branchCode = currentUser.branchCode;
+        user.branchName = currentUser.branchName;
+      } else {
+        user.branchCode ??= (storeConfig?.bhfId.isNotEmpty == true) ? storeConfig!.bhfId : (currentUser?.branchCode ?? '00');
+        user.branchName ??= (storeConfig?.branchName?.isNotEmpty == true) ? storeConfig!.branchName : (currentUser?.branchName ?? 'Main Branch');
+      }
 
       final rawPassword = _passwordController.text.trim();
       if (rawPassword.isNotEmpty) {

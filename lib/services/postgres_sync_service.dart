@@ -24,15 +24,13 @@ class PostgresSyncService {
   /// Push/Sync a specific user or branch manager to Cloud PostgreSQL DB.
   Future<bool> syncUser(User user, {String? plainPin}) async {
     final config = await isar.storeConfigs.where().findFirst();
-    if (config?.isCloudSyncEnabled != true) return false;
-    final cloudUrl = config?.cloudApiUrl;
-    if (cloudUrl == null || cloudUrl.trim().isEmpty) return false;
-
-    final storeId = config?.cloudStoreId;
-    if (storeId == null) return false;
+    final cloudUrl = (config?.cloudApiUrl != null && config!.cloudApiUrl!.trim().isNotEmpty)
+        ? config.cloudApiUrl!.trim()
+        : 'http://23.139.36.20:8003';
+    final storeId = config?.cloudStoreId ?? 1;
 
     return await cloudDb.syncUser(
-      baseUrl: cloudUrl.trim(),
+      baseUrl: cloudUrl,
       storeId: storeId,
       user: user,
       plainPin: plainPin,
@@ -42,12 +40,12 @@ class PostgresSyncService {
   /// Push/Sync a Store Branch to Cloud PostgreSQL DB.
   Future<bool> syncBranch(StoreBranch branch) async {
     final config = await isar.storeConfigs.where().findFirst();
-    if (config?.isCloudSyncEnabled != true) return false;
-    final cloudUrl = config?.cloudApiUrl;
-    if (cloudUrl == null || cloudUrl.trim().isEmpty) return false;
+    final cloudUrl = (config?.cloudApiUrl != null && config!.cloudApiUrl!.trim().isNotEmpty)
+        ? config.cloudApiUrl!.trim()
+        : 'http://23.139.36.20:8003';
 
     return await cloudDb.syncBranch(
-      baseUrl: cloudUrl.trim(),
+      baseUrl: cloudUrl,
       branch: branch,
       tpin: config?.tpin,
       digitaxApiKey: config?.digitaxApiKey,
@@ -59,15 +57,13 @@ class PostgresSyncService {
 
   /// Push/Sync Store Configuration (TPIN, DigiTax Key, Tax Settings) to Cloud DB.
   Future<bool> syncStoreConfigToCloud(StoreConfig config) async {
-    if (!config.isCloudSyncEnabled) return false;
-    final cloudUrl = config.cloudApiUrl;
-    if (cloudUrl == null || cloudUrl.trim().isEmpty) return false;
-
-    final storeId = config.cloudStoreId;
-    if (storeId == null) return false;
+    final cloudUrl = (config.cloudApiUrl != null && config.cloudApiUrl!.trim().isNotEmpty)
+        ? config.cloudApiUrl!.trim()
+        : 'http://23.139.36.20:8003';
+    final storeId = config.cloudStoreId ?? 1;
 
     return await cloudDb.updateStoreConfig(
-      baseUrl: cloudUrl.trim(),
+      baseUrl: cloudUrl,
       storeId: storeId,
       data: {
         'name': config.businessName,
@@ -89,15 +85,13 @@ class PostgresSyncService {
   /// Pull latest Store Configuration (TPIN, DigiTax Key, etc.) from Cloud DB into local Isar DB
   Future<bool> pullStoreConfigFromCloud() async {
     final config = await isar.storeConfigs.where().findFirst();
-    if (config == null || !config.isCloudSyncEnabled) return false;
-    final cloudUrl = config.cloudApiUrl;
-    if (cloudUrl == null || cloudUrl.trim().isEmpty) return false;
-
-    final storeId = config.cloudStoreId;
-    if (storeId == null) return false;
+    final cloudUrl = (config?.cloudApiUrl != null && config!.cloudApiUrl!.trim().isNotEmpty)
+        ? config.cloudApiUrl!.trim()
+        : 'http://23.139.36.20:8003';
+    final storeId = config?.cloudStoreId ?? 1;
 
     try {
-      final stores = await cloudDb.getStores(cloudUrl.trim());
+      final stores = await cloudDb.getStores(cloudUrl);
       if (stores.isEmpty) return false;
 
       final targetStore = stores.where((s) => s['id'] == storeId).firstOrNull;
@@ -108,18 +102,20 @@ class PostgresSyncService {
 
       await isar.writeTxn(() async {
         if (targetStore['tpin'] != null && (targetStore['tpin'] as String).isNotEmpty) {
-          config.tpin = targetStore['tpin'];
+          config?.tpin = targetStore['tpin'];
         }
         if (targetStore['digitax_api_key'] != null && (targetStore['digitax_api_key'] as String).isNotEmpty) {
-          config.digitaxApiKey = targetStore['digitax_api_key'];
+          config?.digitaxApiKey = targetStore['digitax_api_key'];
         }
         if (targetStore['digitax_environment'] != null) {
-          config.digitaxEnvironment = targetStore['digitax_environment'];
+          config?.digitaxEnvironment = targetStore['digitax_environment'];
         }
         if (targetStore['business_tax_type'] != null) {
-          config.businessTaxType = targetStore['business_tax_type'];
+          config?.businessTaxType = targetStore['business_tax_type'];
         }
-        await isar.storeConfigs.put(config);
+        if (config != null) {
+          await isar.storeConfigs.put(config);
+        }
       });
       return true;
     } catch (e) {
@@ -131,18 +127,16 @@ class PostgresSyncService {
   /// Sync all local users up to Cloud PostgreSQL DB.
   Future<int> syncAllUsersToCloud() async {
     final config = await isar.storeConfigs.where().findFirst();
-    if (config?.isCloudSyncEnabled != true) return 0;
-    final cloudUrl = config?.cloudApiUrl;
-    if (cloudUrl == null || cloudUrl.trim().isEmpty) return 0;
-
-    final storeId = config?.cloudStoreId;
-    if (storeId == null) return 0;
+    final cloudUrl = (config?.cloudApiUrl != null && config!.cloudApiUrl!.trim().isNotEmpty)
+        ? config.cloudApiUrl!.trim()
+        : 'http://23.139.36.20:8003';
+    final storeId = config?.cloudStoreId ?? 1;
 
     final allUsers = await isar.users.where().findAll();
     int count = 0;
     for (final u in allUsers) {
       final success = await cloudDb.syncUser(
-        baseUrl: cloudUrl.trim(),
+        baseUrl: cloudUrl,
         storeId: storeId,
         user: u,
       );
@@ -154,18 +148,10 @@ class PostgresSyncService {
   /// Sync unsynced transactions from local Isar cache up to online PostgreSQL Cloud DB.
   Future<int> syncPendingTransactions() async {
     final config = await isar.storeConfigs.where().findFirst();
-    if (config?.isCloudSyncEnabled != true) {
-      return 0;
-    }
-    final cloudUrl = config?.cloudApiUrl;
-    if (cloudUrl == null || cloudUrl.trim().isEmpty) {
-      return 0;
-    }
-
-    final storeId = config?.cloudStoreId;
-    if (storeId == null) {
-      return 0;
-    }
+    final cloudUrl = (config?.cloudApiUrl != null && config!.cloudApiUrl!.trim().isNotEmpty)
+        ? config.cloudApiUrl!.trim()
+        : 'http://23.139.36.20:8003';
+    final storeId = config?.cloudStoreId ?? 1;
 
     // Query unsynced sales from local storage
     final unsyncedSales = await isar.saleTransactions
