@@ -10,6 +10,7 @@ import 'package:beleka_pos/utils/formatters.dart';
 import 'package:beleka_pos/screens/sales/receipt_detail_modal.dart';
 import 'package:beleka_pos/services/digitax_inventory_service.dart';
 import 'package:beleka_pos/services/printer_service.dart';
+import 'package:beleka_pos/services/postgres_sync_service.dart';
 import 'package:beleka_pos/screens/reports/tot_report_screen.dart';
 
 enum ReportPeriod { daily, weekly, monthly, yearly, custom }
@@ -27,6 +28,10 @@ final reportDateRangeProvider = StateProvider<DateTimeRange>((ref) {
 final reportTransactionsProvider = StreamProvider<List<SaleTransaction>>((ref) {
   final range = ref.watch(reportDateRangeProvider);
   final db = ref.watch(databaseServiceProvider);
+  
+  // Automatically pull sales from VPS Cloud DB when viewing reports
+  ref.read(postgresSyncServiceProvider).pullSalesFromCloud();
+
   return db.watchTransactionsInRange(range.start, range.end);
 });
 

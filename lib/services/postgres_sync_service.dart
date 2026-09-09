@@ -209,4 +209,96 @@ class PostgresSyncService {
       rethrow;
     }
   }
+
+  /// Pull sales transactions from Cloud PostgreSQL DB into local Isar DB cache.
+  Future<int> pullSalesFromCloud() async {
+    final config = await isar.storeConfigs.where().findFirst();
+    if (config?.isCloudSyncEnabled != true) return 0;
+    final cloudUrl = config?.cloudApiUrl;
+    if (cloudUrl == null || cloudUrl.trim().isEmpty) return 0;
+
+    final storeId = config?.cloudStoreId;
+    if (storeId == null) return 0;
+
+    try {
+      final backup = await cloudDb.downloadVpsBackup(
+        baseUrl: cloudUrl.trim(),
+        storeId: storeId,
+      );
+
+      if (backup == null || backup['sales'] == null) return 0;
+      final List rawSales = backup['sales'] as List;
+      if (rawSales.isEmpty) return 0;
+
+      int insertedCount = 0;
+
+      for (final raw in rawSales) {
+        final uuid = raw['transaction_uuid'] as String? ?? (raw['id'] != null ? 'tx-${raw['id']}' : null);
+        if (uuid == null) continue;
+
+        // Check if transaction already exists locally
+        final existing = await isar.saleTransactions.filter().transactionIdEqualTo(uuid).findFirst();
+        if (existing != null) continue;
+
+        final tx = SaleTransaction(
+          totalAmount: (raw['total_amount'] as num?)?.toDouble() ?? 0.0,
+          paymentMethod: raw['payment_method'] as String? ?? 'Cash',
+          cashierName: raw['cashier_name'] as String? ?? 'Admin',
+          status: raw['status'] as String? ?? 'completed',
+          subtotal: (raw['subtotal'] as num?)?.toDouble() ?? 0.0,
+          taxAmount: (raw['tax_amount'] as num?)?.toDouble() ?? 0.0,
+          discountAmount: (raw['discount_amount'] as num?)?.toDouble() ?? 0.0,
+          totalCost: (raw['total_cost'] as num?)?.toDouble() ?? 0.0,
+          grossProfit: (raw['gross_profit'] as num?)?.toDouble() ?? 0.0,
+          tenderedAmount: (raw['tendered_amount'] as num?)?.toDouble() ?? 0.0,
+          changeAmount: (raw['change_amount'] as num?)?.toDouble() ?? 0.0,
+          customerId: (raw['customer_id'] as num?)?.toInt(),
+          pointsEarned: (raw['points_earned'] as num?)?.toInt() ?? 0,
+          pointsRedeemed: (raw['points_redeemed'] as num?)?.toInt() ?? 0,
+          isSynced: true,
+          cashierId: raw['cashier_id']?.toString(),
+          terminalName: raw['terminal_name'] as String? ?? 'Terminal-1',
+          transactionId: uuid,
+          zraReceiptNumber: raw['zra_receipt_number'] as String?,
+          zraMarkId: raw['zra_mark_id'] as String?,
+          zraQrCode: raw['zra_qr_code'] as String?,
+          zraStatus: raw['zra_status'] as String? ?? 'APPROVED',
+        );
+
+        if (raw['timestamp'] != null) {
+          try {
+            tx.timestamp = DateTime.parse(raw['timestamp']);
+          } catch (_) {}
+        }
+
+        await isar.writeTxn(() async {
+          await isar.saleTransactions.put(tx);
+
+          if (raw['items'] != null && raw['items'] is List) {
+            final List rawItems = raw['items'] as List;
+            for (final rItem in rawItems) {
+              final item = SaleItem(
+                productId: (rItem['product_id'] as num?)?.toInt() ?? 0,
+                productName: rItem['product_name'] as String? ?? 'Product',
+                priceAtSale: (rItem['price_at_sale'] as num?)?.toDouble() ?? 0.0,
+                unitCostAtSale: (rItem['unit_cost_at_sale'] as num?)?.toDouble() ?? 0.0,
+                quantity: (rItem['quantity'] as num?)?.toInt() ?? 1,
+              );
+              await isar.saleItems.put(item);
+              tx.items.add(item);
+            }
+            await tx.items.save();
+          }
+        });
+
+        insertedCount++;
+      }
+
+      debugPrint('Pulled $insertedCount sales from Cloud VPS into local Isar DB');
+      return insertedCount;
+    } catch (e) {
+      debugPrint('Error pulling sales from cloud: $e');
+      return 0;
+    }
+  }
 }

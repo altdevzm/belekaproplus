@@ -6,6 +6,7 @@ import 'package:beleka_pos/models/models.dart';
 import 'package:beleka_pos/providers/store_provider.dart';
 import 'package:beleka_pos/services/database_service.dart';
 import 'package:beleka_pos/services/export_service.dart';
+import 'package:beleka_pos/services/postgres_sync_service.dart';
 
 enum BranchReportPeriod {
   today,
@@ -125,6 +126,13 @@ class _BranchReportScreenState extends ConsumerState<BranchReportScreen> with Si
     final db = ref.read(databaseServiceProvider);
 
     try {
+      // Automatically pull latest sales from Cloud VPS
+      try {
+        await ref.read(postgresSyncServiceProvider).pullSalesFromCloud();
+      } catch (e) {
+        debugPrint('Cloud sales sync pull notice: $e');
+      }
+
       final txs = await db.getTransactionsForBranchInRange(
         _selectedBranch.code,
         branchBhfId: _selectedBranch.bhfId,
