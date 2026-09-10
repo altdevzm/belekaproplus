@@ -1611,16 +1611,6 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
           const SizedBox(height: 14),
           _buildField(
             context: context,
-            label: 'ORGANIZATION TPIN',
-            controller: _cloudTpinController,
-            hint: 'Your organization TPIN',
-            validator: (v) => (v == null || v.trim().isEmpty)
-                ? 'Enter organization TPIN'
-                : null,
-          ),
-          const SizedBox(height: 14),
-          _buildField(
-            context: context,
             label: 'OWNER PASSWORD / PIN',
             controller: _ownerPinController,
             hint: '****',
@@ -1868,6 +1858,16 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 14),
+          _buildField(
+            context: context,
+            label: 'ORGANIZATION TPIN',
+            controller: _cloudTpinController,
+            hint: 'Your organization TPIN',
+            validator: (v) => (v == null || v.trim().isEmpty)
+                ? 'Enter organization TPIN'
+                : null,
           ),
           const SizedBox(height: 14),
           _buildField(
