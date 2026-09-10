@@ -111,7 +111,7 @@ class PostgresSyncService {
       authToken: token,
     );
 
-    if (!result && (token == null || token.isEmpty)) {
+    if (!result) {
       token = await _refreshCloudAuthToken(config, cloudUrl);
       if (token != null) {
         result = await cloudDb.syncUser(
@@ -184,7 +184,7 @@ class PostgresSyncService {
     final storeId = config.cloudStoreId ?? 1;
     var token = config.cloudAuthToken;
 
-    return await cloudDb.updateStoreConfig(
+    var result = await cloudDb.updateStoreConfig(
       baseUrl: cloudUrl,
       storeId: storeId,
       authToken: token,
@@ -203,6 +203,31 @@ class PostgresSyncService {
         'email': config.email,
       },
     );
+    if (!result) {
+      token = await _refreshCloudAuthToken(config, cloudUrl);
+      if (token != null) {
+        result = await cloudDb.updateStoreConfig(
+          baseUrl: cloudUrl,
+          storeId: storeId,
+          authToken: token,
+          data: {
+            'name': config.businessName,
+            'tpin': config.tpin,
+            'tax_id': config.taxId,
+            'currency_symbol': config.currencySymbol,
+            'business_tax_type': config.businessTaxType,
+            'digitax_api_key': config.digitaxApiKey,
+            'digitax_environment': config.digitaxEnvironment,
+            'sdc_id': config.sdcId,
+            'mrc_no': config.mrcNo,
+            'address': config.address,
+            'contact_number': config.contactNumber,
+            'email': config.email,
+          },
+        );
+      }
+    }
+    return result;
   }
 
   /// Pull latest Store Configuration (TPIN, DigiTax Key, etc.) from Cloud DB into local Isar DB
@@ -215,10 +240,15 @@ class PostgresSyncService {
     final storeId = config?.cloudStoreId ?? 0;
 
     try {
-      final stores = await cloudDb.getStores(
-        cloudUrl,
-        authToken: config?.cloudAuthToken,
-      );
+      var token = config?.cloudAuthToken;
+      List<Map<String, dynamic>> stores;
+      try {
+        stores = await cloudDb.getStores(cloudUrl, authToken: token);
+      } catch (_) {
+        token = await _refreshCloudAuthToken(config, cloudUrl);
+        if (token == null) return false;
+        stores = await cloudDb.getStores(cloudUrl, authToken: token);
+      }
       if (stores.isEmpty) return false;
 
       final targetStore = stores.where((s) => s['id'] == storeId).firstOrNull;

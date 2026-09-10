@@ -32,6 +32,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
   );
   final _ownerIdController = TextEditingController();
   final _ownerPinController = TextEditingController();
+  final _ownerTpinController = TextEditingController();
   final _ownerStoreCodeController = TextEditingController();
 
   // Tab 1: New Store Setup (Offline Blank)
@@ -71,6 +72,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     _ownerUrlController.dispose();
     _ownerIdController.dispose();
     _ownerPinController.dispose();
+    _ownerTpinController.dispose();
     _ownerStoreCodeController.dispose();
     _businessNameController.dispose();
     _adminIdController.dispose();
@@ -102,6 +104,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       final baseUrl = _ownerUrlController.text.trim();
       final userId = _ownerIdController.text.trim();
       final pin = _ownerPinController.text.trim();
+      final ownerTpin = _ownerTpinController.text.trim();
       final storeCodeInput = _ownerStoreCodeController.text.trim();
 
       // 1. Verify connection to Cloud Server
@@ -112,13 +115,32 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
         );
       }
 
+      setState(() => _statusMessage = 'Authenticating Owner account...');
+
+      final login = await cloudService.authenticateUser(
+        baseUrl: baseUrl,
+        numericId: userId,
+        pin: pin,
+        tpin: ownerTpin,
+        terminalName: 'MANAGER-01',
+      );
+      final authToken = login?['token']?.toString();
+      if (authToken == null || authToken.isEmpty) {
+        throw const CloudAuthException(
+          'Cloud login did not return a session token.',
+        );
+      }
+
       setState(
         () => _statusMessage =
             'Fetching Headquarters store profile & fiscal configs...',
       );
 
       // 2. Fetch available store branches from Cloud DB
-      final stores = await cloudService.getStores(baseUrl);
+      final stores = await cloudService.getStores(
+        baseUrl,
+        authToken: authToken,
+      );
       if (stores.isEmpty) {
         throw Exception(
           'No store records found on the cloud server. Please create a new store or verify server URL.',
@@ -158,7 +180,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       final rawTpin = targetStore['tpin'] as String?;
       final tpin = (rawTpin != null && rawTpin.trim().isNotEmpty)
           ? rawTpin.trim()
-          : '1000000000';
+          : ownerTpin;
       final finalStoreCode =
           (targetStore['store_code'] as String?) ?? 'STORE-001';
       final businessTaxType =
@@ -168,12 +190,12 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
           (targetStore['digitax_environment'] as String?) ?? 'sandbox';
       final currency = (targetStore['currency_symbol'] as String?) ?? 'ZK';
 
-      setState(
-        () => _statusMessage = 'Authenticating Owner account credentials...',
-      );
-
       // 3. Fetch cloud users for this store
-      final cloudUsers = await cloudService.getUsers(baseUrl, storeId: storeId);
+      final cloudUsers = await cloudService.getUsers(
+        baseUrl,
+        storeId: storeId,
+        authToken: authToken,
+      );
       Map<String, dynamic>? matchedUser;
 
       for (final u in cloudUsers) {
@@ -196,6 +218,9 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
         ..cloudApiUrl = baseUrl
         ..cloudStoreId = storeId
         ..cloudStoreCode = finalStoreCode
+        ..cloudAuthToken = authToken
+        ..cloudAuthUserId = userId
+        ..cloudAuthPin = pin
         ..bhfId = bhfId
         ..tpin = tpin
         ..businessTaxType = businessTaxType
@@ -251,6 +276,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
             storeId: storeId,
             user: activeOwner,
             plainPin: pin,
+            authToken: authToken,
           );
         } catch (_) {}
       }
@@ -264,6 +290,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
         final cloudProducts = await cloudService.getProducts(
           baseUrl,
           storeId: storeId,
+          authToken: authToken,
         );
         if (cloudProducts.isNotEmpty) {
           final Set<String> catNames = {};
@@ -602,6 +629,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
             storeId: storeId,
             user: activeUser,
             plainPin: pin,
+            authToken: authToken,
           );
         } catch (_) {}
       }
@@ -614,6 +642,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
           final cloudProducts = await cloudService.getProducts(
             baseUrl,
             storeId: storeId,
+            authToken: authToken,
           );
           if (cloudProducts.isNotEmpty) {
             final Set<String> catNames = {};
@@ -1607,6 +1636,16 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 14),
+          _buildField(
+            context: context,
+            label: 'ORGANIZATION TPIN',
+            controller: _ownerTpinController,
+            hint: 'Your organization TPIN',
+            validator: (v) => (v == null || v.trim().isEmpty)
+                ? 'Enter organization TPIN'
+                : null,
           ),
           const SizedBox(height: 14),
           _buildField(

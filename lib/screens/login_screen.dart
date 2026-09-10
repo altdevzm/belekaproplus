@@ -226,17 +226,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         );
 
         if (cloudAuth != null && cloudAuth['user'] is Map) {
-          final authToken =
-              cloudAuth['token']?.toString() ??
-              cloudAuth['access_token']?.toString();
-          if (authToken != null && authToken.isNotEmpty && config != null) {
-            await db.isar.writeTxn(() async {
-              config.cloudAuthToken = authToken;
-              config.cloudAuthUserId = _idController.text.trim();
-              config.cloudAuthPin = _pin.trim();
-              await db.isar.storeConfigs.put(config);
-            });
-          }
           final uData = cloudAuth['user'] as Map;
           final sData = (cloudAuth['store'] is Map)
               ? cloudAuth['store'] as Map
@@ -293,11 +282,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             activeConfig.bhfId = branchBhfId;
             activeConfig.cloudApiUrl = cloudUrl;
 
-            // Save the JWT token so branch devices can authenticate future VPS sync calls
-            final jwtToken = cloudAuth['token']?.toString();
+            // Save the JWT and credentials so future VPS sync calls can re-authenticate.
+            final jwtToken =
+                cloudAuth['token']?.toString() ??
+                cloudAuth['access_token']?.toString();
             if (jwtToken != null && jwtToken.isNotEmpty) {
               activeConfig.cloudAuthToken = jwtToken;
             }
+            activeConfig.cloudAuthUserId = _idController.text.trim();
+            activeConfig.cloudAuthPin = _pin.trim();
 
             // Save cloud store ID from the store data
             if (sData != null && sData['id'] != null) {
@@ -1037,13 +1030,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 color: Colors.white,
                               ),
                               const SizedBox(width: 8),
-                              Text(
-                                'SIGN IN TO REGISTER',
-                                style: GoogleFonts.inter(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 0.5,
-                                  color: Colors.white,
+                              Flexible(
+                                child: Text(
+                                  'SIGN IN TO REGISTER',
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.5,
+                                    color: Colors.white,
+                                  ),
                                 ),
                               ),
                             ],
@@ -1439,13 +1435,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 color: Colors.white,
                               ),
                               const SizedBox(width: 8),
-                              Text(
-                                'SIGN IN TO REGISTER',
-                                style: GoogleFonts.inter(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 0.5,
-                                  color: Colors.white,
+                              Flexible(
+                                child: Text(
+                                  'SIGN IN TO REGISTER',
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.5,
+                                    color: Colors.white,
+                                  ),
                                 ),
                               ),
                             ],
@@ -1479,7 +1478,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Widget _buildTerminalBadge(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final config = ref.watch(storeConfigProvider).value;
+    final config = ref.watch(storeConfigProvider).valueOrNull;
     final isManager = config?.isManagerMode ?? true;
     final tillCode = config?.terminalName ?? 'TILL-01';
     final serverIp = config?.serverIp ?? '127.0.0.1';

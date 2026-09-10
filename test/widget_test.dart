@@ -21,7 +21,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Verify that the login terminal renders
-    expect(find.text('TERMINAL AUTHENTICATION'), findsOneWidget);
+    expect(find.text('Terminal Authentication'), findsOneWidget);
     expect(find.text('PIN PAD'), findsOneWidget);
   });
 }

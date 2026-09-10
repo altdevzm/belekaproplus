@@ -2,6 +2,15 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:beleka_pos/models/models.dart';
 
+class CloudAuthException implements Exception {
+  final String message;
+
+  const CloudAuthException(this.message);
+
+  @override
+  String toString() => message;
+}
+
 class CloudDatabaseService {
   final Dio _dio;
 
@@ -62,16 +71,19 @@ class CloudDatabaseService {
       if (response.statusCode == 200 && response.data is Map) {
         return Map<String, dynamic>.from(response.data);
       }
-      return null;
+      throw const CloudAuthException(
+        'Cloud login returned an invalid response.',
+      );
     } on DioException catch (e) {
       final detail = e.response?.data is Map
           ? (e.response?.data['detail'] ?? e.message)
           : e.message;
       debugPrint('Cloud PostgreSQL Auth Failed: $detail');
-      return null;
+      throw CloudAuthException(detail?.toString() ?? 'Cloud login failed.');
     } catch (e) {
       debugPrint('Cloud PostgreSQL Auth Failed: $e');
-      return null;
+      if (e is CloudAuthException) rethrow;
+      throw CloudAuthException('Cloud login failed: $e');
     }
   }
 
