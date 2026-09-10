@@ -729,6 +729,9 @@ class DatabaseService {
     String branchCode, {
     String? branchBhfId,
     String? branchName,
+    // The backend (cloud) store_id for this branch — used to match transactions
+    // pulled from cloud that carry cloudStoreId set from the server response.
+    int? branchCloudStoreId,
     required DateTime start,
     required DateTime end,
   }) async {
@@ -753,19 +756,34 @@ class DatabaseService {
     final results = <SaleTransaction>[];
 
     for (final t in sales) {
-      final tTerm = t.terminalName?.trim().toUpperCase();
       bool matched = false;
 
-      if (tTerm != null && tTerm.isNotEmpty) {
-        if (terminalIdentifiers.any((id) => tTerm == id || tTerm.contains(id))) {
-          matched = true;
-        } else if (bNameUpper != null && bNameUpper.isNotEmpty && tTerm.contains(bNameUpper)) {
+      // PRIMARY: Match by cloud store_id — authoritative for cloud-synced transactions
+      if (!matched && branchCloudStoreId != null && branchCloudStoreId > 0 && t.cloudStoreId > 0) {
+        if (t.cloudStoreId == branchCloudStoreId) {
           matched = true;
         }
       }
-      // If HQ / default single branch and no other terminals are registered
+
+      // SECONDARY: Match by POS terminal code / name (for locally-created transactions)
+      if (!matched) {
+        final tTerm = t.terminalName?.trim().toUpperCase();
+        if (tTerm != null && tTerm.isNotEmpty) {
+          if (terminalIdentifiers.any((id) => tTerm == id || tTerm.contains(id))) {
+            matched = true;
+          } else if (bNameUpper != null && bNameUpper.isNotEmpty && tTerm.contains(bNameUpper)) {
+            matched = true;
+          }
+        }
+      }
+
+      // FALLBACK: HQ / default single branch with no registered terminals
       if (!matched && (branchCode == '00' || branchBhfId == '00') && branchTerminals.isEmpty) {
-        matched = true;
+        // Only match local (non-cloud) transactions in the HQ fallback
+        // to avoid counting branch transactions on HQ when cloud IDs don't match
+        if (t.cloudStoreId == 0) {
+          matched = true;
+        }
       }
 
       if (matched) {
@@ -775,6 +793,7 @@ class DatabaseService {
     }
     return results;
   }
+
 
   Future<List<StockMovement>> getStockMovementsForBranchInRange(
     String branchCode, {

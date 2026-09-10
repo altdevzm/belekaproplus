@@ -57,7 +57,7 @@ def get_monthly_tot_summary(
     db: Session = Depends(get_db)
 ):
     """Compile gross turnover for the month and compute TOT owed under ZRA rules (tenant-scoped)."""
-    verify_store_access(store_id, current_user)
+    verify_store_access(store_id, current_user, db)
 
     store = db.query(models.Store).filter(models.Store.id == store_id).first()
     if not store:
@@ -121,7 +121,7 @@ def get_annual_tot_check(
     db: Session = Depends(get_db)
 ):
     """Full-year turnover summary with per-month breakdown and K5M threshold check."""
-    verify_store_access(store_id, current_user)
+    verify_store_access(store_id, current_user, db)
 
     store = db.query(models.Store).filter(models.Store.id == store_id).first()
     if not store:
@@ -179,7 +179,7 @@ def submit_tot_return(
     db: Session = Depends(get_db)
 ):
     """Compute and file the TOT return. Requires Manager or Owner authorization."""
-    verify_store_access(store_id, current_user)
+    verify_store_access(store_id, current_user, db)
 
     store = db.query(models.Store).filter(models.Store.id == store_id).first()
     if not store:
@@ -312,7 +312,7 @@ def list_tot_returns(
     db: Session = Depends(get_db)
 ):
     """List all filed TOT returns for a store (tenant-scoped)."""
-    verify_store_access(store_id, current_user)
+    verify_store_access(store_id, current_user, db)
 
     store = db.query(models.Store).filter(models.Store.id == store_id).first()
     if not store:
@@ -357,7 +357,7 @@ def get_tot_return(
     db: Session = Depends(get_db)
 ):
     """Fetch a single TOT return record (tenant-scoped)."""
-    verify_store_access(store_id, current_user)
+    verify_store_access(store_id, current_user, db)
 
     record = db.query(models.TotReturn).filter(
         models.TotReturn.id == return_id,
@@ -392,7 +392,7 @@ def mark_tot_paid(
     db: Session = Depends(get_db)
 ):
     """Mark a submitted TOT return as paid after cash/bank payment is confirmed. Requires Manager or Owner role."""
-    verify_store_access(store_id, current_user)
+    verify_store_access(store_id, current_user, db)
 
     record = db.query(models.TotReturn).filter(
         models.TotReturn.id == return_id,

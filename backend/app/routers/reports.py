@@ -22,6 +22,12 @@ def get_sales_summary(
     is_admin = current_user.role in ["owner", "super_admin"]
     user_store = current_user.store or db.query(models.Store).filter(models.Store.id == current_user.store_id).first()
     user_tpin = (user_store.tpin or "").strip() if user_store else ""
+
+    if is_admin and current_user.role != "super_admin" and not user_tpin:
+        raise HTTPException(
+            status_code=403,
+            detail="Organization TPIN is not configured for this account.",
+        )
     
     if is_admin and (store_id is None or store_id == 0):
         # Query stores belonging to this organization (TPIN)

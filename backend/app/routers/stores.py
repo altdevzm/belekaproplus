@@ -21,6 +21,11 @@ def get_all_stores(
                 models.Store.tpin == user_tpin,
                 models.Store.is_active == True
             ).all()
+        if current_user.role != "super_admin":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Organization TPIN is not configured for this account.",
+            )
         return db.query(models.Store).filter(models.Store.is_active == True).all()
 
     return db.query(models.Store).filter(
@@ -44,6 +49,15 @@ def create_store(
     # Auto-inherit corporate TPIN & DigiTax credentials from owner's store
     owner_store = current_user.store or db.query(models.Store).filter(models.Store.id == current_user.store_id).first()
     if owner_store:
+        owner_tpin = (owner_store.tpin or "").strip()
+        if current_user.role != "super_admin" and not owner_tpin:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Organization TPIN must be configured before creating branches.",
+            )
+        if current_user.role != "super_admin":
+            # Never accept tenant identity from a non-super-admin request body.
+            store_data["tpin"] = owner_tpin
         if not store_data.get("tpin"):
             store_data["tpin"] = owner_store.tpin
         if not store_data.get("digitax_api_key"):
@@ -74,6 +88,15 @@ def update_store(
         raise HTTPException(status_code=404, detail="Store branch not found")
     
     update_data = store_in.model_dump(exclude_unset=True)
+    if "tpin" in update_data and current_user.role != "super_admin":
+        current_tpin = (store.tpin or "").strip()
+        requested_tpin = (update_data["tpin"] or "").strip()
+        if requested_tpin != current_tpin:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only a super admin may change organization tenant identity.",
+            )
+        update_data.pop("tpin")
     for field, value in update_data.items():
         setattr(store, field, value)
     

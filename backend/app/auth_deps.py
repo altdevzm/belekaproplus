@@ -3,6 +3,7 @@ import hashlib
 import jwt
 from datetime import datetime, timedelta, timezone
 from typing import Optional, List
+import logging
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
@@ -10,6 +11,8 @@ from passlib.context import CryptContext
 
 from app.database import get_db
 from app import models
+
+logger = logging.getLogger("beleka.auth")
 
 # Environment secret key or secure fallback (warning printed if default used)
 SECRET_KEY = os.getenv("JWT_SECRET_KEY", "BELEKA_POS_CLOUD_SECURE_JWT_SECRET_KEY_CHANGE_IN_PROD_2026")
@@ -151,7 +154,7 @@ def log_audit_event(
 def verify_store_access(
     store_id: int,
     current_user: models.User,
-    db: Optional[Session] = None
+    db: Session
 ) -> None:
     """
     Strict server-side tenant & branch authorization guard.
@@ -161,11 +164,45 @@ def verify_store_access(
     """
     if store_id == 0:
         # 0 is reserved for HQ Multi-store aggregate reports (only allowed for owner/super_admin)
-        if current_user.role in ["owner", "super_admin"]:
+        if current_user.role == "super_admin":
+            return
+        user_store = current_user.store or db.query(models.Store).filter(models.Store.id == current_user.store_id).first()
+        if current_user.role == "owner" and user_store and (user_store.tpin or "").strip():
             return
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Forbidden: Multi-store HQ access requires owner privileges.",
+        )
+
+    target_store = db.query(models.Store).filter(
+        models.Store.id == store_id,
+        models.Store.is_active == True,
+    ).first()
+    if not target_store:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Store branch {store_id} not found.",
+        )
+
+    user_store = current_user.store or db.query(models.Store).filter(models.Store.id == current_user.store_id).first()
+    user_tpin = (user_store.tpin or "").strip() if user_store else ""
+    target_tpin = (target_store.tpin or "").strip()
+
+    # Tenant identity is mandatory for every non-super-admin authorization decision.
+    if current_user.role != "super_admin" and (not user_tpin or not target_tpin or user_tpin != target_tpin):
+        log_audit_event(
+            db,
+            event_type="UNAUTHORIZED_ACCESS_ATTEMPT",
+            tpin=user_tpin or None,
+            store_id=store_id,
+            numeric_id=current_user.numeric_id,
+            user_id=current_user.id,
+            details="Missing or mismatched organization TPIN during store authorization.",
+            is_success=False,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: Organization scope could not be verified.",
         )
 
     # 1. Branch User Isolation Check
@@ -186,36 +223,6 @@ def verify_store_access(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"Unauthorized: Access to branch store_id {store_id} is forbidden for your account.",
             )
-
-    # 2. Cross-Organization (Cross-TPIN) Tenant Isolation Check
-    if db and current_user.role != "super_admin":
-        target_store = db.query(models.Store).filter(models.Store.id == store_id).first()
-        if not target_store:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Store branch {store_id} not found.",
-            )
-
-        user_store = current_user.store or db.query(models.Store).filter(models.Store.id == current_user.store_id).first()
-        user_tpin = (user_store.tpin or "").strip() if user_store else ""
-        target_tpin = (target_store.tpin or "").strip()
-
-        if user_tpin and target_tpin and user_tpin != target_tpin:
-            log_audit_event(
-                db,
-                event_type="UNAUTHORIZED_ACCESS_ATTEMPT",
-                tpin=user_tpin,
-                store_id=store_id,
-                numeric_id=current_user.numeric_id,
-                user_id=current_user.id,
-                details=f"Cross-tenant access attempt: User TPIN '{user_tpin}' vs Target Store TPIN '{target_tpin}'",
-                is_success=False,
-            )
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Forbidden: Cross-organization data access strictly denied.",
-            )
-
 
 def require_roles(allowed_roles: List[str]):
     """Role-based authorization guard dependency factory."""

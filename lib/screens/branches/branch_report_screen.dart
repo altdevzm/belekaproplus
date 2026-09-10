@@ -137,6 +137,7 @@ class _BranchReportScreenState extends ConsumerState<BranchReportScreen> with Si
         _selectedBranch.code,
         branchBhfId: _selectedBranch.bhfId,
         branchName: _selectedBranch.name,
+        branchCloudStoreId: _selectedBranch.cloudStoreId > 0 ? _selectedBranch.cloudStoreId : null,
         start: _startDate,
         end: _endDate,
       );

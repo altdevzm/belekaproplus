@@ -31,39 +31,45 @@ def cloud_login(req: schemas.LoginRequest, db: Session = Depends(get_db)):
     tpin_clean = req.tpin.strip() if req.tpin else None
     numeric_id_clean = req.numeric_id.strip()
 
+    if not tpin_clean:
+        log_audit_event(
+            db,
+            event_type="LOGIN_FAILURE",
+            numeric_id=numeric_id_clean,
+            details="Remote login rejected because TPIN is required.",
+            is_success=False,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="TPIN, User ID, and password are required.",
+        )
+
     # Step 1: Server-side Tenant/Store Resolution via TPIN
     query = db.query(models.User).filter(
         models.User.numeric_id == numeric_id_clean,
         models.User.is_active == True
     )
 
-    if tpin_clean:
-        # Strictly filter users belonging to stores matching this TPIN
-        matching_stores = db.query(models.Store).filter(models.Store.tpin == tpin_clean).all()
-        if not matching_stores:
-            log_audit_event(
-                db,
-                event_type="LOGIN_FAILURE",
-                tpin=tpin_clean,
-                numeric_id=numeric_id_clean,
-                details=f"Invalid TPIN '{tpin_clean}' — organization not found.",
-                is_success=False,
-            )
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid TPIN or Organization."
-            )
-        store_ids = [s.id for s in matching_stores]
-        query = query.filter(models.User.store_id.in_(store_ids))
-
-    elif req.company_name and req.company_name.strip():
-        c_clean = req.company_name.strip().lower()
-        query = query.join(models.Store).filter(
-            func.lower(models.Store.name).contains(c_clean) |
-            func.lower(models.Store.store_code) == c_clean |
-            func.lower(models.Store.branch_name).contains(c_clean) |
-            (models.Store.tpin == req.company_name.strip())
+    # Strictly resolve the organization by TPIN before checking the user ID.
+    matching_stores = db.query(models.Store).filter(
+        models.Store.tpin == tpin_clean,
+        models.Store.is_active == True,
+    ).all()
+    if not matching_stores:
+        log_audit_event(
+            db,
+            event_type="LOGIN_FAILURE",
+            tpin=tpin_clean,
+            numeric_id=numeric_id_clean,
+            details="TPIN did not resolve to an active organization.",
+            is_success=False,
         )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid TPIN or Organization."
+        )
+    store_ids = [s.id for s in matching_stores]
+    query = query.filter(models.User.store_id.in_(store_ids))
 
     candidate_users = query.all()
 
@@ -82,36 +88,41 @@ def cloud_login(req: schemas.LoginRequest, db: Session = Depends(get_db)):
         )
 
     # Step 2: Server-side Password / PIN Verification
-    matched_user = None
+    matched_users = []
+    needs_rehash = False
     for u in candidate_users:
-        is_valid, needs_rehash = verify_and_update_password(req.pin, u.password_hash)
+        is_valid, user_needs_rehash = verify_and_update_password(req.pin, u.password_hash)
         if is_valid:
-            if needs_rehash:
+            if user_needs_rehash:
                 u.password_hash = hash_password(req.pin)
-                db.commit()
-                db.refresh(u)
-            matched_user = u
-            break
+                needs_rehash = True
+            matched_users.append(u)
 
-    if not matched_user:
+    if len(matched_users) != 1:
         log_audit_event(
             db,
             event_type="LOGIN_FAILURE",
             tpin=tpin_clean,
             numeric_id=numeric_id_clean,
-            details="Invalid PIN / Password attempt.",
+            details="Invalid or ambiguous PIN / Password attempt within the resolved organization.",
             is_success=False,
         )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid PIN / Password"
+            detail="Invalid or ambiguous credentials."
         )
+
+    if needs_rehash:
+        db.commit()
+        db.refresh(matched_users[0])
+
+    matched_user = matched_users[0]
 
     user = matched_user
     store = db.query(models.Store).filter(models.Store.id == user.store_id).first() if user.store_id else None
     resolved_tpin = store.tpin if store else tpin_clean
 
-    # Step 3: Issue Authenticated Session Token with Tenant & Branch Context
+    # Step 3: Issue authenticated session token with database-derived tenant and branch context.
     access_token = create_access_token(data={
         "user_id": user.id,
         "numeric_id": user.numeric_id,
@@ -129,7 +140,7 @@ def cloud_login(req: schemas.LoginRequest, db: Session = Depends(get_db)):
         store_id=user.store_id,
         numeric_id=user.numeric_id,
         user_id=user.id,
-        details=f"Login successful for {user.name} (Role: {user.role}, Branch: {user.branch_name or 'HQ'})",
+        details=f"Login successful; tenant resolved by TPIN, role={user.role}, branch={store.branch_name if store else 'HQ'}, scope_store_id={user.store_id}",
         is_success=True,
     )
 
@@ -155,5 +166,10 @@ def get_audit_logs(
     query = db.query(models.AuditLog)
     if current_user.role != "super_admin" and user_tpin:
         query = query.filter(models.AuditLog.tpin == user_tpin)
+    elif current_user.role != "super_admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Organization TPIN is not configured for this account.",
+        )
 
     return query.order_by(models.AuditLog.timestamp.desc()).limit(100).all()

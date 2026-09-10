@@ -14,11 +14,16 @@ import 'package:beleka_pos/screens/shell_screen.dart';
 import 'package:beleka_pos/providers/auth_provider.dart';
 import 'package:beleka_pos/widgets/license_expiry_banner.dart';
 import 'package:beleka_pos/services/license_service.dart';
+import 'package:beleka_pos/services/postgres_sync_service.dart';
 
 final recentTransactionsProvider = StreamProvider<List<SaleTransaction>>((ref) {
   final db = ref.watch(databaseServiceProvider);
   final query = ref.watch(transactionSearchQueryProvider);
   return db.watchRecentTransactions(limit: query.isEmpty ? 10 : 50, query: query);
+});
+
+final dashboardCloudPullProvider = FutureProvider.autoDispose<int>((ref) {
+  return ref.read(postgresSyncServiceProvider).pullSalesFromCloud();
 });
 
 final transactionSearchQueryProvider = StateProvider<String>((ref) => '');
@@ -90,6 +95,7 @@ class DashboardScreen extends ConsumerWidget {
   }
 
   Widget _buildManagerDashboard(BuildContext context, WidgetRef ref) {
+    ref.watch(dashboardCloudPullProvider);
     final statsAsync = ref.watch(dashboardStatsProvider);
     final transactionsAsync = ref.watch(recentTransactionsProvider);
     final velocityAsync = ref.watch(salesVelocityProvider);

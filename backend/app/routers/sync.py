@@ -84,6 +84,15 @@ def sync_batch_sales(
         ).first()
 
         if existing:
+            if existing.store_id != payload.store_id:
+                logger.error(
+                    "SYNC_BATCH: UUID collision for %s: existing store_id=%d, requested store_id=%d",
+                    sale_in.transaction_uuid, existing.store_id, payload.store_id
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"Transaction UUID already belongs to store {existing.store_id}.",
+                )
             synced_uuids.append(sale_in.transaction_uuid)
             continue
 
@@ -200,7 +209,18 @@ def sync_batch_sales(
 
         synced_uuids.append(sale_in.transaction_uuid)
 
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception(
+            "SYNC_BATCH: Commit failed for store_id=%d (user=%s); batch was rolled back",
+            payload.store_id, current_user.numeric_id
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Branch data was not stored. Retry the same batch; no records were committed.",
+        )
     logger.info(
         "SYNC_BATCH: Committed %d transactions for store_id=%d (user=%s)",
         len(synced_uuids), payload.store_id, current_user.numeric_id
@@ -222,8 +242,11 @@ def export_vps_backup(
     user_store = current_user.store or db.query(models.Store).filter(models.Store.id == current_user.store_id).first()
     user_tpin = (user_store.tpin or "").strip() if user_store else ""
 
-    if current_user.role in ["owner", "super_admin"] and user_tpin:
-        org_stores = db.query(models.Store).filter(models.Store.tpin == user_tpin).all()
+    if current_user.role in ["owner", "super_admin"] and (store_id == 0 or user_tpin):
+        org_query = db.query(models.Store)
+        if current_user.role != "super_admin" and user_tpin:
+            org_query = org_query.filter(models.Store.tpin == user_tpin)
+        org_stores = org_query.all()
         org_store_ids = [s.id for s in org_stores]
         store = db.query(models.Store).filter(models.Store.id == store_id, models.Store.id.in_(org_store_ids)).first() or (org_stores[0] if org_stores else None)
         if not store:
@@ -273,6 +296,7 @@ def export_vps_backup(
         "backup_version": "1.0",
         "exported_at": str(db.query(func.now()).scalar() or ""),
         "store": serialize_obj(store),
+        "stores": [serialize_obj(s) for s in org_stores] if current_user.role in ["owner", "super_admin"] and (store_id == 0 or user_tpin) else [serialize_obj(store)],
         "users": [serialize_obj(u) for u in users],
         "categories": [serialize_obj(c) for c in categories],
         "products": [serialize_obj(p) for p in products],

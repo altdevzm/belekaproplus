@@ -32,7 +32,7 @@ def fiscalize_transaction(
     Fiscalize a sale transaction through DigiTax API -> ZRA VSDC servers.
     Requires store tenant access authorization.
     """
-    verify_store_access(store_id, current_user)
+    verify_store_access(store_id, current_user, db)
 
     store = db.query(models.Store).filter(models.Store.id == store_id).first()
     if not store:
@@ -105,7 +105,7 @@ def fiscalize_refund_credit_note(
     Fiscalize an official ZRA Credit Note (Refund) through DigiTax API.
     Requires Manager or Owner role.
     """
-    verify_store_access(store_id, current_user)
+    verify_store_access(store_id, current_user, db)
 
     store = db.query(models.Store).filter(models.Store.id == store_id).first()
     if not store:
@@ -176,7 +176,7 @@ def sync_stock_movement(
     Sync an isolated branch stock movement to DigiTax VSDC under company credentials.
     Requires Manager or Owner authorization.
     """
-    verify_store_access(store_id, current_user)
+    verify_store_access(store_id, current_user, db)
 
     store = db.query(models.Store).filter(models.Store.id == store_id).first()
     store_config = {

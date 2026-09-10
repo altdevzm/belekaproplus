@@ -169,6 +169,10 @@ class SaleTransaction {
   String? zraInvoiceType;
   String zraStatus = 'pending';
 
+  // Cloud Sync: Backend store_id that this transaction belongs to (0 = local/unsynced)
+  @Index()
+  int cloudStoreId = 0;
+
   // ZRA Credit Note / Fiscal Return Fields
   bool isCreditNote = false;
   String? orgInvoiceNo;
@@ -192,6 +196,7 @@ class SaleTransaction {
     this.pointsEarned = 0,
     this.pointsRedeemed = 0,
     this.isSynced = false,
+    this.cloudStoreId = 0,
     this.cashierId,
     this.terminalName,
     this.customerTpin,
@@ -666,6 +671,10 @@ class StoreBranch {
   String status = 'ONLINE'; // 'ONLINE', 'OFFLINE'
   String zraStatus = 'FISCALIZED'; // 'FISCALIZED', 'PENDING'
   double salesToday = 0.0;
+
+  // Cloud backend store_id for this branch (0 if not synced to cloud yet)
+  @Index()
+  int cloudStoreId = 0;
   
   @Index()
   DateTime createdAt = DateTime.now();

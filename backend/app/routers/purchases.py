@@ -17,7 +17,7 @@ def get_purchase_orders(
 ):
     """Fetch all Purchase Orders for store management (tenant-scoped)."""
     target_store_id = store_id or current_user.store_id
-    verify_store_access(target_store_id, current_user)
+    verify_store_access(target_store_id, current_user, db)
 
     query = db.query(models.PurchaseOrder).filter(models.PurchaseOrder.store_id == target_store_id)
     if status_filter:
@@ -31,7 +31,7 @@ def create_purchase_order(
     db: Session = Depends(get_db)
 ):
     """Create a new Purchase Order document. Requires Manager or Owner role."""
-    verify_store_access(po_in.store_id, current_user)
+    verify_store_access(po_in.store_id, current_user, db)
 
     existing = db.query(models.PurchaseOrder).filter(models.PurchaseOrder.po_number == po_in.po_number).first()
     if existing:
@@ -79,7 +79,7 @@ def approve_and_receive_purchase_order(
     if not po:
         raise HTTPException(status_code=404, detail="Purchase Order not found")
 
-    verify_store_access(po.store_id, current_user)
+    verify_store_access(po.store_id, current_user, db)
 
     if po.status in ["approved", "received"]:
         raise HTTPException(status_code=400, detail="Purchase Order is already approved and received")

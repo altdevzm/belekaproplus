@@ -82,7 +82,11 @@ class PostgresSyncService {
     final cloudUrl = (config?.cloudApiUrl != null && config!.cloudApiUrl!.trim().isNotEmpty)
         ? config.cloudApiUrl!.trim()
         : 'http://23.139.36.20:8003';
-    final storeId = config?.cloudStoreId ?? 1;
+    final storeId = config?.cloudStoreId ?? 0;
+    if (storeId <= 0) {
+      debugPrint('[PostgresSyncService] Cannot sync user: cloud branch mapping is missing.');
+      return false;
+    }
     var token = config?.cloudAuthToken;
 
     bool result = await cloudDb.syncUser(
@@ -109,6 +113,8 @@ class PostgresSyncService {
   }
 
   /// Push/Sync a Store Branch to Cloud PostgreSQL DB.
+  /// Returns true if the branch was synced, and saves the cloud store_id back
+  /// to branch.cloudStoreId for use in branch report data attribution.
   Future<bool> syncBranch(StoreBranch branch) async {
     final config = await isar.storeConfigs.where().findFirst();
     final cloudUrl = (config?.cloudApiUrl != null && config!.cloudApiUrl!.trim().isNotEmpty)
@@ -116,30 +122,37 @@ class PostgresSyncService {
         : 'http://23.139.36.20:8003';
     var token = config?.cloudAuthToken;
 
-    bool result = await cloudDb.syncBranch(
-      baseUrl: cloudUrl,
-      branch: branch,
-      tpin: config?.tpin,
-      digitaxApiKey: config?.digitaxApiKey,
-      digitaxEnvironment: config?.digitaxEnvironment,
-      businessTaxType: config?.businessTaxType,
-      currencySymbol: config?.currencySymbol,
-      authToken: token,
-    );
+    Future<bool> _doSync(String? tok) async {
+      final cloudStoreId = await cloudDb.syncBranch(
+        baseUrl: cloudUrl,
+        branch: branch,
+        tpin: config?.tpin,
+        digitaxApiKey: config?.digitaxApiKey,
+        digitaxEnvironment: config?.digitaxEnvironment,
+        businessTaxType: config?.businessTaxType,
+        currencySymbol: config?.currencySymbol,
+        authToken: tok,
+      );
+      if (cloudStoreId != null) {
+        // Persist the backend store_id on the local branch for HQ report matching
+        if (cloudStoreId > 0 && branch.cloudStoreId != cloudStoreId) {
+          await isar.writeTxn(() async {
+            branch.cloudStoreId = cloudStoreId;
+            await isar.storeBranchs.put(branch);
+          });
+          debugPrint('[syncBranch] Branch "${branch.name}" mapped to cloud store_id=$cloudStoreId');
+        }
+        return true;
+      }
+      return false;
+    }
+
+    bool result = await _doSync(token);
 
     if (!result) {
       token = await _refreshCloudAuthToken(config, cloudUrl);
       if (token != null) {
-        result = await cloudDb.syncBranch(
-          baseUrl: cloudUrl,
-          branch: branch,
-          tpin: config?.tpin,
-          digitaxApiKey: config?.digitaxApiKey,
-          digitaxEnvironment: config?.digitaxEnvironment,
-          businessTaxType: config?.businessTaxType,
-          currencySymbol: config?.currencySymbol,
-          authToken: token,
-        );
+        result = await _doSync(token);
       }
     }
     return result;
@@ -180,7 +193,7 @@ class PostgresSyncService {
     final cloudUrl = (config?.cloudApiUrl != null && config!.cloudApiUrl!.trim().isNotEmpty)
         ? config.cloudApiUrl!.trim()
         : 'http://23.139.36.20:8003';
-    final storeId = config?.cloudStoreId ?? 1;
+    final storeId = config?.cloudStoreId ?? 0;
 
     try {
       final stores = await cloudDb.getStores(cloudUrl, authToken: config?.cloudAuthToken);
@@ -233,7 +246,7 @@ class PostgresSyncService {
     final cloudUrl = (config?.cloudApiUrl != null && config!.cloudApiUrl!.trim().isNotEmpty)
         ? config.cloudApiUrl!.trim()
         : 'http://23.139.36.20:8003';
-    final storeId = config?.cloudStoreId ?? 1;
+    final storeId = config?.cloudStoreId ?? 0;
     var authToken = config?.cloudAuthToken;
 
     // Query unsynced sales from local storage
@@ -244,6 +257,12 @@ class PostgresSyncService {
 
     if (unsyncedSales.isEmpty) {
       return 0;
+    }
+
+    if (storeId <= 0) {
+      throw StateError(
+        'Cloud branch mapping is missing; refusing to upload sales to the HQ store.',
+      );
     }
 
     try {
@@ -309,7 +328,17 @@ class PostgresSyncService {
         ? config.cloudApiUrl!.trim()
         : 'http://23.139.36.20:8003';
 
-    final storeId = config?.cloudStoreId ?? 1;
+    final owner = await isar.users.filter().roleEqualTo('owner').findFirst();
+    final configuredStoreId = config?.cloudStoreId;
+    final storeId = owner != null && config?.bhfId == '00'
+        ? 0
+        : configuredStoreId;
+
+    if (storeId == null || storeId < 0) {
+      throw StateError(
+        'Cloud branch mapping is missing; refusing to pull data for an unknown store.',
+      );
+    }
     var authToken = config?.cloudAuthToken;
 
     try {
@@ -365,6 +394,9 @@ class PostgresSyncService {
           pointsEarned: (raw['points_earned'] as num?)?.toInt() ?? 0,
           pointsRedeemed: (raw['points_redeemed'] as num?)?.toInt() ?? 0,
           isSynced: true,
+          // Store the backend store_id so HQ can correctly attribute this
+          // transaction to the right branch in reports (branch matching uses this)
+          cloudStoreId: (raw['store_id'] as num?)?.toInt() ?? 0,
           cashierId: raw['cashier_id']?.toString(),
           terminalName: raw['terminal_name'] as String? ?? 'Terminal-1',
           transactionId: uuid,
@@ -407,7 +439,7 @@ class PostgresSyncService {
       return insertedCount;
     } catch (e) {
       debugPrint('Error pulling sales from cloud: $e');
-      return 0;
+      rethrow;
     }
   }
 }

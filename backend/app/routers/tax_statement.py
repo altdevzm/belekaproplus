@@ -168,7 +168,7 @@ def get_monthly_tax_statement(
     """
     Returns actual ZRA tax figures the business owes for the given month (tenant-scoped).
     """
-    verify_store_access(store_id, current_user)
+    verify_store_access(store_id, current_user, db)
 
     store = db.query(models.Store).filter(models.Store.id == store_id).first()
     if not store:

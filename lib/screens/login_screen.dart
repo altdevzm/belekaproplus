@@ -36,10 +36,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     _idController.addListener(_onIdChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final config = ref.read(storeConfigProvider).value;
-      final bName = config?.businessName;
-      if (bName != null && bName.isNotEmpty) {
+      final tpin = config?.tpin;
+      if (tpin != null && tpin.isNotEmpty) {
         if (_companyController.text.isEmpty) {
-          _companyController.text = bName;
+          _companyController.text = tpin;
         }
       }
     });
@@ -197,7 +197,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           baseUrl: cloudUrl,
           numericId: _idController.text.trim(),
           pin: _pin.trim(),
-          companyName: _companyController.text.trim(),
+          tpin: _companyController.text.trim(),
           terminalName: config?.terminalName ?? 'BRANCH-POS',
         );
 
@@ -756,8 +756,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   const SizedBox(height: 10),
                 ],
 
-                // Company / Business Name Field
-                _buildInputField(context, 'COMPANY / BUSINESS NAME', _companyController, Icons.business_outlined, 'Company, Store Name or Code'),
+                // Organization TPIN Field
+                _buildInputField(context, 'ORGANIZATION TPIN', _companyController, Icons.business_outlined, 'Enter organization TPIN'),
                 const SizedBox(height: 10),
 
                 // Staff ID Field
@@ -1111,8 +1111,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 _buildTerminalBadge(context),
                 const SizedBox(height: 16),
 
-                // Company / Business Name Field
-                _buildInputField(context, 'COMPANY / BUSINESS NAME', _companyController, Icons.business_outlined, 'Company, Store Name or Code'),
+                // Organization TPIN Field
+                _buildInputField(context, 'ORGANIZATION TPIN', _companyController, Icons.business_outlined, 'Enter organization TPIN'),
                 const SizedBox(height: 12),
 
                 // Staff ID Field

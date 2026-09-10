@@ -103,7 +103,8 @@ class CloudDatabaseService {
   }
 
   /// Push/Sync a Store Branch to Cloud PostgreSQL DB.
-  Future<bool> syncBranch({
+  /// Returns the backend store_id (int) on success, or null on failure.
+  Future<int?> syncBranch({
     required String baseUrl,
     required StoreBranch branch,
     String? tpin,
@@ -136,12 +137,21 @@ class CloudDatabaseService {
         },
         options: _buildAuthOptions(authToken),
       );
-      return response.statusCode == 200 || response.statusCode == 201;
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        // Return the backend store id from the response for local mapping
+        final data = response.data;
+        if (data is Map && data['id'] != null) {
+          return (data['id'] as num).toInt();
+        }
+        return 0; // success but no id in response
+      }
+      return null;
     } catch (e) {
       debugPrint('Cloud PostgreSQL Branch Push Failed: $e');
-      return false;
+      return null;
     }
   }
+
 
   /// Push/Update store configuration (TPIN, DigiTax Key, Environment, etc.) on Cloud DB
   Future<bool> updateStoreConfig({
