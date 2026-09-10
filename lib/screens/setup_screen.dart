@@ -22,11 +22,14 @@ class SetupScreen extends ConsumerStatefulWidget {
 }
 
 class _SetupScreenState extends ConsumerState<SetupScreen> {
-  int _activeTab = 0; // 0 = Owner Cloud Login, 1 = Create New Store, 2 = Connect Cloud Branch, 3 = Link LAN Client Till
+  int _activeTab =
+      0; // 0 = Owner Cloud Login, 1 = Create New Store, 2 = Connect Cloud Branch, 3 = Link LAN Client Till
 
   // Tab 0: Owner Cloud Login (Restore / HQ Master Setup)
   final _ownerFormKey = GlobalKey<FormState>();
-  final _ownerUrlController = TextEditingController(text: 'http://23.139.36.20:8003');
+  final _ownerUrlController = TextEditingController(
+    text: 'http://23.139.36.20:8003',
+  );
   final _ownerIdController = TextEditingController();
   final _ownerPinController = TextEditingController();
   final _ownerStoreCodeController = TextEditingController();
@@ -42,9 +45,12 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
 
   // Tab 2: Connect Existing Cloud Branch / Log in
   final _cloudFormKey = GlobalKey<FormState>();
-  final _cloudUrlController = TextEditingController(text: 'http://23.139.36.20:8003');
+  final _cloudUrlController = TextEditingController(
+    text: 'http://23.139.36.20:8003',
+  );
   final _cloudStaffIdController = TextEditingController();
   final _cloudPinController = TextEditingController();
+  final _cloudTpinController = TextEditingController();
   final _cloudStoreCodeController = TextEditingController(text: 'STORE-001');
 
   // Tab 3: Link Client Till (LAN Till Mode)
@@ -74,6 +80,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     _cloudUrlController.dispose();
     _cloudStaffIdController.dispose();
     _cloudPinController.dispose();
+    _cloudTpinController.dispose();
     _cloudStoreCodeController.dispose();
     _tillServerIpController.dispose();
     _tillNameController.dispose();
@@ -100,15 +107,22 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       // 1. Verify connection to Cloud Server
       final isConnected = await cloudService.checkConnection(baseUrl);
       if (!isConnected) {
-        throw Exception('Cannot reach Cloud Server at $baseUrl. Verify internet connection.');
+        throw Exception(
+          'Cannot reach Cloud Server at $baseUrl. Verify internet connection.',
+        );
       }
 
-      setState(() => _statusMessage = 'Fetching Headquarters store profile & fiscal configs...');
+      setState(
+        () => _statusMessage =
+            'Fetching Headquarters store profile & fiscal configs...',
+      );
 
       // 2. Fetch available store branches from Cloud DB
       final stores = await cloudService.getStores(baseUrl);
       if (stores.isEmpty) {
-        throw Exception('No store records found on the cloud server. Please create a new store or verify server URL.');
+        throw Exception(
+          'No store records found on the cloud server. Please create a new store or verify server URL.',
+        );
       }
 
       Map<String, dynamic>? targetStore;
@@ -119,7 +133,10 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
           final sName = (s['name'] ?? '').toString().toUpperCase();
           final sBranch = (s['branch_name'] ?? '').toString().toUpperCase();
           final sBhf = (s['bhf_id'] ?? '').toString().toUpperCase();
-          if (sCode == query || sName == query || sBranch == query || sBhf == query) {
+          if (sCode == query ||
+              sName == query ||
+              sBranch == query ||
+              sBhf == query) {
             targetStore = s;
             break;
           }
@@ -133,23 +150,32 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       );
 
       final storeId = targetStore['id'] as int? ?? 1;
-      final storeName = (targetStore['name'] as String?) ?? 'Beleka Master Store';
-      final branchName = (targetStore['branch_name'] as String?) ?? 'Headquarters (HQ)';
+      final storeName =
+          (targetStore['name'] as String?) ?? 'Beleka Master Store';
+      final branchName =
+          (targetStore['branch_name'] as String?) ?? 'Headquarters (HQ)';
       final bhfId = (targetStore['bhf_id'] as String?) ?? '00';
       final rawTpin = targetStore['tpin'] as String?;
-      final tpin = (rawTpin != null && rawTpin.trim().isNotEmpty) ? rawTpin.trim() : '1000000000';
-      final finalStoreCode = (targetStore['store_code'] as String?) ?? 'STORE-001';
-      final businessTaxType = (targetStore['business_tax_type'] as String?) ?? 'VAT_STANDARD';
+      final tpin = (rawTpin != null && rawTpin.trim().isNotEmpty)
+          ? rawTpin.trim()
+          : '1000000000';
+      final finalStoreCode =
+          (targetStore['store_code'] as String?) ?? 'STORE-001';
+      final businessTaxType =
+          (targetStore['business_tax_type'] as String?) ?? 'VAT_STANDARD';
       final digitaxApiKey = (targetStore['digitax_api_key'] as String?) ?? '';
-      final digitaxEnv = (targetStore['digitax_environment'] as String?) ?? 'sandbox';
+      final digitaxEnv =
+          (targetStore['digitax_environment'] as String?) ?? 'sandbox';
       final currency = (targetStore['currency_symbol'] as String?) ?? 'ZK';
 
-      setState(() => _statusMessage = 'Authenticating Owner account credentials...');
+      setState(
+        () => _statusMessage = 'Authenticating Owner account credentials...',
+      );
 
       // 3. Fetch cloud users for this store
       final cloudUsers = await cloudService.getUsers(baseUrl, storeId: storeId);
       Map<String, dynamic>? matchedUser;
-      
+
       for (final u in cloudUsers) {
         final uNumId = (u['numeric_id'] ?? '').toString();
         if (uNumId == userId) {
@@ -175,7 +201,9 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
         ..businessTaxType = businessTaxType
         ..digitaxApiKey = digitaxApiKey
         ..digitaxEnvironment = digitaxEnv
-        ..taxRate = businessTaxType == 'TURNOVER_TAX' ? 3.0 : (businessTaxType == 'EXEMPT' ? 0.0 : 16.0)
+        ..taxRate = businessTaxType == 'TURNOVER_TAX'
+            ? 3.0
+            : (businessTaxType == 'EXEMPT' ? 0.0 : 16.0)
         ..recoveryCodeHash = hashPin(recoveryCode);
 
       await db.saveStoreConfig(config);
@@ -190,11 +218,13 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
             ..numericId = uNumId
             ..name = (u['name'] ?? (isTarget ? 'Owner' : 'Staff')).toString()
             ..role = (isTarget ? 'owner' : (u['role'] ?? 'cashier').toString())
-            ..passwordHash = isTarget ? hashPin(pin) : (u['password_hash'] ?? hashPin('1234'))
+            ..passwordHash = isTarget
+                ? hashPin(pin)
+                : (u['password_hash'] ?? hashPin('1234'))
             ..branchName = (u['branch_name'] ?? branchName).toString()
             ..branchCode = bhfId
             ..phone = u['phone']?.toString();
-          
+
           await db.saveUser(userObj);
           if (isTarget) {
             activeOwner = userObj;
@@ -206,7 +236,9 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
         activeOwner = User()
           ..numericId = userId
           ..passwordHash = hashPin(pin)
-          ..name = matchedUser != null ? (matchedUser['name'] ?? 'Store Owner') : 'Store Owner'
+          ..name = matchedUser != null
+              ? (matchedUser['name'] ?? 'Store Owner')
+              : 'Store Owner'
           ..role = 'owner'
           ..branchName = branchName
           ..branchCode = bhfId;
@@ -224,9 +256,15 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       }
 
       // 6. Pull products & categories from Cloud DB into local database
-      setState(() => _statusMessage = 'Downloading master product catalog and inventory...');
+      setState(
+        () => _statusMessage =
+            'Downloading master product catalog and inventory...',
+      );
       try {
-        final cloudProducts = await cloudService.getProducts(baseUrl, storeId: storeId);
+        final cloudProducts = await cloudService.getProducts(
+          baseUrl,
+          storeId: storeId,
+        );
         if (cloudProducts.isNotEmpty) {
           final Set<String> catNames = {};
           for (final p in cloudProducts) {
@@ -234,7 +272,9 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
             catNames.add(catName);
           }
           if (catNames.isNotEmpty) {
-            final catList = catNames.map((name) => Category(name: name)).toList();
+            final catList = catNames
+                .map((name) => Category(name: name))
+                .toList();
             await db.saveCategories(catList);
           }
 
@@ -248,7 +288,10 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
             final catId = catMap[catName] ?? 1;
             final prod = Product(
               name: (p['name'] as String?) ?? 'Product',
-              sku: (p['sku'] as String?) ?? (p['barcode'] as String?) ?? 'SKU-${DateTime.now().millisecondsSinceEpoch}',
+              sku:
+                  (p['sku'] as String?) ??
+                  (p['barcode'] as String?) ??
+                  'SKU-${DateTime.now().millisecondsSinceEpoch}',
               price: (p['price'] as num?)?.toDouble() ?? 0.0,
               unitCost: (p['cost_price'] as num?)?.toDouble() ?? 0.0,
               stockLevel: (p['stock_quantity'] as num?)?.toInt() ?? 0,
@@ -273,7 +316,6 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       ref.invalidate(hasUsersProvider);
       ref.invalidate(appStartupProvider);
       ref.invalidate(storeConfigProvider);
-
     } catch (e) {
       setState(() => _errorMessage = 'Owner Login Failed: $e');
     } finally {
@@ -297,7 +339,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
 
     try {
       final db = ref.read(databaseServiceProvider);
-      
+
       // 0. Generate Recovery Code
       final recoveryCode = _generateRecoveryCode();
 
@@ -315,7 +357,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
         ..digitaxApiKey = null
         ..tpin = null
         ..recoveryCodeHash = hashPin(recoveryCode);
-      
+
       await db.saveStoreConfig(config);
 
       // 2. Create Initial Admin with hashed PIN
@@ -326,12 +368,15 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
         ..name = 'Owner'
         ..branchCode = '00'
         ..branchName = 'Headquarters (HQ)';
-      
+
       await db.saveUser(admin);
 
       // 3. Create Pre-defined Multi-purpose Categories
       final defaultCategories = [
-        Category(name: 'Pharmaceuticals', iconPath: 'assets/icons/pharmacy.png'),
+        Category(
+          name: 'Pharmaceuticals',
+          iconPath: 'assets/icons/pharmacy.png',
+        ),
         Category(name: 'Stationery', iconPath: 'assets/icons/stationery.png'),
         Category(name: 'Groceries', iconPath: 'assets/icons/groceries.png'),
         Category(name: 'Food & Beverage', iconPath: 'assets/icons/food.png'),
@@ -349,7 +394,6 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       ref.read(authProvider.notifier).login(admin);
       ref.invalidate(hasUsersProvider);
       ref.invalidate(appStartupProvider);
-      
     } catch (e) {
       setState(() => _errorMessage = 'Failed to initialize terminal: $e');
     } finally {
@@ -377,18 +421,44 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       final baseUrl = _cloudUrlController.text.trim();
       final userId = _cloudStaffIdController.text.trim();
       final pin = _cloudPinController.text.trim();
+      final loginTpin = _cloudTpinController.text.trim();
       final storeCode = _cloudStoreCodeController.text.trim();
 
       // 1. Verify connection to Cloud Server
       final isConnected = await cloudService.checkConnection(baseUrl);
       if (!isConnected) {
-        throw Exception('Cannot reach Cloud Server at $baseUrl. Verify internet connection.');
+        throw Exception(
+          'Cannot reach Cloud Server at $baseUrl. Verify internet connection.',
+        );
       }
 
-      setState(() => _statusMessage = 'Fetching store branches & credentials...');
+      setState(
+        () => _statusMessage = 'Authenticating staff user on Cloud DB...',
+      );
+
+      final login = await cloudService.authenticateUser(
+        baseUrl: baseUrl,
+        numericId: userId,
+        pin: pin,
+        tpin: loginTpin,
+        terminalName: 'BRANCH-TERMINAL',
+      );
+      final authToken = login?['token']?.toString();
+      if (authToken == null || authToken.isEmpty) {
+        throw Exception(
+          'Cloud login rejected. Verify the organization TPIN, user ID, and PIN.',
+        );
+      }
+
+      setState(
+        () => _statusMessage = 'Fetching store branches & credentials...',
+      );
 
       // 2. Fetch available store branches from Cloud DB
-      final stores = await cloudService.getStores(baseUrl);
+      final stores = await cloudService.getStores(
+        baseUrl,
+        authToken: authToken,
+      );
       Map<String, dynamic>? targetStore;
       if (stores.isNotEmpty) {
         if (storeCode.isNotEmpty) {
@@ -398,7 +468,10 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
             final sName = (s['name'] ?? '').toString().toUpperCase();
             final sBranch = (s['branch_name'] ?? '').toString().toUpperCase();
             final sBhf = (s['bhf_id'] ?? '').toString().toUpperCase();
-            if (sCode == query || sName == query || sBranch == query || sBhf == query) {
+            if (sCode == query ||
+                sName == query ||
+                sBranch == query ||
+                sBhf == query) {
               targetStore = s;
               break;
             }
@@ -407,24 +480,52 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
         targetStore ??= stores.first;
       }
 
-      final storeId = targetStore != null ? (targetStore['id'] as int? ?? 1) : 1;
-      final storeName = targetStore != null ? (targetStore['name'] as String? ?? 'Beleka Branch') : 'Branch Store';
-      final branchName = targetStore != null ? (targetStore['branch_name'] as String? ?? 'Main Branch') : 'Branch 01';
-      final bhfId = targetStore != null ? (targetStore['bhf_id'] as String? ?? '00') : '00';
-      final rawTpin = targetStore != null ? (targetStore['tpin'] as String?) : null;
-      final tpin = (rawTpin != null && rawTpin.trim().isNotEmpty) ? rawTpin.trim() : '1234567890';
-      final finalStoreCode = targetStore != null ? (targetStore['store_code'] as String? ?? storeCode) : storeCode;
-      final businessTaxType = targetStore != null ? (targetStore['business_tax_type'] as String? ?? 'VAT_STANDARD') : 'VAT_STANDARD';
-      final digitaxApiKey = targetStore != null ? (targetStore['digitax_api_key'] as String? ?? '') : '';
-      final digitaxEnv = targetStore != null ? (targetStore['digitax_environment'] as String? ?? 'sandbox') : 'sandbox';
-      final currency = targetStore != null ? (targetStore['currency_symbol'] as String? ?? 'ZK') : 'ZK';
+      final storeId = targetStore != null
+          ? (targetStore['id'] as int? ?? 1)
+          : 1;
+      final storeName = targetStore != null
+          ? (targetStore['name'] as String? ?? 'Beleka Branch')
+          : 'Branch Store';
+      final branchName = targetStore != null
+          ? (targetStore['branch_name'] as String? ?? 'Main Branch')
+          : 'Branch 01';
+      final bhfId = targetStore != null
+          ? (targetStore['bhf_id'] as String? ?? '00')
+          : '00';
+      final rawTpin = targetStore != null
+          ? (targetStore['tpin'] as String?)
+          : null;
+      final tpin = (rawTpin != null && rawTpin.trim().isNotEmpty)
+          ? rawTpin.trim()
+          : '1234567890';
+      final finalStoreCode = targetStore != null
+          ? (targetStore['store_code'] as String? ?? storeCode)
+          : storeCode;
+      final businessTaxType = targetStore != null
+          ? (targetStore['business_tax_type'] as String? ?? 'VAT_STANDARD')
+          : 'VAT_STANDARD';
+      final digitaxApiKey = targetStore != null
+          ? (targetStore['digitax_api_key'] as String? ?? '')
+          : '';
+      final digitaxEnv = targetStore != null
+          ? (targetStore['digitax_environment'] as String? ?? 'sandbox')
+          : 'sandbox';
+      final currency = targetStore != null
+          ? (targetStore['currency_symbol'] as String? ?? 'ZK')
+          : 'ZK';
 
-      setState(() => _statusMessage = 'Authenticating staff user on Cloud DB...');
+      setState(
+        () => _statusMessage = 'Authenticating staff user on Cloud DB...',
+      );
 
       // 3. Fetch cloud users for this store
-      final cloudUsers = await cloudService.getUsers(baseUrl, storeId: storeId);
+      final cloudUsers = await cloudService.getUsers(
+        baseUrl,
+        storeId: storeId,
+        authToken: authToken,
+      );
       Map<String, dynamic>? matchedUser;
-      
+
       for (final u in cloudUsers) {
         if ((u['numeric_id'] ?? '').toString() == userId) {
           matchedUser = u;
@@ -449,7 +550,9 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
         ..businessTaxType = businessTaxType
         ..digitaxApiKey = digitaxApiKey
         ..digitaxEnvironment = digitaxEnv
-        ..taxRate = businessTaxType == 'TURNOVER_TAX' ? 3.0 : (businessTaxType == 'EXEMPT' ? 0.0 : 16.0)
+        ..taxRate = businessTaxType == 'TURNOVER_TAX'
+            ? 3.0
+            : (businessTaxType == 'EXEMPT' ? 0.0 : 16.0)
         ..recoveryCodeHash = hashPin(recoveryCode);
 
       await db.saveStoreConfig(config);
@@ -463,11 +566,13 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
             ..numericId = uNumId
             ..name = (u['name'] ?? 'Staff').toString()
             ..role = (u['role'] ?? 'cashier').toString()
-            ..passwordHash = (uNumId == userId) ? hashPin(pin) : (u['password_hash'] ?? hashPin('1234'))
+            ..passwordHash = (uNumId == userId)
+                ? hashPin(pin)
+                : (u['password_hash'] ?? hashPin('1234'))
             ..branchName = (u['branch_name'] ?? storeName).toString()
             ..branchCode = bhfId
             ..phone = u['phone']?.toString();
-          
+
           await db.saveUser(userObj);
           if (uNumId == userId) {
             activeUser = userObj;
@@ -479,7 +584,9 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
         activeUser = User()
           ..numericId = userId
           ..passwordHash = hashPin(pin)
-          ..name = matchedUser != null ? (matchedUser['name'] ?? 'Branch Manager') : 'Branch Manager'
+          ..name = matchedUser != null
+              ? (matchedUser['name'] ?? 'Branch Manager')
+              : 'Branch Manager'
           ..role = 'manager'
           ..branchName = storeName
           ..branchCode = bhfId;
@@ -501,7 +608,10 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       if (bhfId == '00') {
         setState(() => _statusMessage = 'Syncing master catalog & products...');
         try {
-          final cloudProducts = await cloudService.getProducts(baseUrl, storeId: storeId);
+          final cloudProducts = await cloudService.getProducts(
+            baseUrl,
+            storeId: storeId,
+          );
           if (cloudProducts.isNotEmpty) {
             final Set<String> catNames = {};
             for (final p in cloudProducts) {
@@ -509,7 +619,9 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
               catNames.add(catName);
             }
             if (catNames.isNotEmpty) {
-              final catList = catNames.map((name) => Category(name: name)).toList();
+              final catList = catNames
+                  .map((name) => Category(name: name))
+                  .toList();
               await db.saveCategories(catList);
             }
 
@@ -523,7 +635,10 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
               final catId = catMap[catName] ?? 1;
               final prod = Product(
                 name: (p['name'] as String?) ?? 'Product',
-                sku: (p['sku'] as String?) ?? (p['barcode'] as String?) ?? 'SKU-${DateTime.now().millisecondsSinceEpoch}',
+                sku:
+                    (p['sku'] as String?) ??
+                    (p['barcode'] as String?) ??
+                    'SKU-${DateTime.now().millisecondsSinceEpoch}',
                 price: (p['price'] as num?)?.toDouble() ?? 0.0,
                 unitCost: (p['cost_price'] as num?)?.toDouble() ?? 0.0,
                 stockLevel: (p['stock_quantity'] as num?)?.toInt() ?? 0,
@@ -538,14 +653,15 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
           debugPrint('Cloud product pull warning: $e');
         }
       } else {
-        debugPrint('Branch setup initialized with isolated stock (bhfId: $bhfId). HQ products skipped.');
+        debugPrint(
+          'Branch setup initialized with isolated stock (bhfId: $bhfId). HQ products skipped.',
+        );
       }
 
       // 7. Auto-login & Navigate to POS
       ref.read(authProvider.notifier).login(activeUser);
       ref.invalidate(hasUsersProvider);
       ref.invalidate(appStartupProvider);
-
     } catch (e) {
       setState(() => _errorMessage = 'Cloud Login & Setup Failed: $e');
     } finally {
@@ -579,20 +695,23 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       final client = NetworkClient(serverUrl: 'http://$ip:8080');
       final info = await client.getServerInfo(ip);
       if (info != null) {
-        final bName = info['businessName'] ?? info['serverName'] ?? 'Master POS';
+        final bName =
+            info['businessName'] ?? info['serverName'] ?? 'Master POS';
         final branch = info['branchName'] ?? 'Branch ${info['bhfId'] ?? '00'}';
         final bhfId = info['bhfId'] ?? '00';
         setState(() {
           _isTestingTillLink = false;
           _tillTestSuccess = true;
           _detectedServerInfo = info;
-          _tillTestMessage = 'Connected to $bName ($branch • ZRA bhfId: $bhfId)';
+          _tillTestMessage =
+              'Connected to $bName ($branch • ZRA bhfId: $bhfId)';
         });
       } else {
         setState(() {
           _isTestingTillLink = false;
           _tillTestSuccess = false;
-          _tillTestMessage = 'Could not reach Master POS on $ip:8080. Ensure Master POS is running on the same network.';
+          _tillTestMessage =
+              'Could not reach Master POS on $ip:8080. Ensure Master POS is running on the same network.';
         });
       }
     } catch (e) {
@@ -619,9 +738,11 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     try {
       final client = NetworkClient(serverUrl: 'http://$ip:8080');
       final info = _detectedServerInfo ?? await client.getServerInfo(ip);
-      
+
       if (info == null) {
-        throw Exception('Unable to reach Master POS at $ip:8080. Check Wi-Fi and IP address.');
+        throw Exception(
+          'Unable to reach Master POS at $ip:8080. Check Wi-Fi and IP address.',
+        );
       }
 
       final db = ref.read(databaseServiceProvider);
@@ -629,7 +750,9 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
 
       setState(() => _statusMessage = 'Configuring local till profile...');
 
-      final bName = (info['businessName'] ?? info['serverName'] ?? 'Beleka POS Store').toString();
+      final bName =
+          (info['businessName'] ?? info['serverName'] ?? 'Beleka POS Store')
+              .toString();
       final branch = (info['branchName'] ?? 'Main Branch').toString();
       final bhfId = (info['bhfId'] ?? info['branchCode'] ?? '00').toString();
       final currency = (info['currencySymbol'] ?? 'ZK').toString();
@@ -652,7 +775,9 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       await db.saveStoreConfig(config);
 
       // Perform handshake registration on Master POS server so it immediately shows up on Master dashboard
-      setState(() => _statusMessage = 'Registering till with Master POS server...');
+      setState(
+        () => _statusMessage = 'Registering till with Master POS server...',
+      );
       try {
         final hwid = await HwidService().getHardwareId();
         await client.registerTerminal(
@@ -665,7 +790,10 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
         debugPrint('Till registration handshake notice: $e');
       }
 
-      setState(() => _statusMessage = 'Downloading catalog & categories from Master POS...');
+      setState(
+        () => _statusMessage =
+            'Downloading catalog & categories from Master POS...',
+      );
       try {
         final categories = await client.fetchCategories();
         if (categories.isNotEmpty) {
@@ -688,7 +816,10 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
         debugPrint('Till products pull warning: $e');
       }
 
-      setState(() => _statusMessage = 'Downloading staff & cashiers from Master POS...');
+      setState(
+        () =>
+            _statusMessage = 'Downloading staff & cashiers from Master POS...',
+      );
       try {
         final users = await client.fetchUsers();
         if (users.isNotEmpty) {
@@ -696,7 +827,10 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
             for (final uMap in users) {
               final numericId = (uMap['numericId'] ?? '').toString();
               if (numericId.isEmpty) continue;
-              final existing = await isar.users.filter().numericIdEqualTo(numericId).findFirst();
+              final existing = await isar.users
+                  .filter()
+                  .numericIdEqualTo(numericId)
+                  .findFirst();
               final u = existing ?? User();
               u.numericId = numericId;
               u.name = (uMap['name'] ?? 'Staff $numericId').toString();
@@ -704,7 +838,8 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
               u.branchCode = bhfId;
               u.branchName = branch;
               u.isActive = uMap['isActive'] == true;
-              if (uMap['passwordHash'] != null && uMap['passwordHash'].toString().isNotEmpty) {
+              if (uMap['passwordHash'] != null &&
+                  uMap['passwordHash'].toString().isNotEmpty) {
                 u.passwordHash = uMap['passwordHash'].toString();
               } else if (u.passwordHash.isEmpty) {
                 u.passwordHash = hashPin('1234');
@@ -735,7 +870,6 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       ref.invalidate(hasUsersProvider);
       ref.invalidate(appStartupProvider);
       ref.invalidate(storeConfigProvider);
-
     } catch (e) {
       setState(() => _errorMessage = 'Till Link Failed: $e');
     } finally {
@@ -771,7 +905,9 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
         backgroundColor: isDark ? const Color(0xFF151F32) : Colors.white,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+          side: BorderSide(
+            color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0),
+          ),
         ),
         title: Row(
           children: [
@@ -781,7 +917,11 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                 color: const Color(0xFFD97706).withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(Icons.shield_rounded, color: Color(0xFFD97706), size: 22),
+              child: const Icon(
+                Icons.shield_rounded,
+                color: Color(0xFFD97706),
+                size: 22,
+              ),
             ),
             const SizedBox(width: 12),
             Text(
@@ -812,7 +952,9 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 20),
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF0B1220) : const Color(0xFFF8FAFC),
+                color: isDark
+                    ? const Color(0xFF0B1220)
+                    : const Color(0xFFF8FAFC),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: primaryAccent.withValues(alpha: 0.3)),
               ),
@@ -823,7 +965,9 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                     fontSize: 28,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 4,
-                    color: isDark ? const Color(0xFF60A5FA) : const Color(0xFF1D4ED8),
+                    color: isDark
+                        ? const Color(0xFF60A5FA)
+                        : const Color(0xFF1D4ED8),
                   ),
                 ),
               ),
@@ -833,7 +977,9 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
               child: Text(
                 'Long-press code to copy',
                 style: GoogleFonts.inter(
-                  color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                  color: theme.colorScheme.onSurfaceVariant.withValues(
+                    alpha: 0.6,
+                  ),
                   fontSize: 11,
                 ),
               ),
@@ -850,11 +996,17 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                 backgroundColor: primaryAccent,
                 foregroundColor: Colors.white,
                 elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
               child: Text(
                 'I HAVE SAVED IT',
-                style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 13, letterSpacing: 0.5),
+                style: GoogleFonts.inter(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 13,
+                  letterSpacing: 0.5,
+                ),
               ),
             ),
           ),
@@ -873,7 +1025,9 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
 
     final bgColor = isDark ? const Color(0xFF0B1220) : const Color(0xFFF5F7FA);
     final cardBg = isDark ? const Color(0xFF151F32) : Colors.white;
-    final borderColor = isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0);
+    final borderColor = isDark
+        ? const Color(0xFF293548)
+        : const Color(0xFFE2E8F0);
     const primaryAccent = Color(0xFF1D4ED8);
 
     return Scaffold(
@@ -881,7 +1035,10 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       body: Center(
         child: Container(
           width: 640,
-          margin: EdgeInsets.symmetric(vertical: isMobile ? 8 : 24, horizontal: isMobile ? 8 : 16),
+          margin: EdgeInsets.symmetric(
+            vertical: isMobile ? 8 : 24,
+            horizontal: isMobile ? 8 : 16,
+          ),
           padding: EdgeInsets.all(isMobile ? 16 : 32),
           decoration: BoxDecoration(
             color: cardBg,
@@ -909,7 +1066,11 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                         color: primaryAccent.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: const Icon(Icons.security_rounded, color: primaryAccent, size: 26),
+                      child: const Icon(
+                        Icons.security_rounded,
+                        color: primaryAccent,
+                        size: 26,
+                      ),
                     ),
                     const SizedBox(width: 14),
                     Column(
@@ -945,11 +1106,11 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                 // Form based on active tab
                 if (_activeTab == 0)
                   _buildOwnerLoginForm(context)
-                else if (_activeTab == 1) 
-                  _buildNewStoreForm(context) 
-                else if (_activeTab == 2) 
-                  _buildCloudLoginForm(context) 
-                else 
+                else if (_activeTab == 1)
+                  _buildNewStoreForm(context)
+                else if (_activeTab == 2)
+                  _buildCloudLoginForm(context)
+                else
                   _buildLanTillForm(context),
 
                 const SizedBox(height: 16),
@@ -959,7 +1120,11 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                       context: context,
                       builder: (context) => const BackupRestoreModal(),
                     ),
-                    icon: const Icon(Icons.settings_backup_restore_rounded, size: 15, color: primaryAccent),
+                    icon: const Icon(
+                      Icons.settings_backup_restore_rounded,
+                      size: 15,
+                      color: primaryAccent,
+                    ),
                     label: Text(
                       'OR RESTORE AN EXISTING BACKUP',
                       style: GoogleFonts.jetBrainsMono(
@@ -983,7 +1148,9 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final tabBg = isDark ? const Color(0xFF0B1220) : const Color(0xFFF8FAFC);
-    final borderColor = isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0);
+    final borderColor = isDark
+        ? const Color(0xFF293548)
+        : const Color(0xFFE2E8F0);
     const primaryAccent = Color(0xFF1D4ED8);
     final isMobile = MediaQuery.of(context).size.width < 520;
 
@@ -999,17 +1166,49 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
           children: [
             Row(
               children: [
-                Expanded(child: _buildTabButton(context, 0, 'OWNER LOGIN', Icons.admin_panel_settings_rounded, primaryAccent)),
+                Expanded(
+                  child: _buildTabButton(
+                    context,
+                    0,
+                    'OWNER LOGIN',
+                    Icons.admin_panel_settings_rounded,
+                    primaryAccent,
+                  ),
+                ),
                 const SizedBox(width: 4),
-                Expanded(child: _buildTabButton(context, 1, 'NEW STORE', Icons.storefront_rounded, primaryAccent)),
+                Expanded(
+                  child: _buildTabButton(
+                    context,
+                    1,
+                    'NEW STORE',
+                    Icons.storefront_rounded,
+                    primaryAccent,
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 4),
             Row(
               children: [
-                Expanded(child: _buildTabButton(context, 2, 'BRANCH', Icons.cloud_sync_rounded, primaryAccent)),
+                Expanded(
+                  child: _buildTabButton(
+                    context,
+                    2,
+                    'BRANCH',
+                    Icons.cloud_sync_rounded,
+                    primaryAccent,
+                  ),
+                ),
                 const SizedBox(width: 4),
-                Expanded(child: _buildTabButton(context, 3, 'LINK TILL', Icons.lan_rounded, primaryAccent)),
+                Expanded(
+                  child: _buildTabButton(
+                    context,
+                    3,
+                    'LINK TILL',
+                    Icons.lan_rounded,
+                    primaryAccent,
+                  ),
+                ),
               ],
             ),
           ],
@@ -1026,19 +1225,57 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       ),
       child: Row(
         children: [
-          Expanded(child: _buildTabButton(context, 0, 'OWNER LOGIN', Icons.admin_panel_settings_rounded, primaryAccent)),
+          Expanded(
+            child: _buildTabButton(
+              context,
+              0,
+              'OWNER LOGIN',
+              Icons.admin_panel_settings_rounded,
+              primaryAccent,
+            ),
+          ),
           const SizedBox(width: 2),
-          Expanded(child: _buildTabButton(context, 1, 'NEW STORE', Icons.storefront_rounded, primaryAccent)),
+          Expanded(
+            child: _buildTabButton(
+              context,
+              1,
+              'NEW STORE',
+              Icons.storefront_rounded,
+              primaryAccent,
+            ),
+          ),
           const SizedBox(width: 2),
-          Expanded(child: _buildTabButton(context, 2, 'BRANCH', Icons.cloud_sync_rounded, primaryAccent)),
+          Expanded(
+            child: _buildTabButton(
+              context,
+              2,
+              'BRANCH',
+              Icons.cloud_sync_rounded,
+              primaryAccent,
+            ),
+          ),
           const SizedBox(width: 2),
-          Expanded(child: _buildTabButton(context, 3, 'LINK TILL', Icons.lan_rounded, primaryAccent)),
+          Expanded(
+            child: _buildTabButton(
+              context,
+              3,
+              'LINK TILL',
+              Icons.lan_rounded,
+              primaryAccent,
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildTabButton(BuildContext context, int index, String label, IconData icon, Color primaryAccent) {
+  Widget _buildTabButton(
+    BuildContext context,
+    int index,
+    String label,
+    IconData icon,
+    Color primaryAccent,
+  ) {
     final theme = Theme.of(context);
     final isSelected = _activeTab == index;
 
@@ -1061,7 +1298,9 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
             Icon(
               icon,
               size: 14,
-              color: isSelected ? Colors.white : theme.colorScheme.onSurfaceVariant,
+              color: isSelected
+                  ? Colors.white
+                  : theme.colorScheme.onSurfaceVariant,
             ),
             const SizedBox(width: 5),
             Flexible(
@@ -1071,7 +1310,9 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                 style: GoogleFonts.inter(
                   fontSize: 10,
                   fontWeight: FontWeight.w800,
-                  color: isSelected ? Colors.white : theme.colorScheme.onSurfaceVariant,
+                  color: isSelected
+                      ? Colors.white
+                      : theme.colorScheme.onSurfaceVariant,
                 ),
               ),
             ),
@@ -1085,7 +1326,9 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final infoBg = isDark ? const Color(0xFF1E283D) : const Color(0xFFF0F9FF);
-    final infoBorder = isDark ? const Color(0xFF293548) : const Color(0xFFBAE6FD);
+    final infoBorder = isDark
+        ? const Color(0xFF293548)
+        : const Color(0xFFBAE6FD);
     const primaryAccent = Color(0xFF1D4ED8);
 
     return Form(
@@ -1102,12 +1345,20 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
             ),
             child: Row(
               children: [
-                const Icon(Icons.info_outline_rounded, color: Color(0xFF0284C7), size: 18),
+                const Icon(
+                  Icons.info_outline_rounded,
+                  color: Color(0xFF0284C7),
+                  size: 18,
+                ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     'Link this computer as a Cashier Till to the Master POS terminal running in your branch.',
-                    style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontSize: 11.5, height: 1.4),
+                    style: GoogleFonts.inter(
+                      color: theme.colorScheme.onSurface,
+                      fontSize: 11.5,
+                      height: 1.4,
+                    ),
                   ),
                 ),
               ],
@@ -1120,7 +1371,8 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
             label: 'TILL CODE / IDENTIFIER',
             controller: _tillNameController,
             hint: 'e.g. TILL-01, CHECKOUT-2',
-            validator: (v) => (v == null || v.isEmpty) ? 'Enter till identifier' : null,
+            validator: (v) =>
+                (v == null || v.isEmpty) ? 'Enter till identifier' : null,
           ),
           const SizedBox(height: 14),
 
@@ -1133,7 +1385,8 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                   label: 'MASTER POS IP ADDRESS',
                   controller: _tillServerIpController,
                   hint: 'e.g. 192.168.1.100',
-                  validator: (v) => (v == null || v.isEmpty) ? 'Enter Master POS IP' : null,
+                  validator: (v) =>
+                      (v == null || v.isEmpty) ? 'Enter Master POS IP' : null,
                 ),
               ),
               const SizedBox(width: 10),
@@ -1141,15 +1394,32 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                 height: 44,
                 child: ElevatedButton.icon(
                   onPressed: _isTestingTillLink ? null : _handleTestTillLink,
-                  icon: _isTestingTillLink 
-                      ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                  icon: _isTestingTillLink
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
                       : const Icon(Icons.network_check_rounded, size: 16),
-                  label: Text('TEST LINK', style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 11)),
+                  label: Text(
+                    'TEST LINK',
+                    style: GoogleFonts.inter(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 11,
+                    ),
+                  ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: isDark ? const Color(0xFF1C283D) : const Color(0xFFE2E8F0),
+                    backgroundColor: isDark
+                        ? const Color(0xFF1C283D)
+                        : const Color(0xFFE2E8F0),
                     foregroundColor: theme.colorScheme.onSurface,
                     elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
                 ),
               ),
@@ -1161,12 +1431,12 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: _tillTestSuccess == true 
+                color: _tillTestSuccess == true
                     ? const Color(0xFFECFDF5)
                     : const Color(0xFFFEF2F2),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: _tillTestSuccess == true 
+                  color: _tillTestSuccess == true
                       ? const Color(0xFFA7F3D0)
                       : const Color(0xFFFECACA),
                 ),
@@ -1174,8 +1444,12 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
               child: Row(
                 children: [
                   Icon(
-                    _tillTestSuccess == true ? Icons.check_circle_rounded : Icons.error_outline_rounded,
-                    color: _tillTestSuccess == true ? const Color(0xFF059669) : const Color(0xFFDC2626),
+                    _tillTestSuccess == true
+                        ? Icons.check_circle_rounded
+                        : Icons.error_outline_rounded,
+                    color: _tillTestSuccess == true
+                        ? const Color(0xFF059669)
+                        : const Color(0xFFDC2626),
                     size: 16,
                   ),
                   const SizedBox(width: 8),
@@ -1183,7 +1457,9 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                     child: Text(
                       _tillTestMessage!,
                       style: GoogleFonts.inter(
-                        color: _tillTestSuccess == true ? const Color(0xFF047857) : const Color(0xFFB91C1C),
+                        color: _tillTestSuccess == true
+                            ? const Color(0xFF047857)
+                            : const Color(0xFFB91C1C),
                         fontSize: 11.5,
                         fontWeight: FontWeight.w600,
                       ),
@@ -1215,13 +1491,18 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                 backgroundColor: primaryAccent,
                 foregroundColor: Colors.white,
                 elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
               child: _isLoading
                   ? const SizedBox(
                       width: 20,
                       height: 20,
-                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2.5,
+                      ),
                     )
                   : Row(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -1249,7 +1530,9 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final infoBg = isDark ? const Color(0xFF1E283D) : const Color(0xFFF0F9FF);
-    final infoBorder = isDark ? const Color(0xFF293548) : const Color(0xFFBAE6FD);
+    final infoBorder = isDark
+        ? const Color(0xFF293548)
+        : const Color(0xFFBAE6FD);
     const primaryAccent = Color(0xFF1D4ED8);
 
     return Form(
@@ -1267,12 +1550,20 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
             ),
             child: Row(
               children: [
-                const Icon(Icons.admin_panel_settings_rounded, color: Color(0xFF0284C7), size: 18),
+                const Icon(
+                  Icons.admin_panel_settings_rounded,
+                  color: Color(0xFF0284C7),
+                  size: 18,
+                ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     'Log in with your existing Owner / Master account to restore your store profile, DigiTax ZRA settings, staff users, and product catalog.',
-                    style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontSize: 11.5, height: 1.4),
+                    style: GoogleFonts.inter(
+                      color: theme.colorScheme.onSurface,
+                      fontSize: 11.5,
+                      height: 1.4,
+                    ),
                   ),
                 ),
               ],
@@ -1283,7 +1574,9 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
             label: 'CLOUD API SERVER URL',
             controller: _ownerUrlController,
             hint: 'http://23.139.36.20:8003',
-            validator: (v) => (v == null || v.isEmpty) ? 'Cloud Server URL is required' : null,
+            validator: (v) => (v == null || v.isEmpty)
+                ? 'Cloud Server URL is required'
+                : null,
           ),
           const SizedBox(height: 14),
           Row(
@@ -1296,7 +1589,8 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                   controller: _ownerIdController,
                   hint: 'e.g. 1001 or admin',
                   isStaffId: true,
-                  validator: (v) => (v == null || v.isEmpty) ? 'Enter Owner ID' : null,
+                  validator: (v) =>
+                      (v == null || v.isEmpty) ? 'Enter Owner ID' : null,
                 ),
               ),
               const SizedBox(width: 12),
@@ -1314,11 +1608,22 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
           const SizedBox(height: 14),
           _buildField(
             context: context,
+            label: 'ORGANIZATION TPIN',
+            controller: _cloudTpinController,
+            hint: 'Your organization TPIN',
+            validator: (v) => (v == null || v.trim().isEmpty)
+                ? 'Enter organization TPIN'
+                : null,
+          ),
+          const SizedBox(height: 14),
+          _buildField(
+            context: context,
             label: 'OWNER PASSWORD / PIN',
             controller: _ownerPinController,
             hint: '****',
             isPin: true,
-            validator: (v) => (v == null || v.isEmpty) ? 'Enter Owner Password or PIN' : null,
+            validator: (v) =>
+                (v == null || v.isEmpty) ? 'Enter Owner Password or PIN' : null,
           ),
           const SizedBox(height: 20),
           if (_errorMessage != null) _buildErrorMessage(context),
@@ -1330,21 +1635,34 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
               onPressed: _isLoading ? null : _handleOwnerLogin,
               icon: _isLoading
                   ? const SizedBox.shrink()
-                  : const Icon(Icons.cloud_download_rounded, color: Colors.white, size: 18),
+                  : const Icon(
+                      Icons.cloud_download_rounded,
+                      color: Colors.white,
+                      size: 18,
+                    ),
               label: _isLoading
                   ? const SizedBox(
                       width: 20,
                       height: 20,
-                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2.5,
+                      ),
                     )
                   : Text(
                       'RESTORE & LOG IN AS OWNER',
-                      style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 13, letterSpacing: 0.5),
+                      style: GoogleFonts.inter(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13,
+                        letterSpacing: 0.5,
+                      ),
                     ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: primaryAccent,
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
                 elevation: 0,
               ),
             ),
@@ -1408,7 +1726,8 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                   controller: _confirmPinController,
                   hint: '****',
                   isPin: true,
-                  validator: (v) => v != _pinController.text ? 'PINs do not match' : null,
+                  validator: (v) =>
+                      v != _pinController.text ? 'PINs do not match' : null,
                 ),
               ),
             ],
@@ -1424,7 +1743,9 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
               label: 'MANAGER SERVER IP ADDRESS',
               controller: _serverIpController,
               hint: 'e.g. 192.168.1.100',
-              validator: (v) => v!.isEmpty ? 'Manager IP is required for cashier terminals' : null,
+              validator: (v) => v!.isEmpty
+                  ? 'Manager IP is required for cashier terminals'
+                  : null,
             ),
           ],
           const SizedBox(height: 20),
@@ -1438,18 +1759,27 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: primaryAccent,
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
                 elevation: 0,
               ),
               child: _isLoading
                   ? const SizedBox(
                       width: 20,
                       height: 20,
-                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2.5,
+                      ),
                     )
                   : Text(
                       'INITIALIZE STORE & ADMIN',
-                      style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 13, letterSpacing: 0.5),
+                      style: GoogleFonts.inter(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13,
+                        letterSpacing: 0.5,
+                      ),
                     ),
             ),
           ),
@@ -1462,7 +1792,9 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final infoBg = isDark ? const Color(0xFF1E283D) : const Color(0xFFF0F9FF);
-    final infoBorder = isDark ? const Color(0xFF293548) : const Color(0xFFBAE6FD);
+    final infoBorder = isDark
+        ? const Color(0xFF293548)
+        : const Color(0xFFBAE6FD);
     const primaryAccent = Color(0xFF1D4ED8);
 
     return Form(
@@ -1480,12 +1812,20 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
             ),
             child: Row(
               children: [
-                const Icon(Icons.info_outline_rounded, color: Color(0xFF0284C7), size: 18),
+                const Icon(
+                  Icons.info_outline_rounded,
+                  color: Color(0xFF0284C7),
+                  size: 18,
+                ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     'Log in with your existing Branch Manager credentials to download store settings & inventory.',
-                    style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontSize: 11.5, height: 1.4),
+                    style: GoogleFonts.inter(
+                      color: theme.colorScheme.onSurface,
+                      fontSize: 11.5,
+                      height: 1.4,
+                    ),
                   ),
                 ),
               ],
@@ -1496,7 +1836,8 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
             label: 'CLOUD API SERVER URL',
             controller: _cloudUrlController,
             hint: 'http://23.139.36.20:8003',
-            validator: (v) => v!.isEmpty ? 'Cloud Server URL is required' : null,
+            validator: (v) =>
+                v!.isEmpty ? 'Cloud Server URL is required' : null,
           ),
           const SizedBox(height: 14),
           Row(
@@ -1532,7 +1873,8 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
             controller: _cloudPinController,
             hint: '****',
             isPin: true,
-            validator: (v) => (v == null || v.isEmpty) ? 'Enter password or PIN' : null,
+            validator: (v) =>
+                (v == null || v.isEmpty) ? 'Enter password or PIN' : null,
           ),
           const SizedBox(height: 20),
           if (_errorMessage != null) _buildErrorMessage(context),
@@ -1544,21 +1886,34 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
               onPressed: _isLoading ? null : _handleCloudLogin,
               icon: _isLoading
                   ? const SizedBox.shrink()
-                  : const Icon(Icons.cloud_download_rounded, color: Colors.white, size: 18),
+                  : const Icon(
+                      Icons.cloud_download_rounded,
+                      color: Colors.white,
+                      size: 18,
+                    ),
               label: _isLoading
                   ? const SizedBox(
                       width: 20,
                       height: 20,
-                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2.5,
+                      ),
                     )
                   : Text(
                       'CONNECT & LOG IN TO BRANCH',
-                      style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 13, letterSpacing: 0.5),
+                      style: GoogleFonts.inter(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13,
+                        letterSpacing: 0.5,
+                      ),
                     ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: primaryAccent,
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
                 elevation: 0,
               ),
             ),
@@ -1580,12 +1935,20 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.error_outline_rounded, color: Color(0xFFDC2626), size: 18),
+          const Icon(
+            Icons.error_outline_rounded,
+            color: Color(0xFFDC2626),
+            size: 18,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               _errorMessage!,
-              style: GoogleFonts.inter(color: const Color(0xFFB91C1C), fontSize: 11.5, fontWeight: FontWeight.w600),
+              style: GoogleFonts.inter(
+                color: const Color(0xFFB91C1C),
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],
@@ -1597,7 +1960,9 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final infoBg = isDark ? const Color(0xFF1E283D) : const Color(0xFFF0F9FF);
-    final infoBorder = isDark ? const Color(0xFF293548) : const Color(0xFFBAE6FD);
+    final infoBorder = isDark
+        ? const Color(0xFF293548)
+        : const Color(0xFFBAE6FD);
     const primaryAccent = Color(0xFF1D4ED8);
 
     return Container(
@@ -1614,13 +1979,20 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
           const SizedBox(
             width: 14,
             height: 14,
-            child: CircularProgressIndicator(strokeWidth: 2, color: primaryAccent),
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: primaryAccent,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               _statusMessage!,
-              style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontSize: 11.5, fontWeight: FontWeight.w600),
+              style: GoogleFonts.inter(
+                color: theme.colorScheme.onSurface,
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],
@@ -1631,7 +2003,9 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
   Widget _buildSectionHeader(BuildContext context, String title) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final dividerColor = isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0);
+    final dividerColor = isDark
+        ? const Color(0xFF293548)
+        : const Color(0xFFE2E8F0);
 
     return Row(
       children: [
@@ -1654,7 +2028,9 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final bg = isDark ? const Color(0xFF0B1220) : const Color(0xFFF8FAFC);
-    final borderColor = isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0);
+    final borderColor = isDark
+        ? const Color(0xFF293548)
+        : const Color(0xFFE2E8F0);
     final isMobile = MediaQuery.of(context).size.width < 500;
 
     if (isMobile) {
@@ -1735,16 +2111,26 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
         decoration: BoxDecoration(
-          color: isSelected ? primaryAccent.withValues(alpha: 0.12) : Colors.transparent,
+          color: isSelected
+              ? primaryAccent.withValues(alpha: 0.12)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: isSelected ? primaryAccent : (isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+            color: isSelected
+                ? primaryAccent
+                : (isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
           ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.max,
           children: [
-            Icon(icon, color: isSelected ? primaryAccent : theme.colorScheme.onSurfaceVariant, size: 18),
+            Icon(
+              icon,
+              color: isSelected
+                  ? primaryAccent
+                  : theme.colorScheme.onSurfaceVariant,
+              size: 18,
+            ),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
@@ -1756,7 +2142,9 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                     style: GoogleFonts.inter(
                       fontSize: 11,
                       fontWeight: FontWeight.w800,
-                      color: isSelected ? primaryAccent : theme.colorScheme.onSurface,
+                      color: isSelected
+                          ? primaryAccent
+                          : theme.colorScheme.onSurface,
                     ),
                     overflow: TextOverflow.ellipsis,
                     maxLines: 1,
@@ -1765,7 +2153,9 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                     subtitle,
                     style: GoogleFonts.inter(
                       fontSize: 9.5,
-                      color: isSelected ? primaryAccent.withValues(alpha: 0.8) : theme.colorScheme.onSurfaceVariant,
+                      color: isSelected
+                          ? primaryAccent.withValues(alpha: 0.8)
+                          : theme.colorScheme.onSurfaceVariant,
                     ),
                     overflow: TextOverflow.ellipsis,
                     maxLines: 1,
@@ -1791,10 +2181,14 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final int? maxDigits = isStaffId ? 4 : (isPin ? 6 : null);
-    final String errorLabel = isStaffId ? "Staff ID cannot exceed 4 digits" : "PIN cannot exceed 6 digits";
+    final String errorLabel = isStaffId
+        ? "Staff ID cannot exceed 4 digits"
+        : "PIN cannot exceed 6 digits";
 
     final fieldBg = isDark ? const Color(0xFF0B1220) : const Color(0xFFF8FAFC);
-    final borderColor = isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0);
+    final borderColor = isDark
+        ? const Color(0xFF293548)
+        : const Color(0xFFE2E8F0);
     const primaryAccent = Color(0xFF1D4ED8);
 
     return Column(
@@ -1818,7 +2212,9 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                 style: GoogleFonts.jetBrainsMono(
                   fontSize: 8.5,
                   fontWeight: FontWeight.w700,
-                  color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                  color: theme.colorScheme.onSurfaceVariant.withValues(
+                    alpha: 0.6,
+                  ),
                   letterSpacing: 0.5,
                 ),
               ),
@@ -1829,8 +2225,16 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
           controller: controller,
           obscureText: isPin,
           maxLength: maxDigits,
-          buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
-          keyboardType: (isPin || isStaffId) ? TextInputType.number : TextInputType.text,
+          buildCounter:
+              (
+                context, {
+                required currentLength,
+                required isFocused,
+                maxLength,
+              }) => null,
+          keyboardType: (isPin || isStaffId)
+              ? TextInputType.number
+              : TextInputType.text,
           inputFormatters: [
             if (isPin || isStaffId) FilteringTextInputFormatter.digitsOnly,
             if (maxDigits != null)
@@ -1846,17 +2250,28 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
               }),
           ],
           validator: (v) {
-            if (isPin && v != null && v.length > 6) return 'Maximum 6 digits allowed';
-            if (isStaffId && v != null && v.length > 4) return 'Maximum 4 digits allowed';
+            if (isPin && v != null && v.length > 6)
+              return 'Maximum 6 digits allowed';
+            if (isStaffId && v != null && v.length > 4)
+              return 'Maximum 4 digits allowed';
             return validator?.call(v);
           },
-          style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontSize: 14),
+          style: GoogleFonts.inter(
+            color: theme.colorScheme.onSurface,
+            fontSize: 14,
+          ),
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: GoogleFonts.inter(color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4), fontSize: 14),
+            hintStyle: GoogleFonts.inter(
+              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+              fontSize: 14,
+            ),
             filled: true,
             fillColor: fieldBg,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 12,
+            ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
               borderSide: BorderSide(color: borderColor),
@@ -1883,7 +2298,10 @@ class _MaxLengthFormatter extends TextInputFormatter {
   _MaxLengthFormatter(this.maxLength, this.onLimitReached);
 
   @override
-  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
     if (newValue.text.length > maxLength) {
       onLimitReached();
       return oldValue;
