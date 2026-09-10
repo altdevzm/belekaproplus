@@ -36,10 +36,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     _idController.addListener(_onIdChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final config = ref.read(storeConfigProvider).value;
-      final tpin = config?.tpin;
-      if (tpin != null && tpin.isNotEmpty) {
+      final businessName = config?.businessName;
+      if (businessName != null && businessName.isNotEmpty) {
         if (_companyController.text.isEmpty) {
-          _companyController.text = tpin;
+          _companyController.text = businessName;
         }
       }
     });
@@ -93,6 +93,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   void _handleLogin() async {
+    final companyName = _companyController.text.trim();
+    if (companyName.isEmpty) {
+      setState(() => _errorMessage = 'Please enter Company Name');
+      return;
+    }
     if (_idController.text.isEmpty) {
       setState(() => _errorMessage = 'Please enter Staff ID');
       return;
@@ -119,9 +124,33 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       final db = ref.read(databaseServiceProvider);
       final networkClient = ref.read(networkClientProvider);
       final config = ref.read(storeConfigProvider).value;
+      final cloudDb = ref.read(cloudDatabaseServiceProvider);
+      final cloudUrl =
+          (config?.cloudApiUrl != null && config!.cloudApiUrl!.trim().isNotEmpty)
+          ? config.cloudApiUrl!.trim()
+          : 'http://23.139.36.20:8003';
+      String? enteredTpin = config?.businessName.trim().toLowerCase() ==
+              companyName.toLowerCase()
+          ? config?.tpin?.trim()
+          : null;
 
-      // 1. Try local login first
-      User? user = await db.login(_idController.text.trim(), _pin.trim());
+      if (enteredTpin == null || enteredTpin.isEmpty) {
+        enteredTpin = await cloudDb.resolveOrganizationTpin(
+          baseUrl: cloudUrl,
+          companyName: companyName,
+        );
+      }
+      if (enteredTpin == null || enteredTpin.isEmpty) {
+        setState(() => _errorMessage = 'Company is not registered');
+        return;
+      }
+
+      // 1. Try local login only when the entered TPIN matches this device's tenant.
+      final localTpin = config?.tpin?.trim();
+      User? user;
+      if (localTpin == null || localTpin.isEmpty || localTpin == enteredTpin) {
+        user = await db.login(_idController.text.trim(), _pin.trim());
+      }
 
       if (user != null) {
         if (user.branchCode != null &&
@@ -162,6 +191,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ..numericId = userData['numericId']
             ..name = userData['name']
             ..role = resolvedRole
+            ..branchCode = userData['branchCode']?.toString() ?? '00'
+            ..branchName = userData['branchName']?.toString()
             ..passwordHash = hashPin(_pin.trim());
 
           await db.isar.writeTxn(() async {
@@ -208,20 +239,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         }
       }
 
-      // 3. Authenticate / Refresh credentials against Cloud PostgreSQL VPS Backend
-      final cloudDb = ref.read(cloudDatabaseServiceProvider);
-      final cloudUrl =
-          (config?.cloudApiUrl != null &&
-              config!.cloudApiUrl!.trim().isNotEmpty)
-          ? config.cloudApiUrl!.trim()
-          : 'http://23.139.36.20:8003';
-
-      try {
+          // 3. Authenticate against Cloud PostgreSQL only when local/LAN auth failed.
+        if (user == null) {
+        try {
         final cloudAuth = await cloudDb.authenticateUser(
           baseUrl: cloudUrl,
           numericId: _idController.text.trim(),
           pin: _pin.trim(),
-          tpin: _companyController.text.trim(),
+          tpin: enteredTpin,
+          branchCode: config?.bhfId,
           terminalName: config?.terminalName ?? 'BRANCH-POS',
         );
 
@@ -302,7 +328,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               if (sData['branch_name'] != null)
                 activeConfig.branchName = sData['branch_name'].toString();
               if (sData['tpin'] != null && (sData['tpin'] as String).isNotEmpty)
-                activeConfig.tpin = sData['tpin'].toString();
+                  activeConfig.tpin = sData['tpin'].toString();
               if (sData['digitax_api_key'] != null &&
                   (sData['digitax_api_key'] as String).isNotEmpty) {
                 activeConfig.digitaxApiKey = sData['digitax_api_key']
@@ -319,9 +345,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           });
           user = remoteUser;
         }
-      } catch (e) {
-        debugPrint('Cloud VPS Login notice: $e');
-        // If offline but local login succeeded, proceed with local user
+        } catch (e) {
+          debugPrint('Cloud VPS Login notice: $e');
+        }
       }
 
       if (user != null) {
@@ -885,13 +911,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   const SizedBox(height: 10),
                 ],
 
-                // Organization TPIN Field
+                // Company Name Field
                 _buildInputField(
                   context,
-                  'ORGANIZATION TPIN',
+                  'COMPANY NAME',
                   _companyController,
                   Icons.business_outlined,
-                  'Enter organization TPIN',
+                  'Enter registered company name',
+                  isCompanyName: true,
                 ),
                 const SizedBox(height: 10),
 
@@ -1312,13 +1339,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 _buildTerminalBadge(context),
                 const SizedBox(height: 16),
 
-                // Organization TPIN Field
+                // Company Name Field
                 _buildInputField(
                   context,
-                  'ORGANIZATION TPIN',
+                  'COMPANY NAME',
                   _companyController,
                   Icons.business_outlined,
-                  'Enter organization TPIN',
+                  'Enter registered company name',
+                  isCompanyName: true,
                 ),
                 const SizedBox(height: 12),
 
@@ -1555,10 +1583,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     IconData icon,
     String hint, {
     bool isPassword = false,
+    bool isTpin = false,
+    bool isCompanyName = false,
+    int maxLength = 4,
   }) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final maxLen = isPassword ? 6 : 4;
+    final int? maxLen = isPassword
+      ? 6
+      : isCompanyName
+        ? null
+        : isTpin
+          ? 10
+          : maxLength;
+    final errorText = isPassword
+        ? 'Security PIN cannot exceed 6 digits'
+        : isTpin
+            ? 'TPIN cannot exceed 10 digits'
+        : isCompanyName
+          ? 'Company name is too long'
+          : 'Staff ID cannot exceed 4 characters';
     final fieldBg = isDark ? const Color(0xFF0B1220) : const Color(0xFFF8FAFC);
     final borderColor = isDark
         ? const Color(0xFF293548)
@@ -1580,7 +1624,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               ),
             ),
             Text(
-              isPassword ? 'MAX 6 DIGITS' : 'MAX 4 CHARS',
+              isPassword
+                  ? 'MAX 6 DIGITS'
+                  : isCompanyName
+                      ? 'LOOKUP BY NAME'
+                      : 'MAX $maxLen DIGITS',
               style: GoogleFonts.jetBrainsMono(
                 fontSize: 9,
                 fontWeight: FontWeight.w700,
@@ -1606,18 +1654,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   required isFocused,
                   maxLength,
                 }) => null,
-            keyboardType: isPassword
+            keyboardType: isPassword || isTpin
                 ? TextInputType.number
                 : TextInputType.text,
             inputFormatters: [
-              if (isPassword) FilteringTextInputFormatter.digitsOnly,
-              _MaxLengthFormatter(maxLen, () {
+              if (isPassword || isTpin)
+                FilteringTextInputFormatter.digitsOnly,
+              if (maxLen != null)
+                _MaxLengthFormatter(maxLen, () {
                 setState(() {
-                  _errorMessage = isPassword
-                      ? 'Security PIN cannot exceed 6 digits'
-                      : 'Staff ID cannot exceed 4 characters';
+                  _errorMessage = errorText;
                 });
-              }),
+                }),
             ],
             style: GoogleFonts.inter(
               color: theme.colorScheme.onSurface,

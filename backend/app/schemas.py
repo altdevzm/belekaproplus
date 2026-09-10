@@ -156,8 +156,26 @@ class LoginRequest(BaseModel):
     numeric_id: str
     pin: str
     tpin: Optional[str] = None
+    branch_code: Optional[str] = None
     company_name: Optional[str] = None
     terminal_name: Optional[str] = "TERMINAL"
+
+class RegistrationRequest(BaseModel):
+    business_name: str
+    tpin: str
+    numeric_id: str
+    pin: str
+    owner_name: str = "Owner"
+    store_code: str = "HQ-00"
+    branch_name: str = "Headquarters (HQ)"
+    terminal_name: Optional[str] = "MANAGER-01"
+
+class OrganizationLookupRequest(BaseModel):
+    company_name: str
+
+class OrganizationLookupResponse(BaseModel):
+    company_name: str
+    tpin: str
 
 class AuditLogResponse(BaseModel):
     id: int

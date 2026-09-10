@@ -22,6 +22,101 @@ class LoginResponse(BaseModel):
     store: Optional[schemas.StoreResponse] = None
     token: str
 
+def _login_response(user: models.User, store: models.Store, db: Session):
+    access_token = create_access_token(data={
+        "user_id": user.id,
+        "numeric_id": user.numeric_id,
+        "role": user.role,
+        "store_id": user.store_id,
+        "tpin": store.tpin,
+        "bhf_id": store.bhf_id,
+    })
+    log_audit_event(
+        db,
+        event_type="LOGIN_SUCCESS",
+        tpin=store.tpin,
+        store_id=user.store_id,
+        numeric_id=user.numeric_id,
+        user_id=user.id,
+        details=f"Login successful; tenant resolved by TPIN, role={user.role}, branch={store.branch_name or 'HQ'}, scope_store_id={user.store_id}",
+        is_success=True,
+    )
+    return {
+        "status": "authenticated",
+        "user": user,
+        "store": store,
+        "token": access_token,
+    }
+
+@router.post("/register", response_model=LoginResponse, status_code=status.HTTP_201_CREATED)
+def register_organization(req: schemas.RegistrationRequest, db: Session = Depends(get_db)):
+    """Create a new organization, its HQ branch, and its owner atomically."""
+    business_name = req.business_name.strip()
+    tpin = req.tpin.strip()
+    numeric_id = req.numeric_id.strip()
+    requested_store_code = req.store_code.strip()
+    store_code = requested_store_code or f"{tpin}-HQ"
+
+    if not business_name or not tpin or not numeric_id or not req.pin.strip():
+        raise HTTPException(status_code=400, detail="Business name, TPIN, User ID, and password are required.")
+
+    if db.query(models.Store).filter(models.Store.tpin == tpin).first():
+        raise HTTPException(status_code=409, detail="An organization with this TPIN already exists.")
+    if db.query(models.Store).filter(models.Store.store_code == store_code).first():
+        if requested_store_code == "HQ-00":
+            store_code = f"{tpin}-HQ"
+        else:
+            raise HTTPException(status_code=409, detail="This branch code is already registered.")
+
+    store = models.Store(
+        store_code=store_code,
+        bhf_id="00",
+        name=business_name,
+        branch_name=req.branch_name.strip() or "Headquarters (HQ)",
+        tpin=tpin,
+        is_active=True,
+    )
+    db.add(store)
+    db.flush()
+
+    owner = models.User(
+        store_id=store.id,
+        numeric_id=numeric_id,
+        name=req.owner_name.strip() or "Owner",
+        password_hash=hash_password(req.pin),
+        role="owner",
+        branch_name=store.branch_name,
+        is_active=True,
+    )
+    db.add(owner)
+    db.commit()
+    db.refresh(owner)
+    db.refresh(store)
+    return _login_response(owner, store, db)
+
+@router.post("/resolve-organization", response_model=schemas.OrganizationLookupResponse)
+def resolve_organization(req: schemas.OrganizationLookupRequest, db: Session = Depends(get_db)):
+    """Resolve an exact company name to its tenant TPIN for login."""
+    company_name = req.company_name.strip()
+    if not company_name:
+        raise HTTPException(status_code=400, detail="Company name is required.")
+
+    matches = db.query(models.Store).filter(
+        func.lower(models.Store.name) == company_name.lower(),
+        models.Store.is_active == True,
+    ).all()
+    tpins = {store.tpin.strip() for store in matches if store.tpin and store.tpin.strip()}
+    if not tpins:
+        raise HTTPException(status_code=404, detail="Company not found.")
+    if len(tpins) > 1:
+        raise HTTPException(
+            status_code=409,
+            detail="More than one active organization uses this company name. Contact your administrator.",
+        )
+
+    store = matches[0]
+    return {"company_name": store.name, "tpin": next(iter(tpins))}
+
 @router.post("/login", response_model=LoginResponse)
 def cloud_login(req: schemas.LoginRequest, db: Session = Depends(get_db)):
     """
@@ -68,6 +163,17 @@ def cloud_login(req: schemas.LoginRequest, db: Session = Depends(get_db)):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid TPIN or Organization."
         )
+    branch_code = req.branch_code.strip() if req.branch_code else None
+    if branch_code:
+        matching_stores = [
+            store for store in matching_stores
+            if store.bhf_id == branch_code or store.store_code == branch_code
+        ]
+        if not matching_stores:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid TPIN or branch code.",
+            )
     store_ids = [s.id for s in matching_stores]
     query = query.filter(models.User.store_id.in_(store_ids))
 
@@ -123,33 +229,7 @@ def cloud_login(req: schemas.LoginRequest, db: Session = Depends(get_db)):
     resolved_tpin = store.tpin if store else tpin_clean
 
     # Step 3: Issue authenticated session token with database-derived tenant and branch context.
-    access_token = create_access_token(data={
-        "user_id": user.id,
-        "numeric_id": user.numeric_id,
-        "role": user.role,
-        "store_id": user.store_id,
-        "tpin": resolved_tpin,
-        "bhf_id": store.bhf_id if store else "00",
-    })
-
-    # Step 4: Record Audit Trail Event
-    log_audit_event(
-        db,
-        event_type="LOGIN_SUCCESS",
-        tpin=resolved_tpin,
-        store_id=user.store_id,
-        numeric_id=user.numeric_id,
-        user_id=user.id,
-        details=f"Login successful; tenant resolved by TPIN, role={user.role}, branch={store.branch_name if store else 'HQ'}, scope_store_id={user.store_id}",
-        is_success=True,
-    )
-
-    return {
-        "status": "authenticated",
-        "user": user,
-        "store": store,
-        "token": access_token
-    }
+    return _login_response(user, store, db)
 
 
 @router.get("/audit-logs", response_model=List[schemas.AuditLogResponse])

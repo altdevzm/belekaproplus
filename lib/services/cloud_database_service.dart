@@ -45,6 +45,7 @@ class CloudDatabaseService {
     required String numericId,
     required String pin,
     String? tpin,
+    String? branchCode,
     String? companyName,
     String? terminalName,
   }) async {
@@ -59,6 +60,9 @@ class CloudDatabaseService {
       };
       if (tpin != null && tpin.trim().isNotEmpty) {
         payload['tpin'] = tpin.trim();
+      }
+      if (branchCode != null && branchCode.trim().isNotEmpty) {
+        payload['branch_code'] = branchCode.trim();
       }
       if (companyName != null && companyName.trim().isNotEmpty) {
         payload['company_name'] = companyName.trim();
@@ -84,6 +88,72 @@ class CloudDatabaseService {
       debugPrint('Cloud PostgreSQL Auth Failed: $e');
       if (e is CloudAuthException) rethrow;
       throw CloudAuthException('Cloud login failed: $e');
+    }
+  }
+
+  /// Register a new organization with its TPIN-scoped HQ owner account.
+  Future<Map<String, dynamic>?> registerOrganization({
+    required String baseUrl,
+    required String businessName,
+    required String tpin,
+    required String numericId,
+    required String pin,
+    String ownerName = 'Owner',
+  }) async {
+    try {
+      final sanitizedUrl = baseUrl.endsWith('/')
+          ? baseUrl.substring(0, baseUrl.length - 1)
+          : baseUrl;
+      final response = await _dio.post(
+        '$sanitizedUrl/api/v1/auth/register',
+        data: {
+          'business_name': businessName.trim(),
+          'tpin': tpin.trim(),
+          'numeric_id': numericId.trim(),
+          'pin': pin.trim(),
+          'owner_name': ownerName.trim().isEmpty ? 'Owner' : ownerName.trim(),
+          'store_code': '${tpin.trim()}-HQ',
+          'branch_name': 'Headquarters (HQ)',
+          'terminal_name': 'MANAGER-01',
+        },
+      );
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return Map<String, dynamic>.from(response.data as Map);
+      }
+      throw const CloudAuthException('Cloud registration returned an invalid response.');
+    } on DioException catch (e) {
+      final detail = e.response?.data is Map
+          ? (e.response?.data['detail'] ?? e.message)
+          : e.message;
+      throw CloudAuthException(detail?.toString() ?? 'Cloud registration failed.');
+    } catch (e) {
+      if (e is CloudAuthException) rethrow;
+      throw CloudAuthException('Cloud registration failed: $e');
+    }
+  }
+
+  /// Resolve a company name to its tenant TPIN before authentication.
+  Future<String?> resolveOrganizationTpin({
+    required String baseUrl,
+    required String companyName,
+  }) async {
+    try {
+      final sanitizedUrl = baseUrl.endsWith('/')
+          ? baseUrl.substring(0, baseUrl.length - 1)
+          : baseUrl;
+      final response = await _dio.post(
+        '$sanitizedUrl/api/v1/auth/resolve-organization',
+        data: {'company_name': companyName.trim()},
+      );
+      if (response.statusCode == 200 && response.data is Map) {
+        return (response.data['tpin'] as String?)?.trim();
+      }
+      return null;
+    } on DioException catch (e) {
+      final detail = e.response?.data is Map
+          ? (e.response?.data['detail'] ?? e.message)
+          : e.message;
+      throw CloudAuthException(detail?.toString() ?? 'Company lookup failed.');
     }
   }
 

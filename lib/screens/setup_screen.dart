@@ -38,6 +38,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
   // Tab 1: New Store Setup (Offline Blank)
   final _formKey = GlobalKey<FormState>();
   final _businessNameController = TextEditingController();
+  final _businessTpinController = TextEditingController();
   final _adminIdController = TextEditingController();
   final _pinController = TextEditingController();
   final _confirmPinController = TextEditingController();
@@ -75,6 +76,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     _ownerTpinController.dispose();
     _ownerStoreCodeController.dispose();
     _businessNameController.dispose();
+    _businessTpinController.dispose();
     _adminIdController.dispose();
     _pinController.dispose();
     _confirmPinController.dispose();
@@ -122,6 +124,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
         numericId: userId,
         pin: pin,
         tpin: ownerTpin,
+        branchCode: storeCodeInput,
         terminalName: 'MANAGER-01',
       );
       final authToken = login?['token']?.toString();
@@ -366,6 +369,26 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
 
     try {
       final db = ref.read(databaseServiceProvider);
+      final cloudService = CloudDatabaseService();
+      final businessName = _businessNameController.text.trim();
+      final tpin = _businessTpinController.text.trim();
+      final adminId = _adminIdController.text.trim();
+      final pin = _pinController.text.trim();
+
+      setState(() => _statusMessage = 'Registering organization securely...');
+      final registration = await cloudService.registerOrganization(
+        baseUrl: _ownerUrlController.text.trim(),
+        businessName: businessName,
+        tpin: tpin,
+        numericId: adminId,
+        pin: pin,
+      );
+      if (registration == null) {
+        throw const CloudAuthException('Cloud registration returned no account.');
+      }
+      final registeredUser = Map<String, dynamic>.from(registration['user'] as Map);
+      final registeredStore = Map<String, dynamic>.from(registration['store'] as Map);
+      final authToken = registration['token']?.toString() ?? '';
 
       // 0. Generate Recovery Code
       final recoveryCode = _generateRecoveryCode();
@@ -377,22 +400,26 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
         ..currencySymbol = 'ZK'
         ..isManagerMode = _isManagerMode
         ..serverIp = _isManagerMode ? '' : _serverIpController.text.trim()
-        ..isCloudSyncEnabled = false
-        ..cloudApiUrl = null
-        ..cloudStoreId = null
-        ..cloudStoreCode = null
+        ..isCloudSyncEnabled = true
+        ..cloudApiUrl = _ownerUrlController.text.trim()
+        ..cloudStoreId = (registeredStore['id'] as num?)?.toInt()
+        ..cloudStoreCode = registeredStore['store_code']?.toString() ?? 'HQ-00'
         ..digitaxApiKey = null
-        ..tpin = null
+        ..tpin = registeredStore['tpin']?.toString() ?? tpin
+        ..bhfId = registeredStore['bhf_id']?.toString() ?? '00'
+        ..cloudAuthToken = authToken
+        ..cloudAuthUserId = registeredUser['numeric_id']?.toString() ?? adminId
+        ..cloudAuthPin = pin
         ..recoveryCodeHash = hashPin(recoveryCode);
 
       await db.saveStoreConfig(config);
 
       // 2. Create Initial Admin with hashed PIN
       final admin = User()
-        ..numericId = _adminIdController.text.trim()
-        ..passwordHash = hashPin(_pinController.text.trim())
-        ..role = 'owner'
-        ..name = 'Owner'
+        ..numericId = registeredUser['numeric_id']?.toString() ?? adminId
+        ..passwordHash = hashPin(pin)
+        ..role = registeredUser['role']?.toString() ?? 'owner'
+        ..name = registeredUser['name']?.toString() ?? 'Owner'
         ..branchCode = '00'
         ..branchName = 'Headquarters (HQ)';
 
@@ -468,6 +495,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
         numericId: userId,
         pin: pin,
         tpin: loginTpin,
+        branchCode: _cloudStoreCodeController.text.trim(),
         terminalName: 'BRANCH-TERMINAL',
       );
       final authToken = login?['token']?.toString();
@@ -1714,10 +1742,30 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
         children: [
           _buildField(
             context: context,
+            label: 'CLOUD API SERVER URL',
+            controller: _ownerUrlController,
+            hint: 'http://23.139.36.20:8003',
+            validator: (v) => (v == null || v.trim().isEmpty)
+                ? 'Cloud Server URL is required'
+                : null,
+          ),
+          const SizedBox(height: 14),
+          _buildField(
+            context: context,
             label: 'BUSINESS NAME',
             controller: _businessNameController,
             hint: 'e.g. Beleka Boutique',
             validator: (v) => v!.isEmpty ? 'Enter business name' : null,
+          ),
+          const SizedBox(height: 14),
+          _buildField(
+            context: context,
+            label: 'ORGANIZATION TPIN',
+            controller: _businessTpinController,
+            hint: '10-digit organization TPIN',
+            validator: (v) => (v == null || v.trim().isEmpty)
+                ? 'Enter organization TPIN'
+                : null,
           ),
           const SizedBox(height: 14),
           _buildField(
