@@ -40,7 +40,9 @@ class PostgresSyncService {
         _isSyncing = false;
       }
     });
-    debugPrint('[PostgresSyncService] Started background sync loop (every ${interval.inSeconds}s)');
+    debugPrint(
+      '[PostgresSyncService] Started background sync loop (every ${interval.inSeconds}s)',
+    );
   }
 
   void stopAutoSyncLoop() {
@@ -49,11 +51,16 @@ class PostgresSyncService {
   }
 
   /// Automatically authenticate against Cloud VPS DB and update token in StoreConfig
-  Future<String?> _refreshCloudAuthToken(StoreConfig? config, String cloudUrl) async {
+  Future<String?> _refreshCloudAuthToken(
+    StoreConfig? config,
+    String cloudUrl,
+  ) async {
     final numericId = config?.cloudAuthUserId ?? '1001';
     final pin = config?.cloudAuthPin ?? '0000';
 
-    debugPrint('[PostgresSyncService] Attempting auto auth token refresh for user $numericId (TPIN: ${config?.tpin})...');
+    debugPrint(
+      '[PostgresSyncService] Attempting auto auth token refresh for user $numericId (TPIN: ${config?.tpin})...',
+    );
     final authResult = await cloudDb.authenticateUser(
       baseUrl: cloudUrl,
       numericId: numericId,
@@ -61,15 +68,19 @@ class PostgresSyncService {
       tpin: config?.tpin,
     );
 
-    if (authResult != null && authResult['access_token'] != null) {
-      final newToken = authResult['access_token'] as String;
+    final newToken =
+        authResult?['token']?.toString() ??
+        authResult?['access_token']?.toString();
+    if (newToken != null && newToken.isNotEmpty) {
       if (config != null) {
         await isar.writeTxn(() async {
           config.cloudAuthToken = newToken;
           await isar.storeConfigs.put(config);
         });
       }
-      debugPrint('[PostgresSyncService] Successfully refreshed cloud auth token.');
+      debugPrint(
+        '[PostgresSyncService] Successfully refreshed cloud auth token.',
+      );
       return newToken;
     }
     debugPrint('[PostgresSyncService] Auto auth token refresh failed.');
@@ -79,12 +90,15 @@ class PostgresSyncService {
   /// Push/Sync a specific user or branch manager to Cloud PostgreSQL DB.
   Future<bool> syncUser(User user, {String? plainPin}) async {
     final config = await isar.storeConfigs.where().findFirst();
-    final cloudUrl = (config?.cloudApiUrl != null && config!.cloudApiUrl!.trim().isNotEmpty)
+    final cloudUrl =
+        (config?.cloudApiUrl != null && config!.cloudApiUrl!.trim().isNotEmpty)
         ? config.cloudApiUrl!.trim()
         : 'http://23.139.36.20:8003';
     final storeId = config?.cloudStoreId ?? 0;
     if (storeId <= 0) {
-      debugPrint('[PostgresSyncService] Cannot sync user: cloud branch mapping is missing.');
+      debugPrint(
+        '[PostgresSyncService] Cannot sync user: cloud branch mapping is missing.',
+      );
       return false;
     }
     var token = config?.cloudAuthToken;
@@ -117,7 +131,8 @@ class PostgresSyncService {
   /// to branch.cloudStoreId for use in branch report data attribution.
   Future<bool> syncBranch(StoreBranch branch) async {
     final config = await isar.storeConfigs.where().findFirst();
-    final cloudUrl = (config?.cloudApiUrl != null && config!.cloudApiUrl!.trim().isNotEmpty)
+    final cloudUrl =
+        (config?.cloudApiUrl != null && config!.cloudApiUrl!.trim().isNotEmpty)
         ? config.cloudApiUrl!.trim()
         : 'http://23.139.36.20:8003';
     var token = config?.cloudAuthToken;
@@ -140,7 +155,9 @@ class PostgresSyncService {
             branch.cloudStoreId = cloudStoreId;
             await isar.storeBranchs.put(branch);
           });
-          debugPrint('[syncBranch] Branch "${branch.name}" mapped to cloud store_id=$cloudStoreId');
+          debugPrint(
+            '[syncBranch] Branch "${branch.name}" mapped to cloud store_id=$cloudStoreId',
+          );
         }
         return true;
       }
@@ -160,7 +177,8 @@ class PostgresSyncService {
 
   /// Push/Sync Store Configuration (TPIN, DigiTax Key, Tax Settings) to Cloud DB.
   Future<bool> syncStoreConfigToCloud(StoreConfig config) async {
-    final cloudUrl = (config.cloudApiUrl != null && config.cloudApiUrl!.trim().isNotEmpty)
+    final cloudUrl =
+        (config.cloudApiUrl != null && config.cloudApiUrl!.trim().isNotEmpty)
         ? config.cloudApiUrl!.trim()
         : 'http://23.139.36.20:8003';
     final storeId = config.cloudStoreId ?? 1;
@@ -190,13 +208,17 @@ class PostgresSyncService {
   /// Pull latest Store Configuration (TPIN, DigiTax Key, etc.) from Cloud DB into local Isar DB
   Future<bool> pullStoreConfigFromCloud() async {
     final config = await isar.storeConfigs.where().findFirst();
-    final cloudUrl = (config?.cloudApiUrl != null && config!.cloudApiUrl!.trim().isNotEmpty)
+    final cloudUrl =
+        (config?.cloudApiUrl != null && config!.cloudApiUrl!.trim().isNotEmpty)
         ? config.cloudApiUrl!.trim()
         : 'http://23.139.36.20:8003';
     final storeId = config?.cloudStoreId ?? 0;
 
     try {
-      final stores = await cloudDb.getStores(cloudUrl, authToken: config?.cloudAuthToken);
+      final stores = await cloudDb.getStores(
+        cloudUrl,
+        authToken: config?.cloudAuthToken,
+      );
       if (stores.isEmpty) return false;
 
       final targetStore = stores.where((s) => s['id'] == storeId).firstOrNull;
@@ -206,10 +228,12 @@ class PostgresSyncService {
       }
 
       await isar.writeTxn(() async {
-        if (targetStore['tpin'] != null && (targetStore['tpin'] as String).isNotEmpty) {
+        if (targetStore['tpin'] != null &&
+            (targetStore['tpin'] as String).isNotEmpty) {
           config?.tpin = targetStore['tpin'];
         }
-        if (targetStore['digitax_api_key'] != null && (targetStore['digitax_api_key'] as String).isNotEmpty) {
+        if (targetStore['digitax_api_key'] != null &&
+            (targetStore['digitax_api_key'] as String).isNotEmpty) {
           config?.digitaxApiKey = targetStore['digitax_api_key'];
         }
         if (targetStore['digitax_environment'] != null) {
@@ -243,7 +267,8 @@ class PostgresSyncService {
   /// Sync unsynced transactions from local Isar cache up to online PostgreSQL Cloud DB.
   Future<int> syncPendingTransactions() async {
     final config = await isar.storeConfigs.where().findFirst();
-    final cloudUrl = (config?.cloudApiUrl != null && config!.cloudApiUrl!.trim().isNotEmpty)
+    final cloudUrl =
+        (config?.cloudApiUrl != null && config!.cloudApiUrl!.trim().isNotEmpty)
         ? config.cloudApiUrl!.trim()
         : 'http://23.139.36.20:8003';
     final storeId = config?.cloudStoreId ?? 0;
@@ -281,7 +306,9 @@ class PostgresSyncService {
         );
       } catch (e) {
         // If 401 or Auth error occurs, attempt 1 auto-refresh & retry
-        debugPrint('[PostgresSyncService] Batch sync failed ($e), attempting token refresh...');
+        debugPrint(
+          '[PostgresSyncService] Batch sync failed ($e), attempting token refresh...',
+        );
         authToken = await _refreshCloudAuthToken(config, cloudUrl);
         if (authToken != null) {
           syncedUuids = await cloudDb.syncBatchSales(
@@ -311,7 +338,9 @@ class PostgresSyncService {
           }
         });
 
-        debugPrint('Successfully synced ${syncedUuids.length} transactions to Cloud PostgreSQL DB');
+        debugPrint(
+          'Successfully synced ${syncedUuids.length} transactions to Cloud PostgreSQL DB',
+        );
       }
 
       return syncedUuids.length;
@@ -324,7 +353,8 @@ class PostgresSyncService {
   /// Pull sales transactions from Cloud PostgreSQL DB into local Isar DB cache.
   Future<int> pullSalesFromCloud() async {
     final config = await isar.storeConfigs.where().findFirst();
-    final cloudUrl = (config?.cloudApiUrl != null && config!.cloudApiUrl!.trim().isNotEmpty)
+    final cloudUrl =
+        (config?.cloudApiUrl != null && config!.cloudApiUrl!.trim().isNotEmpty)
         ? config.cloudApiUrl!.trim()
         : 'http://23.139.36.20:8003';
 
@@ -371,11 +401,16 @@ class PostgresSyncService {
       int insertedCount = 0;
 
       for (final raw in rawSales) {
-        final uuid = raw['transaction_uuid'] as String? ?? (raw['id'] != null ? 'tx-${raw['id']}' : null);
+        final uuid =
+            raw['transaction_uuid'] as String? ??
+            (raw['id'] != null ? 'tx-${raw['id']}' : null);
         if (uuid == null) continue;
 
         // Check if transaction already exists locally
-        final existing = await isar.saleTransactions.filter().transactionIdEqualTo(uuid).findFirst();
+        final existing = await isar.saleTransactions
+            .filter()
+            .transactionIdEqualTo(uuid)
+            .findFirst();
         if (existing != null) continue;
 
         final tx = SaleTransaction(
@@ -421,8 +456,10 @@ class PostgresSyncService {
               final item = SaleItem(
                 productId: (rItem['product_id'] as num?)?.toInt() ?? 0,
                 productName: rItem['product_name'] as String? ?? 'Product',
-                priceAtSale: (rItem['price_at_sale'] as num?)?.toDouble() ?? 0.0,
-                unitCostAtSale: (rItem['unit_cost_at_sale'] as num?)?.toDouble() ?? 0.0,
+                priceAtSale:
+                    (rItem['price_at_sale'] as num?)?.toDouble() ?? 0.0,
+                unitCostAtSale:
+                    (rItem['unit_cost_at_sale'] as num?)?.toDouble() ?? 0.0,
                 quantity: (rItem['quantity'] as num?)?.toInt() ?? 1,
               );
               await isar.saleItems.put(item);
@@ -435,7 +472,9 @@ class PostgresSyncService {
         insertedCount++;
       }
 
-      debugPrint('Pulled $insertedCount sales from Cloud VPS into local Isar DB');
+      debugPrint(
+        'Pulled $insertedCount sales from Cloud VPS into local Isar DB',
+      );
       return insertedCount;
     } catch (e) {
       debugPrint('Error pulling sales from cloud: $e');

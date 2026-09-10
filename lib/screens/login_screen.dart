@@ -58,7 +58,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final rawId = _idController.text;
     if (rawId.length > 4) {
       _idController.text = rawId.substring(0, 4);
-      _idController.selection = TextSelection.fromPosition(const TextPosition(offset: 4));
+      _idController.selection = TextSelection.fromPosition(
+        const TextPosition(offset: 4),
+      );
       setState(() => _errorMessage = 'Staff ID cannot exceed 4 characters');
       return;
     }
@@ -72,7 +74,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     // Debounce or just check directly for numeric POS usually 3-4 chars
     if (id.length >= 3) {
       final users = await ref.read(databaseServiceProvider).getAllUsers();
-      final user = users.cast<User?>().firstWhere((u) => u?.numericId == id, orElse: () => null);
+      final user = users.cast<User?>().firstWhere(
+        (u) => u?.numericId == id,
+        orElse: () => null,
+      );
       if (user != null) {
         if (_recognizedName != user.name) {
           setState(() {
@@ -116,13 +121,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       final config = ref.read(storeConfigProvider).value;
 
       // 1. Try local login first
-      User? user = await db.login(
-        _idController.text.trim(),
-        _pin.trim(),
-      );
+      User? user = await db.login(_idController.text.trim(), _pin.trim());
 
       if (user != null) {
-        if (user.branchCode != null && user.branchCode!.isNotEmpty && config != null) {
+        if (user.branchCode != null &&
+            user.branchCode!.isNotEmpty &&
+            config != null) {
           config.bhfId = user.branchCode!;
           if (user.branchName != null && user.branchName!.isNotEmpty) {
             config.branchName = user.branchName;
@@ -142,21 +146,29 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         );
 
         if (userData != null) {
-          final rawRole = (userData['role']?.toString() ?? 'cashier').toLowerCase().trim();
-          final resolvedRole = (rawRole == 'admin' || rawRole == 'owner' || rawRole == 'super_admin') 
-              ? 'owner' 
+          final rawRole = (userData['role']?.toString() ?? 'cashier')
+              .toLowerCase()
+              .trim();
+          final resolvedRole =
+              (rawRole == 'admin' ||
+                  rawRole == 'owner' ||
+                  rawRole == 'super_admin')
+              ? 'owner'
               : (rawRole == 'manager' || rawRole == 'branch_manager')
-                  ? 'branch_manager'
-                  : 'cashier';
+              ? 'branch_manager'
+              : 'cashier';
 
           final remoteUser = User()
             ..numericId = userData['numericId']
             ..name = userData['name']
             ..role = resolvedRole
-            ..passwordHash = hashPin(_pin.trim()); 
-          
+            ..passwordHash = hashPin(_pin.trim());
+
           await db.isar.writeTxn(() async {
-            final existing = await db.isar.users.filter().numericIdEqualTo(remoteUser.numericId).findFirst();
+            final existing = await db.isar.users
+                .filter()
+                .numericIdEqualTo(remoteUser.numericId)
+                .findFirst();
             if (existing != null) {
               remoteUser.id = existing.id;
             }
@@ -168,14 +180,24 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           try {
             final serverInfo = await networkClient.getServerInfo();
             if (serverInfo != null) {
-              final activeConfig = config ?? await db.isar.storeConfigs.where().findFirst() ?? StoreConfig();
-              if (serverInfo['digitaxApiKey'] != null && (serverInfo['digitaxApiKey'] as String).isNotEmpty) {
-                activeConfig.digitaxApiKey = serverInfo['digitaxApiKey'].toString();
+              final activeConfig =
+                  config ??
+                  await db.isar.storeConfigs.where().findFirst() ??
+                  StoreConfig();
+              if (serverInfo['digitaxApiKey'] != null &&
+                  (serverInfo['digitaxApiKey'] as String).isNotEmpty) {
+                activeConfig.digitaxApiKey = serverInfo['digitaxApiKey']
+                    .toString();
               }
-              if (serverInfo['sdcId'] != null) activeConfig.sdcId = serverInfo['sdcId'].toString();
-              if (serverInfo['tpin'] != null) activeConfig.tpin = serverInfo['tpin'].toString();
-              if (serverInfo['businessTaxType'] != null) activeConfig.businessTaxType = serverInfo['businessTaxType'].toString();
-              if (serverInfo['bhfId'] != null) activeConfig.bhfId = serverInfo['bhfId'].toString();
+              if (serverInfo['sdcId'] != null)
+                activeConfig.sdcId = serverInfo['sdcId'].toString();
+              if (serverInfo['tpin'] != null)
+                activeConfig.tpin = serverInfo['tpin'].toString();
+              if (serverInfo['businessTaxType'] != null)
+                activeConfig.businessTaxType = serverInfo['businessTaxType']
+                    .toString();
+              if (serverInfo['bhfId'] != null)
+                activeConfig.bhfId = serverInfo['bhfId'].toString();
               await db.isar.writeTxn(() async {
                 await db.isar.storeConfigs.put(activeConfig);
               });
@@ -188,7 +210,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
       // 3. Authenticate / Refresh credentials against Cloud PostgreSQL VPS Backend
       final cloudDb = ref.read(cloudDatabaseServiceProvider);
-      final cloudUrl = (config?.cloudApiUrl != null && config!.cloudApiUrl!.trim().isNotEmpty)
+      final cloudUrl =
+          (config?.cloudApiUrl != null &&
+              config!.cloudApiUrl!.trim().isNotEmpty)
           ? config.cloudApiUrl!.trim()
           : 'http://23.139.36.20:8003';
 
@@ -202,21 +226,48 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         );
 
         if (cloudAuth != null && cloudAuth['user'] is Map) {
+          final authToken =
+              cloudAuth['token']?.toString() ??
+              cloudAuth['access_token']?.toString();
+          if (authToken != null && authToken.isNotEmpty && config != null) {
+            await db.isar.writeTxn(() async {
+              config.cloudAuthToken = authToken;
+              config.cloudAuthUserId = _idController.text.trim();
+              config.cloudAuthPin = _pin.trim();
+              await db.isar.storeConfigs.put(config);
+            });
+          }
           final uData = cloudAuth['user'] as Map;
-          final sData = (cloudAuth['store'] is Map) ? cloudAuth['store'] as Map : null;
-          final branchBhfId = sData?['bhf_id']?.toString() ?? uData['branch_code']?.toString() ?? '00';
-          final branchName = sData?['branch_name']?.toString() ?? sData?['name']?.toString() ?? uData['branch_name']?.toString() ?? 'Main Branch';
-          final rawRole = uData['role']?.toString().toLowerCase().trim() ?? 'cashier';
+          final sData = (cloudAuth['store'] is Map)
+              ? cloudAuth['store'] as Map
+              : null;
+          final branchBhfId =
+              sData?['bhf_id']?.toString() ??
+              uData['branch_code']?.toString() ??
+              '00';
+          final branchName =
+              sData?['branch_name']?.toString() ??
+              sData?['name']?.toString() ??
+              uData['branch_name']?.toString() ??
+              'Main Branch';
+          final rawRole =
+              uData['role']?.toString().toLowerCase().trim() ?? 'cashier';
 
-          final normalizedRole = (rawRole == 'owner' || rawRole == 'admin' || rawRole == 'super_admin')
+          final normalizedRole =
+              (rawRole == 'owner' ||
+                  rawRole == 'admin' ||
+                  rawRole == 'super_admin')
               ? 'owner'
               : (rawRole == 'manager' || rawRole == 'branch_manager')
-                  ? 'branch_manager'
-                  : rawRole;
+              ? 'branch_manager'
+              : rawRole;
 
           final remoteUser = User()
-            ..numericId = uData['numeric_id']?.toString() ?? _idController.text.trim()
-            ..name = uData['name']?.toString() ?? (normalizedRole == 'owner' ? 'Owner' : 'Staff')
+            ..numericId =
+                uData['numeric_id']?.toString() ?? _idController.text.trim()
+            ..name =
+                uData['name']?.toString() ??
+                (normalizedRole == 'owner' ? 'Owner' : 'Staff')
             ..role = normalizedRole
             ..branchCode = branchBhfId
             ..branchName = branchName
@@ -225,14 +276,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ..isActive = true;
 
           await db.isar.writeTxn(() async {
-            final existing = await db.isar.users.filter().numericIdEqualTo(remoteUser.numericId).findFirst();
+            final existing = await db.isar.users
+                .filter()
+                .numericIdEqualTo(remoteUser.numericId)
+                .findFirst();
             if (existing != null) {
               remoteUser.id = existing.id;
             }
             await db.isar.users.put(remoteUser);
 
             // Update local store profile with cloud branch credentials
-            final activeConfig = config ?? await db.isar.storeConfigs.where().findFirst() ?? StoreConfig();
+            final activeConfig =
+                config ??
+                await db.isar.storeConfigs.where().findFirst() ??
+                StoreConfig();
             activeConfig.bhfId = branchBhfId;
             activeConfig.cloudApiUrl = cloudUrl;
 
@@ -247,14 +304,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               activeConfig.cloudStoreId = (sData['id'] as num).toInt();
             }
             if (sData != null) {
-              if (sData['name'] != null) activeConfig.businessName = sData['name'].toString();
-              if (sData['branch_name'] != null) activeConfig.branchName = sData['branch_name'].toString();
-              if (sData['tpin'] != null && (sData['tpin'] as String).isNotEmpty) activeConfig.tpin = sData['tpin'].toString();
-              if (sData['digitax_api_key'] != null && (sData['digitax_api_key'] as String).isNotEmpty) {
-                activeConfig.digitaxApiKey = sData['digitax_api_key'].toString();
+              if (sData['name'] != null)
+                activeConfig.businessName = sData['name'].toString();
+              if (sData['branch_name'] != null)
+                activeConfig.branchName = sData['branch_name'].toString();
+              if (sData['tpin'] != null && (sData['tpin'] as String).isNotEmpty)
+                activeConfig.tpin = sData['tpin'].toString();
+              if (sData['digitax_api_key'] != null &&
+                  (sData['digitax_api_key'] as String).isNotEmpty) {
+                activeConfig.digitaxApiKey = sData['digitax_api_key']
+                    .toString();
               }
-              if (sData['digitax_environment'] != null) activeConfig.digitaxEnvironment = sData['digitax_environment'].toString();
-              if (sData['business_tax_type'] != null) activeConfig.businessTaxType = sData['business_tax_type'].toString();
+              if (sData['digitax_environment'] != null)
+                activeConfig.digitaxEnvironment = sData['digitax_environment']
+                    .toString();
+              if (sData['business_tax_type'] != null)
+                activeConfig.businessTaxType = sData['business_tax_type']
+                    .toString();
             }
             await db.isar.storeConfigs.put(activeConfig);
           });
@@ -297,16 +363,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     try {
       final db = ref.read(databaseServiceProvider);
       final id = _idController.text.trim();
-      
+
       final users = await db.getAllUsers();
-      final user = users.cast<User?>().firstWhere((u) => u?.numericId == id, orElse: () => null);
+      final user = users.cast<User?>().firstWhere(
+        (u) => u?.numericId == id,
+        orElse: () => null,
+      );
 
       if (user != null) {
         await db.logAttendance(user, type);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('${type == 'clock_in' ? 'Clocked IN' : 'Clocked OUT'} successfully for ${user.name}'),
+              content: Text(
+                '${type == 'clock_in' ? 'Clocked IN' : 'Clocked OUT'} successfully for ${user.name}',
+              ),
               backgroundColor: const Color(0xFF059669),
               behavior: SnackBarBehavior.floating,
             ),
@@ -344,9 +415,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final scaffoldBg = isDark ? const Color(0xFF0B1220) : const Color(0xFFF5F7FA);
+    final scaffoldBg = isDark
+        ? const Color(0xFF0B1220)
+        : const Color(0xFFF5F7FA);
     final consoleBg = isDark ? const Color(0xFF151F32) : Colors.white;
-    final borderColor = isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0);
+    final borderColor = isDark
+        ? const Color(0xFF293548)
+        : const Color(0xFFE2E8F0);
 
     return Scaffold(
       backgroundColor: scaffoldBg,
@@ -365,14 +440,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       flex: 5,
                       child: _buildHeroImageSection(
                         context,
-                        isCompact: constraints.maxHeight < 720 || constraints.maxWidth < 1000,
+                        isCompact:
+                            constraints.maxHeight < 720 ||
+                            constraints.maxWidth < 1000,
                       ),
                     ),
                     // Seam Divider Line
-                    Container(
-                      width: 1,
-                      color: borderColor,
-                    ),
+                    Container(width: 1, color: borderColor),
                     // Right Authentication Pane (Full Bleed)
                     Expanded(
                       flex: 6,
@@ -380,7 +454,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         color: consoleBg,
                         child: Center(
                           child: SingleChildScrollView(
-                            padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 24),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 36,
+                              vertical: 24,
+                            ),
                             child: ConstrainedBox(
                               constraints: const BoxConstraints(maxWidth: 780),
                               child: _buildRightConsole(context),
@@ -404,7 +481,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             right: 24,
             child: LayoutBuilder(
               builder: (context, constraints) {
-                if (MediaQuery.of(context).size.width < 900) return const SizedBox.shrink();
+                if (MediaQuery.of(context).size.width < 900)
+                  return const SizedBox.shrink();
                 return _buildBottomRightRestoreButton(context);
               },
             ),
@@ -424,15 +502,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           builder: (context) => const BackupRestoreModal(),
         );
       },
-      icon: const Icon(Icons.settings_backup_restore_rounded, size: 15, color: primaryAccent),
+      icon: const Icon(
+        Icons.settings_backup_restore_rounded,
+        size: 15,
+        color: primaryAccent,
+      ),
       label: Text(
         'RESTORE BACKUP',
-        style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: primaryAccent),
+        style: GoogleFonts.inter(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: primaryAccent,
+        ),
       ),
     );
   }
 
-  Widget _buildHeroImageSection(BuildContext context, {bool isCompact = false}) {
+  Widget _buildHeroImageSection(
+    BuildContext context, {
+    bool isCompact = false,
+  }) {
     const primaryColor = Color(0xFF1D4ED8);
 
     return Stack(
@@ -470,7 +559,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     decoration: BoxDecoration(
                       color: primaryColor.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: primaryColor.withValues(alpha: 0.4)),
+                      border: Border.all(
+                        color: primaryColor.withValues(alpha: 0.4),
+                      ),
                     ),
                     child: _buildLogoBadge(isCompact),
                   ),
@@ -507,11 +598,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
                         color: primaryColor.withValues(alpha: 0.25),
                         borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: primaryColor.withValues(alpha: 0.4)),
+                        border: Border.all(
+                          color: primaryColor.withValues(alpha: 0.4),
+                        ),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -560,25 +656,43 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     const SizedBox(height: 24),
 
                     // Feature highlights chips
-                    _buildFeaturePill(Icons.bolt_rounded, 'Ultra-Low Latency Offline First Architecture'),
+                    _buildFeaturePill(
+                      Icons.bolt_rounded,
+                      'Ultra-Low Latency Offline First Architecture',
+                    ),
                     const SizedBox(height: 10),
-                    _buildFeaturePill(Icons.sync_alt_rounded, 'Automatic Multi-Terminal Synchronization'),
+                    _buildFeaturePill(
+                      Icons.sync_alt_rounded,
+                      'Automatic Multi-Terminal Synchronization',
+                    ),
                     const SizedBox(height: 10),
-                    _buildFeaturePill(Icons.analytics_rounded, 'Real-time Stock & Revenue Analytics'),
+                    _buildFeaturePill(
+                      Icons.analytics_rounded,
+                      'Real-time Stock & Revenue Analytics',
+                    ),
                   ],
                 ),
 
                 // Bottom Status Line
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.black.withValues(alpha: 0.4),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.08),
+                    ),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.shield_outlined, size: 16, color: Color(0xFF60A5FA)),
+                      const Icon(
+                        Icons.shield_outlined,
+                        size: 16,
+                        color: Color(0xFF60A5FA),
+                      ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
@@ -634,7 +748,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final cardBg = isDark ? const Color(0xFF151F32) : const Color(0xFFFFFFFF);
-    final borderColor = isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0);
+    final borderColor = isDark
+        ? const Color(0xFF293548)
+        : const Color(0xFFE2E8F0);
     const primaryAccent = Color(0xFF1D4ED8);
 
     return SafeArea(
@@ -659,7 +775,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             color: primaryAccent,
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          child: const Icon(Icons.point_of_sale_rounded, color: Colors.white, size: 20),
+                          child: const Icon(
+                            Icons.point_of_sale_rounded,
+                            color: Colors.white,
+                            size: 20,
+                          ),
                         ),
                         const SizedBox(width: 10),
                         Column(
@@ -694,16 +814,25 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                       borderRadius: BorderRadius.circular(8),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
                         decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF1C283D) : const Color(0xFFF8FAFC),
+                          color: isDark
+                              ? const Color(0xFF1C283D)
+                              : const Color(0xFFF8FAFC),
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(color: borderColor),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.lan_rounded, size: 13, color: primaryAccent),
+                            const Icon(
+                              Icons.lan_rounded,
+                              size: 13,
+                              color: primaryAccent,
+                            ),
                             const SizedBox(width: 5),
                             Text(
                               'LAN TILL',
@@ -728,7 +857,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 // Staff Identification Banner
                 if (_recognizedName != null) ...[
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFECFDF5),
                       borderRadius: BorderRadius.circular(8),
@@ -736,7 +868,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.check_circle_rounded, color: Color(0xFF059669), size: 16),
+                        const Icon(
+                          Icons.check_circle_rounded,
+                          color: Color(0xFF059669),
+                          size: 16,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -757,11 +893,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ],
 
                 // Organization TPIN Field
-                _buildInputField(context, 'ORGANIZATION TPIN', _companyController, Icons.business_outlined, 'Enter organization TPIN'),
+                _buildInputField(
+                  context,
+                  'ORGANIZATION TPIN',
+                  _companyController,
+                  Icons.business_outlined,
+                  'Enter organization TPIN',
+                ),
                 const SizedBox(height: 10),
 
                 // Staff ID Field
-                _buildInputField(context, 'EMPLOYEE ID', _idController, Icons.person_outline, 'Staff ID (e.g. 1001)'),
+                _buildInputField(
+                  context,
+                  'EMPLOYEE ID',
+                  _idController,
+                  Icons.person_outline,
+                  'Staff ID (e.g. 1001)',
+                ),
                 const SizedBox(height: 10),
 
                 // PIN Dots Display
@@ -771,7 +919,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 // Error message
                 if (_errorMessage != null) ...[
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFFEF2F2),
                       borderRadius: BorderRadius.circular(8),
@@ -779,7 +930,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.error_outline, color: Color(0xFFDC2626), size: 14),
+                        const Icon(
+                          Icons.error_outline,
+                          color: Color(0xFFDC2626),
+                          size: 14,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -813,7 +968,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     crossAxisSpacing: 8,
                     childAspectRatio: 1.6,
                     children: [
-                      ...List.generate(9, (index) => _buildKeyItem(context, (index + 1).toString())),
+                      ...List.generate(
+                        9,
+                        (index) =>
+                            _buildKeyItem(context, (index + 1).toString()),
+                      ),
                       _buildKeyItem(context, 'backspace', isIcon: true),
                       _buildKeyItem(context, '0'),
                       _buildKeyItem(context, 'check', isIcon: true),
@@ -856,18 +1015,27 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       backgroundColor: primaryAccent,
                       foregroundColor: Colors.white,
                       elevation: 0,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
                     child: _isLoading
                         ? const SizedBox(
                             width: 20,
                             height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
                           )
                         : Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              const Icon(Icons.login_rounded, size: 18, color: Colors.white),
+                              const Icon(
+                                Icons.login_rounded,
+                                size: 18,
+                                color: Colors.white,
+                              ),
                               const SizedBox(width: 8),
                               Text(
                                 'SIGN IN TO REGISTER',
@@ -888,26 +1056,38 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    _buildTextLink(context, 'RESET PIN', onTap: () {
-                      _showInfoDialog(
-                        'CREDENTIAL_RECOVERY',
-                        'Staff PINs: Must be reset by a Manager in Settings > User Management.\n\nAdmin Reset: If you are the owner and forgot your Admin PIN, use the "ADMIN RECOVERY" button below to enter your 8-digit terminal recovery code.',
-                      );
-                    }),
+                    _buildTextLink(
+                      context,
+                      'RESET PIN',
+                      onTap: () {
+                        _showInfoDialog(
+                          'CREDENTIAL_RECOVERY',
+                          'Staff PINs: Must be reset by a Manager in Settings > User Management.\n\nAdmin Reset: If you are the owner and forgot your Admin PIN, use the "ADMIN RECOVERY" button below to enter your 8-digit terminal recovery code.',
+                        );
+                      },
+                    ),
                     const SizedBox(width: 16),
-                    _buildTextLink(context, 'RESTORE DATA', onTap: () {
-                      showDialog(
-                        context: context,
-                        builder: (context) => const BackupRestoreModal(),
-                      );
-                    }),
+                    _buildTextLink(
+                      context,
+                      'RESTORE DATA',
+                      onTap: () {
+                        showDialog(
+                          context: context,
+                          builder: (context) => const BackupRestoreModal(),
+                        );
+                      },
+                    ),
                     const SizedBox(width: 16),
-                    _buildTextLink(context, 'SUPPORT', onTap: () {
-                      _showInfoDialog(
-                        'SYSTEM_SUPPORT',
-                        'If you are having trouble accessing the terminal, please contact your store administrator.',
-                      );
-                    }),
+                    _buildTextLink(
+                      context,
+                      'SUPPORT',
+                      onTap: () {
+                        _showInfoDialog(
+                          'SYSTEM_SUPPORT',
+                          'If you are having trouble accessing the terminal, please contact your store administrator.',
+                        );
+                      },
+                    ),
                   ],
                 ),
               ],
@@ -921,8 +1101,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Widget _buildPinDotsDisplay(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final containerBg = isDark ? const Color(0xFF0B1220) : const Color(0xFFF8FAFC);
-    final borderColor = isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0);
+    final containerBg = isDark
+        ? const Color(0xFF0B1220)
+        : const Color(0xFFF8FAFC);
+    final borderColor = isDark
+        ? const Color(0xFF293548)
+        : const Color(0xFFE2E8F0);
     const primaryColor = Color(0xFF1D4ED8);
 
     return Container(
@@ -937,7 +1121,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         children: [
           Row(
             children: [
-              Icon(Icons.lock_outline, size: 16, color: theme.colorScheme.onSurfaceVariant),
+              Icon(
+                Icons.lock_outline,
+                size: 16,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
               const SizedBox(width: 8),
               Text(
                 'PIN:',
@@ -959,7 +1147,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 height: 12,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: isFilled ? primaryColor : (isDark ? const Color(0xFF293548) : const Color(0xFFCBD5E1)),
+                  color: isFilled
+                      ? primaryColor
+                      : (isDark
+                            ? const Color(0xFF293548)
+                            : const Color(0xFFCBD5E1)),
                 ),
               );
             }),
@@ -994,7 +1186,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final cardBg = isDark ? const Color(0xFF1C283D) : const Color(0xFFF8FAFC);
-    final borderColor = isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0);
+    final borderColor = isDark
+        ? const Color(0xFF293548)
+        : const Color(0xFFE2E8F0);
     const primaryAccent = Color(0xFF1D4ED8);
 
     return Padding(
@@ -1027,7 +1221,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                     color: Color(0xFF059669),
                                     shape: BoxShape.circle,
                                   ),
-                                  child: const Icon(Icons.check, size: 10, color: Colors.white),
+                                  child: const Icon(
+                                    Icons.check,
+                                    size: 10,
+                                    color: Colors.white,
+                                  ),
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
@@ -1081,7 +1279,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                       borderRadius: BorderRadius.circular(8),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
                         decoration: BoxDecoration(
                           color: cardBg,
                           borderRadius: BorderRadius.circular(8),
@@ -1090,7 +1291,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.lan_rounded, size: 14, color: primaryAccent),
+                            const Icon(
+                              Icons.lan_rounded,
+                              size: 14,
+                              color: primaryAccent,
+                            ),
                             const SizedBox(width: 6),
                             Text(
                               'LAN TILL IP',
@@ -1112,17 +1317,32 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 const SizedBox(height: 16),
 
                 // Organization TPIN Field
-                _buildInputField(context, 'ORGANIZATION TPIN', _companyController, Icons.business_outlined, 'Enter organization TPIN'),
+                _buildInputField(
+                  context,
+                  'ORGANIZATION TPIN',
+                  _companyController,
+                  Icons.business_outlined,
+                  'Enter organization TPIN',
+                ),
                 const SizedBox(height: 12),
 
                 // Staff ID Field
-                _buildInputField(context, 'EMPLOYEE ID', _idController, Icons.person_outline, 'Staff ID or Username'),
+                _buildInputField(
+                  context,
+                  'EMPLOYEE ID',
+                  _idController,
+                  Icons.person_outline,
+                  'Staff ID or Username',
+                ),
                 const SizedBox(height: 12),
 
                 // Error message
                 if (_errorMessage != null) ...[
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFFEF2F2),
                       borderRadius: BorderRadius.circular(8),
@@ -1130,7 +1350,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.error_outline, color: Color(0xFFDC2626), size: 14),
+                        const Icon(
+                          Icons.error_outline,
+                          color: Color(0xFFDC2626),
+                          size: 14,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -1149,7 +1373,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ],
 
                 // Secure PIN Field
-                _buildInputField(context, 'SECURITY PIN', _pinController, Icons.lock_outline, '• • • •', isPassword: true),
+                _buildInputField(
+                  context,
+                  'SECURITY PIN',
+                  _pinController,
+                  Icons.lock_outline,
+                  '• • • •',
+                  isPassword: true,
+                ),
                 const SizedBox(height: 16),
 
                 // Clock In / Clock Out Buttons
@@ -1186,18 +1417,27 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       backgroundColor: primaryAccent,
                       foregroundColor: Colors.white,
                       elevation: 0,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
                     child: _isLoading
                         ? const SizedBox(
                             width: 20,
                             height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
                           )
                         : Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              const Icon(Icons.login_rounded, size: 18, color: Colors.white),
+                              const Icon(
+                                Icons.login_rounded,
+                                size: 18,
+                                color: Colors.white,
+                              ),
                               const SizedBox(width: 8),
                               Text(
                                 'SIGN IN TO REGISTER',
@@ -1244,7 +1484,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final tillCode = config?.terminalName ?? 'TILL-01';
     final serverIp = config?.serverIp ?? '127.0.0.1';
 
-    final badgeColor = isManager ? const Color(0xFF1D4ED8) : const Color(0xFF059669);
+    final badgeColor = isManager
+        ? const Color(0xFF1D4ED8)
+        : const Color(0xFF059669);
     final containerBg = isDark
         ? badgeColor.withValues(alpha: 0.15)
         : badgeColor.withValues(alpha: 0.08);
@@ -1272,7 +1514,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  isManager ? 'STORE HUB • MASTER POS SERVER' : 'CASHIER TILL • $tillCode',
+                  isManager
+                      ? 'STORE HUB • MASTER POS SERVER'
+                      : 'CASHIER TILL • $tillCode',
                   style: GoogleFonts.inter(
                     fontSize: 10,
                     fontWeight: FontWeight.w800,
@@ -1282,8 +1526,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  isManager 
-                      ? '${config?.businessName ?? 'Main Store'} (bhfId: ${config?.bhfId ?? '00'})' 
+                  isManager
+                      ? '${config?.businessName ?? 'Main Store'} (bhfId: ${config?.bhfId ?? '00'})'
                       : 'Connected to Master POS Host ($serverIp:8080)',
                   style: GoogleFonts.inter(
                     fontSize: 11,
@@ -1305,12 +1549,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 
-  Widget _buildInputField(BuildContext context, String label, TextEditingController controller, IconData icon, String hint, {bool isPassword = false}) {
+  Widget _buildInputField(
+    BuildContext context,
+    String label,
+    TextEditingController controller,
+    IconData icon,
+    String hint, {
+    bool isPassword = false,
+  }) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final maxLen = isPassword ? 6 : 4;
     final fieldBg = isDark ? const Color(0xFF0B1220) : const Color(0xFFF8FAFC);
-    final borderColor = isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0);
+    final borderColor = isDark
+        ? const Color(0xFF293548)
+        : const Color(0xFFE2E8F0);
     const primaryAccent = Color(0xFF1D4ED8);
 
     return Column(
@@ -1332,7 +1585,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               style: GoogleFonts.jetBrainsMono(
                 fontSize: 9,
                 fontWeight: FontWeight.w700,
-                color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                color: theme.colorScheme.onSurfaceVariant.withValues(
+                  alpha: 0.6,
+                ),
               ),
             ),
           ],
@@ -1345,14 +1600,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             obscureText: isPassword,
             readOnly: isPassword, // PIN entered via keypad
             maxLength: maxLen,
-            buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
-            keyboardType: isPassword ? TextInputType.number : TextInputType.text,
+            buildCounter:
+                (
+                  context, {
+                  required currentLength,
+                  required isFocused,
+                  maxLength,
+                }) => null,
+            keyboardType: isPassword
+                ? TextInputType.number
+                : TextInputType.text,
             inputFormatters: [
               if (isPassword) FilteringTextInputFormatter.digitsOnly,
               _MaxLengthFormatter(maxLen, () {
                 setState(() {
-                  _errorMessage = isPassword 
-                      ? 'Security PIN cannot exceed 6 digits' 
+                  _errorMessage = isPassword
+                      ? 'Security PIN cannot exceed 6 digits'
                       : 'Staff ID cannot exceed 4 characters';
                 });
               }),
@@ -1366,14 +1629,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             decoration: InputDecoration(
               hintText: hint.toUpperCase(),
               hintStyle: GoogleFonts.inter(
-                color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+                color: theme.colorScheme.onSurfaceVariant.withValues(
+                  alpha: 0.4,
+                ),
                 fontSize: 12,
                 letterSpacing: 0.5,
               ),
-              prefixIcon: Icon(icon, size: 16, color: theme.colorScheme.onSurfaceVariant),
+              prefixIcon: Icon(
+                icon,
+                size: 16,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
               filled: true,
               fillColor: fieldBg,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 0,
+              ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
                 borderSide: BorderSide(color: borderColor),
@@ -1389,7 +1661,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 
-  Widget _buildAuxButton(BuildContext context, IconData icon, String label, {required VoidCallback onTap}) {
+  Widget _buildAuxButton(
+    BuildContext context,
+    IconData icon,
+    String label, {
+    required VoidCallback onTap,
+  }) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final bg = isDark ? const Color(0xFF1C283D) : const Color(0xFFE2E8F0);
@@ -1461,7 +1738,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           crossAxisSpacing: 8,
           childAspectRatio: 1.35,
           children: [
-            ...List.generate(9, (index) => _buildKeyItem(context, (index + 1).toString())),
+            ...List.generate(
+              9,
+              (index) => _buildKeyItem(context, (index + 1).toString()),
+            ),
             _buildKeyItem(context, 'backspace', isIcon: true),
             _buildKeyItem(context, '0'),
             _buildKeyItem(context, 'check', isIcon: true),
@@ -1473,35 +1753,53 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           spacing: 16,
           runSpacing: 8,
           children: [
-            _buildTextLink(context, 'RESET PIN', onTap: () {
-              _showInfoDialog(
-                'CREDENTIAL_RECOVERY',
-                'Staff PINs: Must be reset by a Manager in Settings > User Management.\n\nAdmin Reset: If you are the owner and forgot your Admin PIN, use the "ADMIN RECOVERY" button below to enter your 8-digit terminal recovery code.',
-              );
-            }),
-            _buildTextLink(context, 'RESTORE DATA', onTap: () {
-              showDialog(
-                context: context,
-                builder: (context) => const BackupRestoreModal(),
-              );
-            }),
-            _buildTextLink(context, 'SUPPORT', onTap: () {
-              _showInfoDialog(
-                'SYSTEM_SUPPORT',
-                'If you are having trouble accessing the terminal, please contact your store administrator.',
-              );
-            }),
+            _buildTextLink(
+              context,
+              'RESET PIN',
+              onTap: () {
+                _showInfoDialog(
+                  'CREDENTIAL_RECOVERY',
+                  'Staff PINs: Must be reset by a Manager in Settings > User Management.\n\nAdmin Reset: If you are the owner and forgot your Admin PIN, use the "ADMIN RECOVERY" button below to enter your 8-digit terminal recovery code.',
+                );
+              },
+            ),
+            _buildTextLink(
+              context,
+              'RESTORE DATA',
+              onTap: () {
+                showDialog(
+                  context: context,
+                  builder: (context) => const BackupRestoreModal(),
+                );
+              },
+            ),
+            _buildTextLink(
+              context,
+              'SUPPORT',
+              onTap: () {
+                _showInfoDialog(
+                  'SYSTEM_SUPPORT',
+                  'If you are having trouble accessing the terminal, please contact your store administrator.',
+                );
+              },
+            ),
           ],
         ),
       ],
     );
   }
 
-  Widget _buildKeyItem(BuildContext context, String val, {bool isIcon = false}) {
+  Widget _buildKeyItem(
+    BuildContext context,
+    String val, {
+    bool isIcon = false,
+  }) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final itemBg = isDark ? const Color(0xFF0B1220) : const Color(0xFFFFFFFF);
-    final borderColor = isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0);
+    final borderColor = isDark
+        ? const Color(0xFF293548)
+        : const Color(0xFFE2E8F0);
     const primaryAccent = Color(0xFF1D4ED8);
 
     return Material(
@@ -1518,8 +1816,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           alignment: Alignment.center,
           child: isIcon
               ? Icon(
-                  val == 'backspace' ? Icons.backspace_outlined : Icons.check_circle_outline_rounded,
-                  color: val == 'check' ? primaryAccent : theme.colorScheme.onSurfaceVariant,
+                  val == 'backspace'
+                      ? Icons.backspace_outlined
+                      : Icons.check_circle_outline_rounded,
+                  color: val == 'check'
+                      ? primaryAccent
+                      : theme.colorScheme.onSurfaceVariant,
                   size: 18,
                 )
               : Text(
@@ -1535,7 +1837,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 
-  Widget _buildTextLink(BuildContext context, String label, {VoidCallback? onTap}) {
+  Widget _buildTextLink(
+    BuildContext context,
+    String label, {
+    VoidCallback? onTap,
+  }) {
     final theme = Theme.of(context);
 
     return GestureDetector(
@@ -1547,7 +1853,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           fontWeight: FontWeight.w700,
           color: theme.colorScheme.onSurfaceVariant,
           decoration: onTap != null ? TextDecoration.underline : null,
-          decorationColor: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+          decorationColor: theme.colorScheme.onSurfaceVariant.withValues(
+            alpha: 0.4,
+          ),
         ),
       ),
     );
@@ -1557,7 +1865,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final dialogBg = isDark ? const Color(0xFF151F32) : Colors.white;
-    final borderColor = isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0);
+    final borderColor = isDark
+        ? const Color(0xFF293548)
+        : const Color(0xFFE2E8F0);
     const primaryAccent = Color(0xFF1D4ED8);
 
     showDialog(
@@ -1594,7 +1904,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               },
               child: Text(
                 'ADMIN RECOVERY',
-                style: GoogleFonts.inter(color: primaryAccent, fontWeight: FontWeight.w800, fontSize: 12),
+                style: GoogleFonts.inter(
+                  color: primaryAccent,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 12,
+                ),
               ),
             ),
           TextButton(
@@ -1618,7 +1932,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final dialogBg = isDark ? const Color(0xFF151F32) : Colors.white;
-    final borderColor = isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0);
+    final borderColor = isDark
+        ? const Color(0xFF293548)
+        : const Color(0xFFE2E8F0);
     final fieldBg = isDark ? const Color(0xFF0B1220) : const Color(0xFFF8FAFC);
     const primaryAccent = Color(0xFF1D4ED8);
 
@@ -1632,7 +1948,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         ),
         title: Text(
           'ADMIN RECOVERY',
-          style: GoogleFonts.inter(fontWeight: FontWeight.w800, color: primaryAccent, fontSize: 16),
+          style: GoogleFonts.inter(
+            fontWeight: FontWeight.w800,
+            color: primaryAccent,
+            fontSize: 16,
+          ),
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1640,15 +1960,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           children: [
             Text(
               'Please enter your 8-digit Recovery Code to reset the Admin PIN.',
-              style: GoogleFonts.inter(color: theme.colorScheme.onSurfaceVariant, fontSize: 12.5),
+              style: GoogleFonts.inter(
+                color: theme.colorScheme.onSurfaceVariant,
+                fontSize: 12.5,
+              ),
             ),
             const SizedBox(height: 14),
             TextField(
               controller: controller,
-              style: GoogleFonts.jetBrainsMono(color: theme.colorScheme.onSurface, letterSpacing: 2, fontWeight: FontWeight.w700),
+              style: GoogleFonts.jetBrainsMono(
+                color: theme.colorScheme.onSurface,
+                letterSpacing: 2,
+                fontWeight: FontWeight.w700,
+              ),
               decoration: InputDecoration(
                 hintText: 'XXXX-XXXX',
-                hintStyle: GoogleFonts.jetBrainsMono(color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4)),
+                hintStyle: GoogleFonts.jetBrainsMono(
+                  color: theme.colorScheme.onSurfaceVariant.withValues(
+                    alpha: 0.4,
+                  ),
+                ),
                 filled: true,
                 fillColor: fieldBg,
                 border: OutlineInputBorder(
@@ -1671,7 +2002,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('CANCEL', style: GoogleFonts.inter(color: theme.colorScheme.onSurfaceVariant, fontWeight: FontWeight.w700, fontSize: 12)),
+            child: Text(
+              'CANCEL',
+              style: GoogleFonts.inter(
+                color: theme.colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w700,
+                fontSize: 12,
+              ),
+            ),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -1690,7 +2028,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               } else {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Invalid Recovery Code'), backgroundColor: Color(0xFFDC2626)),
+                    const SnackBar(
+                      content: Text('Invalid Recovery Code'),
+                      backgroundColor: Color(0xFFDC2626),
+                    ),
                   );
                 }
               }
@@ -1699,9 +2040,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               backgroundColor: primaryAccent,
               foregroundColor: Colors.white,
               elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
-            child: Text('VERIFY', style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 12)),
+            child: Text(
+              'VERIFY',
+              style: GoogleFonts.inter(
+                fontWeight: FontWeight.w800,
+                fontSize: 12,
+              ),
+            ),
           ),
         ],
       ),
@@ -1711,10 +2060,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   void _showAdminPinReset(User admin) {
     showDialog(
       context: context,
-      builder: (context) => ResetPinModal(
-        user: admin,
-        title: 'RECOVER ADMIN ACCESS',
-      ),
+      builder: (context) =>
+          ResetPinModal(user: admin, title: 'RECOVER ADMIN ACCESS'),
     );
   }
 
@@ -1735,7 +2082,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           return Image.file(
             f,
             fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) => _buildHeroPlaceholder(),
+            errorBuilder: (context, error, stackTrace) =>
+                _buildHeroPlaceholder(),
           );
         }
       } catch (_) {}
@@ -1767,8 +2115,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             height: isCompact ? 28 : 40,
             fit: BoxFit.contain,
             errorBuilder: (context, error, stackTrace) => Icon(
-              Icons.bolt_rounded, 
-              color: const Color(0xFF60A5FA), 
+              Icons.bolt_rounded,
+              color: const Color(0xFF60A5FA),
               size: isCompact ? 24 : 32,
             ),
           );
@@ -1781,8 +2129,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       height: isCompact ? 28 : 40,
       fit: BoxFit.contain,
       errorBuilder: (context, error, stackTrace) => Icon(
-        Icons.bolt_rounded, 
-        color: const Color(0xFF60A5FA), 
+        Icons.bolt_rounded,
+        color: const Color(0xFF60A5FA),
         size: isCompact ? 24 : 32,
       ),
     );
@@ -1805,7 +2153,10 @@ class _MaxLengthFormatter extends TextInputFormatter {
   _MaxLengthFormatter(this.maxLength, this.onLimitReached);
 
   @override
-  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
     if (newValue.text.length > maxLength) {
       onLimitReached();
       return oldValue;

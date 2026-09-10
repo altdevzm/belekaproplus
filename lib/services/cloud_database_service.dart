@@ -6,19 +6,22 @@ class CloudDatabaseService {
   final Dio _dio;
 
   CloudDatabaseService({Dio? dio})
-      : _dio = dio ??
-            Dio(
-              BaseOptions(
-                connectTimeout: const Duration(seconds: 10),
-                receiveTimeout: const Duration(seconds: 10),
-                headers: {'Content-Type': 'application/json'},
-              ),
-            );
+    : _dio =
+          dio ??
+          Dio(
+            BaseOptions(
+              connectTimeout: const Duration(seconds: 10),
+              receiveTimeout: const Duration(seconds: 10),
+              headers: {'Content-Type': 'application/json'},
+            ),
+          );
 
   /// Test connectivity to the online PostgreSQL Cloud API backend.
   Future<bool> checkConnection(String baseUrl) async {
     try {
-      final sanitizedUrl = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+      final sanitizedUrl = baseUrl.endsWith('/')
+          ? baseUrl.substring(0, baseUrl.length - 1)
+          : baseUrl;
       final response = await _dio.get('$sanitizedUrl/health');
       return response.statusCode == 200 && response.data['status'] == 'healthy';
     } catch (e) {
@@ -37,7 +40,9 @@ class CloudDatabaseService {
     String? terminalName,
   }) async {
     try {
-      final sanitizedUrl = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+      final sanitizedUrl = baseUrl.endsWith('/')
+          ? baseUrl.substring(0, baseUrl.length - 1)
+          : baseUrl;
       final payload = <String, dynamic>{
         'numeric_id': numericId.trim(),
         'pin': pin.trim(),
@@ -57,6 +62,12 @@ class CloudDatabaseService {
       if (response.statusCode == 200 && response.data is Map) {
         return Map<String, dynamic>.from(response.data);
       }
+      return null;
+    } on DioException catch (e) {
+      final detail = e.response?.data is Map
+          ? (e.response?.data['detail'] ?? e.message)
+          : e.message;
+      debugPrint('Cloud PostgreSQL Auth Failed: $detail');
       return null;
     } catch (e) {
       debugPrint('Cloud PostgreSQL Auth Failed: $e');
@@ -80,7 +91,9 @@ class CloudDatabaseService {
     String? authToken,
   }) async {
     try {
-      final sanitizedUrl = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+      final sanitizedUrl = baseUrl.endsWith('/')
+          ? baseUrl.substring(0, baseUrl.length - 1)
+          : baseUrl;
       final response = await _dio.post(
         '$sanitizedUrl/api/v1/users',
         data: {
@@ -115,7 +128,9 @@ class CloudDatabaseService {
     String? authToken,
   }) async {
     try {
-      final sanitizedUrl = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+      final sanitizedUrl = baseUrl.endsWith('/')
+          ? baseUrl.substring(0, baseUrl.length - 1)
+          : baseUrl;
       final response = await _dio.post(
         '$sanitizedUrl/api/v1/stores',
         data: {
@@ -130,7 +145,8 @@ class CloudDatabaseService {
           'manager_id': branch.managerId,
           'manager_phone': branch.managerPhone,
           if (tpin != null && tpin.isNotEmpty) 'tpin': tpin,
-          if (digitaxApiKey != null && digitaxApiKey.isNotEmpty) 'digitax_api_key': digitaxApiKey,
+          if (digitaxApiKey != null && digitaxApiKey.isNotEmpty)
+            'digitax_api_key': digitaxApiKey,
           'digitax_environment': digitaxEnvironment ?? 'sandbox',
           'business_tax_type': businessTaxType ?? 'VAT_STANDARD',
           'currency_symbol': currencySymbol ?? 'K',
@@ -152,7 +168,6 @@ class CloudDatabaseService {
     }
   }
 
-
   /// Push/Update store configuration (TPIN, DigiTax Key, Environment, etc.) on Cloud DB
   Future<bool> updateStoreConfig({
     required String baseUrl,
@@ -161,7 +176,9 @@ class CloudDatabaseService {
     String? authToken,
   }) async {
     try {
-      final sanitizedUrl = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+      final sanitizedUrl = baseUrl.endsWith('/')
+          ? baseUrl.substring(0, baseUrl.length - 1)
+          : baseUrl;
       final response = await _dio.put(
         '$sanitizedUrl/api/v1/stores/$storeId',
         data: data,
@@ -175,9 +192,14 @@ class CloudDatabaseService {
   }
 
   /// Fetch list of available store branches from Cloud PostgreSQL DB.
-  Future<List<Map<String, dynamic>>> getStores(String baseUrl, {String? authToken}) async {
+  Future<List<Map<String, dynamic>>> getStores(
+    String baseUrl, {
+    String? authToken,
+  }) async {
     try {
-      final sanitizedUrl = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+      final sanitizedUrl = baseUrl.endsWith('/')
+          ? baseUrl.substring(0, baseUrl.length - 1)
+          : baseUrl;
       final response = await _dio.get(
         '$sanitizedUrl/api/v1/stores',
         options: _buildAuthOptions(authToken),
@@ -193,9 +215,15 @@ class CloudDatabaseService {
   }
 
   /// Fetch list of users from Cloud PostgreSQL DB.
-  Future<List<Map<String, dynamic>>> getUsers(String baseUrl, {int? storeId, String? authToken}) async {
+  Future<List<Map<String, dynamic>>> getUsers(
+    String baseUrl, {
+    int? storeId,
+    String? authToken,
+  }) async {
     try {
-      final sanitizedUrl = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+      final sanitizedUrl = baseUrl.endsWith('/')
+          ? baseUrl.substring(0, baseUrl.length - 1)
+          : baseUrl;
       final queryParams = storeId != null ? {'store_id': storeId} : null;
       final response = await _dio.get(
         '$sanitizedUrl/api/v1/users',
@@ -222,11 +250,14 @@ class CloudDatabaseService {
     if (transactions.isEmpty) return [];
 
     try {
-      final sanitizedUrl = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
-      
+      final sanitizedUrl = baseUrl.endsWith('/')
+          ? baseUrl.substring(0, baseUrl.length - 1)
+          : baseUrl;
+
       final salesData = transactions.map((tx) {
         return {
-          'transaction_uuid': tx.transactionId ?? 'tx-${DateTime.now().millisecondsSinceEpoch}',
+          'transaction_uuid':
+              tx.transactionId ?? 'tx-${DateTime.now().millisecondsSinceEpoch}',
           'store_id': storeId,
           'total_amount': tx.totalAmount,
           'subtotal': tx.subtotal,
@@ -257,10 +288,7 @@ class CloudDatabaseService {
         };
       }).toList();
 
-      final payload = {
-        'store_id': storeId,
-        'sales': salesData,
-      };
+      final payload = {'store_id': storeId, 'sales': salesData};
 
       final response = await _dio.post(
         '$sanitizedUrl/api/v1/sync/batch',
@@ -269,7 +297,9 @@ class CloudDatabaseService {
       );
 
       if (response.statusCode == 201 || response.statusCode == 200) {
-        final syncedUuids = List<String>.from(response.data['synced_uuids'] ?? []);
+        final syncedUuids = List<String>.from(
+          response.data['synced_uuids'] ?? [],
+        );
         return syncedUuids;
       }
       return [];
@@ -280,9 +310,15 @@ class CloudDatabaseService {
   }
 
   /// Fetch list of products from Cloud PostgreSQL DB for a specific store branch.
-  Future<List<Map<String, dynamic>>> getProducts(String baseUrl, {required int storeId, String? authToken}) async {
+  Future<List<Map<String, dynamic>>> getProducts(
+    String baseUrl, {
+    required int storeId,
+    String? authToken,
+  }) async {
     try {
-      final sanitizedUrl = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+      final sanitizedUrl = baseUrl.endsWith('/')
+          ? baseUrl.substring(0, baseUrl.length - 1)
+          : baseUrl;
       final response = await _dio.get(
         '$sanitizedUrl/api/v1/products',
         queryParameters: {'store_id': storeId},
@@ -305,7 +341,9 @@ class CloudDatabaseService {
     String? token,
   }) async {
     try {
-      final sanitizedUrl = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+      final sanitizedUrl = baseUrl.endsWith('/')
+          ? baseUrl.substring(0, baseUrl.length - 1)
+          : baseUrl;
       final response = await _dio.get(
         '$sanitizedUrl/api/v1/sync/export-backup',
         queryParameters: {'store_id': storeId},
@@ -322,5 +360,3 @@ class CloudDatabaseService {
     }
   }
 }
-
-

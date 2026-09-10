@@ -497,7 +497,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
           : null;
       final tpin = (rawTpin != null && rawTpin.trim().isNotEmpty)
           ? rawTpin.trim()
-          : '1234567890';
+          : loginTpin;
       final finalStoreCode = targetStore != null
           ? (targetStore['store_code'] as String? ?? storeCode)
           : storeCode;
@@ -545,6 +545,9 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
         ..cloudApiUrl = baseUrl
         ..cloudStoreId = storeId
         ..cloudStoreCode = finalStoreCode
+        ..cloudAuthToken = authToken
+        ..cloudAuthUserId = userId
+        ..cloudAuthPin = pin
         ..bhfId = bhfId
         ..tpin = tpin
         ..businessTaxType = businessTaxType
