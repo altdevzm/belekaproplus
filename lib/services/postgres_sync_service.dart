@@ -138,6 +138,21 @@ class PostgresSyncService {
     var token = config?.cloudAuthToken;
 
     Future<bool> _doSync(String? tok) async {
+      if (branch.cloudStoreId <= 0) {
+        final stores = await cloudDb.getStores(cloudUrl, authToken: tok);
+        final existing = stores.cast<Map<String, dynamic>?>().firstWhere(
+          (store) =>
+              store?['store_code']?.toString().trim().toUpperCase() ==
+              branch.code.trim().toUpperCase(),
+          orElse: () => null,
+        );
+        if (existing?['id'] != null) {
+          branch.cloudStoreId = (existing!['id'] as num).toInt();
+          await isar.writeTxn(() async {
+            await isar.storeBranchs.put(branch);
+          });
+        }
+      }
       final cloudStoreId = await cloudDb.syncBranch(
         baseUrl: cloudUrl,
         branch: branch,

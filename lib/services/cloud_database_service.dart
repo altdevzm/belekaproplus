@@ -185,7 +185,9 @@ class CloudDatabaseService {
           'role': user.role,
           'branch_name': user.branchName,
           'phone': user.phone,
-          'password_hash': user.passwordHash,
+            'password_hash': plainPin?.trim().isNotEmpty == true
+              ? plainPin!.trim()
+              : user.passwordHash,
           'is_active': user.isActive,
         },
         options: _buildAuthOptions(authToken),
