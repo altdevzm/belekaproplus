@@ -24,6 +24,7 @@ class LoginScreen extends ConsumerStatefulWidget {
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _companyController = TextEditingController();
   final _idController = TextEditingController();
+  final _branchCodeController = TextEditingController();
   final _pinController = TextEditingController();
   String _pin = '';
   String? _errorMessage;
@@ -42,6 +43,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           _companyController.text = businessName;
         }
       }
+      if (_branchCodeController.text.isEmpty && config?.bhfId.isNotEmpty == true) {
+        _branchCodeController.text = config!.bhfId;
+      }
     });
   }
 
@@ -50,6 +54,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     _idController.removeListener(_onIdChanged);
     _companyController.dispose();
     _idController.dispose();
+    _branchCodeController.dispose();
     _pinController.dispose();
     super.dispose();
   }
@@ -250,7 +255,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           numericId: _idController.text.trim(),
           pin: _pin.trim(),
           tpin: enteredTpin,
-          branchCode: config?.bhfId,
+          branchCode: _branchCodeController.text.trim(),
           terminalName: config?.terminalName ?? 'BRANCH-POS',
         );
 
@@ -935,6 +940,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ),
                 const SizedBox(height: 10),
 
+                _buildInputField(
+                  context,
+                  'ZRA BRANCH CODE',
+                  _branchCodeController,
+                  Icons.store_outlined,
+                  '00 for HQ, 01, 03 for a branch',
+                ),
+                const SizedBox(height: 10),
+
                 // PIN Dots Display
                 _buildPinDotsDisplay(context),
                 const SizedBox(height: 10),
@@ -1360,6 +1374,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   _idController,
                   Icons.person_outline,
                   'Staff ID or Username',
+                ),
+                const SizedBox(height: 12),
+
+                _buildInputField(
+                  context,
+                  'ZRA BRANCH CODE',
+                  _branchCodeController,
+                  Icons.store_outlined,
+                  '00 for HQ, 01, 03 for a branch',
                 ),
                 const SizedBox(height: 12),
 
