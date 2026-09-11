@@ -165,9 +165,11 @@ def cloud_login(req: schemas.LoginRequest, db: Session = Depends(get_db)):
         )
     branch_code = req.branch_code.strip() if req.branch_code else None
     if branch_code:
+        branch_code_normalized = branch_code.casefold()
         matching_stores = [
             store for store in matching_stores
-            if store.bhf_id == branch_code or store.store_code == branch_code
+            if (store.bhf_id or '').strip().casefold() == branch_code_normalized
+            or (store.store_code or '').strip().casefold() == branch_code_normalized
         ]
         if not matching_stores:
             raise HTTPException(

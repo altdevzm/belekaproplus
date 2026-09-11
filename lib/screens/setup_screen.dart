@@ -53,7 +53,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
   final _cloudStaffIdController = TextEditingController();
   final _cloudPinController = TextEditingController();
   final _cloudTpinController = TextEditingController();
-  final _cloudStoreCodeController = TextEditingController(text: 'STORE-001');
+  final _cloudStoreCodeController = TextEditingController();
 
   // Tab 3: Link Client Till (LAN Till Mode)
   final _tillFormKey = GlobalKey<FormState>();
@@ -516,58 +516,42 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       );
       Map<String, dynamic>? targetStore;
       if (stores.isNotEmpty) {
-        if (storeCode.isNotEmpty) {
-          final query = storeCode.trim().toUpperCase();
-          for (final s in stores) {
-            final sCode = (s['store_code'] ?? '').toString().toUpperCase();
-            final sName = (s['name'] ?? '').toString().toUpperCase();
-            final sBranch = (s['branch_name'] ?? '').toString().toUpperCase();
-            final sBhf = (s['bhf_id'] ?? '').toString().toUpperCase();
-            if (sCode == query ||
-                sName == query ||
-                sBranch == query ||
-                sBhf == query) {
-              targetStore = s;
-              break;
-            }
+        final query = storeCode.trim().toUpperCase();
+        for (final s in stores) {
+          final sCode = (s['store_code'] ?? '').toString().toUpperCase();
+          final sName = (s['name'] ?? '').toString().toUpperCase();
+          final sBranch = (s['branch_name'] ?? '').toString().toUpperCase();
+          final sBhf = (s['bhf_id'] ?? '').toString().toUpperCase();
+          if (sCode == query ||
+              sName == query ||
+              sBranch == query ||
+              sBhf == query) {
+            targetStore = s;
+            break;
           }
         }
-        targetStore ??= stores.first;
+      }
+      if (targetStore == null) {
+        throw const CloudAuthException(
+          'The supplied branch code was not found for this organization.',
+        );
       }
 
-      final storeId = targetStore != null
-          ? (targetStore['id'] as int? ?? 1)
-          : 1;
-      final storeName = targetStore != null
-          ? (targetStore['name'] as String? ?? 'Beleka Branch')
-          : 'Branch Store';
-      final branchName = targetStore != null
-          ? (targetStore['branch_name'] as String? ?? 'Main Branch')
-          : 'Branch 01';
-      final bhfId = targetStore != null
-          ? (targetStore['bhf_id'] as String? ?? '00')
-          : '00';
-      final rawTpin = targetStore != null
-          ? (targetStore['tpin'] as String?)
-          : null;
+      final storeId = targetStore['id'] as int? ?? 1;
+      final storeName = targetStore['name'] as String? ?? 'Beleka Branch';
+      final branchName = targetStore['branch_name'] as String? ?? 'Main Branch';
+      final bhfId = targetStore['bhf_id'] as String? ?? storeCode;
+      final rawTpin = targetStore['tpin'] as String?;
       final tpin = (rawTpin != null && rawTpin.trim().isNotEmpty)
           ? rawTpin.trim()
           : loginTpin;
-      final finalStoreCode = targetStore != null
-          ? (targetStore['store_code'] as String? ?? storeCode)
-          : storeCode;
-      final businessTaxType = targetStore != null
-          ? (targetStore['business_tax_type'] as String? ?? 'VAT_STANDARD')
-          : 'VAT_STANDARD';
-      final digitaxApiKey = targetStore != null
-          ? (targetStore['digitax_api_key'] as String? ?? '')
-          : '';
-      final digitaxEnv = targetStore != null
-          ? (targetStore['digitax_environment'] as String? ?? 'sandbox')
-          : 'sandbox';
-      final currency = targetStore != null
-          ? (targetStore['currency_symbol'] as String? ?? 'ZK')
-          : 'ZK';
+      final finalStoreCode = targetStore['store_code'] as String? ?? storeCode;
+      final businessTaxType =
+          targetStore['business_tax_type'] as String? ?? 'VAT_STANDARD';
+      final digitaxApiKey = targetStore['digitax_api_key'] as String? ?? '';
+      final digitaxEnv =
+          targetStore['digitax_environment'] as String? ?? 'sandbox';
+      final currency = targetStore['currency_symbol'] as String? ?? 'ZK';
 
       setState(
         () => _statusMessage = 'Authenticating staff user on Cloud DB...',
@@ -1928,8 +1912,10 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                   context: context,
                   label: 'BRANCH CODE',
                   controller: _cloudStoreCodeController,
-                  hint: 'STORE-001',
-                  validator: (v) => v!.isEmpty ? 'Enter branch code' : null,
+                  hint: 'ZRA code: 00, 01, or STORE-001',
+                  validator: (v) => (v == null || v.trim().isEmpty)
+                      ? 'Enter the ZRA branch code'
+                      : null,
                 ),
               ),
               const SizedBox(width: 12),
