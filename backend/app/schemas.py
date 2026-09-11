@@ -26,6 +26,8 @@ class StoreCreate(StoreBase):
     pass
 
 class StoreUpdate(BaseModel):
+    store_code: Optional[str] = None
+    bhf_id: Optional[str] = None
     name: Optional[str] = None
     address: Optional[str] = None
     contact_number: Optional[str] = None

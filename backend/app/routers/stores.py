@@ -88,6 +88,14 @@ def update_store(
         raise HTTPException(status_code=404, detail="Store branch not found")
     
     update_data = store_in.model_dump(exclude_unset=True)
+    requested_store_code = update_data.get("store_code")
+    if requested_store_code and requested_store_code != store.store_code:
+        duplicate = db.query(models.Store).filter(
+            models.Store.store_code == requested_store_code,
+            models.Store.id != store_id,
+        ).first()
+        if duplicate:
+            raise HTTPException(status_code=400, detail="Store code already registered")
     if "tpin" in update_data and current_user.role != "super_admin":
         current_tpin = (store.tpin or "").strip()
         requested_tpin = (update_data["tpin"] or "").strip()

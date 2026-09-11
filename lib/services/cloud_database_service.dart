@@ -213,28 +213,35 @@ class CloudDatabaseService {
       final sanitizedUrl = baseUrl.endsWith('/')
           ? baseUrl.substring(0, baseUrl.length - 1)
           : baseUrl;
-      final response = await _dio.post(
-        '$sanitizedUrl/api/v1/stores',
-        data: {
-          'store_code': branch.code,
-          'bhf_id': branch.bhfId,
-          'name': branch.name,
-          'address': branch.address,
-          'contact_number': branch.phone,
-          'email': branch.email,
-          'branch_name': branch.name,
-          'manager_name': branch.managerName,
-          'manager_id': branch.managerId,
-          'manager_phone': branch.managerPhone,
-          if (tpin != null && tpin.isNotEmpty) 'tpin': tpin,
-          if (digitaxApiKey != null && digitaxApiKey.isNotEmpty)
-            'digitax_api_key': digitaxApiKey,
-          'digitax_environment': digitaxEnvironment ?? 'sandbox',
-          'business_tax_type': businessTaxType ?? 'VAT_STANDARD',
-          'currency_symbol': currencySymbol ?? 'K',
-        },
-        options: _buildAuthOptions(authToken),
-      );
+      final data = {
+        'store_code': branch.code,
+        'bhf_id': branch.bhfId,
+        'name': branch.name,
+        'address': branch.address,
+        'contact_number': branch.phone,
+        'email': branch.email,
+        'branch_name': branch.name,
+        'manager_name': branch.managerName,
+        'manager_id': branch.managerId,
+        'manager_phone': branch.managerPhone,
+        if (tpin != null && tpin.isNotEmpty) 'tpin': tpin,
+        if (digitaxApiKey != null && digitaxApiKey.isNotEmpty)
+          'digitax_api_key': digitaxApiKey,
+        'digitax_environment': digitaxEnvironment ?? 'sandbox',
+        'business_tax_type': businessTaxType ?? 'VAT_STANDARD',
+        'currency_symbol': currencySymbol ?? 'K',
+      };
+      final response = branch.cloudStoreId > 0
+          ? await _dio.put(
+              '$sanitizedUrl/api/v1/stores/${branch.cloudStoreId}',
+              data: data,
+              options: _buildAuthOptions(authToken),
+            )
+          : await _dio.post(
+              '$sanitizedUrl/api/v1/stores',
+              data: data,
+              options: _buildAuthOptions(authToken),
+            );
       if (response.statusCode == 200 || response.statusCode == 201) {
         // Return the backend store id from the response for local mapping
         final data = response.data;

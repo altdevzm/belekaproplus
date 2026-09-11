@@ -88,14 +88,14 @@ class PostgresSyncService {
   }
 
   /// Push/Sync a specific user or branch manager to Cloud PostgreSQL DB.
-  Future<bool> syncUser(User user, {String? plainPin}) async {
+  Future<bool> syncUser(User user, {String? plainPin, int? storeId}) async {
     final config = await isar.storeConfigs.where().findFirst();
     final cloudUrl =
         (config?.cloudApiUrl != null && config!.cloudApiUrl!.trim().isNotEmpty)
         ? config.cloudApiUrl!.trim()
         : 'http://23.139.36.20:8003';
-    final storeId = config?.cloudStoreId ?? 0;
-    if (storeId <= 0) {
+    final targetStoreId = storeId ?? config?.cloudStoreId ?? 0;
+    if (targetStoreId <= 0) {
       debugPrint(
         '[PostgresSyncService] Cannot sync user: cloud branch mapping is missing.',
       );
@@ -105,7 +105,7 @@ class PostgresSyncService {
 
     bool result = await cloudDb.syncUser(
       baseUrl: cloudUrl,
-      storeId: storeId,
+      storeId: targetStoreId,
       user: user,
       plainPin: plainPin,
       authToken: token,
@@ -116,7 +116,7 @@ class PostgresSyncService {
       if (token != null) {
         result = await cloudDb.syncUser(
           baseUrl: cloudUrl,
-          storeId: storeId,
+          storeId: targetStoreId,
           user: user,
           plainPin: plainPin,
           authToken: token,

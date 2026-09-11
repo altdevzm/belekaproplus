@@ -1158,25 +1158,55 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
                             ref.invalidate(storeBranchesProvider);
 
                             // Sync to Cloud PostgreSQL Database
+                            var cloudSyncSucceeded = false;
                             try {
-                              ref.read(postgresSyncServiceProvider).syncBranch(targetBranch);
+                              final syncService = ref.read(postgresSyncServiceProvider);
+                              final branchSynced = await syncService.syncBranch(targetBranch);
+                              if (!branchSynced) {
+                                throw Exception('Cloud branch synchronization failed.');
+                              }
                               if (isCreateNewUser && finalMgrId != null) {
                                 final db = ref.read(databaseServiceProvider);
                                 final newMgr = await db.getUserByNumericId(finalMgrId);
                                 if (newMgr != null) {
-                                  ref.read(postgresSyncServiceProvider).syncUser(newMgr, plainPin: newMgrPinCtrl.text.trim());
+                                  final managerSynced = await syncService.syncUser(
+                                    newMgr,
+                                    plainPin: newMgrPinCtrl.text.trim(),
+                                    storeId: targetBranch.cloudStoreId,
+                                  );
+                                  if (!managerSynced) {
+                                    throw Exception('Cloud manager synchronization failed.');
+                                  }
                                 }
                               } else if (selectedUserId != null) {
                                 final matchedUser = users.firstWhere((u) => u.numericId == selectedUserId);
-                                ref.read(postgresSyncServiceProvider).syncUser(matchedUser);
+                                final managerSynced = await syncService.syncUser(
+                                  matchedUser,
+                                  storeId: targetBranch.cloudStoreId,
+                                );
+                                if (!managerSynced) {
+                                  throw Exception('Cloud manager synchronization failed.');
+                                }
                               }
-                            } catch (_) {}
-
+                              cloudSyncSucceeded = true;
+                            } catch (e) {
+                              if (dialogCtx.mounted) {
+                                ScaffoldMessenger.of(dialogCtx).showSnackBar(
+                                  SnackBar(content: Text('Branch saved locally, but cloud sync failed: $e')),
+                                );
+                              }
+                            }
                             if (dialogCtx.mounted) {
                               Navigator.pop(dialogCtx);
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: Text(isEditing ? 'Branch "$branchName" updated successfully.' : 'Branch "$branchName" created successfully!'),
+                                  content: Text(
+                                    cloudSyncSucceeded
+                                        ? (isEditing
+                                            ? 'Branch "$branchName" updated successfully.'
+                                            : 'Branch "$branchName" created successfully!')
+                                        : 'Branch "$branchName" saved locally. Cloud synchronization is pending.',
+                                  ),
                                   backgroundColor: const Color(0xFF059669),
                                 ),
                               );
