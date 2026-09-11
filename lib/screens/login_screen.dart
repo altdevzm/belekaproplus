@@ -148,7 +148,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       // 1. Try local login only when the entered TPIN matches this device's tenant.
       final localTpin = config?.tpin?.trim();
       User? user;
-      if (localTpin == null || localTpin.isEmpty || localTpin == enteredTpin) {
+      final shouldUseCloudAuth = config?.isCloudSyncEnabled == true &&
+          cloudUrl.isNotEmpty;
+      if (!shouldUseCloudAuth &&
+          (localTpin == null || localTpin.isEmpty || localTpin == enteredTpin)) {
         user = await db.login(_idController.text.trim(), _pin.trim());
       }
 

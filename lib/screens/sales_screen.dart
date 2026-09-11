@@ -3728,6 +3728,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         zraSdcId: config?.sdcId,
       );
 
+      transaction.cloudStoreId = config?.cloudStoreId ?? 0;
       await db.saveTransaction(transaction, saleItems);
       
       // Real-time push to Cloud VPS Server so HQ receives sales reports immediately
