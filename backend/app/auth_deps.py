@@ -45,7 +45,14 @@ def verify_and_update_password(plain: str, stored_hash: str) -> tuple[bool, bool
     if stored_clean.startswith("$2b$") or stored_clean.startswith("$2a$") or stored_clean.startswith("$2y$"):
         try:
             valid = pwd_context.verify(plain_clean, stored_clean)
-            return valid, False
+            if valid:
+                return True, False
+            # Older clients sometimes sent a SHA-256 PIN hash as the password
+            # value; support one migration login, then rehash the real PIN.
+            legacy_sha256 = hashlib.sha256(plain_clean.encode("utf-8")).hexdigest()
+            if pwd_context.verify(legacy_sha256, stored_clean):
+                return True, True
+            return False, False
         except Exception:
             return False, False
 
