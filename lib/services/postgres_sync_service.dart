@@ -142,8 +142,10 @@ class PostgresSyncService {
         final stores = await cloudDb.getStores(cloudUrl, authToken: tok);
         final existing = stores.cast<Map<String, dynamic>?>().firstWhere(
           (store) =>
-              store?['store_code']?.toString().trim().toUpperCase() ==
-              branch.code.trim().toUpperCase(),
+            store?['store_code']?.toString().trim().toUpperCase() ==
+              branch.code.trim().toUpperCase() ||
+            store?['bhf_id']?.toString().trim().toUpperCase() ==
+              branch.bhfId.trim().toUpperCase(),
           orElse: () => null,
         );
         if (existing?['id'] != null) {

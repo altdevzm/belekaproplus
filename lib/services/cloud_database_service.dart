@@ -253,9 +253,17 @@ class CloudDatabaseService {
         return 0; // success but no id in response
       }
       return null;
+    } on DioException catch (e) {
+      final detail = e.response?.data is Map
+          ? (e.response?.data['detail'] ?? e.message)
+          : e.message;
+      debugPrint('Cloud PostgreSQL Branch Push Failed: $detail');
+      throw CloudAuthException(
+        detail?.toString() ?? 'Cloud branch synchronization failed.',
+      );
     } catch (e) {
       debugPrint('Cloud PostgreSQL Branch Push Failed: $e');
-      return null;
+      rethrow;
     }
   }
 
