@@ -1067,6 +1067,18 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
                         ),
                       ),
                     ],
+                    if (!isCreateNewUser && selectedUserId != null) ...[
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: newMgrPinCtrl,
+                        obscureText: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Branch Login PIN *',
+                          hintText: 'PIN for this branch account',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ],
 
                     const SizedBox(height: 24),
                     // Action Buttons
@@ -1121,6 +1133,13 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
                               }
                             } else if (selectedUserId != null) {
                               final matchedUser = users.firstWhere((u) => u.numericId == selectedUserId);
+                              final branchPin = newMgrPinCtrl.text.trim();
+                              if (branchPin.isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Enter the branch login PIN.')),
+                                );
+                                return;
+                              }
                               finalMgrName = matchedUser.name;
                               finalMgrId = matchedUser.numericId;
                               finalMgrPhone = matchedUser.phone;
@@ -1129,6 +1148,7 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
                               await isar.writeTxn(() async {
                                 matchedUser.branchName = branchName;
                                 matchedUser.branchCode = bhfId;
+                                matchedUser.passwordHash = hashPin(branchPin);
                                 if (matchedUser.role != 'owner' && matchedUser.role != 'admin') {
                                   matchedUser.role = 'branch_manager';
                                 }
@@ -1182,6 +1202,7 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
                                 final matchedUser = users.firstWhere((u) => u.numericId == selectedUserId);
                                 final managerSynced = await syncService.syncUser(
                                   matchedUser,
+                                  plainPin: newMgrPinCtrl.text.trim(),
                                   storeId: targetBranch.cloudStoreId,
                                 );
                                 if (!managerSynced) {
