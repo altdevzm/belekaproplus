@@ -9,7 +9,7 @@ class Store(Base):
     __tablename__ = "stores"
 
     id = Column(Integer, primary_key=True, index=True)
-    store_code = Column(String(50), unique=True, nullable=False, index=True)
+    store_code = Column(String(50), nullable=False, index=True)
     bhf_id = Column(String(10), default="00")
     name = Column(String(255), nullable=False)
     address = Column(Text, nullable=True)
@@ -30,6 +30,8 @@ class Store(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (UniqueConstraint("tpin", "store_code", name="uk_store_tpin_code"),)
 
     users = relationship("User", back_populates="store", cascade="all, delete-orphan")
     products = relationship("Product", back_populates="store", cascade="all, delete-orphan")

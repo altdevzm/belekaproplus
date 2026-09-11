@@ -40,10 +40,6 @@ def create_store(
     db: Session = Depends(get_db)
 ):
     """Register a new store branch under the owner's organization TPIN. Requires Owner role."""
-    existing = db.query(models.Store).filter(models.Store.store_code == store_in.store_code).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="Store code already registered")
-
     store_data = store_in.model_dump()
     
     # Auto-inherit corporate TPIN & DigiTax credentials from owner's store
@@ -66,6 +62,13 @@ def create_store(
             store_data["digitax_environment"] = owner_store.digitax_environment
         if not store_data.get("business_tax_type"):
             store_data["business_tax_type"] = owner_store.business_tax_type
+
+    existing = db.query(models.Store).filter(
+        models.Store.tpin == store_data.get("tpin"),
+        models.Store.store_code == store_data.get("store_code"),
+    ).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Store code already registered for this organization")
 
     store = models.Store(**store_data)
     db.add(store)
@@ -91,6 +94,7 @@ def update_store(
     requested_store_code = update_data.get("store_code")
     if requested_store_code and requested_store_code != store.store_code:
         duplicate = db.query(models.Store).filter(
+            models.Store.tpin == store.tpin,
             models.Store.store_code == requested_store_code,
             models.Store.id != store_id,
         ).first()

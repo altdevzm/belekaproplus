@@ -6,7 +6,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- 1. STORES / BRANCHES TABLE
 CREATE TABLE IF NOT EXISTS stores (
     id SERIAL PRIMARY KEY,
-    store_code VARCHAR(50) UNIQUE NOT NULL,
+    store_code VARCHAR(50) NOT NULL,
     bhf_id VARCHAR(10) DEFAULT '00', -- ZRA DigiTax Branch Code ('00' = HQ, '01' = Branch 1, etc.)
     name VARCHAR(255) NOT NULL,
     address TEXT,
@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS stores (
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    ,CONSTRAINT uk_store_tpin_code UNIQUE (tpin, store_code)
 );
 
 -- 2. USERS TABLE (PER STORE / MULTI-STORE ADMIN)
