@@ -120,12 +120,16 @@ class CloudDatabaseService {
       if (response.statusCode == 200 || response.statusCode == 201) {
         return Map<String, dynamic>.from(response.data as Map);
       }
-      throw const CloudAuthException('Cloud registration returned an invalid response.');
+      throw const CloudAuthException(
+        'Cloud registration returned an invalid response.',
+      );
     } on DioException catch (e) {
       final detail = e.response?.data is Map
           ? (e.response?.data['detail'] ?? e.message)
           : e.message;
-      throw CloudAuthException(detail?.toString() ?? 'Cloud registration failed.');
+      throw CloudAuthException(
+        detail?.toString() ?? 'Cloud registration failed.',
+      );
     } catch (e) {
       if (e is CloudAuthException) rethrow;
       throw CloudAuthException('Cloud registration failed: $e');
@@ -185,7 +189,7 @@ class CloudDatabaseService {
           'role': user.role,
           'branch_name': user.branchName,
           'phone': user.phone,
-            'password_hash': plainPin?.trim().isNotEmpty == true
+          'password_hash': plainPin?.trim().isNotEmpty == true
               ? plainPin!.trim()
               : user.passwordHash,
           'is_active': user.isActive,
@@ -193,9 +197,46 @@ class CloudDatabaseService {
         options: _buildAuthOptions(authToken),
       );
       return response.statusCode == 200 || response.statusCode == 201;
+    } on DioException catch (e) {
+      final detail = e.response?.data is Map
+          ? (e.response?.data['detail'] ?? e.message)
+          : e.message;
+      debugPrint('Cloud PostgreSQL User Push Failed: $detail');
+      throw CloudAuthException(
+        detail?.toString() ?? 'Cloud user synchronization failed.',
+      );
     } catch (e) {
       debugPrint('Cloud PostgreSQL User Push Failed: $e');
-      return false;
+      throw CloudAuthException('Cloud user synchronization failed: $e');
+    }
+  }
+
+  Future<bool> deleteUser({
+    required String baseUrl,
+    required int storeId,
+    required String numericId,
+    String? authToken,
+  }) async {
+    try {
+      final sanitizedUrl = baseUrl.endsWith('/')
+          ? baseUrl.substring(0, baseUrl.length - 1)
+          : baseUrl;
+      final response = await _dio.delete(
+        '$sanitizedUrl/api/v1/users/by-numeric/${Uri.encodeComponent(numericId)}',
+        queryParameters: {'store_id': storeId},
+        options: _buildAuthOptions(authToken),
+      );
+      return response.statusCode == 204 || response.statusCode == 200;
+    } on DioException catch (e) {
+      // Deletion is idempotent: a prior successful delete should not block
+      // cleanup of the corresponding local account.
+      if (e.response?.statusCode == 404) return true;
+      final detail = e.response?.data is Map
+          ? (e.response?.data['detail'] ?? e.message)
+          : e.message;
+      throw CloudAuthException(
+        detail?.toString() ?? 'Cloud user deletion failed.',
+      );
     }
   }
 
@@ -216,7 +257,9 @@ class CloudDatabaseService {
           ? baseUrl.substring(0, baseUrl.length - 1)
           : baseUrl;
       final data = {
-        'store_code': branch.code,
+        // BHF ID is the canonical branch identity. store_code remains only
+        // for compatibility with older backend records.
+        'store_code': branch.bhfId,
         'bhf_id': branch.bhfId,
         'name': branch.name,
         'address': branch.address,
@@ -264,6 +307,30 @@ class CloudDatabaseService {
     } catch (e) {
       debugPrint('Cloud PostgreSQL Branch Push Failed: $e');
       rethrow;
+    }
+  }
+
+  Future<bool> deleteBranch({
+    required String baseUrl,
+    required int storeId,
+    String? authToken,
+  }) async {
+    try {
+      final sanitizedUrl = baseUrl.endsWith('/')
+          ? baseUrl.substring(0, baseUrl.length - 1)
+          : baseUrl;
+      final response = await _dio.delete(
+        '$sanitizedUrl/api/v1/stores/$storeId',
+        options: _buildAuthOptions(authToken),
+      );
+      return response.statusCode == 204 || response.statusCode == 200;
+    } on DioException catch (e) {
+      final detail = e.response?.data is Map
+          ? (e.response?.data['detail'] ?? e.message)
+          : e.message;
+      throw CloudAuthException(
+        detail?.toString() ?? 'Cloud branch deletion failed.',
+      );
     }
   }
 
@@ -406,6 +473,67 @@ class CloudDatabaseService {
       debugPrint('Cloud PostgreSQL sales batch sync failed: $e');
       rethrow;
     }
+  }
+
+  Future<bool> syncInventorySnapshot({
+    required String baseUrl,
+    required int storeId,
+    required List<Product> products,
+    required List<StockMovement> movements,
+    String? authToken,
+  }) async {
+    final sanitizedUrl = baseUrl.endsWith('/')
+        ? baseUrl.substring(0, baseUrl.length - 1)
+        : baseUrl;
+    final response = await _dio.post(
+      '$sanitizedUrl/api/v1/sync/inventory',
+      data: {
+        'store_id': storeId,
+        'products': products
+            .map(
+              (product) => {
+                'sku': product.sku,
+                'name': product.name,
+                'price': product.price,
+                'unit_cost': product.unitCost,
+                'stock_level': product.stockLevel,
+                'category_id': product.categoryId,
+                'is_tax_inclusive': product.isTaxInclusive,
+                'tax_rate': product.taxRate,
+                'zra_tax_code': product.zraTaxCode,
+                'item_cls_cd': product.itemClsCd,
+                'is_archived': product.isArchived,
+                'discount_price': product.discountPrice,
+              },
+            )
+            .toList(),
+        'stock_movements': movements
+            .map(
+              (movement) => {
+                'product_id': movement.productId,
+                'product_name': movement.productName,
+                'sku': movement.sku,
+                'branch_code': movement.branchCode,
+                'branch_name': movement.branchName,
+                'movement_type': movement.movementType,
+                'action_type': movement.actionType,
+                'previous_stock': movement.previousStock,
+                'quantity_changed': movement.quantityChanged,
+                'new_stock': movement.newStock,
+                'unit_cost': movement.unitCost,
+                'total_cost_impact': movement.totalCostImpact,
+                'reason_category': movement.reasonCategory,
+                'reason_notes': movement.reasonNotes,
+                'user_id': movement.userId,
+                'user_name': movement.userName,
+                'timestamp': movement.timestamp.toIso8601String(),
+              },
+            )
+            .toList(),
+      },
+      options: _buildAuthOptions(authToken),
+    );
+    return response.statusCode == 200;
   }
 
   /// Fetch list of products from Cloud PostgreSQL DB for a specific store branch.

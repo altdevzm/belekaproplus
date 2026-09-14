@@ -186,7 +186,7 @@ def sync_batch_sales(
                     "digitax_environment": store.digitax_environment,
                     "tpin": store.tpin or "1000000000",
                     "sdc_id": store.sdc_id or "SDC-ZM-001",
-                    "bhf_id": store.bhf_id or "00",
+                    "bhf_id": store.bhf_id or "000",
                 }
                 tx_dict = {
                     "transaction_uuid": tx.transaction_uuid,
@@ -227,6 +227,65 @@ def sync_batch_sales(
     )
     return {"status": "success", "synced_uuids": synced_uuids}
 
+@router.post("/inventory", status_code=status.HTTP_200_OK)
+def sync_inventory(
+    payload: schemas.InventorySyncRequest,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Synchronize a branch inventory snapshot and append new stock audit movements."""
+    verify_store_access(payload.store_id, current_user, db)
+
+    products_by_sku = {}
+    for product_in in payload.products:
+        product = db.query(models.Product).filter(
+            models.Product.store_id == payload.store_id,
+            models.Product.sku == product_in.sku,
+        ).first()
+        product_data = product_in.model_dump()
+        product_data.pop("category_id", None)
+        category_id = product_in.category_id if (product_in.category_id or 0) > 0 else None
+        if product is None:
+            product = models.Product(
+                store_id=payload.store_id,
+                category_id=category_id,
+                **product_data,
+            )
+            db.add(product)
+            db.flush()
+        else:
+            for key, value in product_data.items():
+                setattr(product, key, value)
+            if category_id is not None:
+                product.category_id = category_id
+        products_by_sku[product_in.sku] = product
+
+    movement_count = 0
+    for movement_in in payload.stock_movements:
+        product = products_by_sku.get(movement_in.sku)
+        movement_data = movement_in.model_dump()
+        movement_data.pop("product_id", None)
+        movement_data["store_id"] = payload.store_id
+        movement_data["product_id"] = product.id if product else None
+        duplicate = db.query(models.StockMovement).filter(
+            models.StockMovement.store_id == payload.store_id,
+            models.StockMovement.sku == movement_in.sku,
+            models.StockMovement.timestamp == movement_in.timestamp,
+            models.StockMovement.action_type == movement_in.action_type,
+            models.StockMovement.quantity_changed == movement_in.quantity_changed,
+            models.StockMovement.reason_category == movement_in.reason_category,
+        ).first()
+        if duplicate is None:
+            db.add(models.StockMovement(**movement_data))
+            movement_count += 1
+
+    db.commit()
+    return {
+        "status": "success",
+        "products_synced": len(payload.products),
+        "movements_added": movement_count,
+    }
+
 @router.get("/export-backup")
 def export_vps_backup(
     store_id: int,
@@ -242,7 +301,7 @@ def export_vps_backup(
     user_store = current_user.store or db.query(models.Store).filter(models.Store.id == current_user.store_id).first()
     user_tpin = (user_store.tpin or "").strip() if user_store else ""
 
-    if current_user.role in ["owner", "super_admin"] and (store_id == 0 or user_tpin):
+    if current_user.role in ["owner", "super_admin"] and store_id == 0:
         org_query = db.query(models.Store)
         if current_user.role != "super_admin" and user_tpin:
             org_query = org_query.filter(models.Store.tpin == user_tpin)
@@ -296,7 +355,7 @@ def export_vps_backup(
         "backup_version": "1.0",
         "exported_at": str(db.query(func.now()).scalar() or ""),
         "store": serialize_obj(store),
-        "stores": [serialize_obj(s) for s in org_stores] if current_user.role in ["owner", "super_admin"] and (store_id == 0 or user_tpin) else [serialize_obj(store)],
+        "stores": [serialize_obj(s) for s in org_stores] if current_user.role in ["owner", "super_admin"] and store_id == 0 else [serialize_obj(store)],
         "users": [serialize_obj(u) for u in users],
         "categories": [serialize_obj(c) for c in categories],
         "products": [serialize_obj(p) for p in products],

@@ -110,3 +110,25 @@ def test_hq_export_is_tenant_scoped(db):
     assert len(backup["sales"]) == 1
     assert backup["sales"][0]["store_id"] == branch.id
     assert other.id not in {store["id"] for store in backup["stores"]}
+
+
+def test_branch_owner_export_contains_only_requested_branch(db):
+    session, _, branch, _ = db
+    branch_owner = models.User(
+        id=31,
+        store_id=branch.id,
+        numeric_id="2002",
+        name="Branch owner",
+        role="owner",
+        password_hash="unused",
+        is_active=True,
+    )
+    session.add(branch_owner)
+    session.commit()
+    sync_batch_sales(sale_payload("branch-export-tx"), branch_user(), session)
+
+    backup = export_vps_backup(branch.id, branch_owner, session)
+
+    assert [store["id"] for store in backup["stores"]] == [branch.id]
+    assert len(backup["sales"]) == 1
+    assert backup["sales"][0]["store_id"] == branch.id

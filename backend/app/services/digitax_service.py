@@ -237,6 +237,21 @@ class DigiTaxZraService:
         api_key = store_config.get("digitax_api_key") or os.getenv("DIGITAX_API_KEY")
         env = store_config.get("digitax_environment", "sandbox")
         tpin = store_config.get("tpin", "1000000000")
+        normalized_branch = str(branch_code or "000").strip().zfill(3)
+
+        if normalized_branch != "000":
+            return {
+                "status": "SUCCESS",
+                "live_synced": False,
+                "local_only": True,
+                "branch_code": normalized_branch,
+                "movement_type": movement_type,
+                "item_code": item_code,
+                "quantity": quantity,
+                "message": "Branch stock is maintained locally because DigiTax exposes one business-wide item balance.",
+                "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+            }
+
         base_url = DigiTaxZraService.get_base_url(env)
 
         sar_no = f"SAR-{branch_code}-{int(time.time())}"

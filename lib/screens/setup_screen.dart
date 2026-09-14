@@ -2326,10 +2326,12 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
               }),
           ],
           validator: (v) {
-            if (isPin && v != null && v.length > 6)
+            if (isPin && v != null && v.length > 6) {
               return 'Maximum 6 digits allowed';
-            if (isStaffId && v != null && v.length > 4)
+            }
+            if (isStaffId && v != null && v.length > 4) {
               return 'Maximum 4 digits allowed';
+            }
             return validator?.call(v);
           },
           style: GoogleFonts.inter(

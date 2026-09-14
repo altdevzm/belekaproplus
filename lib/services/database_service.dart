@@ -735,7 +735,9 @@ class DatabaseService {
     required DateTime start,
     required DateTime end,
   }) async {
-    final sales = await isar.saleTransactions
+    final sales = branchCloudStoreId != null && branchCloudStoreId > 0
+      ? await isar.saleTransactions.where().findAll()
+      : await isar.saleTransactions
         .filter()
         .timestampBetween(start, end)
         .findAll();
@@ -756,6 +758,9 @@ class DatabaseService {
     final results = <SaleTransaction>[];
 
     for (final t in sales) {
+      if (t.timestamp.isBefore(start) || !t.timestamp.isBefore(end)) {
+        continue;
+      }
       bool matched = false;
 
       // PRIMARY: Match by cloud store_id — authoritative for cloud-synced transactions
@@ -869,8 +874,15 @@ class DatabaseService {
     );
   }
 
-  Future<double> getTodaySalesForBranch(String branchCode, {String? branchBhfId, String? branchName}) async {
-    final transactions = await getTodayTransactionsForBranch(branchCode, branchBhfId: branchBhfId, branchName: branchName);
+  Future<double> getTodaySalesForBranch(String branchCode, {String? branchBhfId, String? branchName, int? branchCloudStoreId}) async {
+    final transactions = await getTransactionsForBranchInRange(
+      branchCode,
+      branchBhfId: branchBhfId,
+      branchName: branchName,
+      branchCloudStoreId: branchCloudStoreId,
+      start: DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day),
+      end: DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day).add(const Duration(days: 1)),
+    );
     return transactions.fold<double>(0.0, (double sum, SaleTransaction t) {
       if (t.totalAmount.isNaN) return sum;
       if (t.isCreditNote) return sum - t.totalAmount;

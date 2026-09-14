@@ -89,6 +89,13 @@ class Product {
   DateTime? discountStartDate;
   DateTime? discountEndDate;
 
+  bool get hasUsableDigitaxItemId {
+    final value = itemClsCd.trim();
+    if (value.isEmpty) return false;
+    if (value == '10101501' || value == '56101530') return false;
+    return value.startsWith('item_') || RegExp(r'^[A-Za-z0-9_-]{8,}$').hasMatch(value);
+  }
+
   // Electronic Scale & Unit of Measure
   bool isWeighted = false; // true = Sold by weight / requires scale
   String unitOfMeasure = 'kg'; // 'kg', 'g', 'pcs', 'unit', 'ltr', 'lb'
@@ -224,6 +231,9 @@ class SaleTransaction {
   }
 
   final items = IsarLinks<SaleItem>();
+
+  @ignore
+  final reportItems = <SaleItem>[];
 }
 
 @collection

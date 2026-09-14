@@ -24,21 +24,60 @@ class _AddUserModalState extends ConsumerState<AddUserModal> {
   late TextEditingController _confirmPasswordController;
   late TextEditingController _nameController;
   late String _role;
+  String? _selectedBranchCode;
   bool _obscurePassword = true;
+  final Map<String, String> _cloudBranchOptions = {};
 
   @override
   void initState() {
     super.initState();
-    _numericIdController = TextEditingController(text: widget.userToEdit?.numericId ?? '');
+    _numericIdController = TextEditingController(
+      text: widget.userToEdit?.numericId ?? '',
+    );
     _passwordController = TextEditingController();
     _confirmPasswordController = TextEditingController();
-    _nameController = TextEditingController(text: widget.userToEdit?.name ?? '');
+    _nameController = TextEditingController(
+      text: widget.userToEdit?.name ?? '',
+    );
     final rawRole = (widget.userToEdit?.role ?? 'cashier').toLowerCase().trim();
-    _role = (rawRole == 'admin' || rawRole == 'manager') ? 'manager' : (rawRole == 'owner' ? 'owner' : 'cashier');
+    _role = (rawRole == 'admin' || rawRole == 'manager')
+        ? 'manager'
+        : (rawRole == 'owner' ? 'owner' : 'cashier');
+    _selectedBranchCode = widget.userToEdit?.branchCode;
 
     _passwordController.addListener(() {
       setState(() {});
     });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadCloudBranches());
+  }
+
+  Future<void> _loadCloudBranches() async {
+    final config = ref.read(storeConfigProvider).value;
+    final baseUrl = config?.cloudApiUrl?.trim();
+    final token = config?.cloudAuthToken?.trim();
+    if (baseUrl == null || baseUrl.isEmpty || token == null || token.isEmpty) {
+      return;
+    }
+    try {
+      final stores = await ref
+          .read(cloudDatabaseServiceProvider)
+          .getStores(baseUrl, authToken: token);
+      if (!mounted) return;
+      setState(() {
+        for (final store in stores) {
+          final rawBhfId = store['bhf_id']?.toString().trim();
+          if (rawBhfId == null || rawBhfId.isEmpty) continue;
+          final bhfId = rawBhfId.padLeft(2, '0');
+          final name =
+              (store['branch_name'] ?? store['name'] ?? 'Branch $bhfId')
+                  .toString()
+                  .trim();
+          _cloudBranchOptions[bhfId] = name;
+        }
+      });
+    } catch (_) {
+      // Keep the local list available when the VPS is temporarily offline.
+    }
   }
 
   @override
@@ -55,12 +94,44 @@ class _AddUserModalState extends ConsumerState<AddUserModal> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final primaryColor = theme.colorScheme.primary;
+    final storeConfig = ref.watch(storeConfigProvider).value;
+    final branchOptions = <String, String>{};
+    for (final branch
+        in ref.watch(storeBranchesProvider).value ?? <StoreBranch>[]) {
+      final bhfId = branch.bhfId.trim().padLeft(2, '0');
+      // A branch terminal's local profile is authoritative for its own BHF.
+      // Never relabel a non-HQ branch as headquarters when stale local rows exist.
+      if (bhfId == '00' &&
+          storeConfig?.bhfId.trim().isNotEmpty == true &&
+          storeConfig!.bhfId.trim() != '00') {
+        continue;
+      }
+      branchOptions[bhfId] = branch.name;
+    }
+    branchOptions.addAll(_cloudBranchOptions);
+    if (!branchOptions.containsKey('00')) {
+      if (storeConfig?.bhfId.trim() == '00' ||
+          storeConfig?.bhfId.trim().isEmpty != false) {
+        branchOptions['00'] = storeConfig?.branchName ?? 'Headquarters (HQ)';
+      }
+    }
+    final configuredBhfId = storeConfig?.bhfId.trim().padLeft(2, '0');
+    if (configuredBhfId != null &&
+        configuredBhfId != '00' &&
+        configuredBhfId.isNotEmpty) {
+      branchOptions[configuredBhfId] ??=
+          storeConfig?.branchName ?? 'Branch $configuredBhfId';
+    }
+    _selectedBranchCode ??=
+        widget.userToEdit?.branchCode ?? storeConfig?.bhfId ?? '00';
 
     return Dialog(
       backgroundColor: isDark ? const Color(0xFF151F32) : Colors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+        side: BorderSide(
+          color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0),
+        ),
       ),
       child: Container(
         width: 500,
@@ -75,7 +146,9 @@ class _AddUserModalState extends ConsumerState<AddUserModal> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    widget.userToEdit == null ? 'ADD NEW STAFF ACCOUNT' : 'EDIT STAFF ACCOUNT',
+                    widget.userToEdit == null
+                        ? 'ADD NEW STAFF ACCOUNT'
+                        : 'EDIT STAFF ACCOUNT',
                     style: GoogleFonts.inter(
                       fontSize: 15,
                       fontWeight: FontWeight.w800,
@@ -85,12 +158,21 @@ class _AddUserModalState extends ConsumerState<AddUserModal> {
                   ),
                   IconButton(
                     onPressed: () => Navigator.pop(context),
-                    icon: Icon(Icons.close, color: theme.colorScheme.onSurfaceVariant, size: 20),
+                    icon: Icon(
+                      Icons.close,
+                      color: theme.colorScheme.onSurfaceVariant,
+                      size: 20,
+                    ),
                   ),
                 ],
               ),
               const SizedBox(height: 16),
-              Divider(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0), height: 1),
+              Divider(
+                color: isDark
+                    ? const Color(0xFF293548)
+                    : const Color(0xFFE2E8F0),
+                height: 1,
+              ),
               const SizedBox(height: 16),
               _buildTextField(
                 context: context,
@@ -115,52 +197,63 @@ class _AddUserModalState extends ConsumerState<AddUserModal> {
                 },
               ),
               const SizedBox(height: 16),
-               _buildTextField(
-                 context: context,
-                 controller: _passwordController,
-                 label: widget.userToEdit == null ? 'Password / PIN' : 'New Password / PIN',
-                 hint: '4-6 digits',
-                 icon: Icons.lock_outline_rounded,
-                 obscure: _obscurePassword,
-                 isPin: true,
-                 suffixIcon: IconButton(
-                   icon: Icon(
-                     _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                     color: theme.colorScheme.onSurfaceVariant,
-                     size: 18,
-                   ),
-                   onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-                 ),
-                 validator: (v) {
-                   if (widget.userToEdit == null && (v == null || v.isEmpty)) {
-                     return 'Required';
-                   }
-                   if (v != null && v.isNotEmpty && (v.length < 4 || v.length > 6)) {
-                     return 'Must be 4-6 digits';
-                   }
-                   return null;
-                 },
-               ),
-               if (widget.userToEdit != null || _passwordController.text.isNotEmpty) ...[
-                 const SizedBox(height: 16),
-                 _buildTextField(
-                   context: context,
-                   controller: _confirmPasswordController,
-                   label: 'Confirm PIN',
-                   hint: 'Repeat new PIN',
-                   icon: Icons.lock_reset_rounded,
-                   obscure: _obscurePassword,
-                   isPin: true,
-                   validator: (v) {
-                     if (_passwordController.text.isNotEmpty && v != _passwordController.text) {
-                       return 'PINs do not match';
-                     }
-                     return null;
-                   },
-                 ),
-               ],
+              _buildTextField(
+                context: context,
+                controller: _passwordController,
+                label: widget.userToEdit == null
+                    ? 'Password / PIN'
+                    : 'New Password / PIN',
+                hint: '4-6 digits',
+                icon: Icons.lock_outline_rounded,
+                obscure: _obscurePassword,
+                isPin: true,
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _obscurePassword
+                        ? Icons.visibility_off_outlined
+                        : Icons.visibility_outlined,
+                    color: theme.colorScheme.onSurfaceVariant,
+                    size: 18,
+                  ),
+                  onPressed: () =>
+                      setState(() => _obscurePassword = !_obscurePassword),
+                ),
+                validator: (v) {
+                  if (widget.userToEdit == null && (v == null || v.isEmpty)) {
+                    return 'Required';
+                  }
+                  if (v != null &&
+                      v.isNotEmpty &&
+                      (v.length < 4 || v.length > 6)) {
+                    return 'Must be 4-6 digits';
+                  }
+                  return null;
+                },
+              ),
+              if (widget.userToEdit != null ||
+                  _passwordController.text.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                _buildTextField(
+                  context: context,
+                  controller: _confirmPasswordController,
+                  label: 'Confirm PIN',
+                  hint: 'Repeat new PIN',
+                  icon: Icons.lock_reset_rounded,
+                  obscure: _obscurePassword,
+                  isPin: true,
+                  validator: (v) {
+                    if (_passwordController.text.isNotEmpty &&
+                        v != _passwordController.text) {
+                      return 'PINs do not match';
+                    }
+                    return null;
+                  },
+                ),
+              ],
               const SizedBox(height: 16),
               _buildRoleDropdown(context),
+              const SizedBox(height: 16),
+              _buildBranchDropdown(context, branchOptions),
               const SizedBox(height: 24),
               SizedBox(
                 height: 44,
@@ -169,11 +262,15 @@ class _AddUserModalState extends ConsumerState<AddUserModal> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: primaryColor,
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                     elevation: 0,
                   ),
                   child: Text(
-                    widget.userToEdit == null ? 'CREATE ACCOUNT' : 'SAVE CHANGES',
+                    widget.userToEdit == null
+                        ? 'CREATE ACCOUNT'
+                        : 'SAVE CHANGES',
                     style: GoogleFonts.inter(
                       fontWeight: FontWeight.w800,
                       letterSpacing: 0.5,
@@ -205,7 +302,9 @@ class _AddUserModalState extends ConsumerState<AddUserModal> {
     final isDark = theme.brightness == Brightness.dark;
     final primaryColor = theme.colorScheme.primary;
     final int? maxDigits = isNumeric ? 4 : (isPin ? 6 : null);
-    final String errorLabel = isNumeric ? "Staff ID cannot exceed 4 digits" : "PIN cannot exceed 6 digits";
+    final String errorLabel = isNumeric
+        ? "Staff ID cannot exceed 4 digits"
+        : "PIN cannot exceed 6 digits";
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -240,7 +339,9 @@ class _AddUserModalState extends ConsumerState<AddUserModal> {
           obscureText: obscure,
           validator: validator,
           maxLength: maxDigits,
-          keyboardType: (isPin || isNumeric) ? TextInputType.number : TextInputType.text,
+          keyboardType: (isPin || isNumeric)
+              ? TextInputType.number
+              : TextInputType.text,
           inputFormatters: [
             if (isPin || isNumeric) FilteringTextInputFormatter.digitsOnly,
             if (maxDigits != null)
@@ -255,20 +356,45 @@ class _AddUserModalState extends ConsumerState<AddUserModal> {
                 );
               }),
           ],
-          buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
-          style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontSize: 13),
+          buildCounter:
+              (
+                context, {
+                required currentLength,
+                required isFocused,
+                maxLength,
+              }) => null,
+          style: GoogleFonts.inter(
+            color: theme.colorScheme.onSurface,
+            fontSize: 13,
+          ),
           decoration: InputDecoration(
             counterText: '',
             hintText: hint,
-            hintStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5), fontSize: 13),
-            prefixIcon: Icon(icon, color: theme.colorScheme.onSurfaceVariant, size: 18),
+            hintStyle: TextStyle(
+              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+              fontSize: 13,
+            ),
+            prefixIcon: Icon(
+              icon,
+              color: theme.colorScheme.onSurfaceVariant,
+              size: 18,
+            ),
             suffixIcon: suffixIcon,
             filled: true,
-            fillColor: isDark ? const Color(0xFF1C283D) : const Color(0xFFF8FAFC),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            fillColor: isDark
+                ? const Color(0xFF1C283D)
+                : const Color(0xFFF8FAFC),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+              borderSide: BorderSide(
+                color: isDark
+                    ? const Color(0xFF293548)
+                    : const Color(0xFFE2E8F0),
+              ),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
@@ -305,22 +431,44 @@ class _AddUserModalState extends ConsumerState<AddUserModal> {
           decoration: BoxDecoration(
             color: isDark ? const Color(0xFF1C283D) : const Color(0xFFF8FAFC),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+            border: Border.all(
+              color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0),
+            ),
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
-              value: ['owner', 'manager', 'cashier'].contains(_role) ? _role : 'cashier',
+              value: ['owner', 'manager', 'cashier'].contains(_role)
+                  ? _role
+                  : 'cashier',
               dropdownColor: isDark ? const Color(0xFF151F32) : Colors.white,
-              icon: Icon(Icons.keyboard_arrow_down_rounded, color: theme.colorScheme.onSurfaceVariant),
+              icon: Icon(
+                Icons.keyboard_arrow_down_rounded,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
               isExpanded: true,
-              style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontSize: 13, fontWeight: FontWeight.w600),
+              style: GoogleFonts.inter(
+                color: theme.colorScheme.onSurface,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
               borderRadius: BorderRadius.circular(8),
-              items: (ref.watch(isOwnerProvider) ? ['owner', 'manager', 'cashier'] : ['manager', 'cashier']).map((String value) {
-                return DropdownMenuItem<String>(
-                  value: value,
-                  child: Text(value == 'owner' ? 'OWNER / CORPORATE ADMIN' : (value == 'manager' ? 'BRANCH MANAGER' : 'CASHIER / WORKER')),
-                );
-              }).toList(),
+              items:
+                  (ref.watch(isOwnerProvider)
+                          ? ['owner', 'manager', 'cashier']
+                          : ['manager', 'cashier'])
+                      .map((String value) {
+                        return DropdownMenuItem<String>(
+                          value: value,
+                          child: Text(
+                            value == 'owner'
+                                ? 'OWNER / CORPORATE ADMIN'
+                                : (value == 'manager'
+                                      ? 'BRANCH MANAGER'
+                                      : 'CASHIER / WORKER'),
+                          ),
+                        );
+                      })
+                      .toList(),
               onChanged: (v) {
                 if (v != null) setState(() => _role = v);
               },
@@ -331,18 +479,91 @@ class _AddUserModalState extends ConsumerState<AddUserModal> {
     );
   }
 
+  Widget _buildBranchDropdown(
+    BuildContext context,
+    Map<String, String> branchOptions,
+  ) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'BRANCH ID / ZRA BHF ID',
+          style: GoogleFonts.inter(
+            fontSize: 10.5,
+            fontWeight: FontWeight.w800,
+            color: primaryColor,
+            letterSpacing: 0.5,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          height: 48,
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1C283D) : const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0),
+            ),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: branchOptions.containsKey(_selectedBranchCode)
+                  ? _selectedBranchCode
+                  : null,
+              hint: const Text('Select the staff member\'s branch'),
+              dropdownColor: isDark ? const Color(0xFF151F32) : Colors.white,
+              icon: Icon(
+                Icons.keyboard_arrow_down_rounded,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+              isExpanded: true,
+              style: GoogleFonts.inter(
+                color: theme.colorScheme.onSurface,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+              items: branchOptions.entries.map((entry) {
+                return DropdownMenuItem<String>(
+                  value: entry.key,
+                  child: Text('${entry.key} - ${entry.value}'),
+                );
+              }).toList(),
+              onChanged: (value) => setState(() => _selectedBranchCode = value),
+            ),
+          ),
+        ),
+        if (_selectedBranchCode == null)
+          const Padding(
+            padding: EdgeInsets.only(top: 5),
+            child: Text(
+              'Branch assignment is required.',
+              style: TextStyle(color: Color(0xFFDC2626), fontSize: 11),
+            ),
+          ),
+      ],
+    );
+  }
+
   void _handleSubmit() async {
     if (_formKey.currentState!.validate()) {
       final db = ref.read(databaseServiceProvider);
       final id = _numericIdController.text.trim();
-      
+
       // Check for uniqueness if creating new or changing ID
       if (widget.userToEdit == null || widget.userToEdit!.numericId != id) {
         final existing = await db.getUserByNumericId(id);
+        if (!mounted) return;
         if (existing != null && mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Error: This Numeric ID is already assigned to another staff member.'),
+              content: Text(
+                'Error: This Numeric ID is already assigned to another staff member.',
+              ),
               backgroundColor: Colors.redAccent,
             ),
           );
@@ -353,19 +574,56 @@ class _AddUserModalState extends ConsumerState<AddUserModal> {
       final storeConfig = ref.read(storeConfigProvider).value;
       final currentUser = ref.read(authProvider);
       final isOwner = ref.read(isOwnerProvider);
+      final currentRole = currentUser?.role.toLowerCase().trim();
+      if (currentRole != 'owner' &&
+          currentRole != 'admin' &&
+          currentRole != 'super_admin' &&
+          currentRole != 'manager' &&
+          currentRole != 'branch_manager') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Only an owner or branch manager can create staff accounts.',
+            ),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+        return;
+      }
+      final selectedBranchCode = !isOwner
+          ? currentUser?.branchCode
+          : _selectedBranchCode?.trim();
+      if (selectedBranchCode == null || selectedBranchCode.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Select a branch before creating this account.'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+        return;
+      }
+      final branches = await ref.read(storeBranchesProvider.future);
+      if (!mounted) return;
+      final normalizedBranchCode = selectedBranchCode.trim().padLeft(2, '0');
+      final selectedBranch = branches
+          .where(
+            (branch) =>
+                branch.bhfId.trim().padLeft(2, '0') == normalizedBranchCode,
+          )
+          .firstOrNull;
 
       final user = widget.userToEdit ?? User();
       user.name = _nameController.text.trim();
       user.numericId = _numericIdController.text.trim();
       user.role = _role;
-      
-      if (!isOwner && currentUser != null) {
-        user.branchCode = currentUser.branchCode;
-        user.branchName = currentUser.branchName;
-      } else {
-        user.branchCode ??= (storeConfig?.bhfId.isNotEmpty == true) ? storeConfig!.bhfId : (currentUser?.branchCode ?? '00');
-        user.branchName ??= (storeConfig?.branchName?.isNotEmpty == true) ? storeConfig!.branchName : (currentUser?.branchName ?? 'Main Branch');
-      }
+      user.branchCode = normalizedBranchCode;
+      user.branchName =
+          selectedBranch?.name ??
+          (selectedBranchCode == (storeConfig?.bhfId ?? '00')
+              ? (storeConfig?.branchName ??
+                    currentUser?.branchName ??
+                    'Headquarters (HQ)')
+              : user.branchName);
 
       final rawPassword = _passwordController.text.trim();
       if (rawPassword.isNotEmpty) {
@@ -375,11 +633,67 @@ class _AddUserModalState extends ConsumerState<AddUserModal> {
 
       await ref.read(usersProvider.notifier).saveUser(user);
       try {
-        ref.read(postgresSyncServiceProvider).syncUser(
-          user,
-          plainPin: rawPassword.isNotEmpty ? rawPassword : null,
-        );
-      } catch (_) {}
+        int? targetStoreId = storeConfig?.cloudStoreId;
+        final assignedBranchCode = user.branchCode?.trim().padLeft(2, '0');
+        if (assignedBranchCode != null &&
+            assignedBranchCode.isNotEmpty &&
+            assignedBranchCode != (storeConfig?.bhfId ?? '00')) {
+          final allBranches = await ref.read(storeBranchesProvider.future);
+          final assignedBranches = allBranches
+              .where(
+                (branch) =>
+                    branch.bhfId.trim().padLeft(2, '0') == assignedBranchCode,
+              )
+              .toList();
+          final assignedBranch = assignedBranches.isEmpty
+              ? null
+              : assignedBranches.first;
+          if (assignedBranch == null) {
+            throw Exception(
+              'Branch $assignedBranchCode is not linked to the VPS yet. Sync the branch before creating users for it.',
+            );
+          }
+          if (assignedBranch.cloudStoreId <= 0) {
+            final branchSynced = await ref
+                .read(postgresSyncServiceProvider)
+                .syncBranch(assignedBranch);
+            if (!branchSynced || assignedBranch.cloudStoreId <= 0) {
+              throw Exception(
+                'Branch $assignedBranchCode is not linked to the VPS yet. Sync the branch before creating users for it.',
+              );
+            }
+          }
+          targetStoreId = assignedBranch.cloudStoreId;
+        }
+        final cloudSynced = await ref
+            .read(postgresSyncServiceProvider)
+            .syncUser(
+              user,
+              plainPin: rawPassword.isNotEmpty ? rawPassword : null,
+              storeId: targetStoreId,
+            );
+        if (!cloudSynced && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'User saved locally, but VPS synchronization failed. Check the branch and cloud login.',
+              ),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+          return;
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('VPS user synchronization failed: $e'),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+          return;
+        }
+      }
       if (mounted) Navigator.pop(context);
     }
   }
@@ -392,7 +706,10 @@ class _MaxLengthFormatter extends TextInputFormatter {
   _MaxLengthFormatter(this.maxLength, this.onLimitReached);
 
   @override
-  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
     if (newValue.text.length > maxLength) {
       onLimitReached();
       return oldValue;

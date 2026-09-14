@@ -444,6 +444,7 @@ class _AppExitBackupHandlerState extends State<AppExitBackupHandler> with Widget
           isar: isar,
           cloudBaseUrl: cloudUrl,
           storeId: storeId,
+          token: storeConfig?.cloudAuthToken,
         );
         debugPrint('App exit backup completed. Results: $results');
       }

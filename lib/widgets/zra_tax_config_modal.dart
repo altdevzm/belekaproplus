@@ -5,7 +5,6 @@ import 'package:isar/isar.dart';
 import 'package:beleka_pos/models/models.dart';
 import 'package:beleka_pos/services/database_service.dart';
 import 'package:beleka_pos/providers/store_provider.dart';
-import 'package:beleka_pos/providers/auth_provider.dart';
 import 'package:beleka_pos/services/digitax_inventory_service.dart';
 import 'package:beleka_pos/services/postgres_sync_service.dart';
 
@@ -45,14 +44,16 @@ class _ZraTaxConfigModalState extends ConsumerState<ZraTaxConfigModal> {
       'tax_type': 'Zero-Rated Supplies',
       'rate': 0.0,
       'category': 'VAT_ZERO',
-      'description': 'Basic commodities, agricultural & exported supplies (0% VAT)',
+      'description':
+          'Basic commodities, agricultural & exported supplies (0% VAT)',
     },
     {
       'code': 'C',
       'tax_type': 'Exempt Supplies',
       'rate': 0.0,
       'category': 'EXEMPT',
-      'description': 'Health, education & statutory financial services (0% Exempt)',
+      'description':
+          'Health, education & statutory financial services (0% Exempt)',
     },
     {
       'code': 'D',
@@ -73,7 +74,8 @@ class _ZraTaxConfigModalState extends ConsumerState<ZraTaxConfigModal> {
       'tax_type': 'Turnover Tax (TOT)',
       'rate': 3.0,
       'category': 'TURNOVER_TAX',
-      'description': 'ZRA Turnover Tax for micro & small enterprises (3.0% Flat)',
+      'description':
+          'ZRA Turnover Tax for micro & small enterprises (3.0% Flat)',
     },
   ];
 
@@ -82,7 +84,7 @@ class _ZraTaxConfigModalState extends ConsumerState<ZraTaxConfigModal> {
     super.initState();
     _tpinController = TextEditingController();
     _apiKeyController = TextEditingController();
-    _bhfIdController = TextEditingController(text: '00');
+    _bhfIdController = TextEditingController(text: '000');
     _loadConfig();
   }
 
@@ -93,13 +95,24 @@ class _ZraTaxConfigModalState extends ConsumerState<ZraTaxConfigModal> {
       setState(() {
         _tpinController.text = _config!.tpin ?? '';
         _apiKeyController.text = _config!.digitaxApiKey ?? '';
-        _bhfIdController.text = (_config!.bhfId.isNotEmpty) ? _config!.bhfId : '00';
-        
-        const validTaxTypes = ['VAT_STANDARD', 'TURNOVER_TAX', 'EXEMPT', 'COMPOSITE'];
-        _businessTaxType = validTaxTypes.contains(_config!.businessTaxType) ? _config!.businessTaxType : 'VAT_STANDARD';
-        
+        _bhfIdController.text = (_config!.bhfId.isNotEmpty)
+            ? _config!.bhfId.trim().padLeft(3, '0')
+            : '000';
+
+        const validTaxTypes = [
+          'VAT_STANDARD',
+          'TURNOVER_TAX',
+          'EXEMPT',
+          'COMPOSITE',
+        ];
+        _businessTaxType = validTaxTypes.contains(_config!.businessTaxType)
+            ? _config!.businessTaxType
+            : 'VAT_STANDARD';
+
         const validEnvs = ['sandbox', 'production'];
-        _digitaxEnv = validEnvs.contains(_config!.digitaxEnvironment) ? _config!.digitaxEnvironment : 'sandbox';
+        _digitaxEnv = validEnvs.contains(_config!.digitaxEnvironment)
+            ? _config!.digitaxEnvironment
+            : 'sandbox';
       });
 
       if (_apiKeyController.text.trim().isNotEmpty) {
@@ -118,7 +131,10 @@ class _ZraTaxConfigModalState extends ConsumerState<ZraTaxConfigModal> {
 
     try {
       final syncService = ref.read(digitaxInventoryServiceProvider);
-      final result = await syncService.testApiKeyConnection(apiKey: apiKey, environment: env);
+      final result = await syncService.testApiKeyConnection(
+        apiKey: apiKey,
+        environment: env,
+      );
 
       setState(() {
         _ratesFetched = result.success;
@@ -133,7 +149,9 @@ class _ZraTaxConfigModalState extends ConsumerState<ZraTaxConfigModal> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(result.message),
-            backgroundColor: result.success ? const Color(0xFF10B981) : Colors.redAccent,
+            backgroundColor: result.success
+                ? const Color(0xFF10B981)
+                : Colors.redAccent,
             duration: const Duration(seconds: 4),
           ),
         );
@@ -174,7 +192,9 @@ class _ZraTaxConfigModalState extends ConsumerState<ZraTaxConfigModal> {
       ..terminalName = 'POS-Main';
 
     config.tpin = _tpinController.text.trim();
-    config.bhfId = _bhfIdController.text.trim().isEmpty ? '00' : _bhfIdController.text.trim();
+    config.bhfId = _bhfIdController.text.trim().isEmpty
+        ? '000'
+        : _bhfIdController.text.trim().padLeft(3, '0');
     config.digitaxApiKey = _apiKeyController.text.trim();
     config.businessTaxType = _businessTaxType;
     config.digitaxEnvironment = _digitaxEnv;
@@ -193,22 +213,33 @@ class _ZraTaxConfigModalState extends ConsumerState<ZraTaxConfigModal> {
 
     // Auto-sync updated TPIN and DigiTax credentials up to Cloud PostgreSQL DB
     try {
-      await ref.read(postgresSyncServiceProvider).syncStoreConfigToCloud(config);
+      await ref
+          .read(postgresSyncServiceProvider)
+          .syncStoreConfigToCloud(config);
     } catch (e) {
       debugPrint('Notice: Cloud store config sync: $e');
     }
 
-    ref.invalidate(storeConfigProvider);
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('DigiTax & ZRA Smart Invoice configuration saved and synced to Cloud!'),
-          backgroundColor: Color(0xFF10B981),
-        ),
-      );
-      Navigator.of(context).pop();
+    // Saving an HQ credential immediately refreshes the HQ DigiTax catalog.
+    try {
+      await ref
+          .read(digitaxInventoryServiceProvider)
+          .syncAllInventoryWithDigitax(branchCode: config.bhfId);
+    } catch (e) {
+      debugPrint('Notice: DigiTax inventory pull after save: $e');
     }
+
+    if (!mounted) return;
+    ref.invalidate(storeConfigProvider);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'DigiTax & ZRA Smart Invoice configuration saved and synced to Cloud!',
+        ),
+        backgroundColor: Color(0xFF10B981),
+      ),
+    );
+    Navigator.of(context).pop();
   }
 
   @override
@@ -216,13 +247,13 @@ class _ZraTaxConfigModalState extends ConsumerState<ZraTaxConfigModal> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final primaryColor = theme.colorScheme.primary;
-    final isBranchManager = ref.watch(isBranchManagerProvider);
-
     return Dialog(
       backgroundColor: isDark ? const Color(0xFF151F32) : Colors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+        side: BorderSide(
+          color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0),
+        ),
       ),
       child: Container(
         padding: const EdgeInsets.all(24),
@@ -239,10 +270,16 @@ class _ZraTaxConfigModalState extends ConsumerState<ZraTaxConfigModal> {
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: isDark ? primaryColor.withValues(alpha: 0.15) : primaryColor.withValues(alpha: 0.08),
+                      color: isDark
+                          ? primaryColor.withValues(alpha: 0.15)
+                          : primaryColor.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Icon(Icons.receipt_long_rounded, color: primaryColor, size: 24),
+                    child: Icon(
+                      Icons.receipt_long_rounded,
+                      color: primaryColor,
+                      size: 24,
+                    ),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
@@ -259,43 +296,31 @@ class _ZraTaxConfigModalState extends ConsumerState<ZraTaxConfigModal> {
                         ),
                         Text(
                           'Zambia Revenue Authority VSDC Gateway & Dynamic Tax Setup',
-                          style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
                         ),
                       ],
                     ),
                   ),
                   IconButton(
-                    icon: Icon(Icons.close, color: theme.colorScheme.onSurfaceVariant),
+                    icon: Icon(
+                      Icons.close,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
                     onPressed: () => Navigator.of(context).pop(),
                   ),
                 ],
               ),
               const SizedBox(height: 16),
-              Divider(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0), height: 1),
+              Divider(
+                color: isDark
+                    ? const Color(0xFF293548)
+                    : const Color(0xFFE2E8F0),
+                height: 1,
+              ),
               const SizedBox(height: 16),
-
-              if (isBranchManager)
-                Container(
-                  margin: const EdgeInsets.only(bottom: 16),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFFBEB),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0xFFFDE68A)),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.lock_rounded, color: Color(0xFFD97706), size: 18),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          'Centrally Configured at Headquarters: DigiTax API credentials, live ZRA environment, and company TPIN are managed by the Corporate Owner at Headquarters. These settings are read-only for this branch.',
-                          style: GoogleFonts.inter(color: const Color(0xFFD97706), fontSize: 12, fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
 
               Expanded(
                 child: SingleChildScrollView(
@@ -315,54 +340,88 @@ class _ZraTaxConfigModalState extends ConsumerState<ZraTaxConfigModal> {
                       const SizedBox(height: 4),
                       Text(
                         'Select the tax regime under which this store operates for POS sales & fiscalization.',
-                        style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
                       ),
                       const SizedBox(height: 12),
 
                       DropdownButtonFormField<String>(
-                        initialValue: const ['VAT_STANDARD', 'TURNOVER_TAX', 'EXEMPT', 'COMPOSITE'].contains(_businessTaxType)
+                        initialValue:
+                            const [
+                              'VAT_STANDARD',
+                              'TURNOVER_TAX',
+                              'EXEMPT',
+                              'COMPOSITE',
+                            ].contains(_businessTaxType)
                             ? _businessTaxType
                             : 'VAT_STANDARD',
-                        dropdownColor: isDark ? const Color(0xFF151F32) : Colors.white,
-                        style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontSize: 13, fontWeight: FontWeight.w600),
+                        dropdownColor: isDark
+                            ? const Color(0xFF151F32)
+                            : Colors.white,
+                        style: GoogleFonts.inter(
+                          color: theme.colorScheme.onSurface,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
                         decoration: InputDecoration(
                           labelText: 'Company Tax Classification',
-                          labelStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                          labelStyle: TextStyle(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
                           filled: true,
-                          fillColor: isDark ? const Color(0xFF1C283D) : const Color(0xFFF8FAFC),
+                          fillColor: isDark
+                              ? const Color(0xFF1C283D)
+                              : const Color(0xFFF8FAFC),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
-                            borderSide: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+                            borderSide: BorderSide(
+                              color: isDark
+                                  ? const Color(0xFF293548)
+                                  : const Color(0xFFE2E8F0),
+                            ),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
                             borderSide: BorderSide(color: primaryColor),
                           ),
-                          prefixIcon: Icon(Icons.account_balance_rounded, color: theme.colorScheme.onSurfaceVariant),
+                          prefixIcon: Icon(
+                            Icons.account_balance_rounded,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
                         ),
                         items: const [
                           DropdownMenuItem(
                             value: 'VAT_STANDARD',
-                            child: Text('Standard VAT Registered (16.0% VAT Rate)'),
+                            child: Text(
+                              'Standard VAT Registered (16.0% VAT Rate)',
+                            ),
                           ),
                           DropdownMenuItem(
                             value: 'TURNOVER_TAX',
-                            child: Text('Turnover Tax Registered (3.0% Flat Rate)'),
+                            child: Text(
+                              'Turnover Tax Registered (3.0% Flat Rate)',
+                            ),
                           ),
                           DropdownMenuItem(
                             value: 'EXEMPT',
-                            child: Text('Tax Exempt Organization (0% - Healthcare/Education)'),
+                            child: Text(
+                              'Tax Exempt Organization (0% - Healthcare/Education)',
+                            ),
                           ),
                           DropdownMenuItem(
                             value: 'COMPOSITE',
-                            child: Text('Composite / Mixed Tax (Per-Product Categorization)'),
+                            child: Text(
+                              'Composite / Mixed Tax (Per-Product Categorization)',
+                            ),
                           ),
                         ],
-                        onChanged: isBranchManager
-                            ? null
-                            : (val) {
-                                if (val != null) setState(() => _businessTaxType = val);
-                              },
+                        onChanged: (val) {
+                          if (val != null) {
+                            setState(() => _businessTaxType = val);
+                          }
+                        },
                       ),
                       const SizedBox(height: 20),
 
@@ -384,25 +443,41 @@ class _ZraTaxConfigModalState extends ConsumerState<ZraTaxConfigModal> {
                             flex: 3,
                             child: TextFormField(
                               controller: _tpinController,
-                              readOnly: isBranchManager,
-                              style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontSize: 13),
+                              style: GoogleFonts.inter(
+                                color: theme.colorScheme.onSurface,
+                                fontSize: 13,
+                              ),
                               keyboardType: TextInputType.number,
                               decoration: InputDecoration(
                                 labelText: 'ZRA TPIN (Taxpayer ID)',
-                                labelStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                                labelStyle: TextStyle(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
                                 hintText: '1000123456',
-                                hintStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
+                                hintStyle: TextStyle(
+                                  color: theme.colorScheme.onSurfaceVariant
+                                      .withValues(alpha: 0.5),
+                                ),
                                 filled: true,
-                                fillColor: isDark ? const Color(0xFF1C283D) : const Color(0xFFF8FAFC),
+                                fillColor: isDark
+                                    ? const Color(0xFF1C283D)
+                                    : const Color(0xFFF8FAFC),
                                 enabledBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(8),
-                                  borderSide: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+                                  borderSide: BorderSide(
+                                    color: isDark
+                                        ? const Color(0xFF293548)
+                                        : const Color(0xFFE2E8F0),
+                                  ),
                                 ),
                                 focusedBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(8),
                                   borderSide: BorderSide(color: primaryColor),
                                 ),
-                                prefixIcon: Icon(Icons.badge_rounded, color: theme.colorScheme.onSurfaceVariant),
+                                prefixIcon: Icon(
+                                  Icons.badge_rounded,
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
                               ),
                               validator: (val) {
                                 if (val == null || val.trim().isEmpty) {
@@ -417,25 +492,41 @@ class _ZraTaxConfigModalState extends ConsumerState<ZraTaxConfigModal> {
                             flex: 2,
                             child: TextFormField(
                               controller: _bhfIdController,
-                              readOnly: isBranchManager,
-                              style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontSize: 13),
+                              style: GoogleFonts.inter(
+                                color: theme.colorScheme.onSurface,
+                                fontSize: 13,
+                              ),
                               decoration: InputDecoration(
                                 labelText: 'Branch Code (bhfId)',
-                                labelStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant),
-                                hintText: '00',
-                                helperText: '00 = HQ, 01 = Branch 1',
-                                helperStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 10),
+                                labelStyle: TextStyle(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                                hintText: '000',
+                                helperText: '000 = HQ, 001 = Branch 1',
+                                helperStyle: TextStyle(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                  fontSize: 10,
+                                ),
                                 filled: true,
-                                fillColor: isDark ? const Color(0xFF1C283D) : const Color(0xFFF8FAFC),
+                                fillColor: isDark
+                                    ? const Color(0xFF1C283D)
+                                    : const Color(0xFFF8FAFC),
                                 enabledBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(8),
-                                  borderSide: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+                                  borderSide: BorderSide(
+                                    color: isDark
+                                        ? const Color(0xFF293548)
+                                        : const Color(0xFFE2E8F0),
+                                  ),
                                 ),
                                 focusedBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(8),
                                   borderSide: BorderSide(color: primaryColor),
                                 ),
-                                prefixIcon: Icon(Icons.storefront_rounded, color: theme.colorScheme.onSurfaceVariant),
+                                prefixIcon: Icon(
+                                  Icons.storefront_rounded,
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
                               ),
                             ),
                           ),
@@ -443,34 +534,60 @@ class _ZraTaxConfigModalState extends ConsumerState<ZraTaxConfigModal> {
                           Expanded(
                             flex: 3,
                             child: DropdownButtonFormField<String>(
-                              initialValue: (_digitaxEnv.toLowerCase() == 'production') ? 'production' : 'sandbox',
+                              initialValue:
+                                  (_digitaxEnv.toLowerCase() == 'production')
+                                  ? 'production'
+                                  : 'sandbox',
                               isExpanded: true,
-                              dropdownColor: isDark ? const Color(0xFF151F32) : Colors.white,
-                              style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontSize: 13, fontWeight: FontWeight.w600),
+                              dropdownColor: isDark
+                                  ? const Color(0xFF151F32)
+                                  : Colors.white,
+                              style: GoogleFonts.inter(
+                                color: theme.colorScheme.onSurface,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
                               decoration: InputDecoration(
                                 labelText: 'DigiTax Environment',
-                                labelStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                                labelStyle: TextStyle(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
                                 filled: true,
-                                fillColor: isDark ? const Color(0xFF1C283D) : const Color(0xFFF8FAFC),
+                                fillColor: isDark
+                                    ? const Color(0xFF1C283D)
+                                    : const Color(0xFFF8FAFC),
                                 enabledBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(8),
-                                  borderSide: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+                                  borderSide: BorderSide(
+                                    color: isDark
+                                        ? const Color(0xFF293548)
+                                        : const Color(0xFFE2E8F0),
+                                  ),
                                 ),
                                 focusedBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(8),
                                   borderSide: BorderSide(color: primaryColor),
                                 ),
-                                prefixIcon: Icon(Icons.cloud_queue_rounded, color: theme.colorScheme.onSurfaceVariant),
+                                prefixIcon: Icon(
+                                  Icons.cloud_queue_rounded,
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
                               ),
                               items: const [
-                                DropdownMenuItem(value: 'sandbox', child: Text('Sandbox (Test Mode)')),
-                                DropdownMenuItem(value: 'production', child: Text('Production (Live ZRA)')),
+                                DropdownMenuItem(
+                                  value: 'sandbox',
+                                  child: Text('Sandbox (Test Mode)'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'production',
+                                  child: Text('Production (Live ZRA)'),
+                                ),
                               ],
-                              onChanged: isBranchManager
-                                  ? null
-                                  : (val) {
-                                      if (val != null) setState(() => _digitaxEnv = val);
-                                    },
+                              onChanged: (val) {
+                                if (val != null) {
+                                  setState(() => _digitaxEnv = val);
+                                }
+                              },
                             ),
                           ),
                         ],
@@ -480,27 +597,50 @@ class _ZraTaxConfigModalState extends ConsumerState<ZraTaxConfigModal> {
                       TextFormField(
                         controller: _apiKeyController,
                         obscureText: _obscureApiKey,
-                        readOnly: isBranchManager,
-                        style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontSize: 13),
+                        style: GoogleFonts.inter(
+                          color: theme.colorScheme.onSurface,
+                          fontSize: 13,
+                        ),
                         decoration: InputDecoration(
                           labelText: 'DigiTax Secret API Key',
-                          labelStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                          labelStyle: TextStyle(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
                           hintText: 'B_TEST_api_key_...',
-                          hintStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
+                          hintStyle: TextStyle(
+                            color: theme.colorScheme.onSurfaceVariant
+                                .withValues(alpha: 0.5),
+                          ),
                           filled: true,
-                          fillColor: isDark ? const Color(0xFF1C283D) : const Color(0xFFF8FAFC),
+                          fillColor: isDark
+                              ? const Color(0xFF1C283D)
+                              : const Color(0xFFF8FAFC),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
-                            borderSide: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+                            borderSide: BorderSide(
+                              color: isDark
+                                  ? const Color(0xFF293548)
+                                  : const Color(0xFFE2E8F0),
+                            ),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
                             borderSide: BorderSide(color: primaryColor),
                           ),
-                          prefixIcon: Icon(Icons.key_rounded, color: primaryColor),
+                          prefixIcon: Icon(
+                            Icons.key_rounded,
+                            color: primaryColor,
+                          ),
                           suffixIcon: IconButton(
-                            icon: Icon(_obscureApiKey ? Icons.visibility_off : Icons.visibility, color: theme.colorScheme.onSurfaceVariant),
-                            onPressed: () => setState(() => _obscureApiKey = !_obscureApiKey),
+                            icon: Icon(
+                              _obscureApiKey
+                                  ? Icons.visibility_off
+                                  : Icons.visibility,
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                            onPressed: () => setState(
+                              () => _obscureApiKey = !_obscureApiKey,
+                            ),
                           ),
                         ),
                         validator: (val) {
@@ -516,19 +656,38 @@ class _ZraTaxConfigModalState extends ConsumerState<ZraTaxConfigModal> {
                       Row(
                         children: [
                           ElevatedButton.icon(
-                            onPressed: _isLoadingRates ? null : () => _fetchLiveTaxRates(),
+                            onPressed: _isLoadingRates
+                                ? null
+                                : () => _fetchLiveTaxRates(),
                             icon: _isLoadingRates
-                                ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                                ? const SizedBox(
+                                    width: 14,
+                                    height: 14,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
                                 : const Icon(Icons.bolt_rounded, size: 16),
                             label: Text(
-                              _isLoadingRates ? 'Testing Connection...' : 'Test Connection',
-                              style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold),
+                              _isLoadingRates
+                                  ? 'Testing Connection...'
+                                  : 'Test Connection',
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: primaryColor,
                               foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
                               elevation: 0,
                             ),
                           ),
@@ -540,13 +699,13 @@ class _ZraTaxConfigModalState extends ConsumerState<ZraTaxConfigModal> {
                         Container(
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
-                            color: _isConnectionSuccess 
-                                ? const Color(0xFFECFDF5) 
+                            color: _isConnectionSuccess
+                                ? const Color(0xFFECFDF5)
                                 : const Color(0xFFFFFBEB),
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(
-                              color: _isConnectionSuccess 
-                                  ? const Color(0xFFA7F3D0) 
+                              color: _isConnectionSuccess
+                                  ? const Color(0xFFA7F3D0)
                                   : const Color(0xFFFDE68A),
                             ),
                           ),
@@ -554,9 +713,13 @@ class _ZraTaxConfigModalState extends ConsumerState<ZraTaxConfigModal> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Icon(
-                                _isConnectionSuccess ? Icons.check_circle_rounded : Icons.info_outline_rounded,
+                                _isConnectionSuccess
+                                    ? Icons.check_circle_rounded
+                                    : Icons.info_outline_rounded,
                                 size: 16,
-                                color: _isConnectionSuccess ? const Color(0xFF059669) : const Color(0xFFD97706),
+                                color: _isConnectionSuccess
+                                    ? const Color(0xFF059669)
+                                    : const Color(0xFFD97706),
                               ),
                               const SizedBox(width: 8),
                               Expanded(
@@ -564,7 +727,9 @@ class _ZraTaxConfigModalState extends ConsumerState<ZraTaxConfigModal> {
                                   _connectionStatusMessage!,
                                   style: GoogleFonts.inter(
                                     fontSize: 12,
-                                    color: _isConnectionSuccess ? const Color(0xFF059669) : const Color(0xFFD97706),
+                                    color: _isConnectionSuccess
+                                        ? const Color(0xFF059669)
+                                        : const Color(0xFFD97706),
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
@@ -585,7 +750,11 @@ class _ZraTaxConfigModalState extends ConsumerState<ZraTaxConfigModal> {
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.cloud_done_rounded, color: Color(0xFF0284C7), size: 22),
+                            const Icon(
+                              Icons.cloud_done_rounded,
+                              color: Color(0xFF0284C7),
+                              size: 22,
+                            ),
                             const SizedBox(width: 12),
                             Expanded(
                               child: Column(
@@ -593,12 +762,19 @@ class _ZraTaxConfigModalState extends ConsumerState<ZraTaxConfigModal> {
                                 children: [
                                   Text(
                                     'Cloud Virtual SDC (VSDC) Enabled',
-                                    style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 12, color: const Color(0xFF0284C7)),
+                                    style: GoogleFonts.inter(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                      color: const Color(0xFF0284C7),
+                                    ),
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
                                     'DigiTax automatically manages your SDC Device ID and Machine Registration Code (MRC) in the cloud. No manual hardware SDC entry is required.',
-                                    style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF0369A1)),
+                                    style: GoogleFonts.inter(
+                                      fontSize: 11,
+                                      color: const Color(0xFF0369A1),
+                                    ),
                                   ),
                                 ],
                               ),
@@ -622,23 +798,44 @@ class _ZraTaxConfigModalState extends ConsumerState<ZraTaxConfigModal> {
                             ),
                           ),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
                             decoration: BoxDecoration(
-                              color: _ratesFetched ? const Color(0xFFECFDF5) : const Color(0xFFFFFBEB),
+                              color: _ratesFetched
+                                  ? const Color(0xFFECFDF5)
+                                  : const Color(0xFFFFFBEB),
                               borderRadius: BorderRadius.circular(4),
-                              border: Border.all(color: _ratesFetched ? const Color(0xFFA7F3D0) : const Color(0xFFFDE68A)),
+                              border: Border.all(
+                                color: _ratesFetched
+                                    ? const Color(0xFFA7F3D0)
+                                    : const Color(0xFFFDE68A),
+                              ),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(_ratesFetched ? Icons.cloud_done_rounded : Icons.cloud_queue_rounded, size: 12, color: _ratesFetched ? const Color(0xFF059669) : const Color(0xFFD97706)),
+                                Icon(
+                                  _ratesFetched
+                                      ? Icons.cloud_done_rounded
+                                      : Icons.cloud_queue_rounded,
+                                  size: 12,
+                                  color: _ratesFetched
+                                      ? const Color(0xFF059669)
+                                      : const Color(0xFFD97706),
+                                ),
                                 const SizedBox(width: 4),
                                 Text(
-                                  _ratesFetched ? 'DIGITAX VSDC SYNCED' : 'STANDARD ZRA CODES',
+                                  _ratesFetched
+                                      ? 'DIGITAX VSDC SYNCED'
+                                      : 'STANDARD ZRA CODES',
                                   style: GoogleFonts.inter(
                                     fontSize: 10,
                                     fontWeight: FontWeight.w700,
-                                    color: _ratesFetched ? const Color(0xFF059669) : const Color(0xFFD97706),
+                                    color: _ratesFetched
+                                        ? const Color(0xFF059669)
+                                        : const Color(0xFFD97706),
                                   ),
                                 ),
                               ],
@@ -652,27 +849,40 @@ class _ZraTaxConfigModalState extends ConsumerState<ZraTaxConfigModal> {
                       Column(
                         children: _taxRates.map((rate) {
                           final code = rate['code'] ?? '';
-                          final name = rate['tax_type'] ?? rate['name'] ?? 'Tax';
+                          final name =
+                              rate['tax_type'] ?? rate['name'] ?? 'Tax';
                           final num percentage = rate['rate'] ?? 0;
                           final desc = rate['description'] ?? '';
 
-                          final isSelected = (_businessTaxType == 'VAT_STANDARD' && code == 'A') ||
-                              (_businessTaxType == 'TURNOVER_TAX' && code == 'TOT') ||
+                          final isSelected =
+                              (_businessTaxType == 'VAT_STANDARD' &&
+                                  code == 'A') ||
+                              (_businessTaxType == 'TURNOVER_TAX' &&
+                                  code == 'TOT') ||
                               (_businessTaxType == 'EXEMPT' && code == 'C') ||
                               (_businessTaxType == 'COMPOSITE');
 
                           return Container(
                             margin: const EdgeInsets.only(bottom: 8),
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 10,
+                            ),
                             decoration: BoxDecoration(
                               color: isSelected
-                                  ? (isDark ? const Color(0xFF1C283D) : const Color(0xFFEFF6FF))
-                                  : (isDark ? const Color(0xFF151F32) : Colors.white),
+                                  ? (isDark
+                                        ? const Color(0xFF1C283D)
+                                        : const Color(0xFFEFF6FF))
+                                  : (isDark
+                                        ? const Color(0xFF151F32)
+                                        : Colors.white),
                               borderRadius: BorderRadius.circular(8),
                               border: Border.all(
                                 color: isSelected
                                     ? primaryColor
-                                    : (isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+                                    : (isDark
+                                          ? const Color(0xFF293548)
+                                          : const Color(0xFFE2E8F0)),
                               ),
                             ),
                             child: Row(
@@ -682,7 +892,9 @@ class _ZraTaxConfigModalState extends ConsumerState<ZraTaxConfigModal> {
                                   height: 32,
                                   alignment: Alignment.center,
                                   decoration: BoxDecoration(
-                                    color: isDark ? primaryColor.withValues(alpha: 0.2) : primaryColor.withValues(alpha: 0.1),
+                                    color: isDark
+                                        ? primaryColor.withValues(alpha: 0.2)
+                                        : primaryColor.withValues(alpha: 0.1),
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: Text(
@@ -697,7 +909,8 @@ class _ZraTaxConfigModalState extends ConsumerState<ZraTaxConfigModal> {
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         name,
@@ -711,16 +924,23 @@ class _ZraTaxConfigModalState extends ConsumerState<ZraTaxConfigModal> {
                                         desc,
                                         style: GoogleFonts.inter(
                                           fontSize: 11,
-                                          color: theme.colorScheme.onSurfaceVariant,
+                                          color: theme
+                                              .colorScheme
+                                              .onSurfaceVariant,
                                         ),
                                       ),
                                     ],
                                   ),
                                 ),
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 4,
+                                  ),
                                   decoration: BoxDecoration(
-                                    color: isDark ? const Color(0xFF1C283D) : const Color(0xFFF8FAFC),
+                                    color: isDark
+                                        ? const Color(0xFF1C283D)
+                                        : const Color(0xFFF8FAFC),
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: Text(
@@ -743,7 +963,12 @@ class _ZraTaxConfigModalState extends ConsumerState<ZraTaxConfigModal> {
               ),
 
               const SizedBox(height: 16),
-              Divider(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0), height: 1),
+              Divider(
+                color: isDark
+                    ? const Color(0xFF293548)
+                    : const Color(0xFFE2E8F0),
+                height: 1,
+              ),
               const SizedBox(height: 16),
 
               // Actions
@@ -754,27 +979,36 @@ class _ZraTaxConfigModalState extends ConsumerState<ZraTaxConfigModal> {
                     onPressed: () => Navigator.of(context).pop(),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: theme.colorScheme.onSurface,
-                      side: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    ),
-                    child: Text(isBranchManager ? 'Close' : 'Cancel'),
-                  ),
-                  if (!isBranchManager) ...[
-                    const SizedBox(width: 12),
-                    ElevatedButton.icon(
-                      onPressed: _saveConfig,
-                      icon: const Icon(Icons.check_circle_rounded, size: 18),
-                      label: const Text('Save ZRA Settings'),
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                        backgroundColor: primaryColor,
-                        foregroundColor: Colors.white,
-                        textStyle: GoogleFonts.inter(fontWeight: FontWeight.bold),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        elevation: 0,
+                      side: BorderSide(
+                        color: isDark
+                            ? const Color(0xFF293548)
+                            : const Color(0xFFE2E8F0),
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
                       ),
                     ),
-                  ],
+                    child: const Text('Cancel'),
+                  ),
+                  const SizedBox(width: 12),
+                  ElevatedButton.icon(
+                    onPressed: _saveConfig,
+                    icon: const Icon(Icons.check_circle_rounded, size: 18),
+                    label: const Text('Save ZRA Settings'),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 12,
+                      ),
+                      backgroundColor: primaryColor,
+                      foregroundColor: Colors.white,
+                      textStyle: GoogleFonts.inter(fontWeight: FontWeight.bold),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      elevation: 0,
+                    ),
+                  ),
                 ],
               ),
             ],

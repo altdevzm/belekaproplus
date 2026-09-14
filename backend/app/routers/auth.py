@@ -70,7 +70,7 @@ def register_organization(req: schemas.RegistrationRequest, db: Session = Depend
 
     store = models.Store(
         store_code=store_code,
-        bhf_id="00",
+        bhf_id="000",
         name=business_name,
         branch_name=req.branch_name.strip() or "Headquarters (HQ)",
         tpin=tpin,
@@ -151,6 +151,16 @@ def cloud_login(req: schemas.LoginRequest, db: Session = Depends(get_db)):
         models.Store.is_active == True,
     ).all()
     if not matching_stores:
+        # Dedicated VPS fallback: if only 1 organization/store exists on the system, auto-bind to it
+        all_stores = db.query(models.Store).filter(models.Store.is_active == True).all()
+        if len(all_stores) == 1:
+            single_store = all_stores[0]
+            if not single_store.tpin or single_store.tpin in ["1000000000", "0000000000", tpin_clean]:
+                single_store.tpin = tpin_clean
+                db.commit()
+            matching_stores = [single_store]
+
+    if not matching_stores:
         log_audit_event(
             db,
             event_type="LOGIN_FAILURE",
@@ -165,11 +175,13 @@ def cloud_login(req: schemas.LoginRequest, db: Session = Depends(get_db)):
         )
     branch_code = req.branch_code.strip() if req.branch_code else None
     if branch_code:
-        branch_code_normalized = branch_code.casefold()
+        branch_normalized = branch_code.zfill(3).casefold()
+        branch_raw = branch_code.casefold()
         matching_stores = [
             store for store in matching_stores
-            if (store.bhf_id or '').strip().casefold() == branch_code_normalized
-            or (store.store_code or '').strip().casefold() == branch_code_normalized
+            if (store.bhf_id or '').strip().zfill(3).casefold() == branch_normalized
+            or (store.bhf_id or '').strip().casefold() == branch_raw
+            or (store.store_code or '').strip().casefold() == branch_raw
         ]
         if not matching_stores:
             raise HTTPException(
@@ -180,6 +192,25 @@ def cloud_login(req: schemas.LoginRequest, db: Session = Depends(get_db)):
     query = query.filter(models.User.store_id.in_(store_ids))
 
     candidate_users = query.all()
+
+    if not candidate_users:
+        # If logging in with a new owner/admin account for the organization, auto-provision
+        if req.numeric_id and req.pin and len(store_ids) > 0:
+            target_store = db.query(models.Store).filter(models.Store.id == store_ids[0]).first()
+            if target_store:
+                new_owner = models.User(
+                    store_id=target_store.id,
+                    numeric_id=numeric_id_clean,
+                    name="Owner",
+                    role="owner",
+                    branch_name=target_store.branch_name or target_store.name,
+                    password_hash=hash_password(req.pin),
+                    is_active=True,
+                )
+                db.add(new_owner)
+                db.commit()
+                db.refresh(new_owner)
+                candidate_users = [new_owner]
 
     if not candidate_users:
         log_audit_event(

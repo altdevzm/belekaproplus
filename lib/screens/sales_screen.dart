@@ -30,13 +30,17 @@ final productsProvider = StreamProvider<List<Product>>((ref) {
     final userBranch = currentUser?.branchCode?.trim();
     if (userBranch != null && userBranch.isNotEmpty && userBranch != '00') {
       effectiveBranchCode = userBranch;
-    } else if (storeConfig != null && storeConfig.bhfId.isNotEmpty && storeConfig.bhfId != '00') {
+    } else if (storeConfig != null &&
+        storeConfig.bhfId.isNotEmpty &&
+        storeConfig.bhfId != '00') {
       effectiveBranchCode = storeConfig.bhfId;
     } else {
-      effectiveBranchCode = null; // In Headquarters or default store, show all local inventory!
+      effectiveBranchCode =
+          null; // In Headquarters or default store, show all local inventory!
     }
   } else {
-    effectiveBranchCode = null; // Owner/HQ can sell all or default branch products
+    effectiveBranchCode =
+        null; // Owner/HQ can sell all or default branch products
   }
 
   return db.watchAllProducts(branchCode: effectiveBranchCode);
@@ -52,10 +56,10 @@ class SalesScreen extends ConsumerStatefulWidget {
 class _SalesScreenState extends ConsumerState<SalesScreen> {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
-  
+
   int? _selectedCategoryId; // null means "ALL"
   bool _isGridView = true; // true = Grid, false = List
-  
+
   bool _isProcessingPayment = false;
   double _tenderedAmount = 0.0;
   String _selectedPaymentMethod = '';
@@ -63,7 +67,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
   @override
   void initState() {
     super.initState();
-    
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final isManager = ref.read(isManagerProvider);
       if (isManager) {
@@ -90,26 +94,31 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     final query = _searchController.text.trim().toLowerCase();
     final user = ref.watch(authProvider);
     final config = ref.watch(storeConfigProvider).value;
-    final activeBranch = user?.branchCode?.trim() ?? config?.bhfId.trim() ?? '00';
+    final activeBranch =
+        user?.branchCode?.trim() ?? config?.bhfId.trim() ?? '00';
 
     return allProducts.where((p) {
       if (p.isArchived) return false;
-      
+
       // Multi-Branch Inventory Isolation:
       if (user?.role == 'cashier' || user?.role == 'branch_manager') {
         if (activeBranch.isNotEmpty && activeBranch != '00') {
           // In a sub-branch: can sell sub-branch stock, HQ master stock ('00'), or unassigned stock ('')
-          if (p.branchCode != activeBranch && p.branchCode != '00' && p.branchCode.isNotEmpty) {
+          if (p.branchCode != activeBranch &&
+              p.branchCode != '00' &&
+              p.branchCode.isNotEmpty) {
             return false;
           }
         }
       }
-      
-      final matchesCategory = _selectedCategoryId == null || p.categoryId == _selectedCategoryId;
+
+      final matchesCategory =
+          _selectedCategoryId == null || p.categoryId == _selectedCategoryId;
       if (!matchesCategory) return false;
 
       if (query.isEmpty) return true;
-      return p.name.toLowerCase().contains(query) || p.sku.toLowerCase().contains(query);
+      return p.name.toLowerCase().contains(query) ||
+          p.sku.toLowerCase().contains(query);
     }).toList();
   }
 
@@ -121,10 +130,8 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     if (product.isWeighted) {
       final double? weight = await showDialog<double>(
         context: context,
-        builder: (context) => WeightScaleModal(
-          product: product,
-          currency: currency,
-        ),
+        builder: (context) =>
+            WeightScaleModal(product: product, currency: currency),
       );
 
       if (weight != null && weight > 0) {
@@ -146,7 +153,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       if (!success) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Cannot add item: ${product.name} is currently out of stock'),
+            content: Text(
+              'Cannot add item: ${product.name} is currently out of stock',
+            ),
             backgroundColor: Colors.orange,
             behavior: SnackBarBehavior.floating,
           ),
@@ -157,20 +166,30 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     }
   }
 
-  Future<void> _lookupProduct(String barcode, {bool showNotFoundAlert = true}) async {
+  Future<void> _lookupProduct(
+    String barcode, {
+    bool showNotFoundAlert = true,
+  }) async {
     final cleanBarcode = barcode.trim();
     if (cleanBarcode.isEmpty) return;
 
     final scaleService = ref.read(scaleServiceProvider);
     final scaleBarcodeResult = scaleService.parseScaleBarcode(cleanBarcode);
     final db = ref.read(databaseServiceProvider);
-    
+
     // A. Handle Embedded Weight Scale Barcodes (e.g. 2000123014502)
     if (scaleBarcodeResult != null) {
       final products = await db.getAllProducts();
-      final matchedProduct = products.where((p) => 
-        !p.isArchived && p.isWeighted && (p.scalePlu == scaleBarcodeResult.pluCode || p.sku == scaleBarcodeResult.pluCode || p.sku == cleanBarcode)
-      ).firstOrNull;
+      final matchedProduct = products
+          .where(
+            (p) =>
+                !p.isArchived &&
+                p.isWeighted &&
+                (p.scalePlu == scaleBarcodeResult.pluCode ||
+                    p.sku == scaleBarcodeResult.pluCode ||
+                    p.sku == cleanBarcode),
+          )
+          .firstOrNull;
 
       if (matchedProduct != null) {
         final cartNotifier = ref.read(cartProvider.notifier);
@@ -187,7 +206,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
             ScaffoldMessenger.of(context).hideCurrentSnackBar();
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('Added ${matchedProduct.name} (${scaleBarcodeResult.weightInKg.toStringAsFixed(3)} kg) to cart'),
+                content: Text(
+                  'Added ${matchedProduct.name} (${scaleBarcodeResult.weightInKg.toStringAsFixed(3)} kg) to cart',
+                ),
                 backgroundColor: const Color(0xFF10B981),
                 duration: const Duration(milliseconds: 1500),
                 behavior: SnackBarBehavior.floating,
@@ -196,7 +217,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
           } else {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('Cannot add item: ${matchedProduct.name} is currently out of stock'),
+                content: Text(
+                  'Cannot add item: ${matchedProduct.name} is currently out of stock',
+                ),
                 backgroundColor: Colors.orange,
                 behavior: SnackBarBehavior.floating,
               ),
@@ -214,13 +237,16 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     if (product == null) {
       final allProducts = await db.getAllProducts();
       final lower = cleanBarcode.toLowerCase();
-      product = allProducts.where((p) =>
-        !p.isArchived && (
-          p.sku.toLowerCase() == lower ||
-          (p.scalePlu != null && p.scalePlu!.toLowerCase() == lower) ||
-          p.name.toLowerCase() == lower
-        )
-      ).firstOrNull;
+      product = allProducts
+          .where(
+            (p) =>
+                !p.isArchived &&
+                (p.sku.toLowerCase() == lower ||
+                    (p.scalePlu != null &&
+                        p.scalePlu!.toLowerCase() == lower) ||
+                    p.name.toLowerCase() == lower),
+          )
+          .firstOrNull;
     }
 
     if (product != null) {
@@ -247,9 +273,15 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         SnackBar(
           content: Row(
             children: [
-              const Icon(Icons.qr_code_scanner_rounded, color: Colors.white, size: 20),
+              const Icon(
+                Icons.qr_code_scanner_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
               const SizedBox(width: 10),
-              Expanded(child: Text('Product not found for barcode: "$cleanBarcode"')),
+              Expanded(
+                child: Text('Product not found for barcode: "$cleanBarcode"'),
+              ),
             ],
           ),
           backgroundColor: const Color(0xFFDC2626),
@@ -339,7 +371,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final panelBg = isDark ? const Color(0xFF151F32) : const Color(0xFFFFFFFF);
-    final borderColor = isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0);
+    final borderColor = isDark
+        ? const Color(0xFF293548)
+        : const Color(0xFFE2E8F0);
     final primaryColor = theme.colorScheme.primary;
 
     if (_selectedPaymentMethod.isEmpty) {
@@ -386,19 +420,31 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                             borderRadius: BorderRadius.circular(8),
                             child: Container(
                               height: 34,
-                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                              ),
                               decoration: BoxDecoration(
-                                color: isDark ? const Color(0xFF293548) : const Color(0xFFF1F5F9),
+                                color: isDark
+                                    ? const Color(0xFF293548)
+                                    : const Color(0xFFF1F5F9),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(Icons.qr_code_scanner_rounded, size: 16, color: primaryColor),
+                                  Icon(
+                                    Icons.qr_code_scanner_rounded,
+                                    size: 16,
+                                    color: primaryColor,
+                                  ),
                                   const SizedBox(width: 4),
                                   Text(
                                     'SCAN',
-                                    style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontSize: 11, fontWeight: FontWeight.w700),
+                                    style: GoogleFonts.inter(
+                                      color: theme.colorScheme.onSurface,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -411,20 +457,32 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                           message: 'Open Cash Drawer',
                           child: InkWell(
                             onTap: () async {
-                              final config = ref.read(storeConfigProvider).value;
-                              final ok = await ref.read(printerServiceProvider).openCashDrawer(config: config);
+                              final config = ref
+                                  .read(storeConfigProvider)
+                                  .value;
+                              final ok = await ref
+                                  .read(printerServiceProvider)
+                                  .openCashDrawer(config: config);
                               if (context.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
                                     content: Row(
                                       children: [
                                         Icon(
-                                          ok ? Icons.check_circle_rounded : Icons.warning_amber_rounded,
-                                          color: ok ? const Color(0xFF059669) : const Color(0xFFDC2626),
+                                          ok
+                                              ? Icons.check_circle_rounded
+                                              : Icons.warning_amber_rounded,
+                                          color: ok
+                                              ? const Color(0xFF059669)
+                                              : const Color(0xFFDC2626),
                                           size: 18,
                                         ),
                                         const SizedBox(width: 8),
-                                        Text(ok ? 'Cash drawer opened' : 'Kick command sent'),
+                                        Text(
+                                          ok
+                                              ? 'Cash drawer opened'
+                                              : 'Kick command sent',
+                                        ),
                                       ],
                                     ),
                                     duration: const Duration(seconds: 2),
@@ -436,19 +494,31 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                             borderRadius: BorderRadius.circular(8),
                             child: Container(
                               height: 34,
-                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                              ),
                               decoration: BoxDecoration(
-                                color: isDark ? const Color(0xFF293548) : const Color(0xFFF1F5F9),
+                                color: isDark
+                                    ? const Color(0xFF293548)
+                                    : const Color(0xFFF1F5F9),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(Icons.point_of_sale_rounded, size: 16, color: theme.colorScheme.onSurfaceVariant),
+                                  Icon(
+                                    Icons.point_of_sale_rounded,
+                                    size: 16,
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
                                   const SizedBox(width: 4),
                                   Text(
                                     'DRAWER',
-                                    style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontSize: 11, fontWeight: FontWeight.w700),
+                                    style: GoogleFonts.inter(
+                                      color: theme.colorScheme.onSurface,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -461,7 +531,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                           height: 34,
                           padding: const EdgeInsets.all(2),
                           decoration: BoxDecoration(
-                            color: isDark ? const Color(0xFF293548) : const Color(0xFFF1F5F9),
+                            color: isDark
+                                ? const Color(0xFF293548)
+                                : const Color(0xFFF1F5F9),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Row(
@@ -479,7 +551,8 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                                 icon: Icons.view_list_rounded,
                                 tooltip: 'List View',
                                 isSelected: !_isGridView,
-                                onTap: () => setState(() => _isGridView = false),
+                                onTap: () =>
+                                    setState(() => _isGridView = false),
                               ),
                             ],
                           ),
@@ -496,7 +569,11 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                   focusNode: _searchFocusNode,
                   onChanged: (_) => setState(() {}),
                   onSubmitted: (val) => _lookupProduct(val),
-                  style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface),
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: theme.colorScheme.onSurface,
+                  ),
                   decoration: _searchInputDecoration(context),
                 ),
                 const SizedBox(height: 8),
@@ -513,14 +590,26 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                         return _buildEmptyCatalogState(context);
                       }
                       if (_isGridView) {
-                        return _buildProductsGrid(context, filteredProducts, currency);
+                        return _buildProductsGrid(
+                          context,
+                          filteredProducts,
+                          currency,
+                        );
                       } else {
-                        return _buildProductsList(context, filteredProducts, currency);
+                        return _buildProductsList(
+                          context,
+                          filteredProducts,
+                          currency,
+                        );
                       }
                     },
-                    loading: () => const Center(child: CircularProgressIndicator()),
+                    loading: () =>
+                        const Center(child: CircularProgressIndicator()),
                     error: (err, _) => Center(
-                      child: Text('Error loading products: $err', style: const TextStyle(color: Color(0xFFDC2626))),
+                      child: Text(
+                        'Error loading products: $err',
+                        style: const TextStyle(color: Color(0xFFDC2626)),
+                      ),
                     ),
                   ),
                 ),
@@ -539,33 +628,52 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
               children: [
                 // Cart Header
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
                   decoration: BoxDecoration(
                     color: panelBg,
-                    border: Border(bottom: BorderSide(color: borderColor, width: 1)),
+                    border: Border(
+                      bottom: BorderSide(color: borderColor, width: 1),
+                    ),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.shopping_cart_rounded, size: 18, color: primaryColor),
+                          Icon(
+                            Icons.shopping_cart_rounded,
+                            size: 18,
+                            color: primaryColor,
+                          ),
                           const SizedBox(width: 8),
-                          Text('CURRENT ORDER', style: _headerTextStyle(context)),
+                          Text(
+                            'CURRENT ORDER',
+                            style: _headerTextStyle(context),
+                          ),
                         ],
                       ),
                       if (cartState.items.isNotEmpty)
                         Row(
                           children: [
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
                               decoration: BoxDecoration(
                                 color: primaryColor.withValues(alpha: 0.12),
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: Text(
                                 '${cartState.items.fold<int>(0, (sum, item) => sum + item.quantity)} items',
-                                style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: primaryColor),
+                                style: GoogleFonts.inter(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: primaryColor,
+                                ),
                               ),
                             ),
                             const SizedBox(width: 8),
@@ -579,10 +687,17 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                               },
                               borderRadius: BorderRadius.circular(4),
                               child: Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 4,
+                                  vertical: 2,
+                                ),
                                 child: Text(
                                   'CLEAR',
-                                  style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w800, color: const Color(0xFFDC2626)),
+                                  style: GoogleFonts.inter(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w800,
+                                    color: const Color(0xFFDC2626),
+                                  ),
                                 ),
                               ),
                             ),
@@ -603,7 +718,12 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                       : ListView.builder(
                           padding: const EdgeInsets.symmetric(vertical: 6),
                           itemCount: cartState.items.length,
-                          itemBuilder: (context, index) => _buildCartRow(context, cartState.items[index], cartNotifier, currency),
+                          itemBuilder: (context, index) => _buildCartRow(
+                            context,
+                            cartState.items[index],
+                            cartNotifier,
+                            currency,
+                          ),
                         ),
                 ),
 
@@ -611,7 +731,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                 Container(
                   decoration: BoxDecoration(
                     color: panelBg,
-                    border: Border(top: BorderSide(color: borderColor, width: 1)),
+                    border: Border(
+                      top: BorderSide(color: borderColor, width: 1),
+                    ),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withValues(alpha: 0.05),
@@ -630,7 +752,8 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                       ),
 
                       // Tender / Quick Note Buttons (When CASH and cart not empty)
-                      if (cartState.items.isNotEmpty && _selectedPaymentMethod == 'CASH')
+                      if (cartState.items.isNotEmpty &&
+                          _selectedPaymentMethod.isNotEmpty)
                         Padding(
                           padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
                           child: Column(
@@ -638,34 +761,64 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                             children: [
                               // Tender display row with tap to open numpad
                               InkWell(
-                                onTap: () => _showQuickNumpadSheet(context, cartNotifier, currency),
+                                onTap: () => _showQuickNumpadSheet(
+                                  context,
+                                  cartNotifier,
+                                  currency,
+                                ),
                                 borderRadius: BorderRadius.circular(8),
                                 child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 8,
+                                  ),
                                   decoration: BoxDecoration(
-                                    color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                                    color: isDark
+                                        ? const Color(0xFF1E293B)
+                                        : const Color(0xFFF1F5F9),
                                     borderRadius: BorderRadius.circular(8),
                                     border: Border.all(color: borderColor),
                                   ),
                                   child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
                                     children: [
                                       Text(
                                         'TENDERED:',
-                                        style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurfaceVariant),
+                                        style: GoogleFonts.inter(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w700,
+                                          color: theme
+                                              .colorScheme
+                                              .onSurfaceVariant,
+                                        ),
                                       ),
                                       Row(
                                         children: [
                                           Text(
-                                            _tenderedAmount == 0 ? 'ENTER AMOUNT' : CurrencyFormatter.format(_tenderedAmount, currency),
+                                            _tenderedAmount == 0
+                                                ? 'ENTER AMOUNT'
+                                                : CurrencyFormatter.format(
+                                                    _tenderedAmount,
+                                                    currency,
+                                                  ),
                                             style: GoogleFonts.inter(
                                               fontSize: 16,
                                               fontWeight: FontWeight.w800,
-                                              color: _tenderedAmount == 0 ? theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6) : primaryColor,
+                                              color: _tenderedAmount == 0
+                                                  ? theme
+                                                        .colorScheme
+                                                        .onSurfaceVariant
+                                                        .withValues(alpha: 0.6)
+                                                  : primaryColor,
                                             ),
                                           ),
                                           const SizedBox(width: 8),
-                                          Icon(Icons.dialpad_rounded, size: 16, color: primaryColor),
+                                          Icon(
+                                            Icons.dialpad_rounded,
+                                            size: 16,
+                                            color: primaryColor,
+                                          ),
                                         ],
                                       ),
                                     ],
@@ -678,17 +831,57 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                                 spacing: 6,
                                 runSpacing: 6,
                                 children: [
-                                  _buildSquareQuickNoteChip(context, 1, currency),
-                                  _buildSquareQuickNoteChip(context, 2, currency),
-                                  _buildSquareQuickNoteChip(context, 5, currency),
-                                  _buildSquareQuickNoteChip(context, 10, currency),
-                                  _buildSquareQuickNoteChip(context, 20, currency),
-                                  _buildSquareQuickNoteChip(context, 50, currency),
-                                  _buildSquareQuickNoteChip(context, 100, currency),
-                                  _buildSquareQuickNoteChip(context, 200, currency),
-                                  _buildSquareQuickNoteChip(context, 500, currency),
+                                  _buildSquareQuickNoteChip(
+                                    context,
+                                    1,
+                                    currency,
+                                  ),
+                                  _buildSquareQuickNoteChip(
+                                    context,
+                                    2,
+                                    currency,
+                                  ),
+                                  _buildSquareQuickNoteChip(
+                                    context,
+                                    5,
+                                    currency,
+                                  ),
+                                  _buildSquareQuickNoteChip(
+                                    context,
+                                    10,
+                                    currency,
+                                  ),
+                                  _buildSquareQuickNoteChip(
+                                    context,
+                                    20,
+                                    currency,
+                                  ),
+                                  _buildSquareQuickNoteChip(
+                                    context,
+                                    50,
+                                    currency,
+                                  ),
+                                  _buildSquareQuickNoteChip(
+                                    context,
+                                    100,
+                                    currency,
+                                  ),
+                                  _buildSquareQuickNoteChip(
+                                    context,
+                                    200,
+                                    currency,
+                                  ),
+                                  _buildSquareQuickNoteChip(
+                                    context,
+                                    500,
+                                    currency,
+                                  ),
                                   _buildSquareClearChip(context),
-                                  _buildSquareExactChip(context, cartNotifier, currency),
+                                  _buildSquareExactChip(
+                                    context,
+                                    cartNotifier,
+                                    currency,
+                                  ),
                                 ],
                               ),
                             ],
@@ -696,7 +889,12 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                         ),
 
                       // Totals & Complete Sale Button
-                      _buildOrderSummary(context, cartState, cartNotifier, currency),
+                      _buildOrderSummary(
+                        context,
+                        cartState,
+                        cartNotifier,
+                        currency,
+                      ),
                     ],
                   ),
                 ),
@@ -708,30 +906,50 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     );
   }
 
-  Widget _buildSquareQuickNoteChip(BuildContext context, double amount, String currency) {
+  Widget _buildSquareQuickNoteChip(
+    BuildContext context,
+    double amount,
+    String currency,
+  ) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
     return ActionChip(
       label: Text(
         CurrencyFormatter.format(amount, currency),
-        style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurface),
+        style: GoogleFonts.inter(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          color: theme.colorScheme.onSurface,
+        ),
       ),
-      backgroundColor: isDark ? const Color(0xFF293548) : const Color(0xFFF1F5F9),
-      side: BorderSide(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+      backgroundColor: isDark
+          ? const Color(0xFF293548)
+          : const Color(0xFFF1F5F9),
+      side: BorderSide(
+        color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+      ),
       padding: const EdgeInsets.symmetric(horizontal: 4),
       onPressed: () => setState(() => _tenderedAmount += amount),
     );
   }
 
-  Widget _buildSquareExactChip(BuildContext context, CartNotifier cartNotifier, String currency) {
+  Widget _buildSquareExactChip(
+    BuildContext context,
+    CartNotifier cartNotifier,
+    String currency,
+  ) {
     final theme = Theme.of(context);
     final primaryColor = theme.colorScheme.primary;
 
     return ActionChip(
       label: Text(
         'EXACT',
-        style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w800, color: primaryColor),
+        style: GoogleFonts.inter(
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+          color: primaryColor,
+        ),
       ),
       backgroundColor: primaryColor.withValues(alpha: 0.12),
       side: BorderSide(color: primaryColor.withValues(alpha: 0.3)),
@@ -744,7 +962,11 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     return ActionChip(
       label: Text(
         'CLEAR',
-        style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.redAccent),
+        style: GoogleFonts.inter(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          color: Colors.redAccent,
+        ),
       ),
       backgroundColor: Colors.redAccent.withValues(alpha: 0.10),
       side: BorderSide(color: Colors.redAccent.withValues(alpha: 0.3)),
@@ -753,7 +975,11 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     );
   }
 
-  void _showQuickNumpadSheet(BuildContext context, CartNotifier cartNotifier, String currency) {
+  void _showQuickNumpadSheet(
+    BuildContext context,
+    CartNotifier cartNotifier,
+    String currency,
+  ) {
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -770,7 +996,11 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
               decoration: BoxDecoration(
                 color: isDark ? const Color(0xFF1E293B) : Colors.white,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+                border: Border.all(
+                  color: isDark
+                      ? const Color(0xFF334155)
+                      : const Color(0xFFE2E8F0),
+                ),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.4),
@@ -786,7 +1016,11 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                     children: [
                       Text(
                         'Cash Tender Keypad',
-                        style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurface),
+                        style: GoogleFonts.inter(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: theme.colorScheme.onSurface,
+                        ),
                       ),
                       IconButton(
                         icon: const Icon(Icons.close_rounded, size: 20),
@@ -797,33 +1031,46 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                   const SizedBox(height: 8),
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 10,
+                      horizontal: 14,
+                    ),
                     decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                      color: isDark
+                          ? const Color(0xFF0F172A)
+                          : const Color(0xFFF1F5F9),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     alignment: Alignment.centerRight,
                     child: Text(
-                      _tenderedAmount == 0 ? 'K0.00' : CurrencyFormatter.format(_tenderedAmount, currency),
-                      style: GoogleFonts.inter(fontSize: 24, fontWeight: FontWeight.w900, color: theme.colorScheme.primary),
+                      _tenderedAmount == 0
+                          ? 'K0.00'
+                          : CurrencyFormatter.format(_tenderedAmount, currency),
+                      style: GoogleFonts.inter(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
+                        color: theme.colorScheme.primary,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 12),
-                  Expanded(
-                    child: _buildNumericKeypad(context),
-                  ),
+                  Expanded(child: _buildNumericKeypad(context)),
                   const SizedBox(height: 12),
                   Row(
                     children: [
                       Expanded(
                         child: OutlinedButton(
                           onPressed: () {
-                            setState(() => _tenderedAmount = cartNotifier.total);
+                            setState(
+                              () => _tenderedAmount = cartNotifier.total,
+                            );
                             setDialogState(() {});
                           },
                           style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
                           ),
                           child: const Text('EXACT'),
                         ),
@@ -836,9 +1083,14 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                             backgroundColor: theme.colorScheme.primary,
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
                           ),
-                          child: const Text('DONE', style: TextStyle(fontWeight: FontWeight.w700)),
+                          child: const Text(
+                            'DONE',
+                            style: TextStyle(fontWeight: FontWeight.w700),
+                          ),
                         ),
                       ),
                     ],
@@ -866,7 +1118,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final panelBg = isDark ? const Color(0xFF151F32) : const Color(0xFFFFFFFF);
-    final borderColor = isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0);
+    final borderColor = isDark
+        ? const Color(0xFF293548)
+        : const Color(0xFFE2E8F0);
     final primaryColor = theme.colorScheme.primary;
 
     return Row(
@@ -909,19 +1163,31 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                             borderRadius: BorderRadius.circular(8),
                             child: Container(
                               height: 34,
-                              padding: const EdgeInsets.symmetric(horizontal: 10),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                              ),
                               decoration: BoxDecoration(
-                                color: isDark ? const Color(0xFF293548) : const Color(0xFFF1F5F9),
+                                color: isDark
+                                    ? const Color(0xFF293548)
+                                    : const Color(0xFFF1F5F9),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(Icons.qr_code_scanner_rounded, size: 16, color: primaryColor),
+                                  Icon(
+                                    Icons.qr_code_scanner_rounded,
+                                    size: 16,
+                                    color: primaryColor,
+                                  ),
                                   const SizedBox(width: 6),
                                   Text(
                                     'SCAN',
-                                    style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontSize: 11, fontWeight: FontWeight.w700),
+                                    style: GoogleFonts.inter(
+                                      color: theme.colorScheme.onSurface,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -934,20 +1200,32 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                           message: 'Open Cash Drawer',
                           child: InkWell(
                             onTap: () async {
-                              final config = ref.read(storeConfigProvider).value;
-                              final ok = await ref.read(printerServiceProvider).openCashDrawer(config: config);
+                              final config = ref
+                                  .read(storeConfigProvider)
+                                  .value;
+                              final ok = await ref
+                                  .read(printerServiceProvider)
+                                  .openCashDrawer(config: config);
                               if (context.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
                                     content: Row(
                                       children: [
                                         Icon(
-                                          ok ? Icons.check_circle_rounded : Icons.warning_amber_rounded,
-                                          color: ok ? const Color(0xFF059669) : const Color(0xFFDC2626),
+                                          ok
+                                              ? Icons.check_circle_rounded
+                                              : Icons.warning_amber_rounded,
+                                          color: ok
+                                              ? const Color(0xFF059669)
+                                              : const Color(0xFFDC2626),
                                           size: 18,
                                         ),
                                         const SizedBox(width: 8),
-                                        Text(ok ? 'Cash drawer opened' : 'Kick command sent (check printer connection)'),
+                                        Text(
+                                          ok
+                                              ? 'Cash drawer opened'
+                                              : 'Kick command sent (check printer connection)',
+                                        ),
                                       ],
                                     ),
                                     duration: const Duration(seconds: 2),
@@ -959,19 +1237,31 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                             borderRadius: BorderRadius.circular(8),
                             child: Container(
                               height: 34,
-                              padding: const EdgeInsets.symmetric(horizontal: 10),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                              ),
                               decoration: BoxDecoration(
-                                color: isDark ? const Color(0xFF293548) : const Color(0xFFF1F5F9),
+                                color: isDark
+                                    ? const Color(0xFF293548)
+                                    : const Color(0xFFF1F5F9),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(Icons.point_of_sale_rounded, size: 16, color: theme.colorScheme.onSurfaceVariant),
+                                  Icon(
+                                    Icons.point_of_sale_rounded,
+                                    size: 16,
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
                                   const SizedBox(width: 6),
                                   Text(
                                     'DRAWER',
-                                    style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontSize: 11, fontWeight: FontWeight.w700),
+                                    style: GoogleFonts.inter(
+                                      color: theme.colorScheme.onSurface,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -984,7 +1274,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                           height: 34,
                           padding: const EdgeInsets.all(2),
                           decoration: BoxDecoration(
-                            color: isDark ? const Color(0xFF293548) : const Color(0xFFF1F5F9),
+                            color: isDark
+                                ? const Color(0xFF293548)
+                                : const Color(0xFFF1F5F9),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Row(
@@ -1002,7 +1294,8 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                                 icon: Icons.view_list_rounded,
                                 tooltip: 'List View',
                                 isSelected: !_isGridView,
-                                onTap: () => setState(() => _isGridView = false),
+                                onTap: () =>
+                                    setState(() => _isGridView = false),
                               ),
                             ],
                           ),
@@ -1019,7 +1312,11 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                   focusNode: _searchFocusNode,
                   onChanged: (_) => setState(() {}),
                   onSubmitted: (val) => _lookupProduct(val),
-                  style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface),
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: theme.colorScheme.onSurface,
+                  ),
                   decoration: _searchInputDecoration(context),
                 ),
                 const SizedBox(height: 10),
@@ -1036,16 +1333,26 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                         return _buildEmptyCatalogState(context);
                       }
                       if (_isGridView) {
-                        return _buildProductsGrid(context, filteredProducts, currency);
+                        return _buildProductsGrid(
+                          context,
+                          filteredProducts,
+                          currency,
+                        );
                       } else {
-                        return _buildProductsList(context, filteredProducts, currency);
+                        return _buildProductsList(
+                          context,
+                          filteredProducts,
+                          currency,
+                        );
                       }
                     },
-                    loading: () => const Center(
-                      child: CircularProgressIndicator(),
-                    ),
+                    loading: () =>
+                        const Center(child: CircularProgressIndicator()),
                     error: (err, _) => Center(
-                      child: Text('Error loading products: $err', style: const TextStyle(color: Color(0xFFDC2626))),
+                      child: Text(
+                        'Error loading products: $err',
+                        style: const TextStyle(color: Color(0xFFDC2626)),
+                      ),
                     ),
                   ),
                 ),
@@ -1103,9 +1410,21 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                                       Expanded(
                                         child: Row(
                                           children: [
-                                            Expanded(child: _buildQuickTenderButton(context, 20, currency)),
+                                            Expanded(
+                                              child: _buildQuickTenderButton(
+                                                context,
+                                                20,
+                                                currency,
+                                              ),
+                                            ),
                                             const SizedBox(width: 4),
-                                            Expanded(child: _buildQuickTenderButton(context, 50, currency)),
+                                            Expanded(
+                                              child: _buildQuickTenderButton(
+                                                context,
+                                                50,
+                                                currency,
+                                              ),
+                                            ),
                                           ],
                                         ),
                                       ),
@@ -1113,9 +1432,21 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                                       Expanded(
                                         child: Row(
                                           children: [
-                                            Expanded(child: _buildQuickTenderButton(context, 100, currency)),
+                                            Expanded(
+                                              child: _buildQuickTenderButton(
+                                                context,
+                                                100,
+                                                currency,
+                                              ),
+                                            ),
                                             const SizedBox(width: 4),
-                                            Expanded(child: _buildQuickTenderButton(context, 200, currency)),
+                                            Expanded(
+                                              child: _buildQuickTenderButton(
+                                                context,
+                                                200,
+                                                currency,
+                                              ),
+                                            ),
                                           ],
                                         ),
                                       ),
@@ -1123,9 +1454,21 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                                       Expanded(
                                         child: Row(
                                           children: [
-                                            Expanded(child: _buildQuickTenderButton(context, 500, currency)),
+                                            Expanded(
+                                              child: _buildQuickTenderButton(
+                                                context,
+                                                500,
+                                                currency,
+                                              ),
+                                            ),
                                             const SizedBox(width: 4),
-                                            Expanded(child: _buildExactAmountBtn(context, cartNotifier, currency)),
+                                            Expanded(
+                                              child: _buildExactAmountBtn(
+                                                context,
+                                                cartNotifier,
+                                                currency,
+                                              ),
+                                            ),
                                           ],
                                         ),
                                       ),
@@ -1145,7 +1488,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                       ),
                     )
                   else
-                    Expanded(child: _buildDigitalPaymentPrompt(context, currency)),
+                    Expanded(
+                      child: _buildDigitalPaymentPrompt(context, currency),
+                    ),
 
                   const SizedBox(height: 12),
                   _buildCompleteSaleButton(context, cartNotifier),
@@ -1159,9 +1504,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         Expanded(
           flex: 4,
           child: Container(
-            decoration: BoxDecoration(
-              color: panelBg,
-            ),
+            decoration: BoxDecoration(color: panelBg),
             child: Column(
               children: [
                 Expanded(
@@ -1173,13 +1516,20 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text('ORDER REVIEW', style: _headerTextStyle(context)),
+                            Text(
+                              'ORDER REVIEW',
+                              style: _headerTextStyle(context),
+                            ),
                             if (cartState.items.isNotEmpty)
                               Row(
                                 children: [
                                   Text(
                                     '${cartState.items.fold<int>(0, (sum, item) => sum + item.quantity)} items',
-                                    style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: primaryColor),
+                                    style: GoogleFonts.inter(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      color: primaryColor,
+                                    ),
                                   ),
                                   const SizedBox(width: 8),
                                   InkWell(
@@ -1192,10 +1542,17 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                                     },
                                     borderRadius: BorderRadius.circular(4),
                                     child: Padding(
-                                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 4,
+                                        vertical: 2,
+                                      ),
                                       child: Text(
                                         'CLEAR',
-                                        style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w800, color: const Color(0xFFDC2626)),
+                                        style: GoogleFonts.inter(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w800,
+                                          color: const Color(0xFFDC2626),
+                                        ),
                                       ),
                                     ),
                                   ),
@@ -1206,10 +1563,19 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                       ),
                       Expanded(
                         child: cartState.items.isEmpty
-                            ? _buildEmptyState(context, 'Cart is empty', icon: Icons.shopping_cart_outlined)
+                            ? _buildEmptyState(
+                                context,
+                                'Cart is empty',
+                                icon: Icons.shopping_cart_outlined,
+                              )
                             : ListView.builder(
                                 itemCount: cartState.items.length,
-                                itemBuilder: (context, index) => _buildCartRow(context, cartState.items[index], cartNotifier, currency),
+                                itemBuilder: (context, index) => _buildCartRow(
+                                  context,
+                                  cartState.items[index],
+                                  cartNotifier,
+                                  currency,
+                                ),
                               ),
                       ),
                     ],
@@ -1254,39 +1620,71 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                     focusNode: _searchFocusNode,
                     onChanged: (_) => setState(() {}),
                     onSubmitted: (val) => _lookupProduct(val),
-                    style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface),
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: theme.colorScheme.onSurface,
+                    ),
                     decoration: InputDecoration(
                       hintText: 'Search product or SKU...',
-                      hintStyle: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
-                      prefixIcon: Icon(Icons.search_rounded, size: 18, color: theme.colorScheme.onSurfaceVariant),
+                      hintStyle: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                      prefixIcon: Icon(
+                        Icons.search_rounded,
+                        size: 18,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
                       suffixIcon: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           if (_searchController.text.isNotEmpty)
                             IconButton(
-                              icon: Icon(Icons.close_rounded, size: 16, color: theme.colorScheme.onSurfaceVariant),
+                              icon: Icon(
+                                Icons.close_rounded,
+                                size: 16,
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
                               onPressed: () {
                                 _searchController.clear();
                                 setState(() {});
                               },
                             ),
                           IconButton(
-                            icon: Icon(Icons.qr_code_scanner_rounded, color: primaryColor, size: 20),
+                            icon: Icon(
+                              Icons.qr_code_scanner_rounded,
+                              color: primaryColor,
+                              size: 20,
+                            ),
                             tooltip: 'Scan Barcode / QR',
                             onPressed: _openCameraScanner,
                           ),
                         ],
                       ),
                       filled: true,
-                      fillColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFFFFFFF),
-                      contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                      fillColor: isDark
+                          ? const Color(0xFF1E293B)
+                          : const Color(0xFFFFFFFF),
+                      contentPadding: const EdgeInsets.symmetric(
+                        vertical: 10,
+                        horizontal: 12,
+                      ),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+                        borderSide: BorderSide(
+                          color: isDark
+                              ? const Color(0xFF334155)
+                              : const Color(0xFFE2E8F0),
+                        ),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+                        borderSide: BorderSide(
+                          color: isDark
+                              ? const Color(0xFF334155)
+                              : const Color(0xFFE2E8F0),
+                        ),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
@@ -1298,22 +1696,36 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                 const SizedBox(width: 8),
                 // Quick Cash Drawer button
                 IconButton(
-                  icon: Icon(Icons.point_of_sale_rounded, color: primaryColor, size: 20),
+                  icon: Icon(
+                    Icons.point_of_sale_rounded,
+                    color: primaryColor,
+                    size: 20,
+                  ),
                   tooltip: 'Open Drawer',
                   style: IconButton.styleFrom(
-                    backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFFFFFFF),
+                    backgroundColor: isDark
+                        ? const Color(0xFF1E293B)
+                        : const Color(0xFFFFFFFF),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
-                      side: BorderSide(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+                      side: BorderSide(
+                        color: isDark
+                            ? const Color(0xFF334155)
+                            : const Color(0xFFE2E8F0),
+                      ),
                     ),
                   ),
                   onPressed: () async {
                     final config = ref.read(storeConfigProvider).value;
-                    final ok = await ref.read(printerServiceProvider).openCashDrawer(config: config);
+                    final ok = await ref
+                        .read(printerServiceProvider)
+                        .openCashDrawer(config: config);
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text(ok ? 'Cash drawer opened' : 'Kick signal sent'),
+                          content: Text(
+                            ok ? 'Cash drawer opened' : 'Kick signal sent',
+                          ),
                           behavior: SnackBarBehavior.floating,
                           duration: const Duration(seconds: 2),
                         ),
@@ -1324,13 +1736,25 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                 const SizedBox(width: 4),
                 // Grid / List toggle
                 IconButton(
-                  icon: Icon(_isGridView ? Icons.view_list_rounded : Icons.grid_view_rounded, color: theme.colorScheme.onSurfaceVariant, size: 20),
+                  icon: Icon(
+                    _isGridView
+                        ? Icons.view_list_rounded
+                        : Icons.grid_view_rounded,
+                    color: theme.colorScheme.onSurfaceVariant,
+                    size: 20,
+                  ),
                   tooltip: _isGridView ? 'Switch to List' : 'Switch to Grid',
                   style: IconButton.styleFrom(
-                    backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFFFFFFF),
+                    backgroundColor: isDark
+                        ? const Color(0xFF1E293B)
+                        : const Color(0xFFFFFFFF),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
-                      side: BorderSide(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+                      side: BorderSide(
+                        color: isDark
+                            ? const Color(0xFF334155)
+                            : const Color(0xFFE2E8F0),
+                      ),
                     ),
                   ),
                   onPressed: () => setState(() => _isGridView = !_isGridView),
@@ -1351,16 +1775,25 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                     return _buildEmptyCatalogState(context);
                   }
                   if (_isGridView) {
-                    return _buildMobileProductsGrid(context, filteredProducts, currency);
+                    return _buildMobileProductsGrid(
+                      context,
+                      filteredProducts,
+                      currency,
+                    );
                   } else {
-                    return _buildProductsList(context, filteredProducts, currency);
+                    return _buildProductsList(
+                      context,
+                      filteredProducts,
+                      currency,
+                    );
                   }
                 },
-                loading: () => const Center(
-                  child: CircularProgressIndicator(),
-                ),
+                loading: () => const Center(child: CircularProgressIndicator()),
                 error: (err, _) => Center(
-                  child: Text('Error loading products: $err', style: const TextStyle(color: Color(0xFFEF4444))),
+                  child: Text(
+                    'Error loading products: $err',
+                    style: const TextStyle(color: Color(0xFFEF4444)),
+                  ),
                 ),
               ),
             ),
@@ -1375,7 +1808,11 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     );
   }
 
-  Widget _buildMobileProductsGrid(BuildContext context, List<Product> products, String currency) {
+  Widget _buildMobileProductsGrid(
+    BuildContext context,
+    List<Product> products,
+    String currency,
+  ) {
     return GridView.builder(
       itemCount: products.length,
       padding: const EdgeInsets.only(bottom: 6),
@@ -1392,12 +1829,20 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     );
   }
 
-  Widget _buildMobileBottomBar(BuildContext context, CartState cartState, CartNotifier cartNotifier, String currency) {
+  Widget _buildMobileBottomBar(
+    BuildContext context,
+    CartState cartState,
+    CartNotifier cartNotifier,
+    String currency,
+  ) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final primaryColor = theme.colorScheme.primary;
 
-    final totalItems = cartState.items.fold<int>(0, (sum, i) => sum + i.quantity);
+    final totalItems = cartState.items.fold<int>(
+      0,
+      (sum, i) => sum + i.quantity,
+    );
     final total = cartNotifier.total;
     final hasItems = cartState.items.isNotEmpty;
 
@@ -1416,7 +1861,14 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
           // Cart Summary & Tap to View Sheet
           Expanded(
             child: InkWell(
-              onTap: hasItems ? () => _showMobileCartSheet(context, cartState, cartNotifier, currency) : null,
+              onTap: hasItems
+                  ? () => _showMobileCartSheet(
+                      context,
+                      cartState,
+                      cartNotifier,
+                      currency,
+                    )
+                  : null,
               borderRadius: BorderRadius.circular(10),
               child: Row(
                 children: [
@@ -1426,12 +1878,18 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: hasItems ? primaryColor.withValues(alpha: 0.12) : (isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9)),
+                          color: hasItems
+                              ? primaryColor.withValues(alpha: 0.12)
+                              : (isDark
+                                    ? const Color(0xFF334155)
+                                    : const Color(0xFFF1F5F9)),
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Icon(
                           Icons.shopping_bag_outlined,
-                          color: hasItems ? primaryColor : theme.colorScheme.onSurfaceVariant,
+                          color: hasItems
+                              ? primaryColor
+                              : theme.colorScheme.onSurfaceVariant,
                           size: 20,
                         ),
                       ),
@@ -1440,7 +1898,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                           top: -4,
                           right: -4,
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
                               color: primaryColor,
                               borderRadius: BorderRadius.circular(10),
@@ -1464,19 +1925,27 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          hasItems ? CurrencyFormatter.format(total, currency) : 'Cart is Empty',
+                          hasItems
+                              ? CurrencyFormatter.format(total, currency)
+                              : 'Cart is Empty',
                           style: GoogleFonts.inter(
                             fontSize: 15,
                             fontWeight: FontWeight.w800,
-                            color: hasItems ? theme.colorScheme.onSurface : theme.colorScheme.onSurfaceVariant,
+                            color: hasItems
+                                ? theme.colorScheme.onSurface
+                                : theme.colorScheme.onSurfaceVariant,
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
                         Text(
-                          hasItems ? '$totalItems item${totalItems > 1 ? "s" : ""} • Tap to view' : 'Tap item or scan',
+                          hasItems
+                              ? '$totalItems item${totalItems > 1 ? "s" : ""} • Tap to view'
+                              : 'Tap item or scan',
                           style: GoogleFonts.inter(
                             fontSize: 11,
-                            color: hasItems ? primaryColor : theme.colorScheme.onSurfaceVariant,
+                            color: hasItems
+                                ? primaryColor
+                                : theme.colorScheme.onSurfaceVariant,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -1492,14 +1961,21 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
 
           // Pay Button
           ElevatedButton(
-            onPressed: hasItems ? () => _showMobileCheckoutSheet(context, cartNotifier, currency) : null,
+            onPressed: hasItems
+                ? () =>
+                      _showMobileCheckoutSheet(context, cartNotifier, currency)
+                : null,
             style: ElevatedButton.styleFrom(
               backgroundColor: primaryColor,
-              disabledBackgroundColor: isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
+              disabledBackgroundColor: isDark
+                  ? const Color(0xFF334155)
+                  : const Color(0xFFF1F5F9),
               foregroundColor: Colors.white,
               disabledForegroundColor: theme.colorScheme.onSurfaceVariant,
               padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
               elevation: 0,
             ),
             child: Row(
@@ -1546,8 +2022,12 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
             return Container(
               height: media.size.height * 0.85,
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1E293B) : const Color(0xFFFFFFFF),
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                color: isDark
+                    ? const Color(0xFF1E293B)
+                    : const Color(0xFFFFFFFF),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(20),
+                ),
               ),
               child: Column(
                 children: [
@@ -1557,23 +2037,36 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                     width: 44,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                      color: isDark
+                          ? const Color(0xFF334155)
+                          : const Color(0xFFE2E8F0),
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
                   // Header
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Row(
                           children: [
-                            Icon(Icons.shopping_cart_outlined, color: theme.colorScheme.primary, size: 20),
+                            Icon(
+                              Icons.shopping_cart_outlined,
+                              color: theme.colorScheme.primary,
+                              size: 20,
+                            ),
                             const SizedBox(width: 8),
                             Text(
                               'ORDER REVIEW',
-                              style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w800, color: theme.colorScheme.onSurface),
+                              style: GoogleFonts.inter(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800,
+                                color: theme.colorScheme.onSurface,
+                              ),
                             ),
                           ],
                         ),
@@ -1583,24 +2076,45 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                               activeCartNotifier.clearCart();
                               Navigator.pop(ctx);
                             },
-                            child: const Text('Clear All', style: TextStyle(color: Color(0xFFEF4444), fontSize: 12, fontWeight: FontWeight.w600)),
+                            child: const Text(
+                              'Clear All',
+                              style: TextStyle(
+                                color: Color(0xFFEF4444),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
                           ),
                       ],
                     ),
                   ),
-                  Divider(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0), height: 1),
+                  Divider(
+                    color: isDark
+                        ? const Color(0xFF334155)
+                        : const Color(0xFFE2E8F0),
+                    height: 1,
+                  ),
 
                   // Cart Items
                   Expanded(
                     child: activeCartState.items.isEmpty
                         ? Center(
-                            child: Text('Cart is empty', style: GoogleFonts.inter(color: theme.colorScheme.onSurfaceVariant)),
+                            child: Text(
+                              'Cart is empty',
+                              style: GoogleFonts.inter(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
                           )
                         : ListView.builder(
                             padding: const EdgeInsets.symmetric(vertical: 8),
                             itemCount: activeCartState.items.length,
-                            itemBuilder: (context, index) =>
-                                _buildCartRow(context, activeCartState.items[index], activeCartNotifier, currency),
+                            itemBuilder: (context, index) => _buildCartRow(
+                              context,
+                              activeCartState.items[index],
+                              activeCartNotifier,
+                              currency,
+                            ),
                           ),
                   ),
 
@@ -1608,13 +2122,26 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF162032) : const Color(0xFFF8F9FB),
-                      border: Border(top: BorderSide(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0))),
+                      color: isDark
+                          ? const Color(0xFF162032)
+                          : const Color(0xFFF8F9FB),
+                      border: Border(
+                        top: BorderSide(
+                          color: isDark
+                              ? const Color(0xFF334155)
+                              : const Color(0xFFE2E8F0),
+                        ),
+                      ),
                     ),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        _buildOrderSummary(context, activeCartState, activeCartNotifier, currency),
+                        _buildOrderSummary(
+                          context,
+                          activeCartState,
+                          activeCartNotifier,
+                          currency,
+                        ),
                         const SizedBox(height: 12),
                         SizedBox(
                           width: double.infinity,
@@ -1624,17 +2151,27 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                                 ? null
                                 : () {
                                     Navigator.pop(ctx);
-                                    _showMobileCheckoutSheet(context, activeCartNotifier, currency);
+                                    _showMobileCheckoutSheet(
+                                      context,
+                                      activeCartNotifier,
+                                      currency,
+                                    );
                                   },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: theme.colorScheme.primary,
                               foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
                               elevation: 0,
                             ),
                             child: Text(
                               'PROCEED TO PAY (${CurrencyFormatter.format(activeCartNotifier.total, currency)})',
-                              style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w800, letterSpacing: 0.5),
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.5,
+                              ),
                             ),
                           ),
                         ),
@@ -1671,14 +2208,18 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         return StatefulBuilder(
           builder: (modalContext, setModalState) {
             final total = cartNotifier.total;
-            final isCash = _selectedPaymentMethod == 'CASH';
-            final canComplete = !isCash || (_tenderedAmount >= total);
+            final canComplete =
+                _selectedPaymentMethod.isNotEmpty && _tenderedAmount >= total;
 
             return Container(
               height: MediaQuery.of(context).size.height * 0.9,
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1E293B) : const Color(0xFFFFFFFF),
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                color: isDark
+                    ? const Color(0xFF1E293B)
+                    : const Color(0xFFFFFFFF),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(20),
+                ),
               ),
               child: Column(
                 children: [
@@ -1688,13 +2229,18 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                     width: 44,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                      color: isDark
+                          ? const Color(0xFF334155)
+                          : const Color(0xFFE2E8F0),
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
                   // Header
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -1703,26 +2249,44 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                             Container(
                               padding: const EdgeInsets.all(6),
                               decoration: BoxDecoration(
-                                color: theme.colorScheme.primary.withValues(alpha: 0.12),
+                                color: theme.colorScheme.primary.withValues(
+                                  alpha: 0.12,
+                                ),
                                 borderRadius: BorderRadius.circular(8),
                               ),
-                              child: Icon(Icons.payments_rounded, color: theme.colorScheme.primary, size: 18),
+                              child: Icon(
+                                Icons.payments_rounded,
+                                color: theme.colorScheme.primary,
+                                size: 18,
+                              ),
                             ),
                             const SizedBox(width: 10),
                             Text(
                               'PAYMENT CHECKOUT',
-                              style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w800, color: theme.colorScheme.onSurface),
+                              style: GoogleFonts.inter(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800,
+                                color: theme.colorScheme.onSurface,
+                              ),
                             ),
                           ],
                         ),
                         IconButton(
-                          icon: Icon(Icons.close_rounded, color: theme.colorScheme.onSurfaceVariant),
+                          icon: Icon(
+                            Icons.close_rounded,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
                           onPressed: () => Navigator.pop(ctx),
                         ),
                       ],
                     ),
                   ),
-                  Divider(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0), height: 1),
+                  Divider(
+                    color: isDark
+                        ? const Color(0xFF334155)
+                        : const Color(0xFFE2E8F0),
+                    height: 1,
+                  ),
 
                   Expanded(
                     child: SingleChildScrollView(
@@ -1755,7 +2319,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                                   _selectedPaymentMethod == 'MOBILE MONEY',
                                   () => setModalState(() {
                                     _selectedPaymentMethod = 'MOBILE MONEY';
-                                    _tenderedAmount = total;
+                                    _tenderedAmount = 0.0;
                                   }),
                                 ),
                               ),
@@ -1769,7 +2333,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                                   _selectedPaymentMethod == 'CARD',
                                   () => setModalState(() {
                                     _selectedPaymentMethod = 'CARD';
-                                    _tenderedAmount = total;
+                                    _tenderedAmount = 0.0;
                                   }),
                                 ),
                               ),
@@ -1777,37 +2341,82 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                           ),
                           const SizedBox(height: 16),
 
-                          if (_selectedPaymentMethod == 'CASH') ...[
+                          if (_selectedPaymentMethod.isNotEmpty) ...[
                             _buildTenderDisplay(context, currency),
                             const SizedBox(height: 14),
 
-                            // Note shortcuts
+                            // Tender shortcuts for every payment method
                             SingleChildScrollView(
                               scrollDirection: Axis.horizontal,
                               child: Row(
                                 children: [
-                                  _buildNoteChip(context, 20, currency, () => setModalState(() => _tenderedAmount += 20)),
+                                  _buildNoteChip(
+                                    context,
+                                    20,
+                                    currency,
+                                    () => setModalState(
+                                      () => _tenderedAmount += 20,
+                                    ),
+                                  ),
                                   const SizedBox(width: 6),
-                                  _buildNoteChip(context, 50, currency, () => setModalState(() => _tenderedAmount += 50)),
+                                  _buildNoteChip(
+                                    context,
+                                    50,
+                                    currency,
+                                    () => setModalState(
+                                      () => _tenderedAmount += 50,
+                                    ),
+                                  ),
                                   const SizedBox(width: 6),
-                                  _buildNoteChip(context, 100, currency, () => setModalState(() => _tenderedAmount += 100)),
+                                  _buildNoteChip(
+                                    context,
+                                    100,
+                                    currency,
+                                    () => setModalState(
+                                      () => _tenderedAmount += 100,
+                                    ),
+                                  ),
                                   const SizedBox(width: 6),
-                                  _buildNoteChip(context, 200, currency, () => setModalState(() => _tenderedAmount += 200)),
+                                  _buildNoteChip(
+                                    context,
+                                    200,
+                                    currency,
+                                    () => setModalState(
+                                      () => _tenderedAmount += 200,
+                                    ),
+                                  ),
                                   const SizedBox(width: 6),
-                                  _buildNoteChip(context, 500, currency, () => setModalState(() => _tenderedAmount += 500)),
+                                  _buildNoteChip(
+                                    context,
+                                    500,
+                                    currency,
+                                    () => setModalState(
+                                      () => _tenderedAmount += 500,
+                                    ),
+                                  ),
                                   const SizedBox(width: 6),
                                   InkWell(
-                                    onTap: () => setModalState(() => _tenderedAmount = total),
+                                    onTap: () => setModalState(
+                                      () => _tenderedAmount = total,
+                                    ),
                                     borderRadius: BorderRadius.circular(8),
                                     child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 10,
+                                      ),
                                       decoration: BoxDecoration(
-                                        color: theme.colorScheme.primary.withValues(alpha: 0.12),
+                                        color: theme.colorScheme.primary
+                                            .withValues(alpha: 0.12),
                                         borderRadius: BorderRadius.circular(8),
                                       ),
                                       child: Text(
                                         'EXACT (${CurrencyFormatter.format(total, currency)})',
-                                        style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: theme.colorScheme.primary),
+                                        style: GoogleFonts.inter(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w700,
+                                          color: theme.colorScheme.primary,
+                                        ),
                                       ),
                                     ),
                                   ),
@@ -1824,26 +2433,33 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                                   if (key == 'C') {
                                     _tenderedAmount = 0.0;
                                   } else if (key == '⌫') {
-                                    String digits = _tenderedAmount.toStringAsFixed(2).replaceAll('.', '');
+                                    String digits = _tenderedAmount
+                                        .toStringAsFixed(2)
+                                        .replaceAll('.', '');
                                     if (digits.length > 3) {
-                                      digits = digits.substring(0, digits.length - 1);
-                                      _tenderedAmount = double.parse(digits) / 100;
+                                      digits = digits.substring(
+                                        0,
+                                        digits.length - 1,
+                                      );
+                                      _tenderedAmount =
+                                          double.parse(digits) / 100;
                                     } else {
                                       _tenderedAmount = 0.0;
                                     }
                                   } else {
-                                    String digits = _tenderedAmount.toStringAsFixed(2).replaceAll('.', '');
+                                    String digits = _tenderedAmount
+                                        .toStringAsFixed(2)
+                                        .replaceAll('.', '');
                                     if (digits == '000') digits = '';
                                     digits += key;
                                     if (digits.length <= 10) {
-                                      _tenderedAmount = double.parse(digits) / 100;
+                                      _tenderedAmount =
+                                          double.parse(digits) / 100;
                                     }
                                   }
                                 });
                               }),
                             ),
-                          ] else ...[
-                            _buildDigitalPaymentPrompt(context, currency),
                           ],
                         ],
                       ),
@@ -1865,17 +2481,33 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                             : null,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: theme.colorScheme.primary,
-                          disabledBackgroundColor: isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
+                          disabledBackgroundColor: isDark
+                              ? const Color(0xFF334155)
+                              : const Color(0xFFF1F5F9),
                           foregroundColor: Colors.white,
-                          disabledForegroundColor: theme.colorScheme.onSurfaceVariant,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          disabledForegroundColor:
+                              theme.colorScheme.onSurfaceVariant,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
                           elevation: 0,
                         ),
                         child: _isProcessingPayment
-                            ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                ),
+                              )
                             : Text(
                                 'COMPLETE SALE & PRINT RECEIPT',
-                                style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w800, letterSpacing: 0.5),
+                                style: GoogleFonts.inter(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.5,
+                                ),
                               ),
                       ),
                     ),
@@ -1906,12 +2538,20 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
-          color: isSelected ? color : (isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9)),
+          color: isSelected
+              ? color
+              : (isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9)),
           borderRadius: BorderRadius.circular(10),
         ),
         child: Column(
           children: [
-            Icon(icon, color: isSelected ? Colors.white : theme.colorScheme.onSurfaceVariant, size: 18),
+            Icon(
+              icon,
+              color: isSelected
+                  ? Colors.white
+                  : theme.colorScheme.onSurfaceVariant,
+              size: 18,
+            ),
             const SizedBox(height: 4),
             Text(
               method == 'MOBILE MONEY' ? 'M-MONEY' : method,
@@ -1927,7 +2567,12 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     );
   }
 
-  Widget _buildNoteChip(BuildContext context, double amount, String currency, VoidCallback onTap) {
+  Widget _buildNoteChip(
+    BuildContext context,
+    double amount,
+    String currency,
+    VoidCallback onTap,
+  ) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
@@ -1942,20 +2587,29 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         ),
         child: Text(
           '+${CurrencyFormatter.format(amount, currency)}',
-          style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurface),
+          style: GoogleFonts.inter(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: theme.colorScheme.onSurface,
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildMobileKeypad(BuildContext context, ValueChanged<String> onKeyPress) {
+  Widget _buildMobileKeypad(
+    BuildContext context,
+    ValueChanged<String> onKeyPress,
+  ) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
     Widget buildBtn(String label, {Color? textColor, Color? bgColor}) {
       return Expanded(
         child: Material(
-          color: bgColor ?? (isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9)),
+          color:
+              bgColor ??
+              (isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9)),
           borderRadius: BorderRadius.circular(8),
           child: InkWell(
             onTap: () => onKeyPress(label),
@@ -1980,8 +2634,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         Expanded(
           child: Row(
             children: [
-              buildBtn('1'), const SizedBox(width: 6),
-              buildBtn('2'), const SizedBox(width: 6),
+              buildBtn('1'),
+              const SizedBox(width: 6),
+              buildBtn('2'),
+              const SizedBox(width: 6),
               buildBtn('3'),
             ],
           ),
@@ -1990,8 +2646,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         Expanded(
           child: Row(
             children: [
-              buildBtn('4'), const SizedBox(width: 6),
-              buildBtn('5'), const SizedBox(width: 6),
+              buildBtn('4'),
+              const SizedBox(width: 6),
+              buildBtn('5'),
+              const SizedBox(width: 6),
               buildBtn('6'),
             ],
           ),
@@ -2000,8 +2658,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         Expanded(
           child: Row(
             children: [
-              buildBtn('7'), const SizedBox(width: 6),
-              buildBtn('8'), const SizedBox(width: 6),
+              buildBtn('7'),
+              const SizedBox(width: 6),
+              buildBtn('8'),
+              const SizedBox(width: 6),
               buildBtn('9'),
             ],
           ),
@@ -2010,8 +2670,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         Expanded(
           child: Row(
             children: [
-              buildBtn('C', textColor: const Color(0xFFEF4444)), const SizedBox(width: 6),
-              buildBtn('0'), const SizedBox(width: 6),
+              buildBtn('C', textColor: const Color(0xFFEF4444)),
+              const SizedBox(width: 6),
+              buildBtn('0'),
+              const SizedBox(width: 6),
               buildBtn('⌫', textColor: const Color(0xFFF59E0B)),
             ],
           ),
@@ -2078,7 +2740,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: isSelected ? primaryColor : (isDark ? const Color(0xFF293548) : const Color(0xFFF1F5F9)),
+          color: isSelected
+              ? primaryColor
+              : (isDark ? const Color(0xFF293548) : const Color(0xFFF1F5F9)),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Text(
@@ -2098,7 +2762,11 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
 
   // --- Products Grid View ---
 
-  Widget _buildProductsGrid(BuildContext context, List<Product> products, String currency) {
+  Widget _buildProductsGrid(
+    BuildContext context,
+    List<Product> products,
+    String currency,
+  ) {
     return GridView.builder(
       itemCount: products.length,
       gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
@@ -2114,19 +2782,26 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     );
   }
 
-  Widget _buildProductCard(BuildContext context, Product product, String currency) {
+  Widget _buildProductCard(
+    BuildContext context,
+    Product product,
+    String currency,
+  ) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final primaryColor = theme.colorScheme.primary;
     final cardBg = isDark ? const Color(0xFF151F32) : const Color(0xFFFFFFFF);
-    final borderColor = isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0);
+    final borderColor = isDark
+        ? const Color(0xFF293548)
+        : const Color(0xFFE2E8F0);
 
     final isOutOfStock = product.stockLevel <= 0;
-    
-    final hasDiscount = product.discountPrice != null && 
-        product.discountStartDate != null && 
+
+    final hasDiscount =
+        product.discountPrice != null &&
+        product.discountStartDate != null &&
         product.discountEndDate != null &&
-        DateTime.now().isAfter(product.discountStartDate!) && 
+        DateTime.now().isAfter(product.discountStartDate!) &&
         DateTime.now().isBefore(product.discountEndDate!);
 
     return Material(
@@ -2139,8 +2814,8 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: isOutOfStock 
-                  ? const Color(0xFFDC2626).withValues(alpha: 0.4) 
+              color: isOutOfStock
+                  ? const Color(0xFFDC2626).withValues(alpha: 0.4)
                   : borderColor,
               width: 1,
             ),
@@ -2158,7 +2833,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                       child: ProductImageWidget(
                         imagePath: product.imagePath,
                         fit: BoxFit.cover,
-                        borderRadius: const BorderRadius.vertical(top: Radius.circular(11)),
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(11),
+                        ),
                       ),
                     ),
                     // Floating Badges Overlay (Top Right)
@@ -2170,7 +2847,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                         children: [
                           if (isOutOfStock)
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
                               decoration: BoxDecoration(
                                 color: const Color(0xFFDC2626),
                                 borderRadius: BorderRadius.circular(4),
@@ -2193,7 +2873,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                             )
                           else if (product.isWeighted)
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
                               decoration: BoxDecoration(
                                 color: primaryColor,
                                 borderRadius: BorderRadius.circular(4),
@@ -2201,7 +2884,11 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  const Icon(Icons.scale_rounded, color: Colors.white, size: 10),
+                                  const Icon(
+                                    Icons.scale_rounded,
+                                    color: Colors.white,
+                                    size: 10,
+                                  ),
                                   const SizedBox(width: 2),
                                   Text(
                                     product.unitOfMeasure.toUpperCase(),
@@ -2216,7 +2903,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                             )
                           else if (hasDiscount)
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
                               decoration: BoxDecoration(
                                 color: const Color(0xFFD97706),
                                 borderRadius: BorderRadius.circular(4),
@@ -2240,7 +2930,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
               // Card Body
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -2253,7 +2946,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                             style: GoogleFonts.inter(
                               fontSize: 12.5,
                               fontWeight: FontWeight.w700,
-                              color: isOutOfStock ? theme.colorScheme.onSurfaceVariant : theme.colorScheme.onSurface,
+                              color: isOutOfStock
+                                  ? theme.colorScheme.onSurfaceVariant
+                                  : theme.colorScheme.onSurface,
                               height: 1.2,
                             ),
                             maxLines: 1,
@@ -2284,7 +2979,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                               children: [
                                 if (hasDiscount) ...[
                                   Text(
-                                    CurrencyFormatter.format(product.price, currency),
+                                    CurrencyFormatter.format(
+                                      product.price,
+                                      currency,
+                                    ),
                                     style: TextStyle(
                                       fontSize: 9.5,
                                       color: theme.colorScheme.onSurfaceVariant,
@@ -2306,7 +3004,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                                     style: GoogleFonts.inter(
                                       fontSize: 13,
                                       fontWeight: FontWeight.w800,
-                                      color: isOutOfStock ? theme.colorScheme.onSurfaceVariant : primaryColor,
+                                      color: isOutOfStock
+                                          ? theme.colorScheme.onSurfaceVariant
+                                          : primaryColor,
                                     ),
                                     overflow: TextOverflow.ellipsis,
                                   ),
@@ -2320,13 +3020,21 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                             height: 26,
                             decoration: BoxDecoration(
                               color: isOutOfStock
-                                  ? (isDark ? const Color(0xFF293548) : const Color(0xFFF1F5F9))
+                                  ? (isDark
+                                        ? const Color(0xFF293548)
+                                        : const Color(0xFFF1F5F9))
                                   : primaryColor,
                               shape: BoxShape.circle,
                             ),
                             child: Icon(
-                              isOutOfStock ? Icons.block_rounded : (product.isWeighted ? Icons.scale_rounded : Icons.add),
-                              color: isOutOfStock ? theme.colorScheme.onSurfaceVariant : Colors.white,
+                              isOutOfStock
+                                  ? Icons.block_rounded
+                                  : (product.isWeighted
+                                        ? Icons.scale_rounded
+                                        : Icons.add),
+                              color: isOutOfStock
+                                  ? theme.colorScheme.onSurfaceVariant
+                                  : Colors.white,
                               size: 14,
                             ),
                           ),
@@ -2345,7 +3053,11 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
 
   // --- Products List View ---
 
-  Widget _buildProductsList(BuildContext context, List<Product> products, String currency) {
+  Widget _buildProductsList(
+    BuildContext context,
+    List<Product> products,
+    String currency,
+  ) {
     return ListView.separated(
       itemCount: products.length,
       separatorBuilder: (_, _) => const SizedBox(height: 6),
@@ -2355,13 +3067,18 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         final theme = Theme.of(context);
         final isDark = theme.brightness == Brightness.dark;
         final primaryColor = theme.colorScheme.primary;
-        final cardBg = isDark ? const Color(0xFF151F32) : const Color(0xFFFFFFFF);
-        final borderColor = isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0);
-        
-        final hasDiscount = product.discountPrice != null && 
-            product.discountStartDate != null && 
+        final cardBg = isDark
+            ? const Color(0xFF151F32)
+            : const Color(0xFFFFFFFF);
+        final borderColor = isDark
+            ? const Color(0xFF293548)
+            : const Color(0xFFE2E8F0);
+
+        final hasDiscount =
+            product.discountPrice != null &&
+            product.discountStartDate != null &&
             product.discountEndDate != null &&
-            DateTime.now().isAfter(product.discountStartDate!) && 
+            DateTime.now().isAfter(product.discountStartDate!) &&
             DateTime.now().isBefore(product.discountEndDate!);
 
         return Material(
@@ -2375,8 +3092,8 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: isOutOfStock 
-                      ? const Color(0xFFDC2626).withValues(alpha: 0.3) 
+                  color: isOutOfStock
+                      ? const Color(0xFFDC2626).withValues(alpha: 0.3)
                       : borderColor,
                   width: 1,
                 ),
@@ -2399,7 +3116,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                           style: GoogleFonts.inter(
                             fontSize: 13,
                             fontWeight: FontWeight.w700,
-                            color: isOutOfStock ? theme.colorScheme.onSurfaceVariant : theme.colorScheme.onSurface,
+                            color: isOutOfStock
+                                ? theme.colorScheme.onSurfaceVariant
+                                : theme.colorScheme.onSurface,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -2409,7 +3128,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                           children: [
                             Text(
                               '#${product.sku}',
-                              style: GoogleFonts.inter(fontSize: 10, color: theme.colorScheme.onSurfaceVariant),
+                              style: GoogleFonts.inter(
+                                fontSize: 10,
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
                             ),
                             if (isOutOfStock) ...[
                               const SizedBox(width: 8),
@@ -2445,16 +3167,31 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                       if (hasDiscount) ...[
                         Text(
                           CurrencyFormatter.format(product.price, currency),
-                          style: TextStyle(fontSize: 9.5, color: theme.colorScheme.onSurfaceVariant, decoration: TextDecoration.lineThrough),
+                          style: TextStyle(
+                            fontSize: 9.5,
+                            color: theme.colorScheme.onSurfaceVariant,
+                            decoration: TextDecoration.lineThrough,
+                          ),
                         ),
                         Text(
-                          CurrencyFormatter.format(product.discountPrice!, currency),
-                          style: GoogleFonts.inter(fontSize: 13.5, fontWeight: FontWeight.w800, color: primaryColor),
+                          CurrencyFormatter.format(
+                            product.discountPrice!,
+                            currency,
+                          ),
+                          style: GoogleFonts.inter(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w800,
+                            color: primaryColor,
+                          ),
                         ),
                       ] else ...[
                         Text(
                           CurrencyFormatter.format(product.price, currency),
-                          style: GoogleFonts.inter(fontSize: 13.5, fontWeight: FontWeight.w800, color: primaryColor),
+                          style: GoogleFonts.inter(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w800,
+                            color: primaryColor,
+                          ),
                         ),
                       ],
                     ],
@@ -2464,12 +3201,18 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                     width: 26,
                     height: 26,
                     decoration: BoxDecoration(
-                      color: isOutOfStock ? (isDark ? const Color(0xFF293548) : const Color(0xFFF1F5F9)) : primaryColor,
+                      color: isOutOfStock
+                          ? (isDark
+                                ? const Color(0xFF293548)
+                                : const Color(0xFFF1F5F9))
+                          : primaryColor,
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
-                      isOutOfStock ? Icons.block_rounded : Icons.add, 
-                      color: isOutOfStock ? theme.colorScheme.onSurfaceVariant : Colors.white, 
+                      isOutOfStock ? Icons.block_rounded : Icons.add,
+                      color: isOutOfStock
+                          ? theme.colorScheme.onSurfaceVariant
+                          : Colors.white,
                       size: 14,
                     ),
                   ),
@@ -2490,11 +3233,18 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.search_off_rounded, size: 48, color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4)),
+          Icon(
+            Icons.search_off_rounded,
+            size: 48,
+            color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+          ),
           const SizedBox(height: 12),
           Text(
             'No matching products found',
-            style: GoogleFonts.inter(fontSize: 13, color: theme.colorScheme.onSurfaceVariant),
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: 8),
           if (_searchController.text.isNotEmpty || _selectedCategoryId != null)
@@ -2503,8 +3253,19 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                 _searchController.clear();
                 setState(() => _selectedCategoryId = null);
               },
-              icon: Icon(Icons.clear_all_rounded, size: 16, color: primaryColor),
-              label: Text('Clear Filters', style: TextStyle(color: primaryColor, fontSize: 12, fontWeight: FontWeight.w600)),
+              icon: Icon(
+                Icons.clear_all_rounded,
+                size: 16,
+                color: primaryColor,
+              ),
+              label: Text(
+                'Clear Filters',
+                style: TextStyle(
+                  color: primaryColor,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
         ],
       ),
@@ -2537,19 +3298,29 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
           child: Icon(
             icon,
             size: 16,
-            color: isSelected ? Colors.white : theme.colorScheme.onSurfaceVariant,
+            color: isSelected
+                ? Colors.white
+                : theme.colorScheme.onSurfaceVariant,
           ),
         ),
       ),
     );
   }
 
-  Widget _buildPanelHeader(BuildContext context, IconData icon, String title, Color color) {
+  Widget _buildPanelHeader(
+    BuildContext context,
+    IconData icon,
+    String title,
+    Color color,
+  ) {
     return Row(
       children: [
         Container(
           padding: const EdgeInsets.all(6),
-          decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(6),
+          ),
           child: Icon(icon, color: color, size: 16),
         ),
         const SizedBox(width: 8),
@@ -2575,11 +3346,22 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
 
     return InputDecoration(
       hintText: 'Search product name or SKU...',
-      hintStyle: GoogleFonts.inter(fontSize: 13, color: theme.colorScheme.onSurfaceVariant),
-      prefixIcon: Icon(Icons.search_rounded, size: 18, color: theme.colorScheme.onSurfaceVariant),
+      hintStyle: GoogleFonts.inter(
+        fontSize: 13,
+        color: theme.colorScheme.onSurfaceVariant,
+      ),
+      prefixIcon: Icon(
+        Icons.search_rounded,
+        size: 18,
+        color: theme.colorScheme.onSurfaceVariant,
+      ),
       suffixIcon: _searchController.text.isNotEmpty
           ? IconButton(
-              icon: Icon(Icons.close_rounded, size: 16, color: theme.colorScheme.onSurfaceVariant),
+              icon: Icon(
+                Icons.close_rounded,
+                size: 16,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
               onPressed: () {
                 _searchController.clear();
                 setState(() {});
@@ -2591,11 +3373,15 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+        borderSide: BorderSide(
+          color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0),
+        ),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+        borderSide: BorderSide(
+          color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0),
+        ),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
@@ -2604,15 +3390,30 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     );
   }
 
-  Widget _buildEmptyState(BuildContext context, String message, {IconData icon = Icons.search_off_rounded}) {
+  Widget _buildEmptyState(
+    BuildContext context,
+    String message, {
+    IconData icon = Icons.search_off_rounded,
+  }) {
     final theme = Theme.of(context);
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 48, color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.3)),
+          Icon(
+            icon,
+            size: 48,
+            color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
+          ),
           const SizedBox(height: 8),
-          Text(message, style: GoogleFonts.inter(color: theme.colorScheme.onSurfaceVariant, fontSize: 13, fontWeight: FontWeight.w500)),
+          Text(
+            message,
+            style: GoogleFonts.inter(
+              color: theme.colorScheme.onSurfaceVariant,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
         ],
       ),
     );
@@ -2624,16 +3425,36 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
 
     return Row(
       children: [
-        _buildCompactMethodBtn(context, 'CASH', Icons.payments_rounded, primaryColor),
+        _buildCompactMethodBtn(
+          context,
+          'CASH',
+          Icons.payments_rounded,
+          primaryColor,
+        ),
         const SizedBox(width: 8),
-        _buildCompactMethodBtn(context, 'MOBILE MONEY', Icons.phone_android_rounded, const Color(0xFFD97706)),
+        _buildCompactMethodBtn(
+          context,
+          'MOBILE MONEY',
+          Icons.phone_android_rounded,
+          const Color(0xFFD97706),
+        ),
         const SizedBox(width: 8),
-        _buildCompactMethodBtn(context, 'CARD', Icons.credit_card_rounded, const Color(0xFF0284C7)),
+        _buildCompactMethodBtn(
+          context,
+          'CARD',
+          Icons.credit_card_rounded,
+          const Color(0xFF0284C7),
+        ),
       ],
     );
   }
 
-  Widget _buildCompactMethodBtn(BuildContext context, String method, IconData icon, Color color) {
+  Widget _buildCompactMethodBtn(
+    BuildContext context,
+    String method,
+    IconData icon,
+    Color color,
+  ) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final isSelected = _selectedPaymentMethod == method;
@@ -2642,17 +3463,15 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       child: GestureDetector(
         onTap: () => setState(() {
           _selectedPaymentMethod = method;
-          if (method != 'CASH') {
-            _tenderedAmount = ref.read(cartProvider.notifier).total;
-          } else {
-            _tenderedAmount = 0;
-          }
+          _tenderedAmount = 0;
         }),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
           height: 46,
           decoration: BoxDecoration(
-            color: isSelected ? color : (isDark ? const Color(0xFF293548) : const Color(0xFFF1F5F9)),
+            color: isSelected
+                ? color
+                : (isDark ? const Color(0xFF293548) : const Color(0xFFF1F5F9)),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Row(
@@ -2660,7 +3479,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
             children: [
               Icon(
                 icon,
-                color: isSelected ? Colors.white : theme.colorScheme.onSurfaceVariant,
+                color: isSelected
+                    ? Colors.white
+                    : theme.colorScheme.onSurfaceVariant,
                 size: 16,
               ),
               const SizedBox(width: 6),
@@ -2670,7 +3491,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.5,
-                  color: isSelected ? Colors.white : theme.colorScheme.onSurface,
+                  color: isSelected
+                      ? Colors.white
+                      : theme.colorScheme.onSurface,
                 ),
               ),
             ],
@@ -2686,8 +3509,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         Expanded(
           child: Row(
             children: [
-              _buildKey(context, '1'), const SizedBox(width: 4),
-              _buildKey(context, '2'), const SizedBox(width: 4),
+              _buildKey(context, '1'),
+              const SizedBox(width: 4),
+              _buildKey(context, '2'),
+              const SizedBox(width: 4),
               _buildKey(context, '3'),
             ],
           ),
@@ -2696,8 +3521,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         Expanded(
           child: Row(
             children: [
-              _buildKey(context, '4'), const SizedBox(width: 4),
-              _buildKey(context, '5'), const SizedBox(width: 4),
+              _buildKey(context, '4'),
+              const SizedBox(width: 4),
+              _buildKey(context, '5'),
+              const SizedBox(width: 4),
               _buildKey(context, '6'),
             ],
           ),
@@ -2706,8 +3533,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         Expanded(
           child: Row(
             children: [
-              _buildKey(context, '7'), const SizedBox(width: 4),
-              _buildKey(context, '8'), const SizedBox(width: 4),
+              _buildKey(context, '7'),
+              const SizedBox(width: 4),
+              _buildKey(context, '8'),
+              const SizedBox(width: 4),
               _buildKey(context, '9'),
             ],
           ),
@@ -2716,8 +3545,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         Expanded(
           child: Row(
             children: [
-              _buildKey(context, '0'), const SizedBox(width: 4),
-              _buildKey(context, '00'), const SizedBox(width: 4),
+              _buildKey(context, '0'),
+              const SizedBox(width: 4),
+              _buildKey(context, '00'),
+              const SizedBox(width: 4),
               _buildClearKey(context),
             ],
           ),
@@ -2737,7 +3568,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         child: InkWell(
           onTap: () {
             setState(() {
-              String digits = _tenderedAmount.toStringAsFixed(2).replaceAll('.', '');
+              String digits = _tenderedAmount
+                  .toStringAsFixed(2)
+                  .replaceAll('.', '');
               if (digits == '000') digits = '';
               digits += label;
               if (digits.length > 10) return;
@@ -2748,7 +3581,11 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
           child: Center(
             child: Text(
               label,
-              style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurface),
+              style: GoogleFonts.inter(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: theme.colorScheme.onSurface,
+              ),
             ),
           ),
         ),
@@ -2765,13 +3602,23 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
           onTap: () => setState(() => _tenderedAmount = 0),
           onLongPress: () => setState(() => _tenderedAmount = 0),
           borderRadius: BorderRadius.circular(8),
-          child: const Center(child: Icon(Icons.backspace_rounded, color: Color(0xFFDC2626), size: 16)),
+          child: const Center(
+            child: Icon(
+              Icons.backspace_rounded,
+              color: Color(0xFFDC2626),
+              size: 16,
+            ),
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildExactAmountBtn(BuildContext context, CartNotifier cartNotifier, String currency) {
+  Widget _buildExactAmountBtn(
+    BuildContext context,
+    CartNotifier cartNotifier,
+    String currency,
+  ) {
     final theme = Theme.of(context);
     final primaryColor = theme.colorScheme.primary;
 
@@ -2785,7 +3632,11 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
           alignment: Alignment.center,
           child: Text(
             'EXACT',
-            style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: primaryColor),
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: primaryColor,
+            ),
           ),
         ),
       ),
@@ -2808,7 +3659,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
               shape: BoxShape.circle,
             ),
             child: Icon(
-              _selectedPaymentMethod == 'CARD' ? Icons.credit_card_rounded : Icons.phone_android_rounded,
+              _selectedPaymentMethod == 'CARD'
+                  ? Icons.credit_card_rounded
+                  : Icons.phone_android_rounded,
               size: 48,
               color: theme.colorScheme.onSurfaceVariant,
             ),
@@ -2842,7 +3695,11 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.check_circle_rounded, color: Color(0xFF059669), size: 16),
+                const Icon(
+                  Icons.check_circle_rounded,
+                  color: Color(0xFF059669),
+                  size: 16,
+                ),
                 const SizedBox(width: 6),
                 Text(
                   'READY FOR CONFIRMATION',
@@ -2860,15 +3717,19 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     );
   }
 
-  Widget _buildCompleteSaleButton(BuildContext context, CartNotifier cartNotifier) {
+  Widget _buildCompleteSaleButton(
+    BuildContext context,
+    CartNotifier cartNotifier,
+  ) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
     final total = cartNotifier.total;
-    final isCash = _selectedPaymentMethod == 'CASH';
     final shortAmount = total - _tenderedAmount;
-    final canComplete = !isCash || (_tenderedAmount >= total);
-    final currency = ref.watch(storeConfigProvider).value?.currencySymbol ?? 'ZK';
+    final canComplete =
+        _selectedPaymentMethod.isNotEmpty && _tenderedAmount >= total;
+    final currency =
+        ref.watch(storeConfigProvider).value?.currencySymbol ?? 'ZK';
 
     if (_isProcessingPayment) {
       return Container(
@@ -2885,12 +3746,20 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
             const SizedBox(
               height: 20,
               width: 20,
-              child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+              child: CircularProgressIndicator(
+                color: Colors.white,
+                strokeWidth: 2.5,
+              ),
             ),
             const SizedBox(width: 12),
             Text(
               'PROCESSING TRANSACTION...',
-              style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: 0.5),
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                color: Colors.white,
+                letterSpacing: 0.5,
+              ),
             ),
           ],
         ),
@@ -2904,7 +3773,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         decoration: BoxDecoration(
           color: isDark ? const Color(0xFF293548) : const Color(0xFFF1F5F9),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: const Color(0xFFD97706).withValues(alpha: 0.5)),
+          border: Border.all(
+            color: const Color(0xFFD97706).withValues(alpha: 0.5),
+          ),
         ),
         child: InkWell(
           onTap: () {
@@ -2916,14 +3787,22 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.info_outline_rounded, color: Color(0xFFD97706), size: 18),
+                const Icon(
+                  Icons.info_outline_rounded,
+                  color: Color(0xFFD97706),
+                  size: 18,
+                ),
                 const SizedBox(width: 8),
                 Flexible(
                   child: Text(
-                    _tenderedAmount == 0 
-                      ? 'ENTER CASH TENDER AMOUNT (TAP FOR EXACT)' 
-                      : 'SHORT BY ${CurrencyFormatter.format(shortAmount, currency)} (TAP FOR EXACT)',
-                    style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: const Color(0xFFD97706)),
+                    _tenderedAmount == 0
+                        ? 'ENTER CASH TENDER AMOUNT (TAP FOR EXACT)'
+                        : 'SHORT BY ${CurrencyFormatter.format(shortAmount, currency)} (TAP FOR EXACT)',
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFFD97706),
+                    ),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -2942,14 +3821,20 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFF059669),
           foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
           elevation: 2,
           shadowColor: const Color(0xFF059669).withValues(alpha: 0.4),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.check_circle_rounded, color: Colors.white, size: 22),
+            const Icon(
+              Icons.check_circle_rounded,
+              color: Colors.white,
+              size: 22,
+            ),
             const SizedBox(width: 10),
             Text(
               'COMPLETE SALE',
@@ -2969,32 +3854,38 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
   Widget _buildTenderDisplay(BuildContext context, String currency) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final cartNotifier = ref.read(cartProvider.notifier);
-    final total = cartNotifier.total;
-    
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF151F32) : const Color(0xFFFFFFFF),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+        border: Border.all(
+          color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0),
+        ),
       ),
       child: Column(
         children: [
           Text(
-            _selectedPaymentMethod == 'CASH' ? 'TENDERED AMOUNT' : 'TOTAL TO PAY', 
-            style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurfaceVariant)
+            'TENDERED AMOUNT',
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: 4),
           Text(
-            _selectedPaymentMethod == 'CASH' 
-              ? (_tenderedAmount == 0 ? 'ENTER AMOUNT' : CurrencyFormatter.format(_tenderedAmount, currency))
-              : CurrencyFormatter.format(total, currency),
+            _tenderedAmount == 0
+                ? 'ENTER AMOUNT'
+                : CurrencyFormatter.format(_tenderedAmount, currency),
             style: GoogleFonts.inter(
               fontSize: 32,
               fontWeight: FontWeight.w900,
-              color: (_selectedPaymentMethod == 'CASH' && _tenderedAmount == 0) ? theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5) : theme.colorScheme.onSurface,
+              color: _tenderedAmount == 0
+                  ? theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5)
+                  : theme.colorScheme.onSurface,
             ),
           ),
         ],
@@ -3002,28 +3893,40 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     );
   }
 
-  Widget _buildQuickTenderButton(BuildContext context, double amount, String currency) {
+  Widget _buildQuickTenderButton(
+    BuildContext context,
+    double amount,
+    String currency,
+  ) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final bool isCash = _selectedPaymentMethod == 'CASH';
 
     return Material(
       color: isDark ? const Color(0xFF151F32) : const Color(0xFFFFFFFF),
       borderRadius: BorderRadius.circular(8),
       child: InkWell(
-        onTap: isCash ? () => setState(() => _tenderedAmount += amount) : null,
+        onTap: () => setState(() => _tenderedAmount += amount),
         borderRadius: BorderRadius.circular(8),
         child: Center(
           child: Text(
             CurrencyFormatter.format(amount, currency),
-            style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurface),
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: theme.colorScheme.onSurface,
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildCartRow(BuildContext context, CartItem item, CartNotifier cartNotifier, String currency) {
+  Widget _buildCartRow(
+    BuildContext context,
+    CartItem item,
+    CartNotifier cartNotifier,
+    String currency,
+  ) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final primaryColor = theme.colorScheme.primary;
@@ -3037,7 +3940,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF151F32) : const Color(0xFFFFFFFF),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+        border: Border.all(
+          color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0),
+        ),
       ),
       child: Row(
         children: [
@@ -3050,7 +3955,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                     if (item.isWeighted)
                       Container(
                         margin: const EdgeInsets.only(right: 6),
-                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 1,
+                        ),
                         decoration: BoxDecoration(
                           color: primaryColor.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(4),
@@ -3067,7 +3975,11 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                     Expanded(
                       child: Text(
                         item.product.name,
-                        style: GoogleFonts.inter(fontWeight: FontWeight.w700, color: theme.colorScheme.onSurface, fontSize: 12.5),
+                        style: GoogleFonts.inter(
+                          fontWeight: FontWeight.w700,
+                          color: theme.colorScheme.onSurface,
+                          fontSize: 12.5,
+                        ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -3079,12 +3991,15 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                   item.isWeighted
                       ? '${item.weight.toStringAsFixed(3)} $unitLabel @ ${CurrencyFormatter.format(item.unitPrice, currency)}/$unitLabel'
                       : '${CurrencyFormatter.format(item.unitPrice, currency)} / unit',
-                  style: GoogleFonts.inter(fontSize: 10, color: theme.colorScheme.onSurfaceVariant),
+                  style: GoogleFonts.inter(
+                    fontSize: 10,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ],
             ),
           ),
-          
+
           Container(
             padding: const EdgeInsets.all(2),
             decoration: BoxDecoration(
@@ -3131,10 +4046,14 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
               ],
             ),
           ),
-          
+
           const SizedBox(width: 4),
           IconButton(
-            icon: const Icon(Icons.delete_outline_rounded, color: Color(0xFFDC2626), size: 16),
+            icon: const Icon(
+              Icons.delete_outline_rounded,
+              color: Color(0xFFDC2626),
+              size: 16,
+            ),
             onPressed: () => cartNotifier.removeProduct(item.product.id),
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
@@ -3153,7 +4072,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Edit Quantity', style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w700)),
+        title: Text(
+          'Edit Quantity',
+          style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w700),
+        ),
         content: TextField(
           controller: controller,
           keyboardType: TextInputType.number,
@@ -3180,7 +4102,11 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     );
   }
 
-  Widget _buildQtyActionBtn(BuildContext context, IconData icon, VoidCallback onTap) {
+  Widget _buildQtyActionBtn(
+    BuildContext context,
+    IconData icon,
+    VoidCallback onTap,
+  ) {
     final theme = Theme.of(context);
     return Material(
       color: Colors.transparent,
@@ -3190,13 +4116,22 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         borderRadius: BorderRadius.circular(4),
         child: Padding(
           padding: const EdgeInsets.all(4),
-          child: Icon(icon, color: theme.colorScheme.onSurfaceVariant, size: 14),
+          child: Icon(
+            icon,
+            color: theme.colorScheme.onSurfaceVariant,
+            size: 14,
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildOrderSummary(BuildContext context, CartState cartState, CartNotifier cartNotifier, String currency) {
+  Widget _buildOrderSummary(
+    BuildContext context,
+    CartState cartState,
+    CartNotifier cartNotifier,
+    String currency,
+  ) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final primaryColor = theme.colorScheme.primary;
@@ -3205,47 +4140,79 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF151F32) : const Color(0xFFFFFFFF),
-        border: Border(top: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0))),
+        border: Border(
+          top: BorderSide(
+            color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0),
+          ),
+        ),
       ),
       child: Column(
         children: [
           // B2B Corporate / Tax Invoice Customer TPIN Card
-          if (cartState.customerTpin != null && cartState.customerTpin!.isNotEmpty)
+          if (cartState.customerTpin != null &&
+              cartState.customerTpin!.isNotEmpty)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               margin: const EdgeInsets.only(bottom: 10),
               decoration: BoxDecoration(
                 color: const Color(0xFFECFDF5),
                 borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: const Color(0xFF059669).withValues(alpha: 0.3)),
+                border: Border.all(
+                  color: const Color(0xFF059669).withValues(alpha: 0.3),
+                ),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.business_rounded, color: Color(0xFF059669), size: 16),
+                  const Icon(
+                    Icons.business_rounded,
+                    color: Color(0xFF059669),
+                    size: 16,
+                  ),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('BUYER TPIN: ${cartState.customerTpin}', style: GoogleFonts.inter(color: const Color(0xFF059669), fontWeight: FontWeight.bold, fontSize: 11)),
+                        Text(
+                          'BUYER TPIN: ${cartState.customerTpin}',
+                          style: GoogleFonts.inter(
+                            color: const Color(0xFF059669),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 11,
+                          ),
+                        ),
                         if (cartState.customerBusinessName != null)
-                          Text(cartState.customerBusinessName!, style: GoogleFonts.inter(color: theme.colorScheme.onSurfaceVariant, fontSize: 10)),
+                          Text(
+                            cartState.customerBusinessName!,
+                            style: GoogleFonts.inter(
+                              color: theme.colorScheme.onSurfaceVariant,
+                              fontSize: 10,
+                            ),
+                          ),
                       ],
                     ),
                   ),
                   InkWell(
                     onTap: () => cartNotifier.setCustomerTpin(null),
-                    child: Icon(Icons.close, size: 16, color: theme.colorScheme.onSurfaceVariant),
+                    child: Icon(
+                      Icons.close,
+                      size: 16,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ],
               ),
             )
           else
             InkWell(
-              onTap: () => _showB2bCustomerModal(context, cartNotifier, cartState),
+              onTap: () =>
+                  _showB2bCustomerModal(context, cartNotifier, cartState),
               borderRadius: BorderRadius.circular(6),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 margin: const EdgeInsets.only(bottom: 10),
                 decoration: BoxDecoration(
                   color: primaryColor.withValues(alpha: 0.08),
@@ -3256,7 +4223,14 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                   children: [
                     Icon(Icons.business_rounded, color: primaryColor, size: 14),
                     const SizedBox(width: 6),
-                    Text('+ Buyer TPIN / Tax Invoice', style: GoogleFonts.inter(color: primaryColor, fontSize: 11, fontWeight: FontWeight.w700)),
+                    Text(
+                      '+ Buyer TPIN / Tax Invoice',
+                      style: GoogleFonts.inter(
+                        color: primaryColor,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -3265,8 +4239,21 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Items Subtotal', style: GoogleFonts.inter(color: theme.colorScheme.onSurfaceVariant, fontSize: 12)),
-              Text(CurrencyFormatter.format(cartNotifier.subtotal, currency), style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontSize: 12, fontWeight: FontWeight.w600)),
+              Text(
+                'Items Subtotal',
+                style: GoogleFonts.inter(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontSize: 12,
+                ),
+              ),
+              Text(
+                CurrencyFormatter.format(cartNotifier.subtotal, currency),
+                style: GoogleFonts.inter(
+                  color: theme.colorScheme.onSurface,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ],
           ),
           if (cartNotifier.tax > 0) ...[
@@ -3274,12 +4261,26 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('VAT / Tax', style: GoogleFonts.inter(color: theme.colorScheme.onSurfaceVariant, fontSize: 12)),
-                Text(CurrencyFormatter.format(cartNotifier.tax, currency), style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontSize: 12, fontWeight: FontWeight.w600)),
+                Text(
+                  'VAT / Tax',
+                  style: GoogleFonts.inter(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontSize: 12,
+                  ),
+                ),
+                Text(
+                  CurrencyFormatter.format(cartNotifier.tax, currency),
+                  style: GoogleFonts.inter(
+                    color: theme.colorScheme.onSurface,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ],
             ),
           ],
-          if (cartState.serviceChargeEnabled && cartNotifier.serviceChargeAmount > 0) ...[
+          if (cartState.serviceChargeEnabled &&
+              cartNotifier.serviceChargeAmount > 0) ...[
             const SizedBox(height: 4),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -3288,32 +4289,60 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                   children: [
                     Text(
                       'Service Charge (${cartState.serviceChargeRate.toStringAsFixed(0)}% • Untaxed)',
-                      style: GoogleFonts.inter(color: primaryColor, fontSize: 11, fontWeight: FontWeight.w600),
+                      style: GoogleFonts.inter(
+                        color: primaryColor,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     const SizedBox(width: 4),
                     InkWell(
                       onTap: () => cartNotifier.toggleServiceCharge(false),
-                      child: Icon(Icons.close, size: 14, color: theme.colorScheme.onSurfaceVariant),
+                      child: Icon(
+                        Icons.close,
+                        size: 14,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ],
                 ),
                 Text(
-                  CurrencyFormatter.format(cartNotifier.serviceChargeAmount, currency),
-                  style: GoogleFonts.inter(color: primaryColor, fontSize: 12, fontWeight: FontWeight.bold),
+                  CurrencyFormatter.format(
+                    cartNotifier.serviceChargeAmount,
+                    currency,
+                  ),
+                  style: GoogleFonts.inter(
+                    color: primaryColor,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ],
             ),
           ] else ...[
             const SizedBox(height: 4),
             InkWell(
-              onTap: () => _showServiceChargeModal(context, cartNotifier, cartState),
+              onTap: () =>
+                  _showServiceChargeModal(context, cartNotifier, cartState),
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 2),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('+ Service Charge (Untaxed)', style: GoogleFonts.inter(color: theme.colorScheme.onSurfaceVariant, fontSize: 11)),
-                    Text('0%', style: GoogleFonts.inter(color: theme.colorScheme.onSurfaceVariant, fontSize: 11)),
+                    Text(
+                      '+ Service Charge (Untaxed)',
+                      style: GoogleFonts.inter(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        fontSize: 11,
+                      ),
+                    ),
+                    Text(
+                      '0%',
+                      style: GoogleFonts.inter(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        fontSize: 11,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -3324,8 +4353,21 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Discount', style: GoogleFonts.inter(color: theme.colorScheme.onSurfaceVariant, fontSize: 12)),
-                Text('- ${CurrencyFormatter.format(cartState.discountAmount, currency)}', style: GoogleFonts.inter(color: const Color(0xFF059669), fontSize: 12, fontWeight: FontWeight.bold)),
+                Text(
+                  'Discount',
+                  style: GoogleFonts.inter(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontSize: 12,
+                  ),
+                ),
+                Text(
+                  '- ${CurrencyFormatter.format(cartState.discountAmount, currency)}',
+                  style: GoogleFonts.inter(
+                    color: const Color(0xFF059669),
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ],
             ),
           ],
@@ -3333,10 +4375,21 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('TOTAL DUE', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w800, color: theme.colorScheme.onSurface)),
+              Text(
+                'TOTAL DUE',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
               Text(
                 CurrencyFormatter.format(cartNotifier.total, currency),
-                style: GoogleFonts.inter(fontSize: 22, fontWeight: FontWeight.w900, color: primaryColor),
+                style: GoogleFonts.inter(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                  color: primaryColor,
+                ),
               ),
             ],
           ),
@@ -3349,9 +4402,15 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     );
   }
 
-  void _showServiceChargeModal(BuildContext context, CartNotifier cartNotifier, CartState cartState) {
+  void _showServiceChargeModal(
+    BuildContext context,
+    CartNotifier cartNotifier,
+    CartState cartState,
+  ) {
     final rateCtrl = TextEditingController(
-      text: cartState.serviceChargeRate > 0 ? cartState.serviceChargeRate.toStringAsFixed(0) : '10',
+      text: cartState.serviceChargeRate > 0
+          ? cartState.serviceChargeRate.toStringAsFixed(0)
+          : '10',
     );
 
     showDialog(
@@ -3363,7 +4422,14 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
           children: [
             const Icon(Icons.room_service_rounded, color: Color(0xFF60A5FA)),
             const SizedBox(width: 10),
-            Text('Restaurant Service Charge', style: GoogleFonts.manrope(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
+            Text(
+              'Restaurant Service Charge',
+              style: GoogleFonts.manrope(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                color: Colors.white,
+              ),
+            ),
           ],
         ),
         content: Column(
@@ -3375,25 +4441,47 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
               style: GoogleFonts.inter(fontSize: 12, color: Colors.white60),
             ),
             const SizedBox(height: 16),
-            Text('QUICK SELECT PERCENTAGE', style: GoogleFonts.manrope(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.white38, letterSpacing: 1)),
+            Text(
+              'QUICK SELECT PERCENTAGE',
+              style: GoogleFonts.manrope(
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                color: Colors.white38,
+                letterSpacing: 1,
+              ),
+            ),
             const SizedBox(height: 8),
             Row(
               children: [
-                ...[5, 10, 15].map((rate) => Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: ActionChip(
-                    label: Text('$rate%'),
-                    backgroundColor: Colors.white.withValues(alpha: 0.05),
-                    labelStyle: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
-                    onPressed: () {
-                      rateCtrl.text = rate.toString();
-                    },
+                ...[5, 10, 15].map(
+                  (rate) => Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ActionChip(
+                      label: Text('$rate%'),
+                      backgroundColor: Colors.white.withValues(alpha: 0.05),
+                      labelStyle: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      onPressed: () {
+                        rateCtrl.text = rate.toString();
+                      },
+                    ),
                   ),
-                )),
+                ),
               ],
             ),
             const SizedBox(height: 14),
-            Text('CUSTOM PERCENTAGE (%)', style: GoogleFonts.manrope(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.white38, letterSpacing: 1)),
+            Text(
+              'CUSTOM PERCENTAGE (%)',
+              style: GoogleFonts.manrope(
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                color: Colors.white38,
+                letterSpacing: 1,
+              ),
+            ),
             const SizedBox(height: 8),
             TextField(
               controller: rateCtrl,
@@ -3404,7 +4492,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                 suffixStyle: const TextStyle(color: Colors.white60),
                 filled: true,
                 fillColor: Colors.white.withValues(alpha: 0.05),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide.none,
+                ),
               ),
             ),
           ],
@@ -3415,30 +4506,46 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
               cartNotifier.toggleServiceCharge(false);
               Navigator.pop(dialogCtx);
             },
-            child: const Text('Remove', style: TextStyle(color: Colors.redAccent)),
+            child: const Text(
+              'Remove',
+              style: TextStyle(color: Colors.redAccent),
+            ),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF60A5FA),
               foregroundColor: Colors.black,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
             onPressed: () {
               final rate = double.tryParse(rateCtrl.text.trim()) ?? 0.0;
               cartNotifier.setServiceChargeRate(rate);
               Navigator.pop(dialogCtx);
             },
-            child: const Text('Apply Charge', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const Text(
+              'Apply Charge',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
           ),
         ],
       ),
     );
   }
 
-  void _showB2bCustomerModal(BuildContext context, CartNotifier cartNotifier, CartState cartState) {
+  void _showB2bCustomerModal(
+    BuildContext context,
+    CartNotifier cartNotifier,
+    CartState cartState,
+  ) {
     final tpinCtrl = TextEditingController(text: cartState.customerTpin ?? '');
-    final nameCtrl = TextEditingController(text: cartState.customerBusinessName ?? '');
-    final addrCtrl = TextEditingController(text: cartState.customerAddress ?? '');
+    final nameCtrl = TextEditingController(
+      text: cartState.customerBusinessName ?? '',
+    );
+    final addrCtrl = TextEditingController(
+      text: cartState.customerAddress ?? '',
+    );
     bool isVerifying = false;
     bool isVerified = false;
     String? verifyError;
@@ -3449,8 +4556,12 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         builder: (context, setModalState) {
           final isDark = Theme.of(context).brightness == Brightness.dark;
           final dialogBg = isDark ? const Color(0xFF151F32) : Colors.white;
-          final borderColor = isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0);
-          final fieldBg = isDark ? const Color(0xFF0B1220) : const Color(0xFFF8FAFC);
+          final borderColor = isDark
+              ? const Color(0xFF293548)
+              : const Color(0xFFE2E8F0);
+          final fieldBg = isDark
+              ? const Color(0xFF0B1220)
+              : const Color(0xFFF8FAFC);
           const primaryAccent = Color(0xFF1D4ED8);
 
           return AlertDialog(
@@ -3463,7 +4574,14 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
               children: [
                 const Icon(Icons.business_rounded, color: primaryAccent),
                 const SizedBox(width: 10),
-                Text('BUYER TPIN / TAX INVOICE', style: GoogleFonts.inter(fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurface, fontSize: 15)),
+                Text(
+                  'BUYER TPIN / TAX INVOICE',
+                  style: GoogleFonts.inter(
+                    fontWeight: FontWeight.w800,
+                    color: Theme.of(context).colorScheme.onSurface,
+                    fontSize: 15,
+                  ),
+                ),
               ],
             ),
             content: SingleChildScrollView(
@@ -3473,7 +4591,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                 children: [
                   Text(
                     "Enter the corporate buyer's ZRA TPIN to issue an official Tax Invoice for VAT claim.",
-                    style: GoogleFonts.inter(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12),
+                    style: GoogleFonts.inter(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      fontSize: 12,
+                    ),
                   ),
                   const SizedBox(height: 16),
 
@@ -3482,7 +4603,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                       Future<void> doVerify() async {
                         final tpin = tpinCtrl.text.trim();
                         if (tpin.length != 10) {
-                          setModalState(() => verifyError = 'TPIN must be exactly 10 digits');
+                          setModalState(
+                            () =>
+                                verifyError = 'TPIN must be exactly 10 digits',
+                          );
                           return;
                         }
                         setModalState(() {
@@ -3490,24 +4614,37 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                           verifyError = null;
                         });
                         try {
-                          final res = await ref.read(digitaxInventoryServiceProvider).lookupTaxpayerTpin(tpin);
+                          final res = await ref
+                              .read(digitaxInventoryServiceProvider)
+                              .lookupTaxpayerTpin(tpin);
                           if (res != null && res.containsKey('error')) {
                             setModalState(() {
                               verifyError = res['error'] as String?;
                               isVerified = false;
                             });
                           } else if (res != null) {
-                            final fetchedName = (res['taxpayer_name'] ?? res['name'] ?? '').toString();
-                            final fetchedAddr = (res['physical_address'] ?? res['address'] ?? '').toString();
-                            if (fetchedName.isNotEmpty) nameCtrl.text = fetchedName;
-                            if (fetchedAddr.isNotEmpty) addrCtrl.text = fetchedAddr;
+                            final fetchedName =
+                                (res['taxpayer_name'] ?? res['name'] ?? '')
+                                    .toString();
+                            final fetchedAddr =
+                                (res['physical_address'] ??
+                                        res['address'] ??
+                                        '')
+                                    .toString();
+                            if (fetchedName.isNotEmpty) {
+                              nameCtrl.text = fetchedName;
+                            }
+                            if (fetchedAddr.isNotEmpty) {
+                              addrCtrl.text = fetchedAddr;
+                            }
                             setModalState(() {
                               isVerified = true;
                               verifyError = null;
                             });
                           } else {
                             setModalState(() {
-                              verifyError = 'TPIN not found. Enter business name manually.';
+                              verifyError =
+                                  'TPIN not found. Enter business name manually.';
                               isVerified = false;
                             });
                           }
@@ -3518,7 +4655,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
 
                       return TextField(
                         controller: tpinCtrl,
-                        style: GoogleFonts.inter(color: Theme.of(context).colorScheme.onSurface),
+                        style: GoogleFonts.inter(
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
                         keyboardType: TextInputType.number,
                         maxLength: 10,
                         onChanged: (val) {
@@ -3540,15 +4679,18 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                           fillColor: isVerified
                               ? const Color(0xFFECFDF5)
                               : fieldBg,
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: borderColor)),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(color: borderColor),
+                          ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
                             borderSide: BorderSide(
                               color: isVerified
                                   ? const Color(0xFF059669)
                                   : verifyError != null
-                                      ? const Color(0xFFDC2626)
-                                      : borderColor,
+                                  ? const Color(0xFFDC2626)
+                                  : borderColor,
                             ),
                           ),
                           focusedBorder: OutlineInputBorder(
@@ -3566,18 +4708,31 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                                   child: SizedBox(
                                     height: 18,
                                     width: 18,
-                                    child: CircularProgressIndicator(strokeWidth: 2, color: primaryAccent),
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: primaryAccent,
+                                    ),
                                   ),
                                 )
                               : isVerified
-                                  ? const Padding(
-                                      padding: EdgeInsets.all(12),
-                                      child: Icon(Icons.verified_rounded, color: Color(0xFF059669), size: 22),
-                                    )
-                                  : TextButton(
-                                      onPressed: doVerify,
-                                      child: const Text('Verify', style: TextStyle(color: primaryAccent, fontWeight: FontWeight.bold)),
+                              ? const Padding(
+                                  padding: EdgeInsets.all(12),
+                                  child: Icon(
+                                    Icons.verified_rounded,
+                                    color: Color(0xFF059669),
+                                    size: 22,
+                                  ),
+                                )
+                              : TextButton(
+                                  onPressed: doVerify,
+                                  child: const Text(
+                                    'Verify',
+                                    style: TextStyle(
+                                      color: primaryAccent,
+                                      fontWeight: FontWeight.bold,
                                     ),
+                                  ),
+                                ),
                         ),
                       );
                     },
@@ -3589,11 +4744,19 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                       padding: const EdgeInsets.only(top: 8, left: 2),
                       child: Row(
                         children: [
-                          const Icon(Icons.check_circle_rounded, color: Color(0xFF059669), size: 14),
+                          const Icon(
+                            Icons.check_circle_rounded,
+                            color: Color(0xFF059669),
+                            size: 14,
+                          ),
                           const SizedBox(width: 6),
                           Text(
                             'ZRA Taxpayer Verified',
-                            style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF059669), fontWeight: FontWeight.w700),
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              color: const Color(0xFF059669),
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ],
                       ),
@@ -3606,12 +4769,20 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Icon(Icons.info_outline_rounded, color: Color(0xFFD97706), size: 14),
+                          const Icon(
+                            Icons.info_outline_rounded,
+                            color: Color(0xFFD97706),
+                            size: 14,
+                          ),
                           const SizedBox(width: 6),
                           Expanded(
                             child: Text(
                               verifyError!,
-                              style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFFD97706), fontWeight: FontWeight.w600),
+                              style: GoogleFonts.inter(
+                                fontSize: 11,
+                                color: const Color(0xFFD97706),
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
                         ],
@@ -3621,27 +4792,43 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                   const SizedBox(height: 12),
                   TextField(
                     controller: nameCtrl,
-                    style: GoogleFonts.inter(color: Theme.of(context).colorScheme.onSurface),
+                    style: GoogleFonts.inter(
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
                     decoration: InputDecoration(
                       labelText: 'Registered Business Name',
                       hintText: 'e.g. ABC Holdings Ltd',
                       filled: true,
                       fillColor: fieldBg,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: borderColor)),
-                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: borderColor)),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: borderColor),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: borderColor),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: addrCtrl,
-                    style: GoogleFonts.inter(color: Theme.of(context).colorScheme.onSurface),
+                    style: GoogleFonts.inter(
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
                     decoration: InputDecoration(
                       labelText: 'Physical Address',
                       hintText: 'e.g. Plot 45, Cairo Road, Lusaka',
                       filled: true,
                       fillColor: fieldBg,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: borderColor)),
-                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: borderColor)),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: borderColor),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: borderColor),
+                      ),
                     ),
                   ),
                 ],
@@ -3650,7 +4837,12 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(dialogCtx),
-                child: Text('Cancel', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                child: Text(
+                  'Cancel',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
               ),
               ElevatedButton(
                 onPressed: () {
@@ -3659,7 +4851,11 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                   final addr = addrCtrl.text.trim();
                   if (tpin.isEmpty || name.isEmpty) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Please enter the TPIN and business name')),
+                      const SnackBar(
+                        content: Text(
+                          'Please enter the TPIN and business name',
+                        ),
+                      ),
                     );
                     return;
                   }
@@ -3670,7 +4866,13 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                   );
                   Navigator.pop(dialogCtx);
                 },
-                style: ElevatedButton.styleFrom(backgroundColor: primaryAccent, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: primaryAccent,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
                 child: const Text('Apply to Invoice'),
               ),
             ],
@@ -3682,9 +4884,24 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
 
   Future<void> _finalizeSale(CartNotifier cartNotifier) async {
     if (_isProcessingPayment) return;
-    setState(() => _isProcessingPayment = true);
     final total = cartNotifier.total;
-    final change = _selectedPaymentMethod == 'CASH' ? (_tenderedAmount - total) : 0.0;
+    if (_selectedPaymentMethod.isEmpty || _tenderedAmount < total) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Select a payment method and enter the full tendered amount.',
+            ),
+            backgroundColor: Colors.orangeAccent,
+          ),
+        );
+      }
+      return;
+    }
+    setState(() => _isProcessingPayment = true);
+    final change = _selectedPaymentMethod == 'CASH'
+        ? (_tenderedAmount - total)
+        : 0.0;
 
     try {
       final cartNotifier = ref.read(cartProvider.notifier);
@@ -3693,19 +4910,23 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       final printer = ref.read(printerServiceProvider);
       final config = ref.read(storeConfigProvider).value;
 
-      final saleItems = cartState.items.map((item) => SaleItem(
-        productId: item.product.id,
-        productName: item.product.name,
-        priceAtSale: item.unitPrice,
-        unitCostAtSale: item.product.unitCost,
-        quantity: item.isWeighted ? 1 : item.quantity,
-        taxRateAtSale: item.product.taxRate,
-        isTaxInclusiveAtSale: item.product.isTaxInclusive,
-        weight: item.isWeighted ? item.weight : 0.0,
-        isWeighted: item.isWeighted,
-        unitOfMeasure: item.product.unitOfMeasure,
-        isDigitaxExempt: !item.product.isDigitaxSyncEnabled,
-      )).toList();
+      final saleItems = cartState.items
+          .map(
+            (item) => SaleItem(
+              productId: item.product.id,
+              productName: item.product.name,
+              priceAtSale: item.unitPrice,
+              unitCostAtSale: item.product.unitCost,
+              quantity: item.isWeighted ? 1 : item.quantity,
+              taxRateAtSale: item.product.taxRate,
+              isTaxInclusiveAtSale: item.product.isTaxInclusive,
+              weight: item.isWeighted ? item.weight : 0.0,
+              isWeighted: item.isWeighted,
+              unitOfMeasure: item.product.unitOfMeasure,
+              isDigitaxExempt: !item.product.isDigitaxSyncEnabled,
+            ),
+          )
+          .toList();
 
       final currentUser = ref.read(authProvider);
 
@@ -3720,7 +4941,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         discountAmount: cartState.discountAmount,
         serviceChargeAmount: cartNotifier.serviceChargeAmount,
         serviceChargeRate: cartState.serviceChargeRate,
-        tenderedAmount: _selectedPaymentMethod == 'CASH' ? _tenderedAmount : total,
+        tenderedAmount: _tenderedAmount,
         changeAmount: _selectedPaymentMethod == 'CASH' ? change : 0.0,
         customerTpin: cartState.customerTpin,
         customerBusinessName: cartState.customerBusinessName,
@@ -3730,16 +4951,24 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
 
       transaction.cloudStoreId = config?.cloudStoreId ?? 0;
       await db.saveTransaction(transaction, saleItems);
-      
+
       // Real-time push to Cloud VPS Server so HQ receives sales reports immediately
-      ref.read(postgresSyncServiceProvider).syncPendingTransactions().then((count) {
-        if (count > 0) {
-          debugPrint('[SalesScreen Sync] Real-time pushed $count transaction(s) to Cloud VPS (tx: ${transaction.transactionId}).');
-        }
-      }).catchError((e, stack) {
-        debugPrint('[SalesScreen Sync Warning] Cloud VPS push queued offline for tx ${transaction.transactionId}: $e');
-      });
-      
+      ref
+          .read(postgresSyncServiceProvider)
+          .syncPendingTransactions()
+          .then((count) {
+            if (count > 0) {
+              debugPrint(
+                '[SalesScreen Sync] Real-time pushed $count transaction(s) to Cloud VPS (tx: ${transaction.transactionId}).',
+              );
+            }
+          })
+          .catchError((e, stack) {
+            debugPrint(
+              '[SalesScreen Sync Warning] Cloud VPS push queued offline for tx ${transaction.transactionId}: $e',
+            );
+          });
+
       // Clear cart & reset payment state immediately so sale is marked done and cart is ready for next sale
       cartNotifier.clear();
       if (mounted) {
@@ -3751,24 +4980,33 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       }
 
       // Fiscalize with DigiTax VSDC Cloud (Live ZRA Smart Invoice & Server-Side Tax Calculations)
-      final hasDigitax = config?.digitaxApiKey != null && config!.digitaxApiKey!.trim().isNotEmpty;
+      final hasDigitax =
+          config?.digitaxApiKey != null &&
+          config!.digitaxApiKey!.trim().isNotEmpty;
       bool fiscalized = false;
 
       if (hasDigitax) {
-        fiscalized = await ref.read(digitaxInventoryServiceProvider).fiscalizeSaleTransaction(transaction, saleItems);
+        fiscalized = await ref
+            .read(digitaxInventoryServiceProvider)
+            .fiscalizeSaleTransaction(transaction, saleItems);
       }
 
       // Attempt local real-time sync with Manager Server over LAN (if cashier terminal).
       // Manager Server auto-fiscalizes the transaction with DigiTax and returns official ZRA receipt data.
-      final syncSuccess = await ref.read(syncServiceProvider).trySyncTransaction(transaction, saleItems);
-      if (syncSuccess && (transaction.zraReceiptNumber?.isNotEmpty == true || transaction.zraStatus.toUpperCase() == 'APPROVED')) {
+      final syncSuccess = await ref
+          .read(syncServiceProvider)
+          .trySyncTransaction(transaction, saleItems);
+      if (syncSuccess &&
+          (transaction.zraReceiptNumber?.isNotEmpty == true ||
+              transaction.zraStatus.toUpperCase() == 'APPROVED')) {
         fiscalized = true;
       }
-      
+
       // Auto-kick Cash Drawer Hardware Driver on payment completion
       if (config?.autoOpenCashDrawer != false) {
-        final isCashOrSplit = transaction.paymentMethod.toLowerCase() == 'cash' || 
-                             transaction.paymentMethod.toLowerCase() == 'split';
+        final isCashOrSplit =
+            transaction.paymentMethod.toLowerCase() == 'cash' ||
+            transaction.paymentMethod.toLowerCase() == 'split';
         if (config?.openDrawerCashOnly != true || isCashOrSplit) {
           try {
             await printer.openCashDrawer(config: config);
@@ -3796,7 +5034,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('Sale saved! Receipt print error: $printErrorMessage'),
+                content: Text(
+                  'Sale saved! Receipt print error: $printErrorMessage',
+                ),
                 backgroundColor: const Color(0xFFD97706),
                 duration: const Duration(seconds: 4),
               ),
@@ -3808,7 +5048,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       if (mounted) {
         final isDark = Theme.of(context).brightness == Brightness.dark;
         final dialogBg = isDark ? const Color(0xFF151F32) : Colors.white;
-        final borderColor = isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0);
+        final borderColor = isDark
+            ? const Color(0xFF293548)
+            : const Color(0xFFE2E8F0);
         const primaryAccent = Color(0xFF1D4ED8);
 
         showDialog(
@@ -3819,31 +5061,55 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
               borderRadius: BorderRadius.circular(16),
               side: BorderSide(color: borderColor),
             ),
-            title: Text('Sale Complete', style: GoogleFonts.inter(fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurface, fontSize: 16)),
+            title: Text(
+              'Sale Complete',
+              style: GoogleFonts.inter(
+                fontWeight: FontWeight.w800,
+                color: Theme.of(context).colorScheme.onSurface,
+                fontSize: 16,
+              ),
+            ),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'Change Due: ${CurrencyFormatter.format(change, config?.currencySymbol ?? "ZK")}', 
-                  style: GoogleFonts.inter(color: const Color(0xFF059669), fontSize: 22, fontWeight: FontWeight.w900),
+                  'Change Due: ${CurrencyFormatter.format(change, config?.currencySymbol ?? "ZK")}',
+                  style: GoogleFonts.inter(
+                    color: const Color(0xFF059669),
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
                 if (!printSuccess && printErrorMessage != null) ...[
                   const SizedBox(height: 12),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFDC2626).withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFFDC2626).withValues(alpha: 0.25)),
+                      border: Border.all(
+                        color: const Color(0xFFDC2626).withValues(alpha: 0.25),
+                      ),
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.print_disabled_rounded, color: Color(0xFFDC2626), size: 16),
+                        const Icon(
+                          Icons.print_disabled_rounded,
+                          color: Color(0xFFDC2626),
+                          size: 16,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             'Print Failed: $printErrorMessage',
-                            style: GoogleFonts.inter(color: const Color(0xFFDC2626), fontSize: 11, fontWeight: FontWeight.w600),
+                            style: GoogleFonts.inter(
+                              color: const Color(0xFFDC2626),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                       ],
@@ -3853,20 +5119,33 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                 if (hasDigitax && !fiscalized) ...[
                   const SizedBox(height: 12),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFD97706).withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFFD97706).withValues(alpha: 0.25)),
+                      border: Border.all(
+                        color: const Color(0xFFD97706).withValues(alpha: 0.25),
+                      ),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.hourglass_top_rounded, color: Color(0xFFD97706), size: 14),
+                        const Icon(
+                          Icons.hourglass_top_rounded,
+                          color: Color(0xFFD97706),
+                          size: 14,
+                        ),
                         const SizedBox(width: 6),
                         Text(
                           'DigiTax Fiscalizing... Receipt will print automatically',
-                          style: GoogleFonts.inter(color: const Color(0xFFD97706), fontSize: 11, fontWeight: FontWeight.w700),
+                          style: GoogleFonts.inter(
+                            color: const Color(0xFFD97706),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ],
                     ),
@@ -3879,22 +5158,40 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                 OutlinedButton.icon(
                   onPressed: () async {
                     try {
-                      await printer.printReceipt(transaction, saleItems, config: config);
+                      await printer.printReceipt(
+                        transaction,
+                        saleItems,
+                        config: config,
+                      );
                       if (ctx.mounted) {
                         ScaffoldMessenger.of(ctx).showSnackBar(
-                          const SnackBar(content: Text('Receipt printed successfully!'), backgroundColor: Color(0xFF059669)),
+                          const SnackBar(
+                            content: Text('Receipt printed successfully!'),
+                            backgroundColor: Color(0xFF059669),
+                          ),
                         );
                       }
                     } catch (err) {
                       if (ctx.mounted) {
                         ScaffoldMessenger.of(ctx).showSnackBar(
-                          SnackBar(content: Text('Print retry failed: ${err.toString().replaceAll("Exception: ", "")}'), backgroundColor: const Color(0xFFDC2626)),
+                          SnackBar(
+                            content: Text(
+                              'Print retry failed: ${err.toString().replaceAll("Exception: ", "")}',
+                            ),
+                            backgroundColor: const Color(0xFFDC2626),
+                          ),
                         );
                       }
                     }
                   },
                   icon: const Icon(Icons.print_rounded, size: 16),
-                  label: Text('RETRY PRINT', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 11)),
+                  label: Text(
+                    'RETRY PRINT',
+                    style: GoogleFonts.inter(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 11,
+                    ),
+                  ),
                 ),
               ],
               ElevatedButton(
@@ -3905,10 +5202,18 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: primaryAccent,
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                   elevation: 0,
                 ),
-                child: Text('NEW SALE', style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 12)),
+                child: Text(
+                  'NEW SALE',
+                  style: GoogleFonts.inter(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12,
+                  ),
+                ),
               ),
             ],
           ),
@@ -3916,14 +5221,22 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: const Color(0xFFDC2626)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: const Color(0xFFDC2626),
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _isProcessingPayment = false);
     }
   }
 
-  void _scheduleDigitaxFiscalRefreshAndPrint(SaleTransaction tx, List<SaleItem> items) {
+  void _scheduleDigitaxFiscalRefreshAndPrint(
+    SaleTransaction tx,
+    List<SaleItem> items,
+  ) {
     Future(() async {
       final dtService = ref.read(digitaxInventoryServiceProvider);
       for (int attempt = 1; attempt <= 6; attempt++) {
@@ -3933,8 +5246,12 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
           if (refreshed) {
             final config = ref.read(storeConfigProvider).value;
             if (config?.autoPrintReceipt != false) {
-              await ref.read(printerServiceProvider).printReceipt(tx, items, config: config);
-              debugPrint('DIGITAX_ASYNC_PRINT: Live receipt printed after background confirmation for Tx #${tx.id}');
+              await ref
+                  .read(printerServiceProvider)
+                  .printReceipt(tx, items, config: config);
+              debugPrint(
+                'DIGITAX_ASYNC_PRINT: Live receipt printed after background confirmation for Tx #${tx.id}',
+              );
             }
             break;
           }

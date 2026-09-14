@@ -85,7 +85,7 @@ def test_registration_creates_tpin_scoped_hq_owner_and_session():
 
     assert response["store"].name == "Acme Retail"
     assert response["store"].tpin == "TENANT-NEW"
-    assert response["store"].bhf_id == "00"
+    assert response["store"].bhf_id == "000"
     assert response["user"].numeric_id == "1001"
     assert response["user"].role == "owner"
     assert response["token"]
@@ -125,8 +125,8 @@ def test_registration_allows_hq_for_multiple_organizations():
         db,
     )
 
-    assert first["store"].bhf_id == "00"
-    assert second["store"].bhf_id == "00"
+    assert first["store"].bhf_id == "000"
+    assert second["store"].bhf_id == "000"
     assert first["store"].store_code != second["store"].store_code
 
 
@@ -158,8 +158,8 @@ def test_remote_login_requires_tpin():
 
 def test_ambiguous_credentials_do_not_guess_a_branch():
     db = make_db()
-    add_store(db, 1, "BR-01", "TENANT-1", "01")
-    add_store(db, 2, "BR-02", "TENANT-1", "02")
+    add_store(db, 1, "BR-001", "TENANT-1", "001")
+    add_store(db, 2, "BR-002", "TENANT-1", "002")
     add_user(db, 20, 1, "2001")
     add_user(db, 21, 2, "2001")
     db.commit()
@@ -175,8 +175,9 @@ def test_ambiguous_credentials_do_not_guess_a_branch():
 
 def test_branch_code_disambiguates_same_credentials_within_tenant():
     db = make_db()
-    add_store(db, 1, "BR-01", "TENANT-1", "01")
-    add_store(db, 2, "BR-02", "TENANT-1", "02")
+    add_store(db, 1, "BR-001", "TENANT-1", "001")
+    branch = add_store(db, 2, "BR-002", "TENANT-1", "002")
+    branch.digitax_api_key = "branch-key"
     first_user = add_user(db, 20, 1, "2001")
     add_user(db, 21, 2, "2001")
     db.commit()
@@ -184,11 +185,11 @@ def test_branch_code_disambiguates_same_credentials_within_tenant():
     response = cloud_login(
         schemas.LoginRequest(
             tpin="TENANT-1",
-            branch_code="02",
+            branch_code="002",
             numeric_id="2001",
             pin="1234",
         ),
         db,
     )
     assert response["user"].id != first_user.id
-    assert response["store"].bhf_id == "02"
+    assert response["store"].bhf_id == "002"

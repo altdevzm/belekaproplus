@@ -81,6 +81,58 @@ def create_or_update_user(
     db.refresh(user)
     return user
 
+@router.delete("/by-numeric/{numeric_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_user_by_numeric_id(
+    numeric_id: str,
+    store_id: Optional[int] = None,
+    current_user: models.User = Depends(require_roles(["owner", "branch_manager"])),
+    db: Session = Depends(get_db)
+):
+    """Permanently delete a staff account by numeric ID (scoped to store or organization)."""
+    target_store_id = store_id or current_user.store_id
+    if target_store_id:
+        verify_store_access(target_store_id, current_user, db)
+    
+    clean_numeric_id = str(numeric_id).strip()
+    user = None
+    if store_id:
+        user = db.query(models.User).filter(
+            models.User.store_id == store_id,
+            models.User.numeric_id == clean_numeric_id,
+        ).first()
+
+    if not user:
+        user = db.query(models.User).filter(
+            models.User.numeric_id == clean_numeric_id,
+        ).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User account not found")
+    if user.id == current_user.id:
+        raise HTTPException(status_code=400, detail="You cannot delete your own account")
+    db.delete(user)
+    db.commit()
+    return None
+
+@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_user_by_id(
+    user_id: int,
+    store_id: Optional[int] = None,
+    current_user: models.User = Depends(require_roles(["owner", "branch_manager"])),
+    db: Session = Depends(get_db)
+):
+    """Permanently delete a staff account by primary key ID."""
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User account not found")
+    target_store_id = store_id or user.store_id
+    verify_store_access(target_store_id, current_user, db)
+    if user.id == current_user.id:
+        raise HTTPException(status_code=400, detail="You cannot delete your own account")
+    db.delete(user)
+    db.commit()
+    return None
+
 @router.post("/sync", status_code=status.HTTP_200_OK)
 def sync_users_batch(
     payload: UserSyncBatch,

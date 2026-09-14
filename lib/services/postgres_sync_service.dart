@@ -53,11 +53,40 @@ class PostgresSyncService {
   /// Automatically authenticate against Cloud VPS DB and update token in StoreConfig
   Future<String?> _refreshCloudAuthToken(
     StoreConfig? config,
-    String cloudUrl,
-  ) async {
-    final numericId = config?.cloudAuthUserId ?? '1001';
-    final pin = config?.cloudAuthPin ?? '0000';
+    String cloudUrl, {
+    String? pinOverride,
+    String? userIdOverride,
+  }) async {
+    var numericId = userIdOverride?.trim().isNotEmpty == true
+        ? userIdOverride!.trim()
+        : (config?.cloudAuthUserId?.trim().isNotEmpty == true
+            ? config!.cloudAuthUserId!.trim()
+            : '1001');
+    var pin = pinOverride?.trim().isNotEmpty == true
+        ? pinOverride!.trim()
+        : (config?.cloudAuthPin?.trim() ?? '');
 
+    if (pin.isEmpty) {
+      final allUsers = await isar.users.where().findAll();
+      final adminUser = allUsers.cast<User?>().firstWhere(
+        (u) =>
+            u?.role == 'owner' ||
+            u?.role == 'admin' ||
+            u?.role == 'branch_manager' ||
+            u?.role == 'manager',
+        orElse: () => null,
+      );
+      if (adminUser != null && adminUser.numericId.isNotEmpty) {
+        numericId = adminUser.numericId;
+      }
+    }
+
+    if (pin.isEmpty) {
+      debugPrint(
+        '[PostgresSyncService] Cloud PIN is not stored; auto auth token refresh cannot proceed.',
+      );
+      return null;
+    }
     debugPrint(
       '[PostgresSyncService] Attempting auto auth token refresh for user $numericId (TPIN: ${config?.tpin})...',
     );
@@ -75,6 +104,8 @@ class PostgresSyncService {
       if (config != null) {
         await isar.writeTxn(() async {
           config.cloudAuthToken = newToken;
+          config.cloudAuthPin = pin;
+          config.cloudAuthUserId = numericId;
           await isar.storeConfigs.put(config);
         });
       }
@@ -103,33 +134,80 @@ class PostgresSyncService {
     }
     var token = config?.cloudAuthToken;
 
-    bool result = await cloudDb.syncUser(
-      baseUrl: cloudUrl,
-      storeId: targetStoreId,
-      user: user,
-      plainPin: plainPin,
-      authToken: token,
-    );
+    bool result;
+    Object? firstError;
+    try {
+      result = await cloudDb.syncUser(
+        baseUrl: cloudUrl,
+        storeId: targetStoreId,
+        user: user,
+        plainPin: plainPin,
+        authToken: token,
+      );
+    } catch (e) {
+      firstError = e;
+      result = false;
+    }
 
     if (!result) {
       token = await _refreshCloudAuthToken(config, cloudUrl);
       if (token != null) {
-        result = await cloudDb.syncUser(
-          baseUrl: cloudUrl,
-          storeId: targetStoreId,
-          user: user,
-          plainPin: plainPin,
-          authToken: token,
-        );
+        try {
+          result = await cloudDb.syncUser(
+            baseUrl: cloudUrl,
+            storeId: targetStoreId,
+            user: user,
+            plainPin: plainPin,
+            authToken: token,
+          );
+        } catch (_) {
+          rethrow;
+        }
+      } else if (firstError != null) {
+        throw firstError;
       }
     }
     return result;
   }
 
+  Future<bool> deleteUser(User user, {int? storeId}) async {
+    final config = await isar.storeConfigs.where().findFirst();
+    final cloudUrl = (config?.cloudApiUrl?.trim().isNotEmpty == true)
+        ? config!.cloudApiUrl!.trim()
+        : 'http://23.139.36.20:8003';
+    final targetStoreId = storeId ?? config?.cloudStoreId ?? 0;
+    if (targetStoreId <= 0) return true;
+    var token = config?.cloudAuthToken;
+
+    Future<bool> remove(String? authToken) => cloudDb.deleteUser(
+      baseUrl: cloudUrl,
+      storeId: targetStoreId,
+      numericId: user.numericId,
+      authToken: authToken,
+    );
+
+    Object? firstError;
+    try {
+      if (await remove(token)) return true;
+    } catch (e) {
+      firstError = e;
+    }
+    token = await _refreshCloudAuthToken(config, cloudUrl);
+    if (token == null) {
+      if (firstError != null) throw firstError;
+      return false;
+    }
+    return remove(token);
+  }
+
   /// Push/Sync a Store Branch to Cloud PostgreSQL DB.
   /// Returns true if the branch was synced, and saves the cloud store_id back
   /// to branch.cloudStoreId for use in branch report data attribution.
-  Future<bool> syncBranch(StoreBranch branch) async {
+  Future<bool> syncBranch(
+    StoreBranch branch, {
+    String? branchApiKey,
+    String? authPin,
+  }) async {
     final config = await isar.storeConfigs.where().findFirst();
     final cloudUrl =
         (config?.cloudApiUrl != null && config!.cloudApiUrl!.trim().isNotEmpty)
@@ -137,37 +215,52 @@ class PostgresSyncService {
         : 'http://23.139.36.20:8003';
     var token = config?.cloudAuthToken;
 
-    Future<bool> _doSync(String? tok) async {
+    Future<bool> doSync(String? tok) async {
       if (branch.cloudStoreId <= 0) {
-        final stores = await cloudDb.getStores(cloudUrl, authToken: tok);
-        final existing = stores.cast<Map<String, dynamic>?>().firstWhere(
-          (store) =>
-            store?['store_code']?.toString().trim().toUpperCase() ==
-              branch.code.trim().toUpperCase() ||
-            store?['bhf_id']?.toString().trim().toUpperCase() ==
-              branch.bhfId.trim().toUpperCase(),
-          orElse: () => null,
-        );
-        if (existing?['id'] != null) {
-          branch.cloudStoreId = (existing!['id'] as num).toInt();
-          await isar.writeTxn(() async {
-            await isar.storeBranchs.put(branch);
-          });
+        try {
+          final stores = await cloudDb.getStores(cloudUrl, authToken: tok);
+          final existing = stores.cast<Map<String, dynamic>?>().firstWhere(
+            (store) =>
+                store?['store_code']?.toString().trim().toUpperCase() ==
+                    branch.code.trim().toUpperCase() ||
+                store?['bhf_id']?.toString().trim().toUpperCase() ==
+                    branch.bhfId.trim().toUpperCase(),
+            orElse: () => null,
+          );
+          if (existing?['id'] != null) {
+            branch.cloudStoreId = (existing!['id'] as num).toInt();
+            await isar.writeTxn(() async {
+              await isar.storeBranchs.put(branch);
+            });
+          }
+        } catch (_) {
+          // If store lookup fails, let syncBranch proceed to create/upsert
         }
       }
       final cloudStoreId = await cloudDb.syncBranch(
         baseUrl: cloudUrl,
         branch: branch,
         tpin: config?.tpin,
-        digitaxApiKey: config?.digitaxApiKey,
+        // A branch must never inherit HQ credentials. On a branch device,
+        // config.digitaxApiKey is that branch's own credential.
+        digitaxApiKey: branchApiKey?.trim().isNotEmpty == true
+            ? branchApiKey!.trim()
+            : branch.bhfId == config?.bhfId
+            ? config?.digitaxApiKey
+            : null,
         digitaxEnvironment: config?.digitaxEnvironment,
         businessTaxType: config?.businessTaxType,
         currencySymbol: config?.currencySymbol,
         authToken: tok,
       );
       if (cloudStoreId != null) {
+        if (cloudStoreId <= 0) {
+          throw StateError(
+            'VPS accepted branch ${branch.bhfId}, but returned no cloud store ID.',
+          );
+        }
         // Persist the backend store_id on the local branch for HQ report matching
-        if (cloudStoreId > 0 && branch.cloudStoreId != cloudStoreId) {
+        if (branch.cloudStoreId != cloudStoreId) {
           await isar.writeTxn(() async {
             branch.cloudStoreId = cloudStoreId;
             await isar.storeBranchs.put(branch);
@@ -181,15 +274,57 @@ class PostgresSyncService {
       return false;
     }
 
-    bool result = await _doSync(token);
+    Object? firstError;
+    bool result = false;
+    try {
+      result = await doSync(token);
+    } catch (e) {
+      firstError = e;
+    }
 
     if (!result) {
-      token = await _refreshCloudAuthToken(config, cloudUrl);
-      if (token != null) {
-        result = await _doSync(token);
+      token = await _refreshCloudAuthToken(
+        config,
+        cloudUrl,
+        pinOverride: authPin,
+      );
+      if (token == null) {
+        if (firstError != null) throw firstError;
+        throw StateError(
+          'Could not authenticate with the VPS to sync branch ${branch.bhfId}.',
+        );
+      }
+      try {
+        result = await doSync(token);
+      } catch (e) {
+        throw StateError(
+          'VPS branch ${branch.bhfId} synchronization failed: $e',
+        );
       }
     }
     return result;
+  }
+
+  Future<bool> deleteBranch(StoreBranch branch) async {
+    if (branch.cloudStoreId <= 0) return true;
+    final config = await isar.storeConfigs.where().findFirst();
+    final cloudUrl = (config?.cloudApiUrl?.trim().isNotEmpty == true)
+        ? config!.cloudApiUrl!.trim()
+        : 'http://23.139.36.20:8003';
+    var token = config?.cloudAuthToken;
+
+    Future<bool> remove(String? authToken) => cloudDb.deleteBranch(
+      baseUrl: cloudUrl,
+      storeId: branch.cloudStoreId,
+      authToken: authToken,
+    );
+
+    try {
+      if (await remove(token)) return true;
+    } catch (_) {}
+    token = await _refreshCloudAuthToken(config, cloudUrl);
+    if (token == null) return false;
+    return remove(token);
   }
 
   /// Push/Sync Store Configuration (TPIN, DigiTax Key, Tax Settings) to Cloud DB.
@@ -275,19 +410,40 @@ class PostgresSyncService {
       }
 
       await isar.writeTxn(() async {
-        if (targetStore['tpin'] != null &&
-            (targetStore['tpin'] as String).isNotEmpty) {
-          config?.tpin = targetStore['tpin'];
+        final remoteTpin = targetStore['tpin']?.toString().trim();
+        final remoteApiKey = targetStore['digitax_api_key']?.toString().trim();
+        final remoteEnvironment = targetStore['digitax_environment']
+            ?.toString()
+            .trim();
+        final remoteTaxType = targetStore['business_tax_type']
+            ?.toString()
+            .trim();
+        final remoteBhfId = targetStore['bhf_id']?.toString().trim();
+        if (remoteTpin?.isNotEmpty == true) config?.tpin = remoteTpin;
+        config?.digitaxApiKey = remoteApiKey?.isNotEmpty == true
+            ? remoteApiKey
+            : null;
+        if (remoteEnvironment?.isNotEmpty == true) {
+          config?.digitaxEnvironment = remoteEnvironment!;
         }
-        if (targetStore['digitax_api_key'] != null &&
-            (targetStore['digitax_api_key'] as String).isNotEmpty) {
-          config?.digitaxApiKey = targetStore['digitax_api_key'];
+        if (remoteTaxType?.isNotEmpty == true) {
+          config?.businessTaxType = remoteTaxType!;
         }
-        if (targetStore['digitax_environment'] != null) {
-          config?.digitaxEnvironment = targetStore['digitax_environment'];
+        if (remoteBhfId?.isNotEmpty == true) {
+          config?.bhfId = remoteBhfId!.padLeft(2, '0');
         }
-        if (targetStore['business_tax_type'] != null) {
-          config?.businessTaxType = targetStore['business_tax_type'];
+        if (targetStore['sdc_id'] != null) {
+          config?.sdcId = targetStore['sdc_id']?.toString();
+        }
+        if (targetStore['mrc_no'] != null) {
+          config?.mrcNo = targetStore['mrc_no']?.toString();
+        }
+        if (targetStore['currency_symbol'] != null) {
+          config?.currencySymbol =
+              targetStore['currency_symbol']?.toString() ?? 'K';
+        }
+        if (targetStore['branch_name'] != null) {
+          config?.branchName = targetStore['branch_name']?.toString();
         }
         if (config != null) {
           await isar.storeConfigs.put(config);
@@ -320,6 +476,8 @@ class PostgresSyncService {
         : 'http://23.139.36.20:8003';
     final storeId = config?.cloudStoreId ?? 0;
     var authToken = config?.cloudAuthToken;
+
+    await syncInventorySnapshot();
 
     // Query unsynced sales from local storage
     final unsyncedSales = await isar.saleTransactions
@@ -397,21 +555,85 @@ class PostgresSyncService {
     }
   }
 
+  /// Push the branch's current product catalog and stock audit trail to its
+  /// mapped cloud store so HQ reports can read inventory independently of sales.
+  Future<bool> syncInventorySnapshot() async {
+    final config = await isar.storeConfigs.where().findFirst();
+    final cloudUrl = (config?.cloudApiUrl?.trim().isNotEmpty == true)
+        ? config!.cloudApiUrl!.trim()
+        : 'http://23.139.36.20:8003';
+    final storeId = config?.cloudStoreId ?? 0;
+    if (storeId <= 0) return false;
+
+    // Pull corporate DigiTax configuration before each branch sync so changes
+    // made by HQ reach an already-installed branch client.
+    await pullStoreConfigFromCloud();
+
+    final branchCode = config?.bhfId.trim().isNotEmpty == true
+        ? config!.bhfId.trim()
+        : '00';
+    final products = await isar.products
+        .filter()
+        .branchCodeEqualTo(branchCode)
+        .findAll();
+    final movements = await isar.stockMovements
+        .filter()
+        .branchCodeEqualTo(branchCode)
+        .findAll();
+    var token = config?.cloudAuthToken;
+
+    try {
+      final synced = await cloudDb.syncInventorySnapshot(
+        baseUrl: cloudUrl,
+        storeId: storeId,
+        products: products,
+        movements: movements,
+        authToken: token,
+      );
+      if (synced) return true;
+    } catch (e) {
+      debugPrint('[PostgresSyncService] Inventory snapshot sync failed: $e');
+    }
+
+    token = await _refreshCloudAuthToken(config, cloudUrl);
+    if (token == null) return false;
+    try {
+      return await cloudDb.syncInventorySnapshot(
+        baseUrl: cloudUrl,
+        storeId: storeId,
+        products: products,
+        movements: movements,
+        authToken: token,
+      );
+    } catch (e) {
+      debugPrint('[PostgresSyncService] Inventory snapshot retry failed: $e');
+      return false;
+    }
+  }
+
   /// Pull sales transactions from Cloud PostgreSQL DB into local Isar DB cache.
-  Future<int> pullSalesFromCloud() async {
+  Future<int> pullSalesFromCloud({int? storeId}) async {
     final config = await isar.storeConfigs.where().findFirst();
     final cloudUrl =
         (config?.cloudApiUrl != null && config!.cloudApiUrl!.trim().isNotEmpty)
         ? config.cloudApiUrl!.trim()
         : 'http://23.139.36.20:8003';
 
-    final owner = await isar.users.filter().roleEqualTo('owner').findFirst();
     final configuredStoreId = config?.cloudStoreId;
-    final storeId = owner != null && config?.bhfId == '00'
-        ? 0
-        : configuredStoreId;
+    var targetStoreId = storeId ?? configuredStoreId;
 
-    if (storeId == null || storeId < 0) {
+    if (storeId == null && config?.bhfId.trim() == '00') {
+      final stores = await cloudDb.getStores(
+        cloudUrl,
+        authToken: config?.cloudAuthToken,
+      );
+      final hq = stores
+          .where((store) => store['bhf_id']?.toString().trim() == '00')
+          .firstOrNull;
+      targetStoreId = (hq?['id'] as num?)?.toInt() ?? targetStoreId;
+    }
+
+    if (targetStoreId == null || targetStoreId <= 0) {
       throw StateError(
         'Cloud branch mapping is missing; refusing to pull data for an unknown store.',
       );
@@ -425,7 +647,7 @@ class PostgresSyncService {
 
       var backup = await cloudDb.downloadVpsBackup(
         baseUrl: cloudUrl,
-        storeId: storeId,
+        storeId: targetStoreId,
         token: authToken,
       );
 
@@ -435,7 +657,7 @@ class PostgresSyncService {
         if (authToken != null) {
           backup = await cloudDb.downloadVpsBackup(
             baseUrl: cloudUrl,
-            storeId: storeId,
+            storeId: targetStoreId,
             token: authToken,
           );
         }
@@ -445,7 +667,25 @@ class PostgresSyncService {
       final List rawSales = backup['sales'] as List;
       if (rawSales.isEmpty) return 0;
 
+      // HQ cache must never aggregate branch sales. Branch reports request
+      // their own target store explicitly and keep their data branch-scoped.
+      if (storeId == null && config?.bhfId == '00') {
+        await isar.writeTxn(() async {
+          final cached = await isar.saleTransactions.where().findAll();
+          for (final sale in cached) {
+            if (sale.cloudStoreId > 0 && sale.cloudStoreId != targetStoreId) {
+              await isar.saleTransactions.delete(sale.id);
+            }
+          }
+        });
+      }
+
       int insertedCount = 0;
+
+      num? numericValue(dynamic value) {
+        if (value is num) return value;
+        return num.tryParse(value?.toString() ?? '');
+      }
 
       for (final raw in rawSales) {
         final uuid =
@@ -458,27 +698,56 @@ class PostgresSyncService {
             .filter()
             .transactionIdEqualTo(uuid)
             .findFirst();
-        if (existing != null) continue;
+        if (existing != null) {
+          final cloudStoreId = numericValue(raw['store_id'])?.toInt() ?? 0;
+          final rawTimestamp = raw['timestamp']?.toString();
+          final parsedTimestamp = rawTimestamp == null
+              ? null
+              : DateTime.tryParse(rawTimestamp);
+          existing.cloudStoreId = cloudStoreId > 0
+              ? cloudStoreId
+              : existing.cloudStoreId;
+          if (parsedTimestamp != null) {
+            existing.timestamp = parsedTimestamp;
+          }
+          existing.totalAmount =
+              numericValue(raw['total_amount'])?.toDouble() ??
+              existing.totalAmount;
+          existing.subtotal =
+              numericValue(raw['subtotal'])?.toDouble() ?? existing.subtotal;
+          existing.taxAmount =
+              numericValue(raw['tax_amount'])?.toDouble() ?? existing.taxAmount;
+          existing.grossProfit =
+              numericValue(raw['gross_profit'])?.toDouble() ??
+              existing.grossProfit;
+          existing.status = raw['status']?.toString() ?? existing.status;
+          await isar.writeTxn(() async {
+            await isar.saleTransactions.put(existing);
+          });
+          continue;
+        }
 
         final tx = SaleTransaction(
-          totalAmount: (raw['total_amount'] as num?)?.toDouble() ?? 0.0,
+          totalAmount: numericValue(raw['total_amount'])?.toDouble() ?? 0.0,
           paymentMethod: raw['payment_method'] as String? ?? 'Cash',
           cashierName: raw['cashier_name'] as String? ?? 'Admin',
           status: raw['status'] as String? ?? 'completed',
-          subtotal: (raw['subtotal'] as num?)?.toDouble() ?? 0.0,
-          taxAmount: (raw['tax_amount'] as num?)?.toDouble() ?? 0.0,
-          discountAmount: (raw['discount_amount'] as num?)?.toDouble() ?? 0.0,
-          totalCost: (raw['total_cost'] as num?)?.toDouble() ?? 0.0,
-          grossProfit: (raw['gross_profit'] as num?)?.toDouble() ?? 0.0,
-          tenderedAmount: (raw['tendered_amount'] as num?)?.toDouble() ?? 0.0,
-          changeAmount: (raw['change_amount'] as num?)?.toDouble() ?? 0.0,
-          customerId: (raw['customer_id'] as num?)?.toInt(),
-          pointsEarned: (raw['points_earned'] as num?)?.toInt() ?? 0,
-          pointsRedeemed: (raw['points_redeemed'] as num?)?.toInt() ?? 0,
+          subtotal: numericValue(raw['subtotal'])?.toDouble() ?? 0.0,
+          taxAmount: numericValue(raw['tax_amount'])?.toDouble() ?? 0.0,
+          discountAmount:
+              numericValue(raw['discount_amount'])?.toDouble() ?? 0.0,
+          totalCost: numericValue(raw['total_cost'])?.toDouble() ?? 0.0,
+          grossProfit: numericValue(raw['gross_profit'])?.toDouble() ?? 0.0,
+          tenderedAmount:
+              numericValue(raw['tendered_amount'])?.toDouble() ?? 0.0,
+          changeAmount: numericValue(raw['change_amount'])?.toDouble() ?? 0.0,
+          customerId: numericValue(raw['customer_id'])?.toInt(),
+          pointsEarned: numericValue(raw['points_earned'])?.toInt() ?? 0,
+          pointsRedeemed: numericValue(raw['points_redeemed'])?.toInt() ?? 0,
           isSynced: true,
           // Store the backend store_id so HQ can correctly attribute this
           // transaction to the right branch in reports (branch matching uses this)
-          cloudStoreId: (raw['store_id'] as num?)?.toInt() ?? 0,
+          cloudStoreId: numericValue(raw['store_id'])?.toInt() ?? 0,
           cashierId: raw['cashier_id']?.toString(),
           terminalName: raw['terminal_name'] as String? ?? 'Terminal-1',
           transactionId: uuid,
@@ -501,13 +770,13 @@ class PostgresSyncService {
             final List rawItems = raw['items'] as List;
             for (final rItem in rawItems) {
               final item = SaleItem(
-                productId: (rItem['product_id'] as num?)?.toInt() ?? 0,
+                productId: numericValue(rItem['product_id'])?.toInt() ?? 0,
                 productName: rItem['product_name'] as String? ?? 'Product',
                 priceAtSale:
-                    (rItem['price_at_sale'] as num?)?.toDouble() ?? 0.0,
+                    numericValue(rItem['price_at_sale'])?.toDouble() ?? 0.0,
                 unitCostAtSale:
-                    (rItem['unit_cost_at_sale'] as num?)?.toDouble() ?? 0.0,
-                quantity: (rItem['quantity'] as num?)?.toInt() ?? 1,
+                    numericValue(rItem['unit_cost_at_sale'])?.toDouble() ?? 0.0,
+                quantity: numericValue(rItem['quantity'])?.toInt() ?? 1,
               );
               await isar.saleItems.put(item);
               tx.items.add(item);

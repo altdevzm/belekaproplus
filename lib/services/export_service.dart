@@ -4732,7 +4732,8 @@ class ExportService {
         }
 
         // Aggregate items sold
-        for (final item in tx.items) {
+        final items = tx.reportItems.isNotEmpty ? tx.reportItems : tx.items;
+        for (final item in items) {
           final pid = item.productId;
           if (!productSalesMap.containsKey(pid)) {
             productSalesMap[pid] = {

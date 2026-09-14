@@ -18,13 +18,16 @@ CREATE TABLE IF NOT EXISTS stores (
     mrc_no VARCHAR(100),
     currency_symbol VARCHAR(10) DEFAULT 'K',
     branch_name VARCHAR(100),
+    manager_name VARCHAR(255),
+    manager_id VARCHAR(50),
+    manager_phone VARCHAR(50),
     business_tax_type VARCHAR(50) DEFAULT 'VAT_STANDARD', -- 'VAT_STANDARD', 'TURNOVER_TAX', 'EXEMPT', 'COMPOSITE'
     digitax_api_key VARCHAR(255),
     digitax_environment VARCHAR(20) DEFAULT 'sandbox', -- 'sandbox', 'production'
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-    ,CONSTRAINT uk_store_tpin_code UNIQUE (tpin, store_code)
+    ,CONSTRAINT uk_store_code UNIQUE (store_code)
 );
 
 -- 2. USERS TABLE (PER STORE / MULTI-STORE ADMIN)
@@ -34,7 +37,9 @@ CREATE TABLE IF NOT EXISTS users (
     numeric_id VARCHAR(50) NOT NULL,
     name VARCHAR(255) NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
-    role VARCHAR(50) NOT NULL DEFAULT 'cashier', -- 'admin', 'manager', 'cashier'
+    role VARCHAR(50) NOT NULL DEFAULT 'cashier', -- 'owner', 'branch_manager', 'cashier'
+    branch_name VARCHAR(100),
+    phone VARCHAR(50),
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uk_user_store_numeric UNIQUE (store_id, numeric_id)

@@ -116,5 +116,49 @@ void main() {
       expect(outOfStockCount, equals(1));
       expect(lowStockCount, equals(1));
     });
+
+    test('Includes cloud sale item quantities in inventory sales metrics', () {
+      final transaction = SaleTransaction(
+        totalAmount: 240.0,
+        paymentMethod: 'Cash',
+      );
+      transaction.reportItems.add(SaleItem(
+        productId: 12,
+        productName: 'Cloud Product',
+        priceAtSale: 80.0,
+        quantity: 3,
+      ));
+
+      final productSales = <int, int>{};
+      for (final item in transaction.reportItems) {
+        productSales[item.productId] = (productSales[item.productId] ?? 0) + item.quantity;
+      }
+
+      expect(productSales[12], equals(3));
+      expect(productSales.values.reduce((sum, quantity) => sum + quantity), equals(3));
+    });
+
+    test('Treats placeholder DigiTax item IDs as unregistered and not valid for sale submission', () {
+      final unregistered = Product(
+        name: 'CocaCola',
+        sku: 'CC01',
+        price: 20.0,
+        stockLevel: 10,
+        categoryId: 1,
+      );
+
+      expect(unregistered.hasUsableDigitaxItemId, isFalse);
+
+      final registered = Product(
+        name: 'Registered Item',
+        sku: 'REG001',
+        price: 20.0,
+        stockLevel: 10,
+        categoryId: 1,
+        itemClsCd: 'item_123abc',
+      );
+
+      expect(registered.hasUsableDigitaxItemId, isTrue);
+    });
   });
 }

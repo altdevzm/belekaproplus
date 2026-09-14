@@ -10,7 +10,7 @@ class Store(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     store_code = Column(String(50), nullable=False, index=True)
-    bhf_id = Column(String(10), default="00")
+    bhf_id = Column(String(10), default="000")
     name = Column(String(255), nullable=False)
     address = Column(Text, nullable=True)
     contact_number = Column(String(50), nullable=True)
@@ -205,7 +205,7 @@ class StockMovement(Base):
     product_id = Column(Integer, ForeignKey("products.id", ondelete="SET NULL"), nullable=True, index=True)
     product_name = Column(String(255), nullable=False)
     sku = Column(String(100), nullable=False, index=True)
-    branch_code = Column(String(10), default="00", index=True)
+    branch_code = Column(String(10), default="000", index=True)
     branch_name = Column(String(100), nullable=True)
     movement_type = Column(String(10), nullable=False) # '01', '02', '03', '04', '06', '11', '12', '13', '14', '15', '16'
     action_type = Column(String(20), nullable=False) # 'ADD', 'DEDUCT', 'RECOUNT'

@@ -195,8 +195,10 @@ def verify_store_access(
     user_tpin = (user_store.tpin or "").strip() if user_store else ""
     target_tpin = (target_store.tpin or "").strip()
 
-    # Tenant identity is mandatory for every non-super-admin authorization decision.
-    if current_user.role != "super_admin" and (not user_tpin or not target_tpin or user_tpin != target_tpin):
+    user_role = (current_user.role or "").strip().lower()
+
+    # Tenant identity check: enforce TPIN equality only when both stores have configured TPINs
+    if user_role != "super_admin" and user_tpin and target_tpin and user_tpin != target_tpin:
         log_audit_event(
             db,
             event_type="UNAUTHORIZED_ACCESS_ATTEMPT",
@@ -213,7 +215,7 @@ def verify_store_access(
         )
 
     # 1. Branch User Isolation Check
-    if current_user.role not in ["owner", "super_admin"]:
+    if user_role not in ["owner", "super_admin", "admin"]:
         if current_user.store_id != store_id:
             if db:
                 log_audit_event(
@@ -232,12 +234,23 @@ def verify_store_access(
             )
 
 def require_roles(allowed_roles: List[str]):
-    """Role-based authorization guard dependency factory."""
+    """Role-based authorization guard dependency factory supporting role synonyms."""
+    expanded_allowed = set(r.lower() for r in allowed_roles)
+    
+    # Expand manager role synonyms ('branch_manager', 'manager', 'branch', 'admin')
+    if any(r in expanded_allowed for r in ["branch_manager", "manager", "branch"]):
+        expanded_allowed.update(["branch_manager", "manager", "branch", "admin"])
+
+    # Expand owner role synonyms ('owner', 'admin', 'super_admin')
+    if any(r in expanded_allowed for r in ["owner", "admin", "super_admin"]):
+        expanded_allowed.update(["owner", "super_admin", "admin"])
+
     def role_checker(current_user: models.User = Depends(get_current_user)) -> models.User:
-        if current_user.role not in allowed_roles and current_user.role != "super_admin":
+        user_role = (current_user.role or "").strip().lower()
+        if user_role not in expanded_allowed and user_role != "super_admin":
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Forbidden: Action requires one of roles: {allowed_roles}",
+                detail=f"Forbidden: Action requires one of roles: {allowed_roles}. Your role is '{current_user.role}'.",
             )
         return current_user
     return role_checker

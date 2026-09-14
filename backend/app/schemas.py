@@ -4,7 +4,7 @@ from pydantic import BaseModel, ConfigDict
 
 class StoreBase(BaseModel):
     store_code: str
-    bhf_id: Optional[str] = "00"
+    bhf_id: Optional[str] = "000"
     name: str
     address: Optional[str] = None
     contact_number: Optional[str] = None
@@ -125,6 +125,44 @@ class SaleTransactionCreate(BaseModel):
 class SyncBatchRequest(BaseModel):
     store_id: int
     sales: List[SaleTransactionCreate]
+
+class InventoryProductSync(BaseModel):
+    sku: str
+    name: str
+    price: float
+    unit_cost: Optional[float] = 0.0
+    stock_level: Optional[int] = 0
+    category_id: Optional[int] = None
+    is_tax_inclusive: Optional[bool] = True
+    tax_rate: Optional[float] = 16.0
+    zra_tax_code: Optional[str] = "A"
+    item_cls_cd: Optional[str] = "10101501"
+    is_archived: Optional[bool] = False
+    discount_price: Optional[float] = None
+
+class InventoryMovementSync(BaseModel):
+    product_id: Optional[int] = None
+    product_name: str
+    sku: str
+    branch_code: Optional[str] = "000"
+    branch_name: Optional[str] = None
+    movement_type: str
+    action_type: str
+    previous_stock: Optional[int] = 0
+    quantity_changed: Optional[int] = 0
+    new_stock: Optional[int] = 0
+    unit_cost: Optional[float] = 0.0
+    total_cost_impact: Optional[float] = 0.0
+    reason_category: str
+    reason_notes: Optional[str] = None
+    user_id: Optional[str] = None
+    user_name: Optional[str] = None
+    timestamp: datetime
+
+class InventorySyncRequest(BaseModel):
+    store_id: int
+    products: List[InventoryProductSync]
+    stock_movements: List[InventoryMovementSync]
 
 class PurchaseOrderItemBase(BaseModel):
     product_id: Optional[int] = None

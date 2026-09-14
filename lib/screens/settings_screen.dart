@@ -10,6 +10,7 @@ import 'package:beleka_pos/screens/settings/printer_settings_modal.dart';
 import 'package:beleka_pos/screens/settings/backup_settings_modal.dart';
 import 'package:beleka_pos/screens/settings/license_info_modal.dart';
 import 'package:beleka_pos/screens/settings/network_sync_modal.dart';
+import 'package:beleka_pos/widgets/cloud_database_modal.dart';
 import 'package:beleka_pos/widgets/zra_tax_config_modal.dart';
 import 'package:beleka_pos/screens/settings/scale_settings_modal.dart';
 import 'package:beleka_pos/providers/auth_provider.dart';
@@ -249,6 +250,18 @@ class SettingsScreen extends ConsumerWidget {
                         onPressed: () => showDialog(
                           context: context,
                           builder: (context) => const NetworkSyncModal(),
+                        ),
+                      ),
+                      _buildSettingsCard(
+                        context,
+                        'Cloud Database & Branch Sync',
+                        'Connect this branch to the VPS cloud database and sync inventory, stock movements and sales to headquarters',
+                        Icons.cloud_sync_rounded,
+                        const Color(0xFF2563EB),
+                        buttonLabel: 'Configure Cloud',
+                        onPressed: () => showDialog(
+                          context: context,
+                          builder: (context) => const CloudDatabaseModal(),
                         ),
                       ),
                     ],

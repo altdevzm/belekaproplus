@@ -4,7 +4,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:beleka_pos/models/models.dart';
 import 'package:beleka_pos/providers/store_provider.dart';
-import 'package:beleka_pos/services/database_service.dart';
 import 'package:beleka_pos/services/export_service.dart';
 import 'package:beleka_pos/services/postgres_sync_service.dart';
 
@@ -43,6 +42,7 @@ class _BranchReportScreenState extends ConsumerState<BranchReportScreen> with Si
   List<Expense> _expenses = [];
   List<StockMovement> _stockMovements = [];
   List<Product> _products = [];
+  Map<String, dynamic> _cloudBackup = {};
 
   @override
   void initState() {
@@ -123,40 +123,15 @@ class _BranchReportScreenState extends ConsumerState<BranchReportScreen> with Si
 
   Future<void> _loadReportData() async {
     setState(() => _isLoading = true);
-    final db = ref.read(databaseServiceProvider);
-
     try {
-      // Automatically pull latest sales from Cloud VPS
-      try {
-        await ref.read(postgresSyncServiceProvider).pullSalesFromCloud();
-      } catch (e) {
-        debugPrint('Cloud sales sync pull notice: $e');
-      }
+      // Branch sales reports are cloud-authoritative and do not read local sales.
+      final txs = await _loadCloudTransactions();
 
-      final txs = await db.getTransactionsForBranchInRange(
-        _selectedBranch.code,
-        branchBhfId: _selectedBranch.bhfId,
-        branchName: _selectedBranch.name,
-        branchCloudStoreId: _selectedBranch.cloudStoreId > 0 ? _selectedBranch.cloudStoreId : null,
-        start: _startDate,
-        end: _endDate,
-      );
-
-      final exps = await db.getExpensesForBranchInRange(
-        _selectedBranch.name,
-        branchCode: _selectedBranch.code,
-        start: _startDate,
-        end: _endDate,
-      );
-
-      final movs = await db.getStockMovementsForBranchInRange(
-        _selectedBranch.code,
-        branchName: _selectedBranch.name,
-        start: _startDate,
-        end: _endDate,
-      );
-
-      final prods = await db.getAllProducts(branchCode: _selectedBranch.code);
+      // Expenses, products, and stock movements are cloud-only here. There is
+      // intentionally no HQ-local fallback for branch report data.
+      final exps = <Expense>[];
+      final movs = _cloudStockMovements();
+      final prods = _cloudProducts();
 
       if (mounted) {
         setState(() {
@@ -175,6 +150,133 @@ class _BranchReportScreenState extends ConsumerState<BranchReportScreen> with Si
         );
       }
     }
+  }
+
+  Future<List<SaleTransaction>> _loadCloudTransactions() async {
+    final config = ref.read(storeConfigProvider).value;
+    final baseUrl = config?.cloudApiUrl?.trim();
+    final token = config?.cloudAuthToken?.trim();
+    if (baseUrl == null || baseUrl.isEmpty || token == null || token.isEmpty) {
+      throw StateError('Cloud connection is not configured for branch reports.');
+    }
+
+    final stores = await ref.read(cloudDatabaseServiceProvider).getStores(
+      baseUrl,
+      authToken: token,
+    );
+    final bhfId = _selectedBranch.bhfId.trim().padLeft(2, '0');
+    final cloudStore = stores.where(
+      (store) => store['bhf_id']?.toString().trim().padLeft(2, '0') == bhfId,
+    ).firstOrNull;
+    final rawStoreId = cloudStore?['id'];
+    final storeId = rawStoreId is num
+        ? rawStoreId.toInt()
+        : int.tryParse(rawStoreId?.toString() ?? '') ?? 0;
+    if (storeId <= 0) {
+      throw StateError('BHF $bhfId is not linked to a VPS store.');
+    }
+
+    final backup = await ref.read(cloudDatabaseServiceProvider).downloadVpsBackup(
+      baseUrl: baseUrl,
+      storeId: storeId,
+      token: token,
+    );
+    _cloudBackup = backup ?? {};
+    final rawSales = (backup?['sales'] as List?) ?? const [];
+    num? number(dynamic value) {
+      if (value is num) return value;
+      return num.tryParse(value?.toString() ?? '');
+    }
+
+    final transactions = <SaleTransaction>[];
+    for (final raw in rawSales) {
+      final timestamp = DateTime.tryParse(raw['timestamp']?.toString() ?? '');
+      if (timestamp == null || timestamp.isBefore(_startDate) || !timestamp.isBefore(_endDate)) {
+        continue;
+      }
+      final transaction = SaleTransaction(
+        totalAmount: number(raw['total_amount'])?.toDouble() ?? 0.0,
+        paymentMethod: raw['payment_method']?.toString() ?? 'Cash',
+        cashierName: raw['cashier_name']?.toString() ?? 'Admin',
+        status: raw['status']?.toString() ?? 'completed',
+        subtotal: number(raw['subtotal'])?.toDouble() ?? 0.0,
+        taxAmount: number(raw['tax_amount'])?.toDouble() ?? 0.0,
+        discountAmount: number(raw['discount_amount'])?.toDouble() ?? 0.0,
+        totalCost: number(raw['total_cost'])?.toDouble() ?? 0.0,
+        grossProfit: number(raw['gross_profit'])?.toDouble() ?? 0.0,
+        transactionId: raw['transaction_uuid']?.toString(),
+        cloudStoreId: storeId,
+        isSynced: true,
+        terminalName: raw['terminal_name']?.toString(),
+        cashierId: raw['cashier_id']?.toString(),
+      )..timestamp = timestamp;
+      for (final rawItem in (raw['items'] as List?) ?? const []) {
+        transaction.reportItems.add(SaleItem(
+          productId: number(rawItem['product_id'])?.toInt() ?? 0,
+          productName: rawItem['product_name']?.toString() ?? 'Product',
+          priceAtSale: number(rawItem['price_at_sale'])?.toDouble() ?? 0.0,
+          unitCostAtSale: number(rawItem['unit_cost_at_sale'])?.toDouble() ?? 0.0,
+          quantity: number(rawItem['quantity'])?.toInt() ?? 0,
+          weight: number(rawItem['weight'])?.toDouble() ?? 0.0,
+          isWeighted: rawItem['is_weighted'] == true,
+          unitOfMeasure: rawItem['unit_of_measure']?.toString() ?? 'kg',
+          isRefunded: rawItem['is_refunded'] == true,
+          isDigitaxExempt: rawItem['is_digitax_exempt'] == true,
+          taxRateAtSale: number(rawItem['tax_rate_at_sale'])?.toDouble() ?? 0.0,
+          isTaxInclusiveAtSale: rawItem['is_tax_inclusive_at_sale'] != false,
+        ));
+      }
+      transactions.add(transaction);
+    }
+    return transactions;
+  }
+
+  num? _cloudNumber(dynamic value) {
+    if (value is num) return value;
+    return num.tryParse(value?.toString() ?? '');
+  }
+
+  List<Product> _cloudProducts() {
+    final products = <Product>[];
+    for (final raw in (_cloudBackup['products'] as List?) ?? const []) {
+      products.add(Product(
+        name: raw['name']?.toString() ?? 'Product',
+        sku: raw['sku']?.toString() ?? '',
+        price: _cloudNumber(raw['price'])?.toDouble() ?? 0.0,
+        stockLevel: _cloudNumber(raw['stock_level'])?.toInt() ?? 0,
+        categoryId: _cloudNumber(raw['category_id'])?.toInt() ?? 0,
+        unitCost: _cloudNumber(raw['unit_cost'])?.toDouble() ?? 0.0,
+        branchCode: _selectedBranch.bhfId,
+        branchName: _selectedBranch.name,
+        isArchived: raw['is_archived'] == true,
+      ));
+    }
+    return products;
+  }
+
+  List<StockMovement> _cloudStockMovements() {
+    final movements = <StockMovement>[];
+    for (final raw in (_cloudBackup['stock_movements'] as List?) ?? const []) {
+      final timestamp = DateTime.tryParse(raw['timestamp']?.toString() ?? '');
+      if (timestamp == null || timestamp.isBefore(_startDate) || !timestamp.isBefore(_endDate)) continue;
+      final movement = StockMovement(
+        productId: _cloudNumber(raw['product_id'])?.toInt() ?? 0,
+        productName: raw['product_name']?.toString() ?? 'Product',
+        sku: raw['sku']?.toString() ?? '',
+        branchCode: _selectedBranch.bhfId,
+        branchName: _selectedBranch.name,
+        movementType: raw['movement_type']?.toString() ?? '00',
+        actionType: raw['action_type']?.toString() ?? 'ADJUST',
+        previousStock: _cloudNumber(raw['previous_stock'])?.toInt() ?? 0,
+        quantityChanged: _cloudNumber(raw['quantity_changed'])?.toInt() ?? 0,
+        newStock: _cloudNumber(raw['new_stock'])?.toInt() ?? 0,
+        unitCost: _cloudNumber(raw['unit_cost'])?.toDouble() ?? 0.0,
+        totalCostImpact: _cloudNumber(raw['total_cost_impact'])?.toDouble() ?? 0.0,
+        reasonCategory: raw['reason_category']?.toString() ?? 'Other',
+      )..timestamp = timestamp;
+      movements.add(movement);
+    }
+    return movements;
   }
 
   Future<void> _selectCustomDateRange() async {
@@ -366,7 +468,7 @@ class _BranchReportScreenState extends ConsumerState<BranchReportScreen> with Si
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            '${b.name} (${b.code})',
+                            '${b.name} (BHF ${b.bhfId})',
                             style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700),
                           ),
                           if (b.isHQ) ...[
@@ -482,20 +584,8 @@ class _BranchReportScreenState extends ConsumerState<BranchReportScreen> with Si
                       border: Border.all(color: primaryColor.withValues(alpha: 0.3)),
                     ),
                     child: Text(
-                      'Branch Code: ${_selectedBranch.code}',
+                      'BHF ID: ${_selectedBranch.bhfId}',
                       style: GoogleFonts.inter(fontSize: 11.5, fontWeight: FontWeight.w700, color: primaryColor),
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF059669).withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: const Color(0xFF059669).withValues(alpha: 0.3)),
-                    ),
-                    child: Text(
-                      'DigiTax bhfId: ${_selectedBranch.bhfId}',
-                      style: GoogleFonts.inter(fontSize: 11.5, fontWeight: FontWeight.w700, color: const Color(0xFF059669)),
                     ),
                   ),
                   Container(
@@ -1198,7 +1288,8 @@ class _BranchReportScreenState extends ConsumerState<BranchReportScreen> with Si
     final Map<int, Map<String, dynamic>> productSalesMap = {};
     for (final tx in _transactions) {
       if (tx.status != 'refunded' && !tx.isCreditNote) {
-        for (final item in tx.items) {
+        final items = tx.reportItems.isNotEmpty ? tx.reportItems : tx.items;
+        for (final item in items) {
           final pid = item.productId;
           if (!productSalesMap.containsKey(pid)) {
             productSalesMap[pid] = {

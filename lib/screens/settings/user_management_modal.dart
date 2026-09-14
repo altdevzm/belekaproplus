@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:beleka_pos/models/models.dart';
 import 'package:beleka_pos/providers/users_provider.dart';
+import 'package:beleka_pos/providers/store_provider.dart';
+import 'package:beleka_pos/providers/auth_provider.dart';
+import 'package:beleka_pos/services/postgres_sync_service.dart';
 import 'package:beleka_pos/screens/settings/add_user_modal.dart';
 import 'package:beleka_pos/screens/settings/reset_pin_modal.dart';
 
@@ -20,7 +23,9 @@ class UserManagementModal extends ConsumerWidget {
       backgroundColor: isDark ? const Color(0xFF151F32) : Colors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+        side: BorderSide(
+          color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0),
+        ),
       ),
       child: Container(
         width: 600,
@@ -40,10 +45,16 @@ class UserManagementModal extends ConsumerWidget {
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: isDark ? primaryColor.withValues(alpha: 0.15) : primaryColor.withValues(alpha: 0.08),
+                        color: isDark
+                            ? primaryColor.withValues(alpha: 0.15)
+                            : primaryColor.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Icon(Icons.people_rounded, color: primaryColor, size: 20),
+                      child: Icon(
+                        Icons.people_rounded,
+                        color: primaryColor,
+                        size: 20,
+                      ),
                     ),
                     const SizedBox(width: 10),
                     Text(
@@ -59,18 +70,32 @@ class UserManagementModal extends ConsumerWidget {
                 ),
                 IconButton(
                   onPressed: () => Navigator.pop(context),
-                  icon: Icon(Icons.close, color: theme.colorScheme.onSurfaceVariant, size: 20),
+                  icon: Icon(
+                    Icons.close,
+                    color: theme.colorScheme.onSurfaceVariant,
+                    size: 20,
+                  ),
                 ),
               ],
             ),
             const SizedBox(height: 16),
-            Divider(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0), height: 1),
+            Divider(
+              color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0),
+              height: 1,
+            ),
             const SizedBox(height: 16),
             Expanded(
               child: usersAsync.when(
                 data: (users) => _buildStaffList(context, ref, users),
-                loading: () => Center(child: CircularProgressIndicator(color: primaryColor)),
-                error: (e, s) => Center(child: Text('Error loading staff: $e', style: const TextStyle(color: Color(0xFFDC2626)))),
+                loading: () => Center(
+                  child: CircularProgressIndicator(color: primaryColor),
+                ),
+                error: (e, s) => Center(
+                  child: Text(
+                    'Error loading staff: $e',
+                    style: const TextStyle(color: Color(0xFFDC2626)),
+                  ),
+                ),
               ),
             ),
             const SizedBox(height: 16),
@@ -93,7 +118,9 @@ class UserManagementModal extends ConsumerWidget {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: primaryColor,
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                   elevation: 0,
                 ),
               ),
@@ -104,13 +131,20 @@ class UserManagementModal extends ConsumerWidget {
     );
   }
 
-  Widget _buildStaffList(BuildContext context, WidgetRef ref, List<User> users) {
+  Widget _buildStaffList(
+    BuildContext context,
+    WidgetRef ref,
+    List<User> users,
+  ) {
     final theme = Theme.of(context);
     if (users.isEmpty) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(20.0),
-          child: Text('No staff accounts found.', style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
+          child: Text(
+            'No staff accounts found.',
+            style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+          ),
         ),
       );
     }
@@ -139,15 +173,22 @@ class UserManagementModal extends ConsumerWidget {
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1C283D) : const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+        border: Border.all(
+          color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0),
+        ),
       ),
       child: Row(
         children: [
           CircleAvatar(
-            backgroundColor: isDark ? primaryColor.withValues(alpha: 0.2) : primaryColor.withValues(alpha: 0.1),
+            backgroundColor: isDark
+                ? primaryColor.withValues(alpha: 0.2)
+                : primaryColor.withValues(alpha: 0.1),
             child: Text(
-              user.name.isNotEmpty ? user.name[0].toUpperCase() : '?', 
-              style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold)
+              user.name.isNotEmpty ? user.name[0].toUpperCase() : '?',
+              style: TextStyle(
+                color: primaryColor,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
           const SizedBox(width: 16),
@@ -175,11 +216,18 @@ class UserManagementModal extends ConsumerWidget {
             ),
           ),
           PopupMenuButton<String>(
-            icon: Icon(Icons.more_vert_rounded, color: theme.colorScheme.onSurfaceVariant),
+            icon: Icon(
+              Icons.more_vert_rounded,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
             color: isDark ? const Color(0xFF151F32) : Colors.white,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(8),
-              side: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+              side: BorderSide(
+                color: isDark
+                    ? const Color(0xFF293548)
+                    : const Color(0xFFE2E8F0),
+              ),
             ),
             onSelected: (val) {
               if (val == 'edit') {
@@ -197,9 +245,37 @@ class UserManagementModal extends ConsumerWidget {
               }
             },
             itemBuilder: (context) => [
-              PopupMenuItem(value: 'edit', child: Text('Edit Staff Details', style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontSize: 13))),
-              PopupMenuItem(value: 'reset_pin', child: Text('Reset PIN Code', style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontSize: 13))),
-              PopupMenuItem(value: 'delete', child: Text('Delete Staff Account', style: GoogleFonts.inter(color: const Color(0xFFDC2626), fontSize: 13, fontWeight: FontWeight.w600))),
+              PopupMenuItem(
+                value: 'edit',
+                child: Text(
+                  'Edit Staff Details',
+                  style: GoogleFonts.inter(
+                    color: theme.colorScheme.onSurface,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+              PopupMenuItem(
+                value: 'reset_pin',
+                child: Text(
+                  'Reset PIN Code',
+                  style: GoogleFonts.inter(
+                    color: theme.colorScheme.onSurface,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+              PopupMenuItem(
+                value: 'delete',
+                child: Text(
+                  'Delete Staff Account',
+                  style: GoogleFonts.inter(
+                    color: const Color(0xFFDC2626),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
             ],
           ),
         ],
@@ -217,19 +293,100 @@ class UserManagementModal extends ConsumerWidget {
         backgroundColor: isDark ? const Color(0xFF151F32) : Colors.white,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+          side: BorderSide(
+            color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0),
+          ),
         ),
-        title: Text('Delete Staff Account?', style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontWeight: FontWeight.bold, fontSize: 16)),
-        content: Text('Are you sure you want to remove ${user.name}? This action cannot be undone.', style: GoogleFonts.inter(color: theme.colorScheme.onSurfaceVariant, fontSize: 13)),
+        title: Text(
+          'Delete Staff Account?',
+          style: GoogleFonts.inter(
+            color: theme.colorScheme.onSurface,
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+          ),
+        ),
+        content: Text(
+          'Are you sure you want to remove ${user.name}? This action cannot be undone.',
+          style: GoogleFonts.inter(
+            color: theme.colorScheme.onSurfaceVariant,
+            fontSize: 13,
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Cancel', style: GoogleFonts.inter(color: theme.colorScheme.onSurfaceVariant)),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.inter(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
           ),
           ElevatedButton(
             onPressed: () async {
-              await ref.read(usersProvider.notifier).deleteUser(user.id);
-              if (context.mounted) Navigator.pop(context);
+              try {
+                final currentUser = ref.read(authProvider);
+                final currentRole = currentUser?.role.toLowerCase().trim();
+                if (currentRole != 'owner' &&
+                    currentRole != 'admin' &&
+                    currentRole != 'super_admin' &&
+                    currentRole != 'manager' &&
+                    currentRole != 'branch_manager') {
+                  throw Exception(
+                    'Only an owner or branch manager can delete staff accounts.',
+                  );
+                }
+                final config = ref.read(storeConfigProvider).value;
+                var storeId = config?.cloudStoreId ?? 0;
+                if (user.branchCode != null &&
+                    user.branchCode!.trim().isNotEmpty &&
+                    user.branchCode != (config?.bhfId ?? '00')) {
+                  final branches = await ref.read(storeBranchesProvider.future);
+                  final matchedBranch = branches
+                      .where((branch) => branch.bhfId == user.branchCode)
+                      .firstOrNull;
+                  if (matchedBranch != null && matchedBranch.cloudStoreId > 0) {
+                    storeId = matchedBranch.cloudStoreId;
+                  }
+                }
+                if (storeId <= 0) {
+                  storeId = config?.cloudStoreId ?? 1;
+                }
+
+                // Attempt cloud deletion if cloud sync is enabled
+                if (config?.isCloudSyncEnabled == true) {
+                  try {
+                    await ref
+                        .read(postgresSyncServiceProvider)
+                        .deleteUser(user, storeId: storeId);
+                  } catch (err) {
+                    debugPrint('Cloud staff deletion notice: $err');
+                  }
+                }
+
+                // Always delete from local Isar database
+                await ref.read(usersProvider.notifier).deleteUser(user.id);
+                if (context.mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Staff account "${user.name}" removed successfully.',
+                      ),
+                      backgroundColor: const Color(0xFF059669),
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Staff account was not deleted: $e'),
+                      backgroundColor: Colors.redAccent,
+                    ),
+                  );
+                }
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFDC2626),

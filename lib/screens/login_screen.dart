@@ -36,17 +36,58 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     super.initState();
     _idController.addListener(_onIdChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final config = ref.read(storeConfigProvider).value;
-      final businessName = config?.businessName;
-      if (businessName != null && businessName.isNotEmpty) {
-        if (_companyController.text.isEmpty) {
-          _companyController.text = businessName;
-        }
-      }
-      if (_branchCodeController.text.isEmpty && config?.bhfId.isNotEmpty == true) {
-        _branchCodeController.text = config!.bhfId;
-      }
+      _restoreCompanyProfile();
     });
+  }
+
+  Future<void> _restoreCompanyProfile() async {
+    final config = ref.read(storeConfigProvider).value;
+    if (config == null) return;
+
+    final configuredName = config.businessName.trim();
+    if (configuredName.isNotEmpty && configuredName != 'Beleka POS Store') {
+      if (mounted && _companyController.text.isEmpty) {
+        _companyController.text = configuredName;
+      }
+      if (mounted &&
+          _branchCodeController.text.isEmpty &&
+          config.bhfId.isNotEmpty) {
+        _branchCodeController.text = config.bhfId;
+      }
+      return;
+    }
+
+    final cloudUrl = config.cloudApiUrl?.trim();
+    final token = config.cloudAuthToken?.trim();
+    final storeId = config.cloudStoreId ?? 0;
+    if (cloudUrl == null ||
+        cloudUrl.isEmpty ||
+        token == null ||
+        token.isEmpty ||
+        storeId <= 0) {
+      return;
+    }
+
+    try {
+      final stores = await ref
+          .read(cloudDatabaseServiceProvider)
+          .getStores(cloudUrl, authToken: token);
+      final store = stores.where((entry) => entry['id'] == storeId).firstOrNull;
+      final companyName = store?['name']?.toString().trim();
+      if (companyName == null || companyName.isEmpty || !mounted) return;
+
+      config.businessName = companyName;
+      if (store?['tpin'] != null) config.tpin = store!['tpin'].toString();
+      await ref.read(databaseServiceProvider).saveStoreConfig(config);
+      if (_companyController.text.isEmpty) {
+        _companyController.text = companyName;
+      }
+      if (_branchCodeController.text.isEmpty && config.bhfId.isNotEmpty) {
+        _branchCodeController.text = config.bhfId;
+      }
+    } catch (e) {
+      debugPrint('LOGIN_COMPANY_PROFILE_RESTORE_NOTICE: $e');
+    }
   }
 
   @override
@@ -131,11 +172,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       final config = ref.read(storeConfigProvider).value;
       final cloudDb = ref.read(cloudDatabaseServiceProvider);
       final cloudUrl =
-          (config?.cloudApiUrl != null && config!.cloudApiUrl!.trim().isNotEmpty)
+          (config?.cloudApiUrl != null &&
+              config!.cloudApiUrl!.trim().isNotEmpty)
           ? config.cloudApiUrl!.trim()
           : 'http://23.139.36.20:8003';
-      String? enteredTpin = config?.businessName.trim().toLowerCase() ==
-              companyName.toLowerCase()
+      String? enteredTpin =
+          config?.businessName.trim().toLowerCase() == companyName.toLowerCase()
           ? config?.tpin?.trim()
           : null;
 
@@ -153,14 +195,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       // 1. Try local login only when the entered TPIN matches this device's tenant.
       final localTpin = config?.tpin?.trim();
       User? user;
-      final shouldUseCloudAuth = config?.isCloudSyncEnabled == true &&
-          cloudUrl.isNotEmpty;
+      final shouldUseCloudAuth =
+          config?.isCloudSyncEnabled == true && cloudUrl.isNotEmpty;
       if (!shouldUseCloudAuth &&
-          (localTpin == null || localTpin.isEmpty || localTpin == enteredTpin)) {
+          (localTpin == null ||
+              localTpin.isEmpty ||
+              localTpin == enteredTpin)) {
         user = await db.login(_idController.text.trim(), _pin.trim());
       }
 
       if (user != null) {
+        if (config != null &&
+            (config.businessName.trim().isEmpty ||
+                config.businessName.trim().toLowerCase() ==
+                    'beleka pos store')) {
+          config.businessName = companyName;
+        }
+        if (config != null &&
+            (config.tpin == null || config.tpin!.trim().isEmpty)) {
+          config.tpin = enteredTpin;
+        }
         if (user.branchCode != null &&
             user.branchCode!.isNotEmpty &&
             config != null) {
@@ -228,15 +282,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 activeConfig.digitaxApiKey = serverInfo['digitaxApiKey']
                     .toString();
               }
-              if (serverInfo['sdcId'] != null)
+              if (serverInfo['sdcId'] != null) {
                 activeConfig.sdcId = serverInfo['sdcId'].toString();
-              if (serverInfo['tpin'] != null)
+              }
+              if (serverInfo['tpin'] != null) {
                 activeConfig.tpin = serverInfo['tpin'].toString();
-              if (serverInfo['businessTaxType'] != null)
+              }
+              if (serverInfo['businessTaxType'] != null) {
                 activeConfig.businessTaxType = serverInfo['businessTaxType']
                     .toString();
-              if (serverInfo['bhfId'] != null)
+              }
+              if (serverInfo['bhfId'] != null) {
                 activeConfig.bhfId = serverInfo['bhfId'].toString();
+              }
               await db.isar.writeTxn(() async {
                 await db.isar.storeConfigs.put(activeConfig);
               });
@@ -247,115 +305,151 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         }
       }
 
-          // 3. Authenticate against Cloud PostgreSQL only when local/LAN auth failed.
-        if (user == null) {
+      // 3. Authenticate against Cloud PostgreSQL only when local/LAN auth failed.
+      if (user == null) {
         try {
-        final cloudAuth = await cloudDb.authenticateUser(
-          baseUrl: cloudUrl,
-          numericId: _idController.text.trim(),
-          pin: _pin.trim(),
-          tpin: enteredTpin,
-          branchCode: _branchCodeController.text.trim(),
-          terminalName: config?.terminalName ?? 'BRANCH-POS',
-        );
+          Map<String, dynamic>? cloudAuth;
+          try {
+            cloudAuth = await cloudDb.authenticateUser(
+              baseUrl: cloudUrl,
+              numericId: _idController.text.trim(),
+              pin: _pin.trim(),
+              tpin: enteredTpin,
+              branchCode: _branchCodeController.text.trim(),
+              terminalName: config?.terminalName ?? 'BRANCH-POS',
+            );
+          } catch (e) {
+            // A stale local branch code must not prevent a valid tenant login.
+            // Retry without the branch filter; the VPS still validates TPIN,
+            // staff ID and PIN before issuing a token.
+            if (!e.toString().toLowerCase().contains('branch code')) rethrow;
+            cloudAuth = await cloudDb.authenticateUser(
+              baseUrl: cloudUrl,
+              numericId: _idController.text.trim(),
+              pin: _pin.trim(),
+              tpin: enteredTpin,
+              terminalName: config?.terminalName ?? 'BRANCH-POS',
+            );
+          }
 
-        if (cloudAuth != null && cloudAuth['user'] is Map) {
-          final uData = cloudAuth['user'] as Map;
-          final sData = (cloudAuth['store'] is Map)
-              ? cloudAuth['store'] as Map
-              : null;
-          final branchBhfId =
-              sData?['bhf_id']?.toString() ??
-              uData['branch_code']?.toString() ??
-              '00';
-          final branchName =
-              sData?['branch_name']?.toString() ??
-              sData?['name']?.toString() ??
-              uData['branch_name']?.toString() ??
-              'Main Branch';
-          final rawRole =
-              uData['role']?.toString().toLowerCase().trim() ?? 'cashier';
+          final authenticatedCloudResponse = cloudAuth;
+          if (authenticatedCloudResponse != null &&
+              authenticatedCloudResponse['user'] is Map) {
+            final uData = authenticatedCloudResponse['user'] as Map;
+            final sData = (authenticatedCloudResponse['store'] is Map)
+                ? authenticatedCloudResponse['store'] as Map
+                : null;
+            final branchBhfId =
+                sData?['bhf_id']?.toString() ??
+                uData['branch_code']?.toString() ??
+                '00';
+            final branchName =
+                sData?['branch_name']?.toString() ??
+                sData?['name']?.toString() ??
+                uData['branch_name']?.toString() ??
+                'Main Branch';
+            final rawRole =
+                uData['role']?.toString().toLowerCase().trim() ?? 'cashier';
 
-          final normalizedRole =
-              (rawRole == 'owner' ||
-                  rawRole == 'admin' ||
-                  rawRole == 'super_admin')
-              ? 'owner'
-              : (rawRole == 'manager' || rawRole == 'branch_manager')
-              ? 'branch_manager'
-              : rawRole;
+            final normalizedRole =
+                (rawRole == 'owner' ||
+                    rawRole == 'admin' ||
+                    rawRole == 'super_admin')
+                ? 'owner'
+                : (rawRole == 'manager' || rawRole == 'branch_manager')
+                ? 'branch_manager'
+                : rawRole;
 
-          final remoteUser = User()
-            ..numericId =
-                uData['numeric_id']?.toString() ?? _idController.text.trim()
-            ..name =
-                uData['name']?.toString() ??
-                (normalizedRole == 'owner' ? 'Owner' : 'Staff')
-            ..role = normalizedRole
-            ..branchCode = branchBhfId
-            ..branchName = branchName
-            ..phone = uData['phone']?.toString()
-            ..passwordHash = hashPin(_pin.trim())
-            ..isActive = true;
+            final remoteUser = User()
+              ..numericId =
+                  uData['numeric_id']?.toString() ?? _idController.text.trim()
+              ..name =
+                  uData['name']?.toString() ??
+                  (normalizedRole == 'owner' ? 'Owner' : 'Staff')
+              ..role = normalizedRole
+              ..branchCode = branchBhfId
+              ..branchName = branchName
+              ..phone = uData['phone']?.toString()
+              ..passwordHash = hashPin(_pin.trim())
+              ..isActive = true;
 
-          await db.isar.writeTxn(() async {
-            final existing = await db.isar.users
-                .filter()
-                .numericIdEqualTo(remoteUser.numericId)
-                .findFirst();
-            if (existing != null) {
-              remoteUser.id = existing.id;
-            }
-            await db.isar.users.put(remoteUser);
-
-            // Update local store profile with cloud branch credentials
-            final activeConfig =
-                config ??
-                await db.isar.storeConfigs.where().findFirst() ??
-                StoreConfig();
-            activeConfig.bhfId = branchBhfId;
-            activeConfig.cloudApiUrl = cloudUrl;
-
-            // Save the JWT and credentials so future VPS sync calls can re-authenticate.
-            final jwtToken =
-                cloudAuth['token']?.toString() ??
-                cloudAuth['access_token']?.toString();
-            if (jwtToken != null && jwtToken.isNotEmpty) {
-              activeConfig.cloudAuthToken = jwtToken;
-            }
-            activeConfig.cloudAuthUserId = _idController.text.trim();
-            activeConfig.cloudAuthPin = _pin.trim();
-
-            // Save cloud store ID from the store data
-            if (sData != null && sData['id'] != null) {
-              activeConfig.cloudStoreId = (sData['id'] as num).toInt();
-            }
-            if (sData != null) {
-              if (sData['name'] != null)
-                activeConfig.businessName = sData['name'].toString();
-              if (sData['branch_name'] != null)
-                activeConfig.branchName = sData['branch_name'].toString();
-              if (sData['tpin'] != null && (sData['tpin'] as String).isNotEmpty)
-                  activeConfig.tpin = sData['tpin'].toString();
-              if (sData['digitax_api_key'] != null &&
-                  (sData['digitax_api_key'] as String).isNotEmpty) {
-                activeConfig.digitaxApiKey = sData['digitax_api_key']
-                    .toString();
+            await db.isar.writeTxn(() async {
+              final existing = await db.isar.users
+                  .filter()
+                  .numericIdEqualTo(remoteUser.numericId)
+                  .findFirst();
+              if (existing != null) {
+                remoteUser.id = existing.id;
               }
-              if (sData['digitax_environment'] != null)
-                activeConfig.digitaxEnvironment = sData['digitax_environment']
-                    .toString();
-              if (sData['business_tax_type'] != null)
-                activeConfig.businessTaxType = sData['business_tax_type']
-                    .toString();
-            }
-            await db.isar.storeConfigs.put(activeConfig);
-          });
-          user = remoteUser;
-        }
+              await db.isar.users.put(remoteUser);
+
+              // Update local store profile with cloud branch credentials
+              final activeConfig =
+                  config ??
+                  await db.isar.storeConfigs.where().findFirst() ??
+                  StoreConfig();
+              activeConfig.bhfId = branchBhfId;
+              activeConfig.cloudApiUrl = cloudUrl;
+
+              // Keep the VPS sync token owned by an administrator. Cashier
+              // sessions must not replace it with a token that cannot manage users.
+              final jwtToken =
+                  authenticatedCloudResponse['token']?.toString() ??
+                  authenticatedCloudResponse['access_token']?.toString();
+              final canManageUsers =
+                  normalizedRole == 'owner' ||
+                  normalizedRole == 'branch_manager';
+              if (canManageUsers && jwtToken != null && jwtToken.isNotEmpty) {
+                activeConfig.cloudAuthToken = jwtToken;
+              }
+              activeConfig.cloudAuthUserId = _idController.text.trim();
+              activeConfig.cloudAuthPin = _pinController.text.trim();
+
+              // Save cloud store ID from the store data
+              if (sData != null && sData['id'] != null) {
+                activeConfig.cloudStoreId = (sData['id'] as num).toInt();
+              }
+              if (sData != null) {
+                if (sData['name'] != null) {
+                  activeConfig.businessName = sData['name'].toString();
+                }
+                if (sData['branch_name'] != null) {
+                  activeConfig.branchName = sData['branch_name'].toString();
+                }
+                if (sData['tpin'] != null &&
+                    (sData['tpin'] as String).isNotEmpty) {
+                  activeConfig.tpin = sData['tpin'].toString();
+                }
+                if (sData['digitax_api_key'] != null &&
+                    (sData['digitax_api_key'] as String).isNotEmpty) {
+                  activeConfig.digitaxApiKey = sData['digitax_api_key']
+                      .toString();
+                }
+                if (sData['digitax_environment'] != null) {
+                  activeConfig.digitaxEnvironment = sData['digitax_environment']
+                      .toString();
+                }
+                if (sData['business_tax_type'] != null) {
+                  activeConfig.businessTaxType = sData['business_tax_type']
+                      .toString();
+                }
+              }
+              await db.isar.storeConfigs.put(activeConfig);
+            });
+            user = remoteUser;
+          }
         } catch (e) {
           debugPrint('Cloud VPS Login notice: $e');
         }
+      }
+
+      // Cloud sync can be temporarily unavailable. If this device belongs to
+      // the same tenant, retain the local cashier login as an offline fallback.
+      if (user == null &&
+          localTpin != null &&
+          localTpin.isNotEmpty &&
+          localTpin == enteredTpin) {
+        user = await db.login(_idController.text.trim(), _pin.trim());
       }
 
       if (user != null) {
@@ -508,8 +602,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             right: 24,
             child: LayoutBuilder(
               builder: (context, constraints) {
-                if (MediaQuery.of(context).size.width < 900)
+                if (MediaQuery.of(context).size.width < 900) {
                   return const SizedBox.shrink();
+                }
                 return _buildBottomRightRestoreButton(context);
               },
             ),
@@ -945,7 +1040,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   'ZRA BRANCH CODE',
                   _branchCodeController,
                   Icons.store_outlined,
-                  '00 for HQ, 01, 03 for a branch',
+                  '000 for HQ, 001, 002 for a branch',
                 ),
                 const SizedBox(height: 10),
 
@@ -1382,7 +1477,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   'ZRA BRANCH CODE',
                   _branchCodeController,
                   Icons.store_outlined,
-                  '00 for HQ, 01, 03 for a branch',
+                  '000 for HQ, 001, 002 for a branch',
                 ),
                 const SizedBox(height: 12),
 
@@ -1609,6 +1704,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     IconData icon,
     String hint, {
     bool isPassword = false,
+    bool obscureText = false,
     bool isTpin = false,
     bool isCompanyName = false,
     int maxLength = 4,
@@ -1616,19 +1712,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final int? maxLen = isPassword
-      ? 6
-      : isCompanyName
+        ? 6
+        : isCompanyName
         ? null
         : isTpin
-          ? 10
-          : maxLength;
+        ? 10
+        : maxLength;
     final errorText = isPassword
         ? 'Security PIN cannot exceed 6 digits'
         : isTpin
-            ? 'TPIN cannot exceed 10 digits'
+        ? 'TPIN cannot exceed 10 digits'
         : isCompanyName
-          ? 'Company name is too long'
-          : 'Staff ID cannot exceed 4 characters';
+        ? 'Company name is too long'
+        : 'Staff ID cannot exceed 4 characters';
     final fieldBg = isDark ? const Color(0xFF0B1220) : const Color(0xFFF8FAFC);
     final borderColor = isDark
         ? const Color(0xFF293548)
@@ -1653,8 +1749,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               isPassword
                   ? 'MAX 6 DIGITS'
                   : isCompanyName
-                      ? 'LOOKUP BY NAME'
-                      : 'MAX $maxLen DIGITS',
+                  ? 'LOOKUP BY NAME'
+                  : 'MAX $maxLen DIGITS',
               style: GoogleFonts.jetBrainsMono(
                 fontSize: 9,
                 fontWeight: FontWeight.w700,
@@ -1670,7 +1766,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           height: 44,
           child: TextField(
             controller: controller,
-            obscureText: isPassword,
+            obscureText: isPassword || obscureText,
             readOnly: isPassword, // PIN entered via keypad
             maxLength: maxLen,
             buildCounter:
@@ -1684,13 +1780,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ? TextInputType.number
                 : TextInputType.text,
             inputFormatters: [
-              if (isPassword || isTpin)
-                FilteringTextInputFormatter.digitsOnly,
+              if (isPassword || isTpin) FilteringTextInputFormatter.digitsOnly,
               if (maxLen != null)
                 _MaxLengthFormatter(maxLen, () {
-                setState(() {
-                  _errorMessage = errorText;
-                });
+                  setState(() {
+                    _errorMessage = errorText;
+                  });
                 }),
             ],
             style: GoogleFonts.inter(
