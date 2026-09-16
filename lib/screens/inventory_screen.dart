@@ -200,38 +200,48 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     final int lowStockCount = totalProducts.where((p) => p.stockLevel < 10 && p.stockLevel > 0 && !p.isArchived).length;
     final int outOfStockCount = totalProducts.where((p) => p.stockLevel == 0 && !p.isArchived).length;
 
-    return Container(
-      color: theme.scaffoldBackgroundColor,
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildTopBreadcrumbBar(context),
-          const SizedBox(height: 16),
-          _buildHeader(context, ref, totalProducts),
-          const SizedBox(height: 16),
-          _buildFourStockStatsRow(
-            context,
-            totalSkus: totalProducts.length,
-            totalValue: totalValue,
-            lowStockCount: lowStockCount,
-            outOfStockCount: outOfStockCount,
-            currency: currency,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isPhone = constraints.maxWidth < 700;
+
+        return Container(
+          color: theme.scaffoldBackgroundColor,
+          padding: EdgeInsets.all(isPhone ? 12 : 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (!isPhone) ...[
+                _buildTopBreadcrumbBar(context),
+                const SizedBox(height: 16),
+              ],
+              _buildHeader(context, ref, totalProducts),
+              const SizedBox(height: 14),
+              _buildFourStockStatsRow(
+                context,
+                totalSkus: totalProducts.length,
+                totalValue: totalValue,
+                lowStockCount: lowStockCount,
+                outOfStockCount: outOfStockCount,
+                currency: currency,
+              ),
+              const SizedBox(height: 14),
+              _buildFilters(context, ref, isPhone: isPhone),
+              const SizedBox(height: 10),
+              _buildCategoryFilterBar(context, ref, totalProducts, categories),
+              const SizedBox(height: 12),
+              Expanded(
+                child: productsAsync.when(
+                  data: (_) => isPhone
+                      ? _buildMobileProductList(context, ref, filteredProducts, categories, currency)
+                      : _buildStockTable(context, ref, filteredProducts, categories, currency),
+                  loading: () => Center(child: CircularProgressIndicator(color: primaryColor)),
+                  error: (err, stack) => Center(child: Text('Error: $err', style: const TextStyle(color: Color(0xFFDC2626)))),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 16),
-          _buildFilters(context, ref),
-          const SizedBox(height: 12),
-          _buildCategoryFilterBar(context, ref, totalProducts, categories),
-          const SizedBox(height: 14),
-          Expanded(
-            child: productsAsync.when(
-              data: (_) => _buildStockTable(context, ref, filteredProducts, categories, currency),
-              loading: () => Center(child: CircularProgressIndicator(color: primaryColor)),
-              error: (err, stack) => Center(child: Text('Error: $err', style: const TextStyle(color: Color(0xFFDC2626)))),
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -239,10 +249,14 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      alignment: WrapAlignment.spaceBetween,
       children: [
         Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             Text(
               'Workspace',
@@ -265,7 +279,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
             ),
           ],
         ),
-        Row(
+        Wrap(
+          spacing: 8,
+          runSpacing: 6,
           children: [
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -275,6 +291,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                 border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
               ),
               child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
                     width: 7,
@@ -296,7 +313,6 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                 ],
               ),
             ),
-            const SizedBox(width: 10),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
@@ -305,6 +321,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                 border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
               ),
               child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(Icons.calendar_today_rounded, size: 13, color: theme.colorScheme.onSurfaceVariant),
                   const SizedBox(width: 6),
@@ -333,64 +350,73 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     required int outOfStockCount,
     required String currency,
   }) {
-    final card1 = _buildStockMetricCard(
-      context,
-      label: 'Total Products',
-      value: '$totalSkus SKUs',
-      growthText: 'Active Catalog',
-      isPositive: true,
-      icon: Icons.inventory_2_rounded,
-      iconBgColor: const Color(0xFFEFF6FF),
-      iconColor: const Color(0xFF1D4ED8),
-    );
-    final card2 = _buildStockMetricCard(
-      context,
-      label: 'Stock Valuation',
-      value: CurrencyFormatter.format(totalValue, currency),
-      growthText: 'Retail Value',
-      isPositive: true,
-      icon: Icons.monetization_on_rounded,
-      iconBgColor: const Color(0xFFECFDF5),
-      iconColor: const Color(0xFF059669),
-    );
-    final card3 = _buildStockMetricCard(
-      context,
-      label: 'Low Stock Alert',
-      value: '$lowStockCount Items',
-      growthText: lowStockCount > 0 ? 'Needs Reorder' : 'Optimal',
-      isPositive: lowStockCount == 0,
-      icon: Icons.warning_amber_rounded,
-      iconBgColor: const Color(0xFFFFFBEB),
-      iconColor: const Color(0xFFD97706),
-    );
-    final card4 = _buildStockMetricCard(
-      context,
-      label: 'Out of Stock',
-      value: '$outOfStockCount Items',
-      growthText: outOfStockCount > 0 ? 'Action Required' : 'All Available',
-      isPositive: outOfStockCount == 0,
-      icon: Icons.error_outline_rounded,
-      iconBgColor: const Color(0xFFFEF2F2),
-      iconColor: const Color(0xFFDC2626),
-    );
-
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth < 1050) {
+        final isPhone = constraints.maxWidth < 600;
+        final isTablet = constraints.maxWidth < 1050;
+
+        final card1 = _buildStockMetricCard(
+          context,
+          label: 'Total Products',
+          value: '$totalSkus SKUs',
+          growthText: 'Active Catalog',
+          isPositive: true,
+          icon: Icons.inventory_2_rounded,
+          iconBgColor: const Color(0xFFEFF6FF),
+          iconColor: const Color(0xFF1D4ED8),
+          isPhone: isPhone,
+        );
+        final card2 = _buildStockMetricCard(
+          context,
+          label: 'Stock Valuation',
+          value: CurrencyFormatter.format(totalValue, currency),
+          growthText: 'Retail Value',
+          isPositive: true,
+          icon: Icons.monetization_on_rounded,
+          iconBgColor: const Color(0xFFECFDF5),
+          iconColor: const Color(0xFF059669),
+          isPhone: isPhone,
+        );
+        final card3 = _buildStockMetricCard(
+          context,
+          label: 'Low Stock Alert',
+          value: '$lowStockCount Items',
+          growthText: lowStockCount > 0 ? 'Needs Reorder' : 'Optimal',
+          isPositive: lowStockCount == 0,
+          icon: Icons.warning_amber_rounded,
+          iconBgColor: const Color(0xFFFFFBEB),
+          iconColor: const Color(0xFFD97706),
+          isPhone: isPhone,
+        );
+        final card4 = _buildStockMetricCard(
+          context,
+          label: 'Out of Stock',
+          value: '$outOfStockCount Items',
+          growthText: outOfStockCount > 0 ? 'Action Required' : 'All Available',
+          isPositive: outOfStockCount == 0,
+          icon: Icons.error_outline_rounded,
+          iconBgColor: const Color(0xFFFEF2F2),
+          iconColor: const Color(0xFFDC2626),
+          isPhone: isPhone,
+        );
+
+        final gap = isPhone ? 10.0 : 14.0;
+
+        if (isTablet) {
           return Column(
             children: [
               Row(
                 children: [
                   card1,
-                  const SizedBox(width: 14),
+                  SizedBox(width: gap),
                   card2,
                 ],
               ),
-              const SizedBox(height: 14),
+              SizedBox(height: gap),
               Row(
                 children: [
                   card3,
-                  const SizedBox(width: 14),
+                  SizedBox(width: gap),
                   card4,
                 ],
               ),
@@ -422,9 +448,82 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     required IconData icon,
     required Color iconBgColor,
     required Color iconColor,
+    bool isPhone = false,
   }) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+
+    if (isPhone) {
+      return Expanded(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF151F32) : Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: isDark ? iconColor.withValues(alpha: 0.15) : iconBgColor,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(icon, size: 14, color: iconColor),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                    decoration: BoxDecoration(
+                      color: isPositive ? const Color(0xFFECFDF5) : const Color(0xFFFEF2F2),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      growthText,
+                      style: GoogleFonts.inter(
+                        fontSize: 8.5,
+                        fontWeight: FontWeight.w700,
+                        color: isPositive ? const Color(0xFF059669) : const Color(0xFFDC2626),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  value,
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: theme.colorScheme.onSurface,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 1),
+              Text(
+                label,
+                style: GoogleFonts.inter(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     return Expanded(
       child: Container(
@@ -457,19 +556,26 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                       fontWeight: FontWeight.w600,
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 2),
-                  Text(
-                    value,
-                    style: GoogleFonts.inter(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      color: theme.colorScheme.onSurface,
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      value,
+                      style: GoogleFonts.inter(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: theme.colorScheme.onSurface,
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
+            const SizedBox(width: 4),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
@@ -510,9 +616,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                 color: theme.colorScheme.onSurface,
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 10),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
                 color: isDark ? const Color(0xFF1C283D) : const Color(0xFFF1F5F9),
                 borderRadius: BorderRadius.circular(20),
@@ -526,10 +632,104 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
           ],
         );
 
+        if (isPhone) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              titleRow,
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  // Add Product Primary Button
+                  Expanded(
+                    child: SizedBox(
+                      height: 38,
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
+                          final result = await showDialog<bool>(context: context, builder: (context) => const ProductEditorModal());
+                          if (result == true) ref.invalidate(inventoryProductsProvider);
+                        },
+                        icon: const Icon(Icons.add_rounded, size: 16, color: Colors.white),
+                        label: Text('Add Product', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 12.5, color: Colors.white)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: primaryColor,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          elevation: 0,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+
+                  // DigiTax Quick Sync Button
+                  SizedBox(
+                    height: 38,
+                    child: OutlinedButton.icon(
+                      onPressed: _isSyncingDigitax ? null : () => _performInstantDigiTaxSync(silent: false),
+                      icon: _isSyncingDigitax
+                          ? const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF059669)))
+                          : const Icon(Icons.sync_rounded, size: 15, color: Color(0xFF059669)),
+                      label: Text(_isSyncingDigitax ? 'Syncing...' : 'Sync', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 12, color: const Color(0xFF059669))),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Color(0xFF059669), width: 1),
+                        backgroundColor: const Color(0xFFECFDF5),
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+
+                  // Actions Overflow Menu
+                  PopupMenuButton<String>(
+                    onSelected: (value) async {
+                      final config = ref.read(storeConfigProvider).value;
+                      switch (value) {
+                        case 'csv': ref.read(exportServiceProvider).exportInventoryToCsv(products, config: config); break;
+                        case 'excel': ref.read(exportServiceProvider).exportInventoryToExcel(products, config: config); break;
+                        case 'pdf': ref.read(exportServiceProvider).exportInventoryToPdf(products, config: config); break;
+                        case 'reconcile': showDialog(context: context, builder: (context) => const DigiTaxStockReconcileModal()); break;
+                        case 'movements': showDialog(context: context, builder: (context) => const StockMovementHistoryModal()); break;
+                        case 'categories': showDialog(context: context, builder: (context) => const CategoryManagementModal()); break;
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      const PopupMenuItem(value: 'csv', child: Row(children: [Icon(Icons.table_chart_outlined, size: 16), SizedBox(width: 8), Text('Export CSV')])),
+                      const PopupMenuItem(value: 'excel', child: Row(children: [Icon(Icons.grid_on_outlined, size: 16), SizedBox(width: 8), Text('Export Excel')])),
+                      const PopupMenuItem(value: 'pdf', child: Row(children: [Icon(Icons.picture_as_pdf_outlined, size: 16), SizedBox(width: 8), Text('Export PDF')])),
+                      const PopupMenuDivider(),
+                      const PopupMenuItem(value: 'movements', child: Row(children: [Icon(Icons.history_rounded, size: 16), SizedBox(width: 8), Text('Stock Movements')])),
+                      const PopupMenuItem(value: 'reconcile', child: Row(children: [Icon(Icons.compare_arrows_rounded, size: 16), SizedBox(width: 8), Text('Reconcile DigiTax')])),
+                      const PopupMenuItem(value: 'categories', child: Row(children: [Icon(Icons.category_rounded, size: 16), SizedBox(width: 8), Text('Manage Categories')])),
+                    ],
+                    child: Container(
+                      height: 38,
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF151F32) : const Color(0xFFFFFFFF),
+                        border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.more_horiz_rounded, size: 18, color: theme.colorScheme.onSurface),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          );
+        }
+
         final actionButtons = Wrap(
           spacing: 8,
           runSpacing: 8,
-          alignment: isPhone ? WrapAlignment.start : WrapAlignment.end,
+          alignment: WrapAlignment.end,
           children: [
             // Export Dropdown
             PopupMenuButton<String>(
@@ -610,17 +810,6 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
           ],
         );
 
-        if (isPhone) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              titleRow,
-              const SizedBox(height: 10),
-              actionButtons,
-            ],
-          );
-        }
-
         return Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -633,7 +822,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   }
 
 
-  Widget _buildFilters(BuildContext context, WidgetRef ref) {
+  Widget _buildFilters(BuildContext context, WidgetRef ref, {bool isPhone = false}) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final primaryColor = theme.colorScheme.primary;
@@ -648,9 +837,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
               onChanged: (value) => ref.read(inventorySearchProvider.notifier).state = value,
               style: GoogleFonts.inter(color: theme.colorScheme.onSurface, fontSize: 13, fontWeight: FontWeight.w600),
               decoration: InputDecoration(
-                hintText: 'Search products by name, barcode, or SKU...',
+                hintText: isPhone ? 'Search products or SKU...' : 'Search products by name, barcode, or SKU...',
                 hintStyle: GoogleFonts.inter(
-                  fontSize: 13,
+                  fontSize: 12.5,
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
                 prefixIcon: Icon(Icons.search, color: theme.colorScheme.onSurfaceVariant, size: 18),
@@ -682,8 +871,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
             ),
           ),
         ),
-        const SizedBox(width: 12),
-        _buildArchiveToggle(context, ref),
+        const SizedBox(width: 8),
+        _buildArchiveToggle(context, ref, isPhone: isPhone),
       ],
     );
   }
@@ -795,7 +984,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     );
   }
 
-  Widget _buildArchiveToggle(BuildContext context, WidgetRef ref) {
+  Widget _buildArchiveToggle(BuildContext context, WidgetRef ref, {bool isPhone = false}) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final primaryColor = theme.colorScheme.primary;
@@ -805,7 +994,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
       onTap: () => ref.read(showArchivedProvider.notifier).state = !showArchived,
       borderRadius: BorderRadius.circular(8),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        height: 40,
+        padding: EdgeInsets.symmetric(horizontal: isPhone ? 10 : 14),
         decoration: BoxDecoration(
           color: showArchived ? primaryColor.withValues(alpha: 0.1) : (isDark ? const Color(0xFF151F32) : const Color(0xFFFFFFFF)),
           borderRadius: BorderRadius.circular(8),
@@ -814,24 +1004,341 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
           ),
         ),
         child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
               showArchived ? Icons.archive : Icons.archive_outlined,
-              size: 14,
+              size: 15,
               color: showArchived ? primaryColor : theme.colorScheme.onSurfaceVariant,
             ),
-            const SizedBox(width: 8),
-            Text(
-              'Show Archived',
-              style: GoogleFonts.inter(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: showArchived ? primaryColor : theme.colorScheme.onSurface,
+            if (!isPhone) ...[
+              const SizedBox(width: 8),
+              Text(
+                'Show Archived',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: showArchived ? primaryColor : theme.colorScheme.onSurface,
+                ),
               ),
-            ),
+            ],
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildMobileProductList(
+    BuildContext context,
+    WidgetRef ref,
+    List<Product> products,
+    List<Category> categories,
+    String currency,
+  ) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
+
+    if (products.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.inventory_2_outlined, size: 48, color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.3)),
+            const SizedBox(height: 12),
+            Text(
+              'No products found in this view',
+              style: GoogleFonts.inter(color: theme.colorScheme.onSurfaceVariant, fontSize: 13),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.separated(
+      itemCount: products.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 8),
+      itemBuilder: (context, index) {
+        final product = products[index];
+        final isLowStock = product.stockLevel < 10 && product.stockLevel > 0;
+        final isOutOfStock = product.stockLevel == 0;
+
+        String statusLabel = '${product.stockLevel} IN STOCK';
+        Color statusColor = const Color(0xFF059669);
+        Color statusBg = const Color(0xFFECFDF5);
+
+        if (product.isArchived) {
+          statusLabel = 'ARCHIVED';
+          statusColor = theme.colorScheme.onSurfaceVariant;
+          statusBg = isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9);
+        } else if (isOutOfStock) {
+          statusLabel = 'OUT OF STOCK';
+          statusColor = const Color(0xFFDC2626);
+          statusBg = const Color(0xFFFEF2F2);
+        } else if (isLowStock) {
+          statusLabel = '${product.stockLevel} LOW STOCK';
+          statusColor = const Color(0xFFD97706);
+          statusBg = const Color(0xFFFFFBEB);
+        }
+
+        final matchedCat = categories.where((c) => c.id == product.categoryId).firstOrNull;
+        final catName = matchedCat != null ? matchedCat.name.toUpperCase() : 'GENERAL';
+        final catColor = matchedCat != null ? _getSectorColor(matchedCat.sector) : primaryColor;
+
+        return Opacity(
+          opacity: product.isArchived ? 0.5 : 1.0,
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF151F32) : Colors.white,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Top Row: Thumbnail + Product Name + Selling Price
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildProductThumbnail(context, product.imagePath),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            product.name,
+                            style: GoogleFonts.inter(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w700,
+                              color: theme.colorScheme.onSurface,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'SKU: ${product.sku}',
+                            style: GoogleFonts.inter(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '$currency${product.price.toStringAsFixed(2)}',
+                      style: GoogleFonts.inter(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w800,
+                        color: primaryColor,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+
+                // Middle Row: Category, Branch, DigiTax badges
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: catColor.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        catName,
+                        style: GoogleFonts.inter(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w700,
+                          color: catColor,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: primaryColor.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        'BHF-${product.branchCode}',
+                        style: GoogleFonts.inter(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
+                          color: primaryColor,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      !product.isDigitaxSyncEnabled
+                          ? 'Offline (Exempt)'
+                          : (product.isSyncedWithDigitax ? 'DigiTax Synced' : 'Pending Sync'),
+                      style: GoogleFonts.inter(
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w600,
+                        color: !product.isDigitaxSyncEnabled
+                            ? const Color(0xFF0284C7)
+                            : (product.isSyncedWithDigitax ? const Color(0xFF059669) : const Color(0xFFD97706)),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Divider(height: 1, color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+                const SizedBox(height: 8),
+
+                // Bottom Row: Stock status pill + Quick Action buttons
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+                      decoration: BoxDecoration(
+                        color: isDark ? statusColor.withValues(alpha: 0.15) : statusBg,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        statusLabel,
+                        style: GoogleFonts.inter(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: statusColor,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                    ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Adjust Stock Quick Button
+                        InkWell(
+                          onTap: () async {
+                            final result = await showDialog<bool>(
+                              context: context,
+                              builder: (context) => StockAdjustmentModal(product: product),
+                            );
+                            if (result == true) ref.invalidate(inventoryProductsProvider);
+                          },
+                          borderRadius: BorderRadius.circular(6),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: primaryColor.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.tune_rounded, size: 14, color: primaryColor),
+                                const SizedBox(width: 4),
+                                Text('Stock', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: primaryColor)),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        // Edit Product Button
+                        InkWell(
+                          onTap: () async {
+                            final result = await showDialog<bool>(
+                              context: context,
+                              builder: (context) => ProductEditorModal(product: product),
+                            );
+                            if (result == true) ref.invalidate(inventoryProductsProvider);
+                          },
+                          borderRadius: BorderRadius.circular(6),
+                          child: Container(
+                            padding: const EdgeInsets.all(5),
+                            decoration: BoxDecoration(
+                              color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Icon(Icons.edit_outlined, size: 15, color: theme.colorScheme.onSurfaceVariant),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        // More Options Popup Menu
+                        PopupMenuButton<String>(
+                          padding: EdgeInsets.zero,
+                          iconSize: 18,
+                          onSelected: (value) async {
+                            if (value == 'history') {
+                              showDialog(
+                                context: context,
+                                builder: (context) => StockMovementHistoryModal(productId: product.id, productName: product.name),
+                              );
+                            } else if (value == 'archive') {
+                              final isArchiving = !product.isArchived;
+                              final confirm = await showDialog<bool>(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  title: Text(isArchiving ? 'Archive Product' : 'Restore Product', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 16)),
+                                  content: Text(
+                                    isArchiving
+                                        ? 'Are you sure you want to archive ${product.name}? This SKU will be hidden from the active catalog.'
+                                        : 'Do you want to restore ${product.name} to the active catalog?',
+                                    style: GoogleFonts.inter(fontSize: 13),
+                                  ),
+                                  actions: [
+                                    TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('CANCEL')),
+                                    ElevatedButton(
+                                      onPressed: () => Navigator.pop(context, true),
+                                      style: ElevatedButton.styleFrom(backgroundColor: isArchiving ? const Color(0xFFDC2626) : primaryColor),
+                                      child: Text(isArchiving ? 'ARCHIVE' : 'RESTORE'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (confirm == true) {
+                                if (isArchiving) {
+                                  await ref.read(databaseServiceProvider).archiveProduct(product.id);
+                                } else {
+                                  await ref.read(databaseServiceProvider).unarchiveProduct(product.id);
+                                }
+                                ref.invalidate(inventoryProductsProvider);
+                              }
+                            }
+                          },
+                          itemBuilder: (context) => [
+                            const PopupMenuItem(value: 'history', child: Row(children: [Icon(Icons.history_rounded, size: 16), SizedBox(width: 8), Text('Movement History')])),
+                            PopupMenuItem(
+                              value: 'archive',
+                              child: Row(
+                                children: [
+                                  Icon(product.isArchived ? Icons.settings_backup_restore_rounded : Icons.archive_outlined, size: 16),
+                                  const SizedBox(width: 8),
+                                  Text(product.isArchived ? 'Restore Product' : 'Archive Product'),
+                                ],
+                              ),
+                            ),
+                          ],
+                          child: Container(
+                            padding: const EdgeInsets.all(5),
+                            decoration: BoxDecoration(
+                              color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Icon(Icons.more_vert_rounded, size: 15, color: theme.colorScheme.onSurfaceVariant),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -845,41 +1352,58 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF151F32) : const Color(0xFFFFFFFF),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
-      ),
-      child: Column(
-        children: [
-          _buildTableHeader(context),
-          Expanded(
-            child: products.isEmpty 
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.inventory_2_outlined, size: 48, color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.3)),
-                      const SizedBox(height: 12),
-                      Text(
-                        'No products found in this view',
-                        style: GoogleFonts.inter(color: theme.colorScheme.onSurfaceVariant, fontSize: 13),
-                      ),
-                    ],
-                  ),
-                )
-              : ListView.separated(
-                  itemCount: products.length,
-                  separatorBuilder: (_, _) => Divider(height: 1, color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
-                  itemBuilder: (context, index) {
-                    final product = products[index];
-                    return _buildStockRow(context, ref, product, categories, currency);
-                  },
-                ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final needsHorizontalScroll = constraints.maxWidth < 650;
+        final tableWidth = needsHorizontalScroll ? 650.0 : constraints.maxWidth;
+
+        Widget content = Container(
+          width: tableWidth,
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF151F32) : const Color(0xFFFFFFFF),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
           ),
-        ],
-      ),
+          child: Column(
+            children: [
+              _buildTableHeader(context),
+              Expanded(
+                child: products.isEmpty 
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.inventory_2_outlined, size: 48, color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.3)),
+                          const SizedBox(height: 12),
+                          Text(
+                            'No products found in this view',
+                            style: GoogleFonts.inter(color: theme.colorScheme.onSurfaceVariant, fontSize: 13),
+                          ),
+                        ],
+                      ),
+                    )
+                  : ListView.separated(
+                      itemCount: products.length,
+                      separatorBuilder: (_, _) => Divider(height: 1, color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+                      itemBuilder: (context, index) {
+                        final product = products[index];
+                        return _buildStockRow(context, ref, product, categories, currency);
+                      },
+                    ),
+              ),
+            ],
+          ),
+        );
+
+        if (needsHorizontalScroll) {
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: content,
+          );
+        }
+
+        return content;
+      },
     );
   }
 

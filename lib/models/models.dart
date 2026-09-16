@@ -102,6 +102,54 @@ class Product {
   double tareWeight = 0.0; // Default container / tray tare weight in kg
   String? scalePlu; // In-store PLU code for embedded weight barcodes
 
+  // Consignment / Vendor Sales on Behalf
+  // Stored in scalePlu with format: 'CONSIGNMENT:suppId:suppName:commPct:payoutPrice' or scalePlu code
+  @ignore
+  bool get isConsignment => scalePlu != null && scalePlu!.startsWith('CONSIGN:');
+
+  @ignore
+  int? get consignmentSupplierId {
+    if (!isConsignment) return null;
+    final parts = scalePlu!.split(':');
+    return parts.length > 1 ? int.tryParse(parts[1]) : null;
+  }
+
+  @ignore
+  String? get consignmentSupplierName {
+    if (!isConsignment) return null;
+    final parts = scalePlu!.split(':');
+    return parts.length > 2 ? parts[2].replaceAll('_', ' ') : null;
+  }
+
+  @ignore
+  double get consignmentCommissionRate {
+    if (!isConsignment) return 0.0;
+    final parts = scalePlu!.split(':');
+    return parts.length > 3 ? (double.tryParse(parts[3]) ?? 0.0) : 0.0;
+  }
+
+  @ignore
+  double get consignmentSupplierPayoutPrice {
+    if (!isConsignment) return 0.0;
+    final parts = scalePlu!.split(':');
+    return parts.length > 4 ? (double.tryParse(parts[4]) ?? 0.0) : 0.0;
+  }
+
+  void setConsignmentDetails({
+    required bool enabled,
+    int? supplierId,
+    String? supplierName,
+    double commissionRate = 0.0,
+    double supplierPayoutPrice = 0.0,
+  }) {
+    if (!enabled) {
+      if (isConsignment) scalePlu = null;
+      return;
+    }
+    final cleanName = (supplierName ?? '').replaceAll(':', ' ').replaceAll(' ', '_');
+    scalePlu = 'CONSIGN:${supplierId ?? 0}:$cleanName:$commissionRate:$supplierPayoutPrice';
+  }
+
   Product({
     required this.name,
     required this.sku,
@@ -577,6 +625,9 @@ class Expense {
 
   @Index()
   DateTime createdAt = DateTime.now();
+
+  @ignore
+  String get title => (notes != null && notes!.trim().isNotEmpty) ? notes!.trim() : category;
 }
 
 @collection

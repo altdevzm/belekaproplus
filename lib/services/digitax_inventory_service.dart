@@ -341,7 +341,8 @@ class DigiTaxInventoryService {
 
       String normalizeBranchCode(String? value) {
         final trimmed = value?.trim() ?? '';
-        return trimmed.isEmpty ? '000' : trimmed.padLeft(3, '0');
+        if (trimmed.isEmpty || trimmed == '000' || trimmed == '00') return '00';
+        return trimmed.length == 1 ? '0$trimmed' : trimmed;
       }
 
       final String bhfId;
@@ -357,7 +358,7 @@ class DigiTaxInventoryService {
           config.bhfId != '00') {
         bhfId = normalizeBranchCode(config.bhfId);
       } else {
-        bhfId = isOwner ? '000' : '001';
+        bhfId = isOwner ? '00' : '01';
       }
 
       final headers = {
@@ -465,7 +466,7 @@ class DigiTaxInventoryService {
 
         if (rName.isEmpty) continue;
 
-        if (bhfId != '000') {
+        if (bhfId != '00') {
           // ── BRANCH MANAGER ── import only into this branch's local scope.
           Product? existingByDtId;
           if (rId.isNotEmpty) {
@@ -539,7 +540,7 @@ class DigiTaxInventoryService {
           if (rId.isNotEmpty) {
             existing = await db.isar.products
                 .filter()
-                .branchCodeEqualTo('000')
+                .group((q) => q.branchCodeEqualTo('00').or().branchCodeEqualTo(''))
                 .and()
                 .itemClsCdEqualTo(rId)
                 .findFirst();
@@ -548,7 +549,7 @@ class DigiTaxInventoryService {
           // Priority 2: name or barcode (for products pushed before itemClsCd was stored)
           existing ??= await db.isar.products
               .filter()
-              .branchCodeEqualTo('000')
+              .group((q) => q.branchCodeEqualTo('00').or().branchCodeEqualTo(''))
               .and()
               .group(
                 (q) => q
@@ -598,7 +599,7 @@ class DigiTaxInventoryService {
               stockLevel: remoteStock,
               categoryId: 0,
               itemClsCd: rId.isNotEmpty ? rId : '10101501',
-              branchCode: '000',
+              branchCode: '00',
               branchName: config?.branchName,
               isSyncedWithDigitax: true,
               lastDigitaxSyncDate: DateTime.now(),
@@ -646,7 +647,7 @@ class DigiTaxInventoryService {
 
               // Branches may link an existing master item, but must not change
               // the shared catalog's name or price.
-              if (bhfId == '000' &&
+              if (bhfId == '00' &&
                   p.price > 0 &&
                   (p.price - remotePrice).abs() > 0.01) {
                 try {
@@ -669,7 +670,7 @@ class DigiTaxInventoryService {
             });
             pushedCount++;
           } else {
-            if (bhfId != '000') {
+            if (bhfId != '00') {
               // DigiTax has one universal catalog. A branch-only product must
               // remain local until HQ registers it as a shared master item.
               continue;

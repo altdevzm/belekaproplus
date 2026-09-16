@@ -13,6 +13,7 @@ import 'package:beleka_pos/screens/settings/network_sync_modal.dart';
 import 'package:beleka_pos/widgets/cloud_database_modal.dart';
 import 'package:beleka_pos/widgets/zra_tax_config_modal.dart';
 import 'package:beleka_pos/screens/settings/scale_settings_modal.dart';
+import 'package:beleka_pos/screens/settings/company_account_delete_modal.dart';
 import 'package:beleka_pos/providers/auth_provider.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -27,112 +28,116 @@ class SettingsScreen extends ConsumerWidget {
     final isManager = ref.watch(isManagerProvider);
     final todayStr = DateFormat('EEE, dd MMM yyyy').format(DateTime.now());
 
-    return Container(
-      color: theme.scaffoldBackgroundColor,
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Top Enterprise Breadcrumb & Status Bar (Overflow-Protected)
-          LayoutBuilder(
-            builder: (context, headerConstraints) {
-              final isCompact = headerConstraints.maxWidth < 650;
-              return Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Row(
-                      children: [
-                        Text('Workspace', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w500, color: theme.colorScheme.onSurfaceVariant)),
-                        Icon(Icons.chevron_right_rounded, size: 14, color: theme.colorScheme.onSurfaceVariant),
-                        Flexible(
-                          child: Text(
-                            isCompact ? 'System Settings' : 'Store Configuration & System Settings',
-                            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: primaryColor),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (!isCompact) ...[
-                    const SizedBox(width: 12),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFECFDF5),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: const Color(0xFFA7F3D0)),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(width: 6, height: 6, decoration: const BoxDecoration(color: Color(0xFF059669), shape: BoxShape.circle)),
-                              const SizedBox(width: 6),
-                              Text('Healthy', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: const Color(0xFF059669))),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: isDark ? const Color(0xFF151F32) : Colors.white,
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
-                          ),
-                          child: Text(todayStr, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurfaceVariant)),
-                        ),
-                      ],
-                    ),
-                  ],
-                ],
-              );
-            },
-          ),
-          const SizedBox(height: 14),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isPhone = constraints.maxWidth < 600;
 
-          // Main Header Title
-          Column(
+        return Container(
+          color: theme.scaffoldBackgroundColor,
+          padding: EdgeInsets.all(isPhone ? 12 : 20),
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                (isOwner || isManager) ? 'STORE & SYSTEM CONFIGURATION CENTER' : 'HARDWARE & TILL SETTINGS',
-                style: GoogleFonts.inter(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -0.3,
-                  color: theme.colorScheme.onSurface,
-                ),
+              // Top Enterprise Breadcrumb & Status Bar (Overflow-Protected)
+              LayoutBuilder(
+                builder: (context, headerConstraints) {
+                  final isCompact = headerConstraints.maxWidth < 650;
+                  return Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Text('Workspace', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w500, color: theme.colorScheme.onSurfaceVariant)),
+                            Icon(Icons.chevron_right_rounded, size: 14, color: theme.colorScheme.onSurfaceVariant),
+                            Flexible(
+                              child: Text(
+                                isCompact ? 'System Settings' : 'Store Configuration & System Settings',
+                                style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: primaryColor),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (!isCompact) ...[
+                        const SizedBox(width: 12),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFECFDF5),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(color: const Color(0xFFA7F3D0)),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(width: 6, height: 6, decoration: const BoxDecoration(color: Color(0xFF059669), shape: BoxShape.circle)),
+                                  const SizedBox(width: 6),
+                                  Text('Healthy', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: const Color(0xFF059669))),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: isDark ? const Color(0xFF151F32) : Colors.white,
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+                              ),
+                              child: Text(todayStr, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurfaceVariant)),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  );
+                },
               ),
-              const SizedBox(height: 2),
-              Text(
-                (isOwner || isManager)
-                    ? 'Manage store profile, ZRA tax compliance, hardware peripherals, network sync, security and licensing'
-                    : 'Configure local thermal receipt printers, cash drawers, scales and barcode scanners for this active terminal',
-                style: GoogleFonts.inter(
-                  fontSize: 12.5,
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
+              const SizedBox(height: 14),
 
-          Expanded(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                return GridView(
-                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                    maxCrossAxisExtent: 380,
-                    mainAxisExtent: 185,
-                    mainAxisSpacing: 14,
-                    crossAxisSpacing: 14,
+              // Main Header Title
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    (isOwner || isManager) ? 'STORE & SYSTEM CONFIGURATION CENTER' : 'HARDWARE & TILL SETTINGS',
+                    style: GoogleFonts.inter(
+                      fontSize: isPhone ? 17 : 20,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -0.3,
+                      color: theme.colorScheme.onSurface,
+                    ),
                   ),
-                  children: [
+                  const SizedBox(height: 2),
+                  Text(
+                    (isOwner || isManager)
+                        ? 'Manage store profile, ZRA tax compliance, hardware peripherals, network sync, security and licensing'
+                        : 'Configure local thermal receipt printers, cash drawers, scales and barcode scanners for this active terminal',
+                    style: GoogleFonts.inter(
+                      fontSize: isPhone ? 11.5 : 12.5,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, gridConstraints) {
+                    return GridView(
+                      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                        maxCrossAxisExtent: isPhone ? 500 : 380,
+                        mainAxisExtent: isPhone ? 170 : 185,
+                        mainAxisSpacing: 14,
+                        crossAxisSpacing: 14,
+                      ),
+                      children: [
                     // Printers & Hardware (Accessible to Cashiers & Managers)
                     _buildSettingsCard(
                       context,
@@ -264,6 +269,19 @@ class SettingsScreen extends ConsumerWidget {
                           builder: (context) => const CloudDatabaseModal(),
                         ),
                       ),
+                      if (isOwner)
+                        _buildSettingsCard(
+                          context,
+                          'Danger Zone: Delete Company',
+                          'Permanently delete the company account, wipe local till database, and purge VPS cloud records',
+                          Icons.delete_forever_rounded,
+                          const Color(0xFFDC2626),
+                          buttonLabel: 'Purge Company',
+                          onPressed: () => showDialog(
+                            context: context,
+                            builder: (context) => const CompanyAccountDeleteModal(),
+                          ),
+                        ),
                     ],
                   ],
                 );
@@ -272,6 +290,8 @@ class SettingsScreen extends ConsumerWidget {
           ),
         ],
       ),
+    );
+      },
     );
   }
 

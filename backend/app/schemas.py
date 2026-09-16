@@ -51,6 +51,10 @@ class StoreResponse(StoreBase):
     created_at: Optional[datetime] = None
     model_config = ConfigDict(from_attributes=True)
 
+class CompanyAccountPurgeRequest(BaseModel):
+    confirm_phrase: str
+    password: str
+
 class UserBase(BaseModel):
     numeric_id: str
     name: str
@@ -82,6 +86,12 @@ class ProductBase(BaseModel):
     item_cls_cd: Optional[str] = "10101501"
     is_archived: Optional[bool] = False
     discount_price: Optional[float] = None
+    # Consignment fields
+    is_consignment: Optional[bool] = False
+    consignment_supplier_id: Optional[int] = None
+    consignment_supplier_name: Optional[str] = None
+    consignment_commission_rate: Optional[float] = 0.0
+    consignment_supplier_payout_price: Optional[float] = 0.0
 
 class ProductCreate(ProductBase):
     store_id: int
@@ -101,6 +111,10 @@ class SaleItemBase(BaseModel):
     tax_rate_at_sale: Optional[float] = 0.0
     is_tax_inclusive_at_sale: Optional[bool] = True
     zra_tax_code: Optional[str] = None
+    # Consignment Tracking
+    is_consignment: Optional[bool] = False
+    supplier_share: Optional[float] = 0.0
+    commission_share: Optional[float] = 0.0
 
 class SaleTransactionCreate(BaseModel):
     transaction_uuid: str
@@ -229,4 +243,59 @@ class AuditLogResponse(BaseModel):
     details: Optional[str] = None
     is_success: bool
     model_config = ConfigDict(from_attributes=True)
+
+# ----------------- EXPENSES SCHEMAS -----------------
+
+class ExpenseBase(BaseModel):
+    title: str
+    category: str
+    amount: float
+    payment_account: Optional[str] = "Cash in Till"
+    payment_account_id: Optional[int] = None
+    branch_code: Optional[str] = "00"
+    branch_name: Optional[str] = "Main Branch"
+    recorded_by: Optional[str] = None
+    recorded_by_id: Optional[str] = None
+    reference_number: Optional[str] = None
+    notes: Optional[str] = None
+    receipt_image_path: Optional[str] = None
+    expense_date: Optional[datetime] = None
+
+class ExpenseCreate(ExpenseBase):
+    store_id: int
+    expense_number: Optional[str] = None
+
+class ExpenseUpdate(BaseModel):
+    title: Optional[str] = None
+    category: Optional[str] = None
+    amount: Optional[float] = None
+    payment_account: Optional[str] = None
+    payment_account_id: Optional[int] = None
+    branch_code: Optional[str] = None
+    branch_name: Optional[str] = None
+    recorded_by: Optional[str] = None
+    recorded_by_id: Optional[str] = None
+    reference_number: Optional[str] = None
+    notes: Optional[str] = None
+    receipt_image_path: Optional[str] = None
+    expense_date: Optional[datetime] = None
+
+class ExpenseResponse(ExpenseBase):
+    id: int
+    expense_number: str
+    store_id: int
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    model_config = ConfigDict(from_attributes=True)
+
+class ExpenseSummaryResponse(BaseModel):
+    total_amount: float
+    total_count: int
+    by_category: dict[str, float]
+    by_branch: dict[str, float]
+
+class SyncBatchExpensesRequest(BaseModel):
+    store_id: int
+    expenses: List[ExpenseCreate]
+
 

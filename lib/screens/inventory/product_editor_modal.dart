@@ -12,7 +12,13 @@ import 'package:beleka_pos/providers/auth_provider.dart';
 import 'package:beleka_pos/services/digitax_inventory_service.dart';
 import 'package:beleka_pos/screens/inventory/category_management_modal.dart';
 import 'package:beleka_pos/screens/inventory/add_stock_modal.dart';
+import 'package:isar/isar.dart';
 import 'package:beleka_pos/widgets/product_image_widget.dart';
+
+final suppliersProvider = FutureProvider.autoDispose<List<Supplier>>((ref) async {
+  final isar = ref.watch(isarProvider);
+  return await isar.suppliers.where().sortByName().findAll();
+});
 
 class ProductEditorModal extends ConsumerStatefulWidget {
   final Product? product;
@@ -38,6 +44,14 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
   late TextEditingController _tareWeightController;
   late TextEditingController _scalePluController;
   late TextEditingController _taxRateController;
+  
+  // Consignment / Selling on Behalf
+  bool _isConsignment = false;
+  int? _selectedSupplierId;
+  String? _selectedSupplierName;
+  late TextEditingController _commissionRateController;
+  late TextEditingController _supplierPayoutPriceController;
+
   bool _hasDiscount = false;
   bool _isTaxInclusive = true;
   bool _isWeighted = false;
@@ -63,6 +77,21 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
       text: (widget.product?.tareWeight ?? 0.0) > 0 ? widget.product!.tareWeight.toString() : '',
     );
     _scalePluController = TextEditingController(text: widget.product?.scalePlu ?? '');
+
+    // Consignment properties
+    _isConsignment = widget.product?.isConsignment ?? false;
+    _selectedSupplierId = widget.product?.consignmentSupplierId;
+    _selectedSupplierName = widget.product?.consignmentSupplierName;
+    _commissionRateController = TextEditingController(
+      text: (widget.product?.consignmentCommissionRate ?? 0.0) > 0
+          ? widget.product!.consignmentCommissionRate.toStringAsFixed(1).replaceAll('.0', '')
+          : '15',
+    );
+    _supplierPayoutPriceController = TextEditingController(
+      text: (widget.product?.consignmentSupplierPayoutPrice ?? 0.0) > 0
+          ? widget.product!.consignmentSupplierPayoutPrice.toString()
+          : '',
+    );
 
     // Calculate remaining days if editing
     int durationDays = 0;
@@ -95,6 +124,8 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
     _tareWeightController.dispose();
     _scalePluController.dispose();
     _taxRateController.dispose();
+    _commissionRateController.dispose();
+    _supplierPayoutPriceController.dispose();
     super.dispose();
   }
 
@@ -212,6 +243,8 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                     ),
                   ],
                 ),
+                const SizedBox(height: 20),
+                _buildConsignmentSection(accentColor, currencySymbol),
                 const SizedBox(height: 20),
                 _buildStockSection(accentColor),
                 const SizedBox(height: 20),
@@ -348,9 +381,11 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
     required String hint,
     required Color accentColor,
     String? prefix,
+    String? suffix,
     TextInputType? keyboardType,
     bool autofocus = false,
     String? Function(String?)? validator,
+    void Function(String)? onChanged,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -376,10 +411,13 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
             keyboardType: keyboardType,
             autofocus: autofocus,
             validator: validator,
+            onChanged: onChanged,
             style: GoogleFonts.inter(color: Colors.white, fontSize: 14),
             decoration: InputDecoration(
               prefixText: prefix,
               prefixStyle: GoogleFonts.inter(color: accentColor, fontWeight: FontWeight.bold),
+              suffixText: suffix,
+              suffixStyle: GoogleFonts.inter(color: accentColor, fontWeight: FontWeight.bold),
               hintText: hint,
               hintStyle: GoogleFonts.inter(color: Colors.white10),
               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
@@ -1113,6 +1151,269 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
     );
   }
 
+  Widget _buildConsignmentSection(Color accentColor, String currencySymbol) {
+    final suppliersAsync = ref.watch(suppliersProvider);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: _isConsignment
+            ? const Color(0xFF8B5CF6).withValues(alpha: 0.06)
+            : (isDark ? const Color(0xFF151F32) : Colors.white),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: _isConsignment
+              ? const Color(0xFF8B5CF6).withValues(alpha: 0.3)
+              : (isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: _isConsignment
+                          ? const Color(0xFF8B5CF6).withValues(alpha: 0.15)
+                          : (isDark ? Colors.white10 : const Color(0xFFF1F5F9)),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.handshake_rounded,
+                      color: _isConsignment ? const Color(0xFF8B5CF6) : theme.colorScheme.onSurfaceVariant,
+                      size: 18,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'SELL ON BEHALF (CONSIGNMENT)',
+                        style: GoogleFonts.manrope(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.8,
+                          color: _isConsignment ? const Color(0xFF8B5CF6) : theme.colorScheme.onSurface,
+                        ),
+                      ),
+                      Text(
+                        _isConsignment
+                            ? 'Supplier owns stock • Store earns commission'
+                            : 'Standard store-owned inventory',
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          color: _isConsignment ? const Color(0xFF8B5CF6) : theme.colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              Switch(
+                value: _isConsignment,
+                onChanged: (v) => setState(() => _isConsignment = v),
+                activeThumbColor: const Color(0xFF8B5CF6),
+                activeTrackColor: const Color(0xFF8B5CF6).withValues(alpha: 0.3),
+              ),
+            ],
+          ),
+          if (_isConsignment) ...[
+            const SizedBox(height: 16),
+            Divider(color: const Color(0xFF8B5CF6).withValues(alpha: 0.15)),
+            const SizedBox(height: 14),
+
+            // Supplier Selector
+            Text(
+              'SUPPLIER / VENDOR',
+              style: GoogleFonts.manrope(
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 6),
+            suppliersAsync.when(
+              data: (suppliers) {
+                if (suppliers.isEmpty) {
+                  return Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.info_outline, size: 16, color: Colors.orangeAccent),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'No suppliers recorded. Please create a supplier in the Purchases module first.',
+                            style: GoogleFonts.inter(fontSize: 11, color: Colors.orangeAccent),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                return Container(
+                  height: 48,
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFF8B5CF6).withValues(alpha: 0.2)),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<int>(
+                      value: suppliers.any((s) => s.id == _selectedSupplierId) ? _selectedSupplierId : null,
+                      hint: Text(
+                        'Select Supplier / Consignor',
+                        style: GoogleFonts.inter(fontSize: 12.5, color: theme.colorScheme.onSurfaceVariant),
+                      ),
+                      isExpanded: true,
+                      dropdownColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+                      items: suppliers.map((s) {
+                        return DropdownMenuItem<int>(
+                          value: s.id,
+                          child: Text(
+                            '${s.name} ${s.tpin != null ? "(TPIN: ${s.tpin})" : ""}',
+                            style: GoogleFonts.inter(fontSize: 13, color: theme.colorScheme.onSurface),
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (val) {
+                        if (val != null) {
+                          final supp = suppliers.firstWhere((s) => s.id == val);
+                          setState(() {
+                            _selectedSupplierId = val;
+                            _selectedSupplierName = supp.name;
+                          });
+                        }
+                      },
+                    ),
+                  ),
+                );
+              },
+              loading: () => const LinearProgressIndicator(),
+              error: (e, _) => Text('Error loading suppliers: $e'),
+            ),
+            const SizedBox(height: 16),
+
+            // Commission Rate & Vendor Payout Calculation
+            Row(
+              children: [
+                Expanded(
+                  child: _buildTextField(
+                    controller: _commissionRateController,
+                    label: 'STORE COMMISSION RATE (%)',
+                    hint: '15',
+                    keyboardType: TextInputType.number,
+                    suffix: '%',
+                    accentColor: const Color(0xFF8B5CF6),
+                    onChanged: (val) => setState(() {}),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: _buildTextField(
+                    controller: _supplierPayoutPriceController,
+                    label: 'OR FIXED VENDOR PAYOUT ($currencySymbol)',
+                    hint: '0.00',
+                    keyboardType: TextInputType.number,
+                    prefix: currencySymbol,
+                    accentColor: const Color(0xFF8B5CF6),
+                    onChanged: (val) => setState(() {}),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // Live Commission Simulation Box
+            Builder(
+              builder: (context) {
+                final retailPrice = double.tryParse(_priceController.text.trim()) ?? 0.0;
+                final commRate = double.tryParse(_commissionRateController.text.trim()) ?? 0.0;
+                final fixedPayout = double.tryParse(_supplierPayoutPriceController.text.trim()) ?? 0.0;
+
+                double storeCommission = 0.0;
+                double supplierPayout = 0.0;
+
+                if (fixedPayout > 0) {
+                  supplierPayout = fixedPayout;
+                  storeCommission = (retailPrice - fixedPayout).clamp(0.0, retailPrice);
+                } else {
+                  storeCommission = retailPrice * (commRate / 100);
+                  supplierPayout = (retailPrice - storeCommission).clamp(0.0, retailPrice);
+                }
+
+                return Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF8B5CF6).withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFF8B5CF6).withValues(alpha: 0.15)),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('Retail Selling Price:', style: GoogleFonts.inter(fontSize: 11, color: theme.colorScheme.onSurfaceVariant)),
+                          Text('$currencySymbol ${retailPrice.toStringAsFixed(2)}', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurface)),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Icons.arrow_upward_rounded, size: 12, color: Color(0xFF10B981)),
+                              const SizedBox(width: 4),
+                              Text('Your Commission (Store Profit):', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: const Color(0xFF10B981))),
+                            ],
+                          ),
+                          Text('$currencySymbol ${storeCommission.toStringAsFixed(2)}', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: const Color(0xFF10B981))),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Icons.arrow_downward_rounded, size: 12, color: Color(0xFF8B5CF6)),
+                              const SizedBox(width: 4),
+                              Text('Supplier Payout (Pass-Through):', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: const Color(0xFF8B5CF6))),
+                            ],
+                          ),
+                          Text('$currencySymbol ${supplierPayout.toStringAsFixed(2)}', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: const Color(0xFF8B5CF6))),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _buildDiscountSection(Color accentColor, String currencySymbol) {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -1264,6 +1565,16 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
         product.tareWeight = tareWeight;
         product.scalePlu = scalePlu;
       }
+
+      final commRate = double.tryParse(_commissionRateController.text.trim()) ?? 0.0;
+      final suppPayout = double.tryParse(_supplierPayoutPriceController.text.trim()) ?? 0.0;
+      product.setConsignmentDetails(
+        enabled: _isConsignment,
+        supplierId: _selectedSupplierId,
+        supplierName: _selectedSupplierName,
+        commissionRate: commRate,
+        supplierPayoutPrice: suppPayout,
+      );
 
       await db.saveProduct(product);
 

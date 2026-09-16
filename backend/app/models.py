@@ -40,6 +40,7 @@ class Store(Base):
     customers = relationship("Customer", back_populates="store", cascade="all, delete-orphan")
     purchase_orders = relationship("PurchaseOrder", back_populates="store", cascade="all, delete-orphan")
     stock_movements = relationship("StockMovement", back_populates="store", cascade="all, delete-orphan")
+    expenses = relationship("Expense", back_populates="store", cascade="all, delete-orphan")
 
 class User(Base):
     __tablename__ = "users"
@@ -93,6 +94,12 @@ class Product(Base):
     discount_price = Column(Numeric(12, 2), nullable=True)
     discount_start_date = Column(DateTime(timezone=True), nullable=True)
     discount_end_date = Column(DateTime(timezone=True), nullable=True)
+    # Consignment fields
+    is_consignment = Column(Boolean, default=False)
+    consignment_supplier_id = Column(Integer, ForeignKey("suppliers.id", ondelete="SET NULL"), nullable=True)
+    consignment_supplier_name = Column(String(255), nullable=True)
+    consignment_commission_rate = Column(Numeric(5, 2), default=0.00)
+    consignment_supplier_payout_price = Column(Numeric(12, 2), default=0.00)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -100,6 +107,24 @@ class Product(Base):
     category = relationship("Category", back_populates="products")
     stock_movements = relationship("StockMovement", back_populates="product")
     __table_args__ = (UniqueConstraint("store_id", "sku", name="uk_product_store_sku"),)
+
+class Supplier(Base):
+    __tablename__ = "suppliers"
+
+    id = Column(Integer, primary_key=True, index=True)
+    store_id = Column(Integer, ForeignKey("stores.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    tpin = Column(String(100), nullable=True)
+    contact_person = Column(String(255), nullable=True)
+    phone_number = Column(String(50), nullable=True)
+    email = Column(String(255), nullable=True)
+    address = Column(Text, nullable=True)
+    balance = Column(Numeric(12, 2), default=0.00)
+    total_purchases = Column(Numeric(12, 2), default=0.00)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    store = relationship("Store")
+    __table_args__ = (UniqueConstraint("store_id", "name", name="uk_supplier_store_name"),)
 
 class Customer(Base):
     __tablename__ = "customers"
@@ -166,6 +191,10 @@ class SaleItem(Base):
     tax_rate_at_sale = Column(Numeric(5, 2), default=0.00)
     is_tax_inclusive_at_sale = Column(Boolean, default=True)
     is_refunded = Column(Boolean, default=False)
+    # Consignment Tracking
+    is_consignment = Column(Boolean, default=False)
+    supplier_share = Column(Numeric(12, 2), default=0.00)
+    commission_share = Column(Numeric(12, 2), default=0.00)
 
     sale = relationship("SaleTransaction", back_populates="items")
 
@@ -266,4 +295,31 @@ class AuditLog(Base):
     ip_address = Column(String(50), nullable=True)
     details = Column(Text, nullable=True)
     is_success = Column(Boolean, default=True)
+
+
+class Expense(Base):
+    """Store / Branch operating expense record."""
+    __tablename__ = "expenses"
+
+    id = Column(Integer, primary_key=True, index=True)
+    expense_number = Column(String(100), unique=True, nullable=False, index=True)
+    store_id = Column(Integer, ForeignKey("stores.id", ondelete="CASCADE"), nullable=False, index=True)
+    title = Column(String(255), nullable=False)
+    category = Column(String(100), nullable=False, index=True)
+    amount = Column(Numeric(12, 2), nullable=False, default=0.00)
+    payment_account = Column(String(100), default="Cash in Till")
+    payment_account_id = Column(Integer, nullable=True)
+    branch_code = Column(String(50), default="00")
+    branch_name = Column(String(100), default="Main Branch")
+    recorded_by = Column(String(255), nullable=True)
+    recorded_by_id = Column(String(50), nullable=True)
+    reference_number = Column(String(100), nullable=True)
+    notes = Column(Text, nullable=True)
+    receipt_image_path = Column(Text, nullable=True)
+    expense_date = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    store = relationship("Store", back_populates="expenses")
+
 

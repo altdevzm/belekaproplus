@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:beleka_pos/models/models.dart';
 import 'package:beleka_pos/providers/store_provider.dart';
 import 'package:beleka_pos/services/export_service.dart';
+import 'package:beleka_pos/services/database_service.dart';
 import 'package:beleka_pos/services/postgres_sync_service.dart';
 
 enum BranchReportPeriod {
@@ -127,9 +128,13 @@ class _BranchReportScreenState extends ConsumerState<BranchReportScreen> with Si
       // Branch sales reports are cloud-authoritative and do not read local sales.
       final txs = await _loadCloudTransactions();
 
-      // Expenses, products, and stock movements are cloud-only here. There is
-      // intentionally no HQ-local fallback for branch report data.
-      final exps = <Expense>[];
+      final db = ref.read(databaseServiceProvider);
+      final exps = await db.getExpensesForBranchInRange(
+        _selectedBranch.name,
+        branchCode: _selectedBranch.code,
+        start: _startDate,
+        end: _endDate,
+      );
       final movs = _cloudStockMovements();
       final prods = _cloudProducts();
 

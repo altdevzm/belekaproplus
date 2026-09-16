@@ -120,33 +120,39 @@ class DashboardScreen extends ConsumerWidget {
     final currency =
         ref.watch(storeConfigProvider).value?.currencySymbol ?? 'K';
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Breadcrumb & Status Bar
-          _buildTopBreadcrumbBar(context),
-          const SizedBox(height: 16),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isPhone = constraints.maxWidth < 700;
 
-          // Greeting Header Bar
-          _buildGreetingHeader(context, ref),
-          const SizedBox(height: 16),
+        return SingleChildScrollView(
+          padding: EdgeInsets.all(isPhone ? 12 : 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (!isPhone) ...[
+                // Breadcrumb & Status Bar
+                _buildTopBreadcrumbBar(context),
+                const SizedBox(height: 16),
+              ],
 
-          // License Expiry Warning Card (only shown for timed licenses ≤30 days)
-          const LicenseExpiryDashboardCard(),
-          const _LicenseExpiryCardSpacer(),
+              // Greeting Header Bar
+              _buildGreetingHeader(context, ref),
+              const SizedBox(height: 14),
 
-          // 4 Stats Cards Row
-          statsAsync.when(
-            data: (stats) => _buildFourStatsRow(context, stats, currency),
-            loading: () => const SizedBox(
-              height: 100,
-              child: Center(child: CircularProgressIndicator()),
-            ),
-            error: (e, s) => Text('Error: $e'),
-          ),
-          const SizedBox(height: 20),
+              // License Expiry Warning Card (only shown for timed licenses ≤30 days)
+              const LicenseExpiryDashboardCard(),
+              const _LicenseExpiryCardSpacer(),
+
+              // 4 Stats Cards Row
+              statsAsync.when(
+                data: (stats) => _buildFourStatsRow(context, stats, currency),
+                loading: () => const SizedBox(
+                  height: 100,
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+                error: (e, s) => Text('Error: $e'),
+              ),
+              const SizedBox(height: 16),
 
           // Middle Charts Section (Revenue Overview + Payment Methods) - Adaptive
           LayoutBuilder(
@@ -268,6 +274,8 @@ class DashboardScreen extends ConsumerWidget {
         ],
       ),
     );
+      },
+    );
   }
 
   Widget _buildCashierDashboard(BuildContext context, WidgetRef ref) {
@@ -279,24 +287,30 @@ class DashboardScreen extends ConsumerWidget {
     final currency =
         ref.watch(storeConfigProvider).valueOrNull?.currencySymbol ?? 'K';
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildTopBreadcrumbBar(context),
-          const SizedBox(height: 16),
-          _buildCashierHeader(context, ref, user?.name ?? 'Cashier'),
-          const SizedBox(height: 20),
-          statsAsync.when(
-            data: (stats) => _buildFourStatsRow(context, stats, currency),
-            loading: () => const SizedBox(
-              height: 100,
-              child: Center(child: CircularProgressIndicator()),
-            ),
-            error: (e, s) => Text('Error: $e'),
-          ),
-          const SizedBox(height: 20),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isPhone = constraints.maxWidth < 700;
+
+        return SingleChildScrollView(
+          padding: EdgeInsets.all(isPhone ? 12 : 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (!isPhone) ...[
+                _buildTopBreadcrumbBar(context),
+                const SizedBox(height: 16),
+              ],
+              _buildCashierHeader(context, ref, user?.name ?? 'Cashier'),
+              const SizedBox(height: 14),
+              statsAsync.when(
+                data: (stats) => _buildFourStatsRow(context, stats, currency),
+                loading: () => const SizedBox(
+                  height: 100,
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+                error: (e, s) => Text('Error: $e'),
+              ),
+              const SizedBox(height: 16),
           LayoutBuilder(
             builder: (context, constraints) {
               final isCompact = constraints.maxWidth < 850;
@@ -359,6 +373,8 @@ class DashboardScreen extends ConsumerWidget {
         ],
       ),
     );
+      },
+    );
   }
 
   Widget _buildTopBreadcrumbBar(BuildContext context) {
@@ -400,7 +416,10 @@ class DashboardScreen extends ConsumerWidget {
           ],
         ),
         // Right Badges & Controls
-        Row(
+        Wrap(
+          spacing: 8,
+          runSpacing: 6,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             // Status Badge
             Container(
@@ -415,6 +434,7 @@ class DashboardScreen extends ConsumerWidget {
                 ),
               ),
               child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
                     width: 7,
@@ -496,7 +516,6 @@ class DashboardScreen extends ConsumerWidget {
   Widget _buildGreetingHeader(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final primaryColor = theme.colorScheme.primary;
     final userName = ref.watch(authProvider)?.name ?? 'User';
 
     final hour = DateTime.now().hour;
@@ -617,37 +636,6 @@ class DashboardScreen extends ConsumerWidget {
                     ),
                   ],
                 ),
-              ),
-            ),
-            // New sale primary button
-            ElevatedButton.icon(
-              onPressed: () {
-                ref.read(navigationProvider.notifier).state = ScreenType.sales;
-              },
-              icon: const Icon(
-                Icons.shopping_cart_outlined,
-                size: 16,
-                color: Colors.white,
-              ),
-              label: Text(
-                'New sale',
-                style: GoogleFonts.inter(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                ),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: primaryColor,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                elevation: 0,
               ),
             ),
           ],
@@ -795,13 +783,21 @@ class DashboardScreen extends ConsumerWidget {
         if (constraints.maxWidth < 600) {
           return Column(
             children: [
-              card1,
-              const SizedBox(height: 12),
-              card2,
-              const SizedBox(height: 12),
-              card3,
-              const SizedBox(height: 12),
-              card4,
+              Row(
+                children: [
+                  Expanded(child: card1),
+                  const SizedBox(width: 10),
+                  Expanded(child: card2),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(child: card3),
+                  const SizedBox(width: 10),
+                  Expanded(child: card4),
+                ],
+              ),
             ],
           );
         }
@@ -858,7 +854,7 @@ class DashboardScreen extends ConsumerWidget {
     final isDark = theme.brightness == Brightness.dark;
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF151F32) : Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -872,61 +868,69 @@ class DashboardScreen extends ConsumerWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                label,
-                style: GoogleFonts.inter(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w600,
-                  color: theme.colorScheme.onSurfaceVariant,
+              Expanded(
+                child: Text(
+                  label,
+                  style: GoogleFonts.inter(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
               Container(
-                width: 32,
-                height: 32,
+                width: 28,
+                height: 28,
                 decoration: BoxDecoration(
                   color: isDark
                       ? iconColor.withValues(alpha: 0.15)
                       : iconBgColor,
                   shape: BoxShape.circle,
                 ),
-                child: Icon(icon, size: 16, color: iconColor),
+                child: Icon(icon, size: 14, color: iconColor),
               ),
             ],
           ),
           const SizedBox(height: 8),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text(
-                value,
-                style: GoogleFonts.inter(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  color: theme.colorScheme.onSurface,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: isPositive
-                      ? const Color(0xFFECFDF5)
-                      : const Color(0xFFFEF2F2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  growthText,
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Text(
+                  value,
                   style: GoogleFonts.inter(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: isPositive
-                        ? const Color(0xFF059669)
-                        : const Color(0xFFDC2626),
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: theme.colorScheme.onSurface,
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: isPositive
+                        ? const Color(0xFFECFDF5)
+                        : const Color(0xFFFEF2F2),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    growthText,
+                    style: GoogleFonts.inter(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: isPositive
+                          ? const Color(0xFF059669)
+                          : const Color(0xFFDC2626),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 6),
           Text(

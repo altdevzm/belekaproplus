@@ -9,6 +9,7 @@ import 'package:beleka_pos/screens/settings_screen.dart';
 import 'package:beleka_pos/screens/reports_screen.dart';
 import 'package:beleka_pos/screens/terminals_screen.dart';
 import 'package:beleka_pos/screens/purchases_screen.dart';
+import 'package:beleka_pos/screens/expenses_screen.dart';
 import 'package:beleka_pos/screens/branches_screen.dart';
 import 'package:beleka_pos/providers/auth_provider.dart';
 import 'package:beleka_pos/providers/store_provider.dart';
@@ -23,7 +24,7 @@ import 'package:beleka_pos/widgets/camera_barcode_scanner_modal.dart';
 import 'package:beleka_pos/providers/cart_provider.dart';
 import 'package:beleka_pos/services/database_service.dart';
 
-enum ScreenType { dashboard, sales, inventory, purchases, branches, terminals, settings, reports }
+enum ScreenType { dashboard, sales, inventory, purchases, expenses, branches, terminals, settings, reports }
 
 final navigationProvider = StateProvider<ScreenType>((ref) {
   // Cashiers default to Sales screen
@@ -144,23 +145,7 @@ class ShellScreen extends ConsumerWidget {
                       },
                     ),
 
-                    // Admin/Manager Tab 2: Sales
-                    _buildMobileNavItem(
-                      context,
-                      icon: Icons.point_of_sale_rounded,
-                      label: 'Sales',
-                      isSelected: current == ScreenType.sales,
-                      accentColor: accentColor,
-                      onTap: () {
-                        HapticFeedback.lightImpact();
-                        ref.read(navigationProvider.notifier).state = ScreenType.sales;
-                      },
-                    ),
-
-                    // Admin/Manager Center: Scanner
-                    _buildCenterScanButton(context, ref, accentColor),
-
-                    // Admin/Manager Tab 3: Stock
+                    // Admin/Manager Tab 2: Stock
                     _buildMobileNavItem(
                       context,
                       icon: Icons.inventory_2_rounded,
@@ -173,12 +158,28 @@ class ShellScreen extends ConsumerWidget {
                       },
                     ),
 
-                    // Admin/Manager Tab 4: More Hub (Branches, Reports, Terminals, Purchases, Settings)
+                    // Admin/Manager Center: Scanner
+                    _buildCenterScanButton(context, ref, accentColor),
+
+                    // Admin/Manager Tab 3: Reports
+                    _buildMobileNavItem(
+                      context,
+                      icon: Icons.assessment_rounded,
+                      label: 'Reports',
+                      isSelected: current == ScreenType.reports,
+                      accentColor: accentColor,
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        ref.read(navigationProvider.notifier).state = ScreenType.reports;
+                      },
+                    ),
+
+                    // Admin/Manager Tab 4: More Hub (Branches, Terminals, Purchases, Expenses, Settings)
                     _buildMobileNavItem(
                       context,
                       icon: Icons.grid_view_rounded,
                       label: 'More',
-                      isSelected: current != ScreenType.dashboard && current != ScreenType.sales && current != ScreenType.inventory,
+                      isSelected: current != ScreenType.dashboard && current != ScreenType.inventory && current != ScreenType.reports,
                       accentColor: accentColor,
                       onTap: () {
                         HapticFeedback.mediumImpact();
@@ -409,47 +410,88 @@ class ShellScreen extends ConsumerWidget {
   Future<void> _handleGlobalScan(BuildContext context, WidgetRef ref) async {
     final scannedCode = await CameraBarcodeScannerModal.show(context);
     if (scannedCode != null && scannedCode.isNotEmpty) {
-      ref.read(navigationProvider.notifier).state = ScreenType.sales;
-
+      final user = ref.read(authProvider);
+      final isCashier = (user?.role.toLowerCase().trim() ?? 'cashier') == 'cashier';
       final db = ref.read(databaseServiceProvider);
       final product = await db.getProductBySku(scannedCode);
 
-      if (product != null) {
-        ref.read(cartProvider.notifier).addProduct(product);
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 18),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text('Added "${product.name}" to cart (K${product.price.toStringAsFixed(2)})'),
-                  ),
-                ],
+      if (isCashier) {
+        ref.read(navigationProvider.notifier).state = ScreenType.sales;
+        if (product != null) {
+          ref.read(cartProvider.notifier).addProduct(product);
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text('Added "${product.name}" to cart (K${product.price.toStringAsFixed(2)})'),
+                    ),
+                  ],
+                ),
+                behavior: SnackBarBehavior.floating,
+                duration: const Duration(seconds: 2),
               ),
-              behavior: SnackBarBehavior.floating,
-              duration: const Duration(seconds: 2),
-            ),
-          );
+            );
+          }
+        } else {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    const Icon(Icons.warning_amber_rounded, color: Colors.amber, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text('No product found matching code "$scannedCode"'),
+                    ),
+                  ],
+                ),
+                behavior: SnackBarBehavior.floating,
+                duration: const Duration(seconds: 3),
+              ),
+            );
+          }
         }
       } else {
+        // Owner / Manager scanning: show product stock info and stay on/go to inventory
+        ref.read(navigationProvider.notifier).state = ScreenType.inventory;
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  const Icon(Icons.warning_amber_rounded, color: Colors.amber, size: 18),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text('No product found matching code "$scannedCode"'),
-                  ),
-                ],
+          if (product != null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    const Icon(Icons.inventory_2_rounded, color: Color(0xFF3B82F6), size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text('${product.name} (SKU: ${product.sku}) • Stock: ${product.stockLevel}'),
+                    ),
+                  ],
+                ),
+                behavior: SnackBarBehavior.floating,
+                duration: const Duration(seconds: 3),
               ),
-              behavior: SnackBarBehavior.floating,
-              duration: const Duration(seconds: 3),
-            ),
-          );
+            );
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    const Icon(Icons.warning_amber_rounded, color: Colors.amber, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text('No product found matching code "$scannedCode"'),
+                    ),
+                  ],
+                ),
+                behavior: SnackBarBehavior.floating,
+                duration: const Duration(seconds: 3),
+              ),
+            );
+          }
         }
       }
     }
@@ -565,6 +607,7 @@ class ShellScreen extends ConsumerWidget {
         _NavDestination(ScreenType.dashboard, Icons.dashboard_rounded, 'Overview'),
         _NavDestination(ScreenType.inventory, Icons.inventory_2_rounded, 'Stock'),
         _NavDestination(ScreenType.purchases, Icons.shopping_bag_rounded, 'Purchases'),
+        _NavDestination(ScreenType.expenses, Icons.receipt_long_rounded, 'Expenses'),
         _NavDestination(ScreenType.branches, Icons.store_rounded, 'Branches'),
         _NavDestination(ScreenType.terminals, Icons.monitor_rounded, 'Terminals'),
         _NavDestination(ScreenType.reports, Icons.assessment_rounded, 'Reports'),
@@ -576,6 +619,7 @@ class ShellScreen extends ConsumerWidget {
         _NavDestination(ScreenType.dashboard, Icons.dashboard_rounded, 'Overview'),
         _NavDestination(ScreenType.inventory, Icons.inventory_2_rounded, 'Stock'),
         _NavDestination(ScreenType.purchases, Icons.shopping_bag_rounded, 'Purchases'),
+        _NavDestination(ScreenType.expenses, Icons.receipt_long_rounded, 'Expenses'),
         _NavDestination(ScreenType.terminals, Icons.monitor_rounded, 'Terminals'),
         _NavDestination(ScreenType.reports, Icons.assessment_rounded, 'Reports'),
         _NavDestination(ScreenType.settings, Icons.settings_rounded, 'Settings'),
@@ -927,6 +971,8 @@ class ShellScreen extends ConsumerWidget {
         return const InventoryScreen();
       case ScreenType.purchases:
         return const PurchasesScreen();
+      case ScreenType.expenses:
+        return const ExpensesScreen();
       case ScreenType.branches:
         return const BranchesScreen();
       case ScreenType.terminals:

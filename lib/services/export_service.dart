@@ -2580,6 +2580,220 @@ class ExportService {
     await _outputPdf(bytes, 'Supplier Statement ${supplier.name}', 'statement_${supplier.name.replaceAll(' ', '_')}.pdf', printDirectly: printDirectly);
   }
 
+  /// Export or Print Consignment Sales & Settlement Statement (PDF)
+  Future<void> exportConsignmentStatementToPdf({
+    required Supplier supplier,
+    required List<Product> consignmentProducts,
+    required List<SaleTransaction> transactions,
+    StoreConfig? config,
+    bool printDirectly = false,
+  }) async {
+    final pdf = pw.Document();
+    final brandColor = _getBrandColor(config);
+    final logoImage = await _loadLogoImage(config);
+    final currency = config?.currencySymbol ?? 'K';
+    final dateFormat = DateFormat('dd MMM yyyy, HH:mm');
+
+    // Aggregate sold items for this supplier across transactions
+    final productIds = consignmentProducts.map((p) => p.id).toSet();
+    final Map<int, Map<String, dynamic>> productStats = {};
+
+    for (final p in consignmentProducts) {
+      productStats[p.id] = {
+        'name': p.name,
+        'sku': p.sku,
+        'stock': p.stockLevel,
+        'retailPrice': p.price,
+        'commRate': p.consignmentCommissionRate > 0 ? p.consignmentCommissionRate : 15.0,
+        'fixedPayout': p.consignmentSupplierPayoutPrice,
+        'unitsSold': 0.0,
+        'totalGrossSales': 0.0,
+        'totalCommission': 0.0,
+        'totalSupplierShare': 0.0,
+      };
+    }
+
+    for (final tx in transactions) {
+      if (tx.status == 'refunded' || tx.isCreditNote) continue;
+      if (!tx.items.isLoaded) {
+        await tx.items.load();
+      }
+      final items = tx.reportItems.isNotEmpty ? tx.reportItems : tx.items;
+      for (final item in items) {
+        int? matchedProductId;
+        if (productIds.contains(item.productId)) {
+          matchedProductId = item.productId;
+        } else {
+          // Fallback match by product name or SKU if productId doesn't match directly
+          final matchingProduct = consignmentProducts.where(
+            (p) => (item.productName.trim().isNotEmpty && p.name.trim().toLowerCase() == item.productName.trim().toLowerCase()) ||
+                   (p.sku.trim().isNotEmpty && item.productName.trim().toLowerCase().contains(p.sku.trim().toLowerCase()))
+          ).firstOrNull;
+          if (matchingProduct != null) {
+            matchedProductId = matchingProduct.id;
+          }
+        }
+
+        if (matchedProductId != null && productStats.containsKey(matchedProductId)) {
+          final stats = productStats[matchedProductId]!;
+          final double qty = (item.isWeighted && item.weight > 0) ? item.weight : item.quantity.toDouble();
+          final gross = item.priceAtSale * qty;
+          
+          double comm = 0.0;
+          double suppShare = 0.0;
+
+          final fixed = (stats['fixedPayout'] as num).toDouble();
+          if (fixed > 0) {
+            suppShare = fixed * qty;
+            comm = (gross - suppShare).clamp(0.0, gross);
+          } else {
+            final rate = (stats['commRate'] as num).toDouble();
+            comm = gross * (rate / 100);
+            suppShare = (gross - comm).clamp(0.0, gross);
+          }
+
+          stats['unitsSold'] = (stats['unitsSold'] as double) + qty;
+          stats['totalGrossSales'] = (stats['totalGrossSales'] as double) + gross;
+          stats['totalCommission'] = (stats['totalCommission'] as double) + comm;
+          stats['totalSupplierShare'] = (stats['totalSupplierShare'] as double) + suppShare;
+        }
+      }
+    }
+
+    final soldList = productStats.values.toList();
+    final double totalGrossAll = soldList.fold(0.0, (s, i) => s + (i['totalGrossSales'] as double));
+    final double totalCommAll = soldList.fold(0.0, (s, i) => s + (i['totalCommission'] as double));
+    final double totalPayoutCalculated = soldList.fold(0.0, (s, i) => s + (i['totalSupplierShare'] as double));
+    final double currentBalance = supplier.balance;
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(32),
+        build: (pw.Context context) {
+          return [
+            _buildDocumentHeader(
+              config,
+              title: 'CONSIGNMENT & COMMISSION SETTLEMENT',
+              brandColor: brandColor,
+              logoImage: logoImage,
+            ),
+            pw.SizedBox(height: 16),
+
+            // Vendor & Consignment Summary Box
+            pw.Container(
+              padding: const pw.EdgeInsets.all(12),
+              decoration: pw.BoxDecoration(
+                border: pw.Border.all(color: PdfColors.grey300),
+                borderRadius: const pw.BorderRadius.all(pw.Radius.circular(6)),
+              ),
+              child: pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text('CONSIGNOR / VENDOR DETAILS:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10, color: brandColor)),
+                      pw.SizedBox(height: 4),
+                      pw.Text(supplier.name, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12)),
+                      if (supplier.tpin != null) pw.Text('TPIN: ${supplier.tpin}', style: const pw.TextStyle(fontSize: 9)),
+                      if (supplier.phoneNumber != null) pw.Text('Phone: ${supplier.phoneNumber}', style: const pw.TextStyle(fontSize: 9)),
+                      if (supplier.address != null) pw.Text('Address: ${supplier.address}', style: const pw.TextStyle(fontSize: 9)),
+                    ],
+                  ),
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.end,
+                    children: [
+                      pw.Text('SETTLEMENT BREAKDOWN', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10, color: brandColor)),
+                      pw.SizedBox(height: 4),
+                      pw.Text('Generated: ${dateFormat.format(DateTime.now())}', style: const pw.TextStyle(fontSize: 9)),
+                      pw.Text('Gross Sales Generated: $currency${totalGrossAll.toStringAsFixed(2)}', style: const pw.TextStyle(fontSize: 9)),
+                      pw.Text('Less Store Commission: $currency${totalCommAll.toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 9, color: PdfColors.green800, fontWeight: pw.FontWeight.bold)),
+                      pw.Text('Net Vendor Sales Share: $currency${totalPayoutCalculated.toStringAsFixed(2)}', style: const pw.TextStyle(fontSize: 9)),
+                      pw.SizedBox(height: 4),
+                      pw.Container(
+                        padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: pw.BoxDecoration(
+                          color: currentBalance > 0 ? PdfColors.purple50 : PdfColors.green50,
+                          borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+                        ),
+                        child: pw.Text(
+                          'TOTAL PAYABLE TO VENDOR: $currency${currentBalance.toStringAsFixed(2)}',
+                          style: pw.TextStyle(
+                            fontWeight: pw.FontWeight.bold,
+                            fontSize: 10,
+                            color: currentBalance > 0 ? PdfColors.purple800 : PdfColors.green800,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            pw.SizedBox(height: 16),
+
+            // Itemized Consignment Products Table
+            pw.Text('ITEMIZED CONSIGNMENT INVENTORY & SALES', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10, color: brandColor)),
+            pw.SizedBox(height: 8),
+
+            pw.TableHelper.fromTextArray(
+              headers: ['Item / SKU', 'In Stock', 'Retail Price', 'Units Sold', 'Gross Sales', 'Comm Retained', 'Vendor Payout'],
+              data: soldList.map((item) {
+                final double gross = item['totalGrossSales'] as double;
+                final double comm = item['totalCommission'] as double;
+                final double payout = item['totalSupplierShare'] as double;
+                final double units = item['unitsSold'] as double;
+
+                return [
+                  '${item['name']}\nSKU: ${item['sku']}',
+                  '${item['stock']}',
+                  '$currency${(item['retailPrice'] as double).toStringAsFixed(2)}',
+                  units.toStringAsFixed(units % 1 == 0 ? 0 : 2),
+                  '$currency${gross.toStringAsFixed(2)}',
+                  '$currency${comm.toStringAsFixed(2)}',
+                  '$currency${payout.toStringAsFixed(2)}',
+                ];
+              }).toList(),
+              headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8.5, color: PdfColors.white),
+              headerDecoration: pw.BoxDecoration(color: brandColor),
+              cellStyle: const pw.TextStyle(fontSize: 8),
+              cellAlignment: pw.Alignment.centerLeft,
+            ),
+
+            pw.SizedBox(height: 24),
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text('Settled By: __________________________', style: const pw.TextStyle(fontSize: 9)),
+                    pw.SizedBox(height: 4),
+                    pw.Text('Store Manager / Cashier', style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700)),
+                  ],
+                ),
+                pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text('Vendor Received Signature: ____________________', style: const pw.TextStyle(fontSize: 9)),
+                    pw.SizedBox(height: 4),
+                    pw.Text('Supplier / Consignor Signature', style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700)),
+                  ],
+                ),
+              ],
+            ),
+            pw.SizedBox(height: 16),
+            _buildDocumentFooter(config),
+          ];
+        },
+      ),
+    );
+
+    final bytes = await pdf.save();
+    await _outputPdf(bytes, 'Consignment Statement ${supplier.name}', 'consignment_statement_${supplier.name.replaceAll(' ', '_')}.pdf', printDirectly: printDirectly);
+  }
+
   // =========================================================================
   // --- ACCOUNTS & TREASURY MODULE (PAYMENT ACCOUNTS, EXPENSES, TRANSFERS, SHIFTS) ---
   // =========================================================================

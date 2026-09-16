@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List
 from app.database import get_db
 from app import models, schemas
-from app.auth_deps import get_current_user, verify_store_access, require_roles
+from app.auth_deps import get_current_user, verify_store_access, require_roles, verify_and_update_password
 
 router = APIRouter(prefix="/api/v1/stores", tags=["Stores"])
 
@@ -175,3 +175,50 @@ def delete_store(
     db.delete(store)
     db.commit()
     return None
+
+@router.post("/company/purge", status_code=status.HTTP_200_OK)
+@router.delete("/company/purge", status_code=status.HTTP_200_OK)
+def purge_company_account(
+    req: schemas.CompanyAccountPurgeRequest,
+    current_user: models.User = Depends(require_roles(["owner", "super_admin"])),
+    db: Session = Depends(get_db)
+):
+    """
+    Permanently delete the entire company organization account and all its branches,
+    including staff users, products, sales transactions, customers, and inventory.
+    Requires owner credentials and explicit confirmation phrase.
+    """
+    phrase = (req.confirm_phrase or "").strip().upper()
+    if phrase not in ["DELETE", "DELETE COMPANY", "PURGE"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Confirmation phrase must be 'DELETE' or 'DELETE COMPANY'."
+        )
+    
+    is_valid, _ = verify_and_update_password(req.password, current_user.password_hash)
+    if not is_valid:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid owner passcode or PIN."
+        )
+
+    user_store = current_user.store or db.query(models.Store).filter(models.Store.id == current_user.store_id).first()
+    if not user_store:
+        raise HTTPException(status_code=404, detail="Store not found for this user.")
+
+    # Find all stores under this company TPIN (or current store ID)
+    if user_store.tpin:
+        stores_to_delete = db.query(models.Store).filter(models.Store.tpin == user_store.tpin).all()
+    else:
+        stores_to_delete = [user_store]
+
+    deleted_count = len(stores_to_delete)
+    for store in stores_to_delete:
+        db.delete(store)
+    db.commit()
+
+    return {
+        "success": True,
+        "message": f"Company account and {deleted_count} associated branch(es) were permanently deleted.",
+        "deleted_stores_count": deleted_count
+    }

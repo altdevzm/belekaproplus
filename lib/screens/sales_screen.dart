@@ -23,17 +23,15 @@ final productsProvider = StreamProvider<List<Product>>((ref) {
   final db = ref.watch(databaseServiceProvider);
   final isOwner = ref.watch(isOwnerProvider);
   final currentUser = ref.watch(authProvider);
-  final storeConfig = ref.watch(storeConfigProvider).value;
+  final bhfId = ref.watch(storeConfigProvider.select((c) => c.value?.bhfId));
 
   final String? effectiveBranchCode;
   if (!isOwner) {
     final userBranch = currentUser?.branchCode?.trim();
     if (userBranch != null && userBranch.isNotEmpty && userBranch != '00') {
       effectiveBranchCode = userBranch;
-    } else if (storeConfig != null &&
-        storeConfig.bhfId.isNotEmpty &&
-        storeConfig.bhfId != '00') {
-      effectiveBranchCode = storeConfig.bhfId;
+    } else if (bhfId != null && bhfId.isNotEmpty && bhfId != '00') {
+      effectiveBranchCode = bhfId;
     } else {
       effectiveBranchCode =
           null; // In Headquarters or default store, show all local inventory!
@@ -90,21 +88,22 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     super.dispose();
   }
 
-  List<Product> _getFilteredProducts(List<Product> allProducts) {
+  List<Product> _getFilteredProducts(
+    List<Product> allProducts, {
+    String? activeBranch,
+    String? userRole,
+  }) {
     final query = _searchController.text.trim().toLowerCase();
-    final user = ref.watch(authProvider);
-    final config = ref.watch(storeConfigProvider).value;
-    final activeBranch =
-        user?.branchCode?.trim() ?? config?.bhfId.trim() ?? '00';
+    final branch = activeBranch ?? '00';
 
     return allProducts.where((p) {
       if (p.isArchived) return false;
 
       // Multi-Branch Inventory Isolation:
-      if (user?.role == 'cashier' || user?.role == 'branch_manager') {
-        if (activeBranch.isNotEmpty && activeBranch != '00') {
+      if (userRole == 'cashier' || userRole == 'branch_manager') {
+        if (branch.isNotEmpty && branch != '00') {
           // In a sub-branch: can sell sub-branch stock, HQ master stock ('00'), or unassigned stock ('')
-          if (p.branchCode != activeBranch &&
+          if (p.branchCode != branch &&
               p.branchCode != '00' &&
               p.branchCode.isNotEmpty) {
             return false;
@@ -258,7 +257,15 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
 
     // D. Single Filtered Search Fallback
     final allProducts = await db.getAllProducts();
-    final filtered = _getFilteredProducts(allProducts);
+    final user = ref.read(authProvider);
+    final config = ref.read(storeConfigProvider).value;
+    final activeBranch =
+        user?.branchCode?.trim() ?? config?.bhfId.trim() ?? '00';
+    final filtered = _getFilteredProducts(
+      allProducts,
+      activeBranch: activeBranch,
+      userRole: user?.role,
+    );
     if (filtered.length == 1) {
       _searchController.clear();
       setState(() {});
@@ -307,7 +314,14 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
 
     final allProducts = productsAsync.value ?? [];
     final allCategories = categoriesAsync.value ?? [];
-    final filteredProducts = _getFilteredProducts(allProducts);
+    final currentUser = ref.watch(authProvider);
+    final activeBranch =
+        currentUser?.branchCode?.trim() ?? config?.bhfId.trim() ?? '00';
+    final filteredProducts = _getFilteredProducts(
+      allProducts,
+      activeBranch: activeBranch,
+      userRole: currentUser?.role,
+    );
 
     final theme = Theme.of(context);
 
@@ -584,33 +598,11 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
 
                 // Products Grid / List
                 Expanded(
-                  child: productsAsync.when(
-                    data: (_) {
-                      if (filteredProducts.isEmpty) {
-                        return _buildEmptyCatalogState(context);
-                      }
-                      if (_isGridView) {
-                        return _buildProductsGrid(
-                          context,
-                          filteredProducts,
-                          currency,
-                        );
-                      } else {
-                        return _buildProductsList(
-                          context,
-                          filteredProducts,
-                          currency,
-                        );
-                      }
-                    },
-                    loading: () =>
-                        const Center(child: CircularProgressIndicator()),
-                    error: (err, _) => Center(
-                      child: Text(
-                        'Error loading products: $err',
-                        style: const TextStyle(color: Color(0xFFDC2626)),
-                      ),
-                    ),
+                  child: _buildProductsCatalogArea(
+                    context,
+                    productsAsync,
+                    filteredProducts,
+                    currency,
                   ),
                 ),
               ],
@@ -1327,33 +1319,11 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
 
                 // Products Display Area
                 Expanded(
-                  child: productsAsync.when(
-                    data: (_) {
-                      if (filteredProducts.isEmpty) {
-                        return _buildEmptyCatalogState(context);
-                      }
-                      if (_isGridView) {
-                        return _buildProductsGrid(
-                          context,
-                          filteredProducts,
-                          currency,
-                        );
-                      } else {
-                        return _buildProductsList(
-                          context,
-                          filteredProducts,
-                          currency,
-                        );
-                      }
-                    },
-                    loading: () =>
-                        const Center(child: CircularProgressIndicator()),
-                    error: (err, _) => Center(
-                      child: Text(
-                        'Error loading products: $err',
-                        style: const TextStyle(color: Color(0xFFDC2626)),
-                      ),
-                    ),
+                  child: _buildProductsCatalogArea(
+                    context,
+                    productsAsync,
+                    filteredProducts,
+                    currency,
                   ),
                 ),
               ],
@@ -1491,9 +1461,6 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                     Expanded(
                       child: _buildDigitalPaymentPrompt(context, currency),
                     ),
-
-                  const SizedBox(height: 12),
-                  _buildCompleteSaleButton(context, cartNotifier),
                 ],
               ],
             ),
@@ -1769,32 +1736,12 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
 
             // Products Display Area
             Expanded(
-              child: productsAsync.when(
-                data: (_) {
-                  if (filteredProducts.isEmpty) {
-                    return _buildEmptyCatalogState(context);
-                  }
-                  if (_isGridView) {
-                    return _buildMobileProductsGrid(
-                      context,
-                      filteredProducts,
-                      currency,
-                    );
-                  } else {
-                    return _buildProductsList(
-                      context,
-                      filteredProducts,
-                      currency,
-                    );
-                  }
-                },
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (err, _) => Center(
-                  child: Text(
-                    'Error loading products: $err',
-                    style: const TextStyle(color: Color(0xFFEF4444)),
-                  ),
-                ),
+              child: _buildProductsCatalogArea(
+                context,
+                productsAsync,
+                filteredProducts,
+                currency,
+                isMobile: true,
               ),
             ),
 
@@ -2197,7 +2144,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
 
     setState(() {
       _selectedPaymentMethod = 'CASH';
-      _tenderedAmount = 0.0;
+      _tenderedAmount = cartNotifier.total;
     });
 
     showModalBottomSheet(
@@ -2305,7 +2252,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                                   _selectedPaymentMethod == 'CASH',
                                   () => setModalState(() {
                                     _selectedPaymentMethod = 'CASH';
-                                    _tenderedAmount = 0.0;
+                                    _tenderedAmount = total;
                                   }),
                                 ),
                               ),
@@ -2319,7 +2266,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                                   _selectedPaymentMethod == 'MOBILE MONEY',
                                   () => setModalState(() {
                                     _selectedPaymentMethod = 'MOBILE MONEY';
-                                    _tenderedAmount = 0.0;
+                                    _tenderedAmount = total;
                                   }),
                                 ),
                               ),
@@ -2333,7 +2280,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                                   _selectedPaymentMethod == 'CARD',
                                   () => setModalState(() {
                                     _selectedPaymentMethod = 'CARD';
-                                    _tenderedAmount = 0.0;
+                                    _tenderedAmount = total;
                                   }),
                                 ),
                               ),
@@ -2753,6 +2700,52 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
             color: isSelected ? Colors.white : theme.colorScheme.onSurface,
             letterSpacing: 0.3,
           ),
+        ),
+      ),
+    );
+  }
+
+  // --- Products Catalog Area ---
+
+  Widget _buildProductsCatalogArea(
+    BuildContext context,
+    AsyncValue<List<Product>> productsAsync,
+    List<Product> filteredProducts,
+    String currency, {
+    bool isMobile = false,
+  }) {
+    if (productsAsync.hasValue) {
+      if (filteredProducts.isEmpty) {
+        return _buildEmptyCatalogState(context);
+      }
+      if (_isGridView) {
+        return isMobile
+            ? _buildMobileProductsGrid(context, filteredProducts, currency)
+            : _buildProductsGrid(context, filteredProducts, currency);
+      } else {
+        return _buildProductsList(context, filteredProducts, currency);
+      }
+    }
+
+    return productsAsync.when(
+      skipLoadingOnReload: true,
+      data: (_) {
+        if (filteredProducts.isEmpty) {
+          return _buildEmptyCatalogState(context);
+        }
+        if (_isGridView) {
+          return isMobile
+              ? _buildMobileProductsGrid(context, filteredProducts, currency)
+              : _buildProductsGrid(context, filteredProducts, currency);
+        } else {
+          return _buildProductsList(context, filteredProducts, currency);
+        }
+      },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (err, _) => Center(
+        child: Text(
+          'Error loading products: $err',
+          style: const TextStyle(color: Color(0xFFEF4444)),
         ),
       ),
     );
@@ -3458,12 +3451,13 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final isSelected = _selectedPaymentMethod == method;
+    final cartTotal = ref.read(cartProvider.notifier).total;
 
     return Expanded(
       child: GestureDetector(
         onTap: () => setState(() {
           _selectedPaymentMethod = method;
-          _tenderedAmount = 0;
+          _tenderedAmount = cartTotal;
         }),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),

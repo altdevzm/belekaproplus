@@ -21,9 +21,9 @@ final purchaseOrdersProvider = FutureProvider<List<PurchaseOrder>>((ref) async {
   return pos;
 });
 
-final suppliersProvider = FutureProvider<List<Supplier>>((ref) async {
+final suppliersProvider = StreamProvider<List<Supplier>>((ref) {
   final isar = ref.watch(isarProvider);
-  return await isar.suppliers.where().sortByName().findAll();
+  return isar.suppliers.where().sortByName().watch(fireImmediately: true);
 });
 
 final grnListProvider = FutureProvider<List<GoodsReceivedNote>>((ref) async {
@@ -41,9 +41,9 @@ final purchaseReturnsProvider = FutureProvider<List<PurchaseReturn>>((ref) async
   return await isar.purchaseReturns.where().sortByCreatedAtDesc().findAll();
 });
 
-final purchasesProductsProvider = FutureProvider<List<Product>>((ref) async {
+final purchasesProductsProvider = StreamProvider<List<Product>>((ref) {
   final isar = ref.watch(isarProvider);
-  return await isar.products.filter().isArchivedEqualTo(false).sortByName().findAll();
+  return isar.products.filter().isArchivedEqualTo(false).sortByName().watch(fireImmediately: true);
 });
 
 class PurchasesScreen extends ConsumerStatefulWidget {
@@ -59,7 +59,7 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 7, vsync: this);
+    _tabController = TabController(length: 8, vsync: this);
   }
 
   @override
@@ -75,166 +75,275 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
     final primaryColor = theme.colorScheme.primary;
     final accentColor = primaryColor;
 
-    return Container(
-      color: theme.scaffoldBackgroundColor,
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildTopBreadcrumbBar(context),
-          const SizedBox(height: 16),
-          // Header Bar
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'SUPPLY CHAIN & PURCHASES',
-                    style: GoogleFonts.inter(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                      color: theme.colorScheme.onSurface,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Purchase orders, goods receipt (GRN), supplier billing, returns, and inventory restocking',
-                    style: GoogleFonts.inter(fontSize: 13, color: theme.colorScheme.onSurfaceVariant),
-                  ),
-                ],
-              ),
-                Row(
-                  children: [
-                    // Export & Reports Dropdown
-                    PopupMenuButton<String>(
-                      onSelected: (value) async {
-                        final export = ref.read(exportServiceProvider);
-                        final config = ref.read(storeConfigProvider).value;
-                        final pos = await ref.read(purchaseOrdersProvider.future);
-                        final grns = await ref.read(grnListProvider.future);
-                        final invoices = await ref.read(purchaseInvoicesProvider.future);
-                        final returns = await ref.read(purchaseReturnsProvider.future);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isPhone = constraints.maxWidth < 700;
 
-                        switch (value) {
-                          case 'po_pdf':
-                            export.exportPurchaseOrdersListToPdf(pos, config: config);
-                            break;
-                          case 'po_excel':
-                            export.exportPurchaseOrdersListToExcel(pos, config: config);
-                            break;
-                          case 'grn_pdf':
-                            export.exportGoodsReceivedNotesToPdf(grns, config: config);
-                            break;
-                          case 'invoices_pdf':
-                            export.exportPurchaseInvoicesToPdf(invoices, config: config);
-                            break;
-                          case 'returns_pdf':
-                            export.exportPurchaseReturnsToPdf(returns, config: config);
-                            break;
-                        }
-                      },
-                      itemBuilder: (context) => [
-                        const PopupMenuItem(value: 'po_pdf', child: Row(children: [Icon(Icons.picture_as_pdf, color: Color(0xFFDC2626), size: 16), SizedBox(width: 8), Text('Export POs (PDF)')])),
-                        const PopupMenuItem(value: 'po_excel', child: Row(children: [Icon(Icons.table_chart_rounded, color: Color(0xFF059669), size: 16), SizedBox(width: 8), Text('Export POs (Excel)')])),
-                        const PopupMenuItem(value: 'grn_pdf', child: Row(children: [Icon(Icons.inventory_2_rounded, color: Color(0xFF0284C7), size: 16), SizedBox(width: 8), Text('Export GRNs (PDF)')])),
-                        const PopupMenuItem(value: 'invoices_pdf', child: Row(children: [Icon(Icons.receipt_long_rounded, color: Color(0xFFD97706), size: 16), SizedBox(width: 8), Text('Export Invoices & Bills (PDF)')])),
-                        const PopupMenuItem(value: 'returns_pdf', child: Row(children: [Icon(Icons.assignment_return_rounded, color: Color(0xFF0284C7), size: 16), SizedBox(width: 8), Text('Export Returns (PDF)')])),
-                      ],
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                        decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF151F32) : const Color(0xFFFFFFFF),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.download_rounded, size: 16, color: theme.colorScheme.onSurfaceVariant),
-                            const SizedBox(width: 6),
-                            Text('Export & Print', style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 13, color: theme.colorScheme.onSurface)),
+        return Container(
+          color: theme.scaffoldBackgroundColor,
+          padding: EdgeInsets.all(isPhone ? 14 : 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildTopBreadcrumbBar(context),
+              const SizedBox(height: 16),
+              // Header Bar – adaptive
+              if (isPhone)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'SUPPLY CHAIN & PURCHASES',
+                      style: GoogleFonts.inter(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: theme.colorScheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'POs, goods receipt (GRN), supplier bills, and returns',
+                      style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        PopupMenuButton<String>(
+                          onSelected: (value) async {
+                            final export = ref.read(exportServiceProvider);
+                            final config = ref.read(storeConfigProvider).value;
+                            final pos = await ref.read(purchaseOrdersProvider.future);
+                            final grns = await ref.read(grnListProvider.future);
+                            final invoices = await ref.read(purchaseInvoicesProvider.future);
+                            final returns = await ref.read(purchaseReturnsProvider.future);
+
+                            switch (value) {
+                              case 'po_pdf':
+                                export.exportPurchaseOrdersListToPdf(pos, config: config);
+                                break;
+                              case 'po_excel':
+                                export.exportPurchaseOrdersListToExcel(pos, config: config);
+                                break;
+                              case 'grn_pdf':
+                                export.exportGoodsReceivedNotesToPdf(grns, config: config);
+                                break;
+                              case 'invoices_pdf':
+                                export.exportPurchaseInvoicesToPdf(invoices, config: config);
+                                break;
+                              case 'returns_pdf':
+                                export.exportPurchaseReturnsToPdf(returns, config: config);
+                                break;
+                            }
+                          },
+                          itemBuilder: (context) => [
+                            const PopupMenuItem(value: 'po_pdf', child: Row(children: [Icon(Icons.picture_as_pdf, color: Color(0xFFDC2626), size: 16), SizedBox(width: 8), Text('Export POs (PDF)')])),
+                            const PopupMenuItem(value: 'po_excel', child: Row(children: [Icon(Icons.table_chart_rounded, color: Color(0xFF059669), size: 16), SizedBox(width: 8), Text('Export POs (Excel)')])),
+                            const PopupMenuItem(value: 'grn_pdf', child: Row(children: [Icon(Icons.inventory_2_rounded, color: Color(0xFF0284C7), size: 16), SizedBox(width: 8), Text('Export GRNs (PDF)')])),
+                            const PopupMenuItem(value: 'invoices_pdf', child: Row(children: [Icon(Icons.receipt_long_rounded, color: Color(0xFFD97706), size: 16), SizedBox(width: 8), Text('Export Invoices & Bills (PDF)')])),
+                            const PopupMenuItem(value: 'returns_pdf', child: Row(children: [Icon(Icons.assignment_return_rounded, color: Color(0xFF0284C7), size: 16), SizedBox(width: 8), Text('Export Returns (PDF)')])),
                           ],
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: isDark ? const Color(0xFF151F32) : const Color(0xFFFFFFFF),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.download_rounded, size: 15, color: theme.colorScheme.onSurfaceVariant),
+                                const SizedBox(width: 5),
+                                Text('Export', style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 12, color: theme.colorScheme.onSurface)),
+                              ],
+                            ),
+                          ),
                         ),
-                      ),
+                        ElevatedButton.icon(
+                          onPressed: () => _showAddSupplierDialog(context, ref, accentColor),
+                          icon: const Icon(Icons.person_add_alt_1_rounded, size: 15),
+                          label: Text('+ Supplier', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 12)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: isDark ? const Color(0xFF293548) : const Color(0xFFF1F5F9),
+                            foregroundColor: theme.colorScheme.onSurface,
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                        ),
+                        ElevatedButton.icon(
+                          onPressed: () => _showCreatePoDialog(context, ref, accentColor),
+                          icon: const Icon(Icons.add_shopping_cart_rounded, size: 15, color: Colors.white),
+                          label: Text('+ Create PO', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 12, color: Colors.white)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: primaryColor,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            elevation: 0,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 8),
-                    ElevatedButton.icon(
-                      onPressed: () => _showAddSupplierDialog(context, ref, accentColor),
-                      icon: const Icon(Icons.person_add_alt_1_rounded, size: 16),
-                      label: Text('New Supplier', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: isDark ? const Color(0xFF293548) : const Color(0xFFF1F5F9),
-                        foregroundColor: theme.colorScheme.onSurface,
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
+                  ],
+                )
+              else
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'SUPPLY CHAIN & PURCHASES',
+                          style: GoogleFonts.inter(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            color: theme.colorScheme.onSurface,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Purchase orders, goods receipt (GRN), supplier billing, returns, and inventory restocking',
+                          style: GoogleFonts.inter(fontSize: 13, color: theme.colorScheme.onSurfaceVariant),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 8),
-                    ElevatedButton.icon(
-                      onPressed: () => _showCreatePoDialog(context, ref, accentColor),
-                      icon: const Icon(Icons.add_shopping_cart_rounded, size: 16, color: Colors.white),
-                      label: Text('Create Purchase Order', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13, color: Colors.white)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: primaryColor,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        elevation: 0,
-                      ),
+                    Row(
+                      children: [
+                        // Export & Reports Dropdown
+                        PopupMenuButton<String>(
+                          onSelected: (value) async {
+                            final export = ref.read(exportServiceProvider);
+                            final config = ref.read(storeConfigProvider).value;
+                            final pos = await ref.read(purchaseOrdersProvider.future);
+                            final grns = await ref.read(grnListProvider.future);
+                            final invoices = await ref.read(purchaseInvoicesProvider.future);
+                            final returns = await ref.read(purchaseReturnsProvider.future);
+
+                            switch (value) {
+                              case 'po_pdf':
+                                export.exportPurchaseOrdersListToPdf(pos, config: config);
+                                break;
+                              case 'po_excel':
+                                export.exportPurchaseOrdersListToExcel(pos, config: config);
+                                break;
+                              case 'grn_pdf':
+                                export.exportGoodsReceivedNotesToPdf(grns, config: config);
+                                break;
+                              case 'invoices_pdf':
+                                export.exportPurchaseInvoicesToPdf(invoices, config: config);
+                                break;
+                              case 'returns_pdf':
+                                export.exportPurchaseReturnsToPdf(returns, config: config);
+                                break;
+                            }
+                          },
+                          itemBuilder: (context) => [
+                            const PopupMenuItem(value: 'po_pdf', child: Row(children: [Icon(Icons.picture_as_pdf, color: Color(0xFFDC2626), size: 16), SizedBox(width: 8), Text('Export POs (PDF)')])),
+                            const PopupMenuItem(value: 'po_excel', child: Row(children: [Icon(Icons.table_chart_rounded, color: Color(0xFF059669), size: 16), SizedBox(width: 8), Text('Export POs (Excel)')])),
+                            const PopupMenuItem(value: 'grn_pdf', child: Row(children: [Icon(Icons.inventory_2_rounded, color: Color(0xFF0284C7), size: 16), SizedBox(width: 8), Text('Export GRNs (PDF)')])),
+                            const PopupMenuItem(value: 'invoices_pdf', child: Row(children: [Icon(Icons.receipt_long_rounded, color: Color(0xFFD97706), size: 16), SizedBox(width: 8), Text('Export Invoices & Bills (PDF)')])),
+                            const PopupMenuItem(value: 'returns_pdf', child: Row(children: [Icon(Icons.assignment_return_rounded, color: Color(0xFF0284C7), size: 16), SizedBox(width: 8), Text('Export Returns (PDF)')])),
+                          ],
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: isDark ? const Color(0xFF151F32) : const Color(0xFFFFFFFF),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.download_rounded, size: 16, color: theme.colorScheme.onSurfaceVariant),
+                                const SizedBox(width: 6),
+                                Text('Export & Print', style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 13, color: theme.colorScheme.onSurface)),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton.icon(
+                          onPressed: () => _showAddSupplierDialog(context, ref, accentColor),
+                          icon: const Icon(Icons.person_add_alt_1_rounded, size: 16),
+                          label: Text('New Supplier', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: isDark ? const Color(0xFF293548) : const Color(0xFFF1F5F9),
+                            foregroundColor: theme.colorScheme.onSurface,
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton.icon(
+                          onPressed: () => _showCreatePoDialog(context, ref, accentColor),
+                          icon: const Icon(Icons.add_shopping_cart_rounded, size: 16, color: Colors.white),
+                          label: Text('Create Purchase Order', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13, color: Colors.white)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: primaryColor,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            elevation: 0,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
-            ),
-          const SizedBox(height: 16),
+              const SizedBox(height: 16),
 
-          // Tab Bar
-          Container(
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF151F32) : const Color(0xFFFFFFFF),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
-            ),
-            child: TabBar(
-              controller: _tabController,
-              isScrollable: true,
-              tabAlignment: TabAlignment.start,
-              indicatorColor: primaryColor,
-              indicatorWeight: 3,
-              labelColor: primaryColor,
-              unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
-              labelStyle: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13),
-              tabs: const [
-                Tab(icon: Icon(Icons.dashboard_rounded, size: 18), text: 'Dashboard'),
-                Tab(icon: Icon(Icons.people_alt_rounded, size: 18), text: 'Suppliers'),
-                Tab(icon: Icon(Icons.shopping_bag_rounded, size: 18), text: 'Purchase Orders'),
-                Tab(icon: Icon(Icons.move_to_inbox_rounded, size: 18), text: 'Goods Received (GRN)'),
-                Tab(icon: Icon(Icons.receipt_long_rounded, size: 18), text: 'Invoices & Bills'),
-                Tab(icon: Icon(Icons.assignment_return_rounded, size: 18), text: 'Returns'),
-                Tab(icon: Icon(Icons.analytics_rounded, size: 18), text: 'Reports'),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
+              // Tab Bar
+              Container(
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF151F32) : const Color(0xFFFFFFFF),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+                ),
+                child: TabBar(
+                  controller: _tabController,
+                  isScrollable: true,
+                  tabAlignment: TabAlignment.start,
+                  indicatorColor: primaryColor,
+                  indicatorWeight: 3,
+                  labelColor: primaryColor,
+                  unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
+                  labelStyle: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13),
+                  tabs: const [
+                    Tab(icon: Icon(Icons.dashboard_rounded, size: 18), text: 'Dashboard'),
+                    Tab(icon: Icon(Icons.people_alt_rounded, size: 18), text: 'Suppliers'),
+                    Tab(icon: Icon(Icons.shopping_bag_rounded, size: 18), text: 'Purchase Orders'),
+                    Tab(icon: Icon(Icons.move_to_inbox_rounded, size: 18), text: 'Goods Received (GRN)'),
+                    Tab(icon: Icon(Icons.receipt_long_rounded, size: 18), text: 'Invoices & Bills'),
+                    Tab(icon: Icon(Icons.assignment_return_rounded, size: 18), text: 'Returns'),
+                    Tab(icon: Icon(Icons.handshake_rounded, size: 18), text: 'Consignment & Commission'),
+                    Tab(icon: Icon(Icons.analytics_rounded, size: 18), text: 'Reports'),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
 
-          // Tab View Content
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                _buildDashboardTab(accentColor),
-                _buildSuppliersTab(accentColor),
-                _buildPurchaseOrdersTab(accentColor),
-                _buildGrnTab(accentColor),
-                _buildInvoicesTab(accentColor),
-                _buildReturnsTab(accentColor),
-                _buildReportsTab(accentColor),
-              ],
-            ),
+              // Tab View Content
+              Expanded(
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _buildDashboardTab(accentColor),
+                    _buildSuppliersTab(accentColor),
+                    _buildPurchaseOrdersTab(accentColor),
+                    _buildGrnTab(accentColor),
+                    _buildInvoicesTab(accentColor),
+                    _buildReturnsTab(accentColor),
+                    _buildConsignmentTab(accentColor),
+                    _buildReportsTab(accentColor),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -258,152 +367,163 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
     final unpaidBalance = invoices.fold<double>(0.0, (s, i) => s + i.balanceDue);
     final returnsTotal = returns.fold<double>(0.0, (s, r) => s + r.totalAmount);
 
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // KPI Metric Cards
-          GridView.count(
-            crossAxisCount: 3,
-            crossAxisSpacing: 16,
-            mainAxisSpacing: 16,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            childAspectRatio: 2.3,
-            children: [
-              _buildKpiCard('TOTAL PURCHASES', '$currency ${totalPurchases.toStringAsFixed(2)}', '${pos.length} Orders Placed', Icons.account_balance_wallet_rounded, Colors.blue),
-              _buildKpiCard('PENDING APPROVAL', '$pendingCount Orders', 'Awaiting owner authorization', Icons.pending_actions_rounded, Colors.amber),
-              _buildKpiCard('GOODS RECEIVED (GRN)', '$receivedCount GRNs', 'Restocked into inventory', Icons.inventory_rounded, Colors.green),
-              _buildKpiCard('UNPAID SUPPLIER INVOICES', '$currency ${unpaidBalance.toStringAsFixed(2)}', '${invoices.where((i) => i.balanceDue > 0).length} Outstanding Bills', Icons.money_off_rounded, Colors.redAccent),
-              _buildKpiCard('PURCHASE RETURNS', '$currency ${returnsTotal.toStringAsFixed(2)}', '${returns.length} Return Credits', Icons.assignment_return_rounded, Colors.purpleAccent),
-              _buildKpiCard('ACTIVE SUPPLIERS', '${suppliers.length} Vendors', 'Approved trade partners', Icons.handshake_rounded, accentColor),
-            ],
-          ),
-          const SizedBox(height: 24),
+    return LayoutBuilder(
+      builder: (context, c) {
+        final isPhone = c.maxWidth < 700;
 
-          // Top Suppliers & Recent Activity Row
-          Row(
+        final topSuppliersCard = Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF151F32) : Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+          ),
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Top Suppliers
-              Expanded(
-                flex: 1,
-                child: Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF151F32) : Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text('TOP SUPPLIERS', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w800, color: theme.colorScheme.onSurface)),
-                          Icon(Icons.star_rounded, color: primaryColor, size: 18),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      if (suppliers.isEmpty)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 24),
-                          child: Center(child: Text('No suppliers recorded yet', style: GoogleFonts.inter(color: theme.colorScheme.onSurfaceVariant))),
-                        )
-                      else
-                        ...suppliers.take(4).map((s) => ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: CircleAvatar(
-                            backgroundColor: isDark ? primaryColor.withValues(alpha: 0.15) : const Color(0xFFEFF6FF),
-                            child: Text(s.name.isNotEmpty ? s.name[0].toUpperCase() : 'S', style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold)),
-                          ),
-                          title: Text(s.name, style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: theme.colorScheme.onSurface)),
-                          subtitle: Text('TPIN: ${s.tpin ?? "N/A"} • Balance: $currency ${s.balance.toStringAsFixed(2)}', style: GoogleFonts.inter(fontSize: 11, color: theme.colorScheme.onSurfaceVariant)),
-                        )),
-                    ],
-                  ),
-                ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('TOP SUPPLIERS', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w800, color: theme.colorScheme.onSurface)),
+                  Icon(Icons.star_rounded, color: primaryColor, size: 18),
+                ],
               ),
-              const SizedBox(width: 16),
-
-              // Recent Purchase Orders
-              Expanded(
-                flex: 2,
-                child: Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF151F32) : Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+              const SizedBox(height: 12),
+              if (suppliers.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 20),
+                  child: Center(child: Text('No suppliers recorded yet', style: GoogleFonts.inter(color: theme.colorScheme.onSurfaceVariant))),
+                )
+              else
+                ...suppliers.take(4).map((s) => ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: CircleAvatar(
+                    backgroundColor: isDark ? primaryColor.withValues(alpha: 0.15) : const Color(0xFFEFF6FF),
+                    radius: 16,
+                    child: Text(s.name.isNotEmpty ? s.name[0].toUpperCase() : 'S', style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold, fontSize: 13)),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text('RECENT PURCHASE ORDERS', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w800, color: theme.colorScheme.onSurface)),
-                          Text('View all in PO Tab', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: primaryColor)),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      if (pos.isEmpty)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 24),
-                          child: Center(child: Text('No purchase orders created yet', style: GoogleFonts.inter(color: theme.colorScheme.onSurfaceVariant))),
-                        )
-                      else
-                        ...pos.take(4).map((po) => Container(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: isDark ? const Color(0xFF1C283D) : const Color(0xFFF8FAFC),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(po.poNumber, style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: theme.colorScheme.onSurface)),
-                                  Text('${po.supplierName} • ${DateFormat('dd MMM yyyy').format(po.createdAt)}', style: GoogleFonts.inter(fontSize: 11, color: theme.colorScheme.onSurfaceVariant)),
-                                ],
-                              ),
-                              Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: po.status == 'approved' || po.status == 'received' ? const Color(0xFFECFDF5) : const Color(0xFFFFFBEB),
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                    child: Text(
-                                      po.status.toUpperCase(),
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.bold,
-                                        color: po.status == 'approved' || po.status == 'received' ? const Color(0xFF059669) : const Color(0xFFD97706),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 16),
-                                  Text('$currency ${po.totalAmount.toStringAsFixed(2)}', style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: primaryColor)),
-                                ],
-                              ),
-                            ],
-                          ),
-                        )),
-                    ],
-                  ),
-                ),
-              ),
+                  title: Text(s.name, style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13)),
+                  subtitle: Text('Balance: $currency ${s.balance.toStringAsFixed(2)}', style: GoogleFonts.inter(fontSize: 11, color: s.balance > 0 ? Colors.redAccent : Colors.green)),
+                )),
             ],
           ),
-        ],
-      ),
+        );
+
+        final recentPoCard = Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF151F32) : Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('RECENT PURCHASE ORDERS', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w800, color: theme.colorScheme.onSurface)),
+                  Text('View all in PO Tab', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: primaryColor)),
+                ],
+              ),
+              const SizedBox(height: 16),
+              if (pos.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 24),
+                  child: Center(child: Text('No purchase orders created yet', style: GoogleFonts.inter(color: theme.colorScheme.onSurfaceVariant))),
+                )
+              else
+                ...pos.take(4).map((po) => Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF1C283D) : const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(po.poNumber, style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: theme.colorScheme.onSurface)),
+                          Text('${po.supplierName} • ${DateFormat('dd MMM yyyy').format(po.createdAt)}', style: GoogleFonts.inter(fontSize: 11, color: theme.colorScheme.onSurfaceVariant)),
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: po.status == 'approved' || po.status == 'received' ? const Color(0xFFECFDF5) : const Color(0xFFFFFBEB),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              po.status.toUpperCase(),
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: po.status == 'approved' || po.status == 'received' ? const Color(0xFF059669) : const Color(0xFFD97706),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Text('$currency ${po.totalAmount.toStringAsFixed(2)}', style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: primaryColor)),
+                        ],
+                      ),
+                    ],
+                  ),
+                )),
+            ],
+          ),
+        );
+
+        return SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // KPI Metric Cards – responsive
+              GridView.count(
+                crossAxisCount: isPhone ? 2 : (c.maxWidth < 1100 ? 3 : 6),
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                childAspectRatio: isPhone ? 1.65 : 2.3,
+                children: [
+                  _buildKpiCard('TOTAL PURCHASES', '$currency ${totalPurchases.toStringAsFixed(2)}', '${pos.length} Orders Placed', Icons.account_balance_wallet_rounded, Colors.blue),
+                  _buildKpiCard('PENDING APPROVAL', '$pendingCount Orders', 'Awaiting authorization', Icons.pending_actions_rounded, Colors.amber),
+                  _buildKpiCard('GOODS RECEIVED (GRN)', '$receivedCount GRNs', 'Restocked into inventory', Icons.inventory_rounded, Colors.green),
+                  _buildKpiCard('UNPAID BILLS', '$currency ${unpaidBalance.toStringAsFixed(2)}', '${invoices.where((i) => i.balanceDue > 0).length} Unpaid', Icons.money_off_rounded, Colors.redAccent),
+                  _buildKpiCard('PURCHASE RETURNS', '$currency ${returnsTotal.toStringAsFixed(2)}', '${returns.length} Credits', Icons.assignment_return_rounded, Colors.purpleAccent),
+                  _buildKpiCard('ACTIVE SUPPLIERS', '${suppliers.length} Vendors', 'Trade partners', Icons.handshake_rounded, accentColor),
+                ],
+              ),
+              const SizedBox(height: 20),
+
+              // Top Suppliers & Recent Activity
+              if (isPhone)
+                Column(
+                  children: [
+                    topSuppliersCard,
+                    const SizedBox(height: 16),
+                    recentPoCard,
+                  ],
+                )
+              else
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(flex: 1, child: topSuppliersCard),
+                    const SizedBox(width: 16),
+                    Expanded(flex: 2, child: recentPoCard),
+                  ],
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -411,10 +531,14 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Wrap(
+      alignment: WrapAlignment.spaceBetween,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 8,
+      runSpacing: 8,
       children: [
         Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             Text(
               'Workspace',
@@ -437,7 +561,10 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
             ),
           ],
         ),
-        Row(
+        Wrap(
+          spacing: 8,
+          runSpacing: 6,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -447,6 +574,7 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
                 border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
               ),
               child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
                     width: 7,
@@ -468,7 +596,6 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
                 ],
               ),
             ),
-            const SizedBox(width: 10),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
@@ -477,6 +604,7 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
                 border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
               ),
               child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(Icons.calendar_today_rounded, size: 13, color: theme.colorScheme.onSurfaceVariant),
                   const SizedBox(width: 6),
@@ -502,7 +630,7 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
     final isDark = theme.brightness == Brightness.dark;
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF151F32) : Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -511,15 +639,15 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
       child: Row(
         children: [
           Container(
-            width: 42,
-            height: 42,
+            width: 38,
+            height: 38,
             decoration: BoxDecoration(
               color: isDark ? color.withValues(alpha: 0.15) : color.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(icon, color: color, size: 22),
+            child: Icon(icon, color: color, size: 20),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -528,29 +656,37 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
                 Text(
                   label,
                   style: GoogleFonts.inter(
-                    fontSize: 10.5,
+                    fontSize: 10,
                     fontWeight: FontWeight.w700,
                     color: theme.colorScheme.onSurfaceVariant,
                     letterSpacing: 0.3,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  value,
-                  style: GoogleFonts.inter(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    color: theme.colorScheme.onSurface,
+                const SizedBox(height: 2),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    value,
+                    style: GoogleFonts.inter(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: theme.colorScheme.onSurface,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   subtitle,
                   style: GoogleFonts.inter(
-                    fontSize: 11,
+                    fontSize: 10.5,
                     fontWeight: FontWeight.w500,
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
@@ -1222,6 +1358,376 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
           ),
         ],
       ),
+    );
+  }
+
+  // ==========================================
+  // TAB 7: CONSIGNMENT & COMMISSION
+  // ==========================================
+  Widget _buildConsignmentTab(Color accentColor) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final currency = ref.watch(storeConfigProvider).value?.currencySymbol ?? 'K';
+    final suppliers = ref.watch(suppliersProvider).value ?? [];
+    final productsAsync = ref.watch(purchasesProductsProvider);
+    final products = productsAsync.value ?? [];
+
+    final consignmentProducts = products.where((p) => p.isConsignment).toList();
+
+    // Consignment suppliers: either suppliers with balance or linked to consignment products
+    final consignmentSupplierIds = consignmentProducts.map((p) => p.consignmentSupplierId).whereType<int>().toSet();
+    final consignmentSupplierNames = consignmentProducts.map((p) => (p.consignmentSupplierName ?? '').toLowerCase()).where((name) => name.isNotEmpty).toSet();
+
+    final activeConsignmentSuppliers = suppliers.where((s) {
+      final matchesId = consignmentSupplierIds.contains(s.id);
+      final matchesName = s.name.isNotEmpty && consignmentSupplierNames.contains(s.name.toLowerCase());
+      final hasBalance = s.balance > 0;
+      return matchesId || matchesName || hasBalance;
+    }).toList();
+
+    final totalPayable = activeConsignmentSuppliers.fold<double>(0.0, (sum, s) => sum + (s.balance > 0 ? s.balance : 0.0));
+    final totalInStockUnits = consignmentProducts.fold<int>(0, (sum, p) => sum + p.stockLevel);
+    final totalConsignmentRetailValue = consignmentProducts.fold<double>(0.0, (sum, p) => sum + (p.price * p.stockLevel));
+    
+    final totalVendorStockValue = consignmentProducts.fold<double>(0.0, (sum, p) {
+      final unitPayout = (p.consignmentSupplierPayoutPrice > 0)
+          ? p.consignmentSupplierPayoutPrice
+          : (p.price * (1.0 - ((p.consignmentCommissionRate > 0 ? p.consignmentCommissionRate : 15.0) / 100.0))).clamp(0.0, p.price);
+      return sum + (unitPayout * p.stockLevel);
+    });
+
+    final potentialStoreCommission = consignmentProducts.fold<double>(0.0, (sum, p) {
+      final unitPayout = (p.consignmentSupplierPayoutPrice > 0)
+          ? p.consignmentSupplierPayoutPrice
+          : (p.price * (1.0 - ((p.consignmentCommissionRate > 0 ? p.consignmentCommissionRate : 15.0) / 100.0))).clamp(0.0, p.price);
+      final unitProfit = (p.price - unitPayout).clamp(0.0, p.price);
+      return sum + (unitProfit * p.stockLevel);
+    });
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isPhone = constraints.maxWidth < 600;
+        return SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header Summary Row
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('CONSIGNMENT & SUPPLIER COMMISSION', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w800, color: theme.colorScheme.onSurface)),
+                        const SizedBox(height: 2),
+                        Text('Products sold on behalf of vendors, pass-through liabilities & commission earnings', style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurfaceVariant)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // KPI Cards
+              GridView.count(
+                crossAxisCount: isPhone ? 2 : 4,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                childAspectRatio: isPhone ? 1.65 : 2.2,
+                children: [
+                  _buildKpiCard('TOTAL PAYABLE TO VENDORS', '$currency ${totalPayable.toStringAsFixed(2)}', 'Accumulated liability for sold items', Icons.account_balance_wallet_rounded, const Color(0xFFEF4444)),
+                  _buildKpiCard('ACTIVE CONSIGNED ITEMS', '${consignmentProducts.length} Items', '$totalInStockUnits units currently in inventory', Icons.inventory_2_rounded, const Color(0xFF3B82F6)),
+                  _buildKpiCard('IN-STOCK RETAIL VALUE', '$currency ${totalConsignmentRetailValue.toStringAsFixed(2)}', 'Vendor Share: $currency ${totalVendorStockValue.toStringAsFixed(2)}', Icons.storefront_rounded, const Color(0xFF10B981)),
+                  _buildKpiCard('POTENTIAL COMMISSION', '$currency ${potentialStoreCommission.toStringAsFixed(2)}', 'Store margin on remaining stock', Icons.percent_rounded, const Color(0xFF8B5CF6)),
+                ],
+              ),
+              const SizedBox(height: 20),
+
+          // Consignment Suppliers Table
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF151F32) : Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.handshake_rounded, size: 20, color: accentColor),
+                        const SizedBox(width: 8),
+                        Text('Consignment Suppliers & Balances Owed', style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 14, color: theme.colorScheme.onSurface)),
+                      ],
+                    ),
+                    Text('${activeConsignmentSuppliers.length} Suppliers', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurfaceVariant)),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                if (activeConsignmentSuppliers.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 24),
+                    child: Center(
+                      child: Column(
+                        children: [
+                          Icon(Icons.info_outline_rounded, size: 36, color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
+                          const SizedBox(height: 8),
+                          Text('No consignment suppliers found.', style: GoogleFonts.inter(fontSize: 13, color: theme.colorScheme.onSurfaceVariant)),
+                          const SizedBox(height: 4),
+                          Text('To enable consignment, edit or add a product in Inventory and enable "Sell on Behalf of Supplier (Consignment)".', style: GoogleFonts.inter(fontSize: 11, color: theme.colorScheme.onSurfaceVariant)),
+                        ],
+                      ),
+                    ),
+                  )
+                else
+                  ListView.separated(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: activeConsignmentSuppliers.length,
+                    separatorBuilder: (_, _) => Divider(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+                    itemBuilder: (context, index) {
+                      final s = activeConsignmentSuppliers[index];
+                      final supplierProducts = consignmentProducts.where((p) => p.consignmentSupplierId == s.id || ((p.consignmentSupplierName ?? '').toLowerCase() == s.name.toLowerCase())).toList();
+                      final totalUnits = supplierProducts.fold<int>(0, (sum, p) => sum + p.stockLevel);
+
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Row(
+                          children: [
+                            CircleAvatar(
+                              backgroundColor: s.balance > 0 ? const Color(0xFFEF4444).withValues(alpha: 0.15) : const Color(0xFF10B981).withValues(alpha: 0.15),
+                              child: Icon(
+                                s.balance > 0 ? Icons.monetization_on_outlined : Icons.check_circle_outline_rounded,
+                                color: s.balance > 0 ? const Color(0xFFEF4444) : const Color(0xFF10B981),
+                                size: 20,
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              flex: 3,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(s.name, style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14, color: theme.colorScheme.onSurface)),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    '${s.phoneNumber ?? "No phone"} • ${s.email ?? "No email"} • TPIN: ${s.tpin ?? "N/A"}',
+                                    style: GoogleFonts.inter(fontSize: 11, color: theme.colorScheme.onSurfaceVariant),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Expanded(
+                              flex: 2,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('${supplierProducts.length} Consigned Items', style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 12, color: theme.colorScheme.onSurface)),
+                                  const SizedBox(height: 2),
+                                  Text('$totalUnits units in stock', style: GoogleFonts.inter(fontSize: 11, color: theme.colorScheme.onSurfaceVariant)),
+                                ],
+                              ),
+                            ),
+                            Expanded(
+                              flex: 2,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Text('Balance Due', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: theme.colorScheme.onSurfaceVariant)),
+                                  Text(
+                                    '$currency ${s.balance.toStringAsFixed(2)}',
+                                    style: GoogleFonts.manrope(
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 15,
+                                      color: s.balance > 0 ? const Color(0xFFEF4444) : const Color(0xFF10B981),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                OutlinedButton.icon(
+                                  onPressed: () async {
+                                    final isar = ref.read(isarProvider);
+                                    final transactions = await isar.saleTransactions.where().findAll();
+                                    for (final tx in transactions) {
+                                      if (!tx.items.isLoaded) {
+                                        await tx.items.load();
+                                      }
+                                    }
+                                    final config = ref.read(storeConfigProvider).value;
+                                    if (context.mounted) {
+                                      await ref.read(exportServiceProvider).exportConsignmentStatementToPdf(
+                                        supplier: s,
+                                        consignmentProducts: supplierProducts,
+                                        transactions: transactions,
+                                        config: config,
+                                      );
+                                    }
+                                  },
+                                  icon: const Icon(Icons.picture_as_pdf_rounded, size: 15, color: Color(0xFFEF4444)),
+                                  label: Text('Statement', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600)),
+                                  style: OutlinedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                    side: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                ElevatedButton.icon(
+                                  onPressed: s.balance <= 0
+                                      ? null
+                                      : () => _showConsignmentSettlementModal(context, ref, s, currency),
+                                  icon: const Icon(Icons.payments_rounded, size: 15),
+                                  label: Text('Settle / Pay', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700)),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF10B981),
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                    elevation: 0,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // Consignment Products List Table
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF151F32) : Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.inventory_2_rounded, size: 20, color: const Color(0xFF3B82F6)),
+                        const SizedBox(width: 8),
+                        Text('Consignment Products Catalog & Commission Split', style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 14, color: theme.colorScheme.onSurface)),
+                      ],
+                    ),
+                    Text('${consignmentProducts.length} Items', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurfaceVariant)),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                if (consignmentProducts.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 20),
+                    child: Center(
+                      child: Text('No consignment products registered.', style: GoogleFonts.inter(fontSize: 13, color: theme.colorScheme.onSurfaceVariant)),
+                    ),
+                  )
+                else
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: DataTable(
+                      headingRowColor: WidgetStateProperty.all(isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC)),
+                      columns: [
+                        DataColumn(label: Text('Product Name', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 12))),
+                        DataColumn(label: Text('Supplier', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 12))),
+                        DataColumn(label: Text('Stock', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 12))),
+                        DataColumn(label: Text('Retail Price', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 12))),
+                        DataColumn(label: Text('Supplier Payout', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 12))),
+                        DataColumn(label: Text('Commission Rate', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 12))),
+                        DataColumn(label: Text('Store Profit / Unit', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 12))),
+                      ],
+                      rows: consignmentProducts.map((prod) {
+                        final unitPayout = (prod.consignmentSupplierPayoutPrice > 0)
+                            ? prod.consignmentSupplierPayoutPrice
+                            : (prod.price * (1.0 - ((prod.consignmentCommissionRate > 0 ? prod.consignmentCommissionRate : 15.0) / 100.0))).clamp(0.0, prod.price);
+                        final profitPerUnit = (prod.price - unitPayout).clamp(0.0, prod.price);
+
+                        return DataRow(
+                          cells: [
+                            DataCell(
+                              Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(prod.name, style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13)),
+                                  if (prod.sku.isNotEmpty)
+                                    Text(prod.sku, style: GoogleFonts.inter(fontSize: 10, color: theme.colorScheme.onSurfaceVariant)),
+                                ],
+                              ),
+                            ),
+                            DataCell(Text(prod.consignmentSupplierName ?? 'Unassigned', style: GoogleFonts.inter(fontSize: 12))),
+                            DataCell(
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: prod.stockLevel > 0 ? const Color(0xFF10B981).withValues(alpha: 0.1) : const Color(0xFFEF4444).withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  '${prod.stockLevel}',
+                                  style: GoogleFonts.inter(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                    color: prod.stockLevel > 0 ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            DataCell(Text('$currency ${prod.price.toStringAsFixed(2)}', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 12))),
+                            DataCell(Text('$currency ${unitPayout.toStringAsFixed(2)}', style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 12, color: const Color(0xFFD97706)))),
+                            DataCell(
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF8B5CF6).withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  '${prod.consignmentCommissionRate.toStringAsFixed(1)}%',
+                                  style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 11, color: const Color(0xFF8B5CF6)),
+                                ),
+                              ),
+                            ),
+                            DataCell(Text('$currency ${profitPerUnit.toStringAsFixed(2)}', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 12, color: const Color(0xFF10B981)))),
+                          ],
+                        );
+                      }).toList(),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 40),
+        ],
+      ),
+    );
+      },
+    );
+  }
+
+  void _showConsignmentSettlementModal(BuildContext context, WidgetRef ref, Supplier supplier, String currency) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => _ConsignmentSettlementModal(supplier: supplier, currency: currency),
     );
   }
 
@@ -2434,6 +2940,265 @@ class _CreateReturnModalState extends ConsumerState<_CreateReturnModal> {
               child: const Text('Submit Return'),
             );
           },
+        ),
+      ],
+    );
+  }
+}
+
+class _ConsignmentSettlementModal extends ConsumerStatefulWidget {
+  final Supplier supplier;
+  final String currency;
+
+  const _ConsignmentSettlementModal({
+    required this.supplier,
+    required this.currency,
+  });
+
+  @override
+  ConsumerState<_ConsignmentSettlementModal> createState() => _ConsignmentSettlementModalState();
+}
+
+class _ConsignmentSettlementModalState extends ConsumerState<_ConsignmentSettlementModal> {
+  final _formKey = GlobalKey<FormState>();
+  late TextEditingController _amountCtrl;
+  final _refCtrl = TextEditingController();
+  final _notesCtrl = TextEditingController();
+
+  String _paymentMethod = 'Cash';
+  bool _deductFromTill = true;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _amountCtrl = TextEditingController(text: widget.supplier.balance.toStringAsFixed(2));
+  }
+
+  @override
+  void dispose() {
+    _amountCtrl.dispose();
+    _refCtrl.dispose();
+    _notesCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _processSettlement() async {
+    if (!_formKey.currentState!.validate()) return;
+    final amount = double.tryParse(_amountCtrl.text.trim()) ?? 0.0;
+    if (amount <= 0) return;
+
+    setState(() => _isSaving = true);
+
+    try {
+      final db = ref.read(databaseServiceProvider);
+      final expense = await db.recordConsignmentSettlement(
+        supplier: widget.supplier,
+        amountPaid: amount,
+        paymentMethod: _paymentMethod,
+        referenceNumber: _refCtrl.text.trim().isEmpty ? null : _refCtrl.text.trim(),
+        notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+      );
+
+      ref.invalidate(suppliersProvider);
+      ref.invalidate(purchaseInvoicesProvider);
+
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Settlement of ${widget.currency} ${amount.toStringAsFixed(2)} paid to ${widget.supplier.name} recorded! Voucher: ${expense.expenseNumber}'),
+            backgroundColor: const Color(0xFF10B981),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSaving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error recording settlement: $e'),
+            backgroundColor: const Color(0xFFEF4444),
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return AlertDialog(
+      backgroundColor: isDark ? const Color(0xFF151F32) : Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+      ),
+      title: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF10B981).withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(Icons.payments_rounded, color: Color(0xFF10B981), size: 22),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'SETTLE CONSIGNMENT PAYOUT',
+                  style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 15, color: theme.colorScheme.onSurface),
+                ),
+                Text(
+                  'Vendor: ${widget.supplier.name}',
+                  style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      content: SizedBox(
+        width: 480,
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Outstanding Balance Banner
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEF4444).withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('CURRENT UNPAID BALANCE', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: const Color(0xFFEF4444))),
+                          const SizedBox(height: 2),
+                          Text('Pass-through sales liability', style: GoogleFonts.inter(fontSize: 11, color: theme.colorScheme.onSurfaceVariant)),
+                        ],
+                      ),
+                      Text(
+                        '${widget.currency} ${widget.supplier.balance.toStringAsFixed(2)}',
+                        style: GoogleFonts.manrope(fontSize: 18, fontWeight: FontWeight.w900, color: const Color(0xFFEF4444)),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Amount to Pay
+                TextFormField(
+                  controller: _amountCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: InputDecoration(
+                    labelText: 'Settlement Amount to Pay',
+                    prefixText: '${widget.currency} ',
+                    border: const OutlineInputBorder(),
+                  ),
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) return 'Enter payout amount';
+                    final parsed = double.tryParse(v.trim());
+                    if (parsed == null || parsed <= 0) return 'Enter a valid amount > 0';
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 14),
+
+                // Payment Method
+                DropdownButtonFormField<String>(
+                  initialValue: _paymentMethod,
+                  decoration: const InputDecoration(
+                    labelText: 'Payment Method / Channel',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'Cash', child: Text('Cash')),
+                    DropdownMenuItem(value: 'Bank Transfer', child: Text('Bank Transfer (EFT)')),
+                    DropdownMenuItem(value: 'Airtel Money', child: Text('Airtel Money')),
+                    DropdownMenuItem(value: 'MTN Money', child: Text('MTN Money')),
+                    DropdownMenuItem(value: 'Zamtel Kwacha', child: Text('Zamtel Kwacha')),
+                    DropdownMenuItem(value: 'Cheque', child: Text('Cheque')),
+                  ],
+                  onChanged: (val) {
+                    if (val != null) {
+                      setState(() {
+                        _paymentMethod = val;
+                      });
+                    }
+                  },
+                ),
+                const SizedBox(height: 14),
+
+                // Deduct from till switch (only for cash)
+                if (_paymentMethod == 'Cash') ...[
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text('Deduct from Active Cash Drawer Till', style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 13, color: theme.colorScheme.onSurface)),
+                    subtitle: Text('Records payout in current register shift session', style: GoogleFonts.inter(fontSize: 11, color: theme.colorScheme.onSurfaceVariant)),
+                    value: _deductFromTill,
+                    activeThumbColor: const Color(0xFF10B981),
+                    onChanged: (v) => setState(() => _deductFromTill = v),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+
+                // Payment Reference
+                TextFormField(
+                  controller: _refCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Payment Reference # / Transaction ID (Optional)',
+                    hintText: 'e.g. EFT-9921, Mobile Money Ref',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 14),
+
+                // Settlement Notes
+                TextFormField(
+                  controller: _notesCtrl,
+                  maxLines: 2,
+                  decoration: const InputDecoration(
+                    labelText: 'Voucher Notes / Memo (Optional)',
+                    hintText: 'e.g. Full settlement for sales through 15 Sep',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _isSaving ? null : () => Navigator.pop(context),
+          child: Text('Cancel', style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
+        ),
+        ElevatedButton.icon(
+          onPressed: _isSaving ? null : _processSettlement,
+          icon: _isSaving
+              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              : const Icon(Icons.check_circle_rounded, size: 18),
+          label: Text(_isSaving ? 'Processing...' : 'Confirm & Record Payout'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF10B981),
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+          ),
         ),
       ],
     );

@@ -586,4 +586,39 @@ class CloudDatabaseService {
       return null;
     }
   }
+
+  /// Permanently purge the company organization account and all branches on the VPS.
+  Future<Map<String, dynamic>> purgeCompanyAccount({
+    required String baseUrl,
+    required String authToken,
+    required String confirmPhrase,
+    required String password,
+  }) async {
+    try {
+      final sanitizedUrl = baseUrl.endsWith('/')
+          ? baseUrl.substring(0, baseUrl.length - 1)
+          : baseUrl;
+      final response = await _dio.post(
+        '$sanitizedUrl/api/v1/stores/company/purge',
+        data: {
+          'confirm_phrase': confirmPhrase.trim(),
+          'password': password.trim(),
+        },
+        options: _buildAuthOptions(authToken),
+      );
+
+      if (response.statusCode == 200 && response.data is Map) {
+        return Map<String, dynamic>.from(response.data);
+      }
+      return {'success': true, 'message': 'Company account successfully purged.'};
+    } on DioException catch (e) {
+      final detail = e.response?.data is Map
+          ? (e.response?.data['detail']?.toString() ?? e.message)
+          : (e.message ?? 'Purge request failed');
+      throw Exception(detail);
+    } catch (e) {
+      throw Exception('Failed to purge cloud company account: $e');
+    }
+  }
 }
+

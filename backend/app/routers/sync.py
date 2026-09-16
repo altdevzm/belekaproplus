@@ -147,6 +147,9 @@ def sync_batch_sales(
                 quantity=item_in.quantity,
                 tax_rate_at_sale=item_in.tax_rate_at_sale,
                 is_tax_inclusive_at_sale=item_in.is_tax_inclusive_at_sale,
+                is_consignment=item_in.is_consignment or False,
+                supplier_share=item_in.supplier_share or 0.0,
+                commission_share=item_in.commission_share or 0.0,
             )
             db.add(item)
 
@@ -317,6 +320,7 @@ def export_vps_backup(
         sales = db.query(models.SaleTransaction).filter(models.SaleTransaction.store_id.in_(org_store_ids)).all()
         customers = db.query(models.Customer).filter(models.Customer.store_id.in_(org_store_ids)).all()
         stock_movements = db.query(models.StockMovement).filter(models.StockMovement.store_id.in_(org_store_ids)).all()
+        expenses = db.query(models.Expense).filter(models.Expense.store_id.in_(org_store_ids)).all()
     else:
         store = db.query(models.Store).filter(models.Store.id == store_id).first()
         if not store:
@@ -328,6 +332,7 @@ def export_vps_backup(
         sales = db.query(models.SaleTransaction).filter(models.SaleTransaction.store_id == store_id).all()
         customers = db.query(models.Customer).filter(models.Customer.store_id == store_id).all()
         stock_movements = db.query(models.StockMovement).filter(models.StockMovement.store_id == store_id).all()
+        expenses = db.query(models.Expense).filter(models.Expense.store_id == store_id).all()
 
     def serialize_obj(obj):
         if obj is None:
@@ -362,7 +367,67 @@ def export_vps_backup(
         "sales": sales_data,
         "customers": [serialize_obj(cust) for cust in customers],
         "stock_movements": [serialize_obj(sm) for sm in stock_movements],
+        "expenses": [serialize_obj(exp) for exp in expenses],
     }
 
     return backup_payload
+
+
+@router.post("/expenses-batch", status_code=status.HTTP_201_CREATED)
+def sync_batch_expenses(
+    payload: schemas.SyncBatchExpensesRequest,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Receive batch offline expense vouchers from store terminals.
+    Inserts or updates expenses in PostgreSQL DB.
+    """
+    verify_store_access(payload.store_id, current_user, db)
+
+    synced_numbers = []
+    for exp_in in payload.expenses:
+        if exp_in.amount <= 0:
+            continue
+
+        existing = None
+        if exp_in.expense_number:
+            existing = db.query(models.Expense).filter(
+                models.Expense.expense_number == exp_in.expense_number
+            ).first()
+
+        if existing:
+            # Update existing if same store
+            if existing.store_id == payload.store_id:
+                existing.title = exp_in.title
+                existing.category = exp_in.category
+                existing.amount = exp_in.amount
+                existing.payment_account = exp_in.payment_account
+                existing.payment_account_id = exp_in.payment_account_id
+                existing.branch_code = exp_in.branch_code
+                existing.branch_name = exp_in.branch_name
+                existing.notes = exp_in.notes
+                existing.reference_number = exp_in.reference_number
+                synced_numbers.append(existing.expense_number)
+            continue
+
+        exp_data = exp_in.model_dump()
+        exp_data["store_id"] = payload.store_id
+        if not exp_data.get("expense_number"):
+            import uuid
+            exp_data["expense_number"] = f"EXP-{payload.store_id:02d}-{datetime.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:6].upper()}"
+        if not exp_data.get("recorded_by"):
+            exp_data["recorded_by"] = current_user.name
+
+        exp = models.Expense(**exp_data)
+        db.add(exp)
+        synced_numbers.append(exp.expense_number)
+
+    db.commit()
+    return {
+        "status": "success",
+        "synced_count": len(synced_numbers),
+        "expense_numbers": synced_numbers,
+    }
+
 

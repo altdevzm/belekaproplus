@@ -305,8 +305,10 @@ class DatabaseService {
       await isar.saleTransactions.put(transaction);
       await transaction.items.save();
 
-      // 4. Update product stock levels
+      // 4. Update product stock levels & calculate COGS and Consignment Splits
       double totalCost = 0.0;
+      double totalCommissionEarned = 0.0;
+      bool hasConsignmentItems = false;
 
       for (final item in items) {
         final product = await isar.products.get(item.productId);
@@ -319,15 +321,54 @@ class DatabaseService {
           
           debugPrint('STOCK_DEDUCTION: Product ${product.name} (ID: ${product.id}) | Before: $oldStock | Deducted: $deductUnits (Qty/Wt: $effectiveQty) | After: ${product.stockLevel}');
           
-          totalCost += (item.unitCostAtSale) * effectiveQty;
+          if (product.isConsignment) {
+            hasConsignmentItems = true;
+            final lineTotal = item.priceAtSale * effectiveQty;
+            double itemCommission = 0.0;
+            double supplierShare = 0.0;
+
+            if (product.consignmentSupplierPayoutPrice > 0) {
+              supplierShare = product.consignmentSupplierPayoutPrice * effectiveQty;
+              itemCommission = (lineTotal - supplierShare).clamp(0.0, lineTotal);
+            } else {
+              final rate = product.consignmentCommissionRate > 0 ? product.consignmentCommissionRate : 15.0;
+              itemCommission = lineTotal * (rate / 100);
+              supplierShare = (lineTotal - itemCommission).clamp(0.0, lineTotal);
+            }
+
+            totalCommissionEarned += itemCommission;
+            totalCost += supplierShare; // Supplier payout liability counts as COGS pass-through
+
+            // Update Supplier balance ledger
+            Supplier? supplier;
+            if (product.consignmentSupplierId != null && product.consignmentSupplierId! > 0) {
+              supplier = await isar.suppliers.get(product.consignmentSupplierId!);
+            }
+            if (supplier == null && product.consignmentSupplierName != null && product.consignmentSupplierName!.trim().isNotEmpty) {
+              supplier = await isar.suppliers.filter().nameEqualTo(product.consignmentSupplierName!.trim(), caseSensitive: false).findFirst();
+            }
+            if (supplier != null) {
+              supplier.balance += supplierShare;
+              supplier.totalPurchases += supplierShare;
+              await isar.suppliers.put(supplier);
+              debugPrint('CONSIGNMENT_SPLIT: Added $supplierShare to Supplier ${supplier.name} balance. New Balance: ${supplier.balance}');
+            }
+          } else {
+            totalCost += (item.unitCostAtSale) * effectiveQty;
+          }
         }
+      }
+
+      if (hasConsignmentItems) {
+        debugPrint('CONSIGNMENT_SUMMARY: Processed consignment sale. Retained Store Commission: $totalCommissionEarned');
       }
 
       // 5. Update transaction totals with the calculated costs
       transaction.totalCost = totalCost;
       
       // Calculate profit: (Subtotal after discount) - Cost of goods
-      // This correctly accounts for discounts and ignores tax
+      // For standard sales: Revenue - BuyCost
+      // For consignment sales: Revenue - SupplierPayable = Commission
       transaction.grossProfit = (transaction.subtotal - transaction.discountAmount) - totalCost;
       
       await isar.saleTransactions.put(transaction);
@@ -829,6 +870,67 @@ class DatabaseService {
     }).toList();
   }
 
+  Future<int> saveExpense(Expense expense) async {
+    return await isar.writeTxn(() async {
+      // If paid from cash drawer/till, update active cash shift cashExpenses
+      final paymentLower = expense.paymentAccountName.toLowerCase();
+      if (paymentLower.contains('cash') || paymentLower.contains('till') || paymentLower.contains('drawer')) {
+        final activeShift = await isar.cashShifts.filter().statusEqualTo('OPEN').findFirst();
+        if (activeShift != null) {
+          activeShift.cashExpenses += expense.amount;
+          await isar.cashShifts.put(activeShift);
+        }
+      }
+      return await isar.expenses.put(expense);
+    });
+  }
+
+  Future<bool> deleteExpense(int id) async {
+    return await isar.writeTxn(() async {
+      return await isar.expenses.delete(id);
+    });
+  }
+
+  Future<List<Expense>> getAllExpenses({
+    String? branch,
+    String? category,
+    DateTime? start,
+    DateTime? end,
+    String? search,
+  }) async {
+    final all = await isar.expenses.where().sortByExpenseDateDesc().findAll();
+    var list = all;
+
+    if (start != null) {
+      list = list.where((e) => !e.expenseDate.isBefore(start)).toList();
+    }
+    if (end != null) {
+      list = list.where((e) => !e.expenseDate.isAfter(end)).toList();
+    }
+    if (category != null && category.isNotEmpty && category != 'All' && category != 'All Categories') {
+      list = list.where((e) => e.category.toLowerCase() == category.toLowerCase()).toList();
+    }
+    if (branch != null && branch.isNotEmpty && branch != 'All' && branch != 'All Branches') {
+      final bUpper = branch.trim().toUpperCase();
+      list = list.where((e) {
+        final eb = e.branch.trim().toUpperCase();
+        return eb == bUpper || eb.contains(bUpper);
+      }).toList();
+    }
+    if (search != null && search.trim().isNotEmpty) {
+      final s = search.trim().toLowerCase();
+      list = list.where((e) {
+        final notes = (e.notes ?? '').toLowerCase();
+        final ref = (e.referenceNumber ?? '').toLowerCase();
+        final expNum = e.expenseNumber.toLowerCase();
+        final cat = e.category.toLowerCase();
+        final rec = (e.recordedBy ?? '').toLowerCase();
+        return notes.contains(s) || ref.contains(s) || expNum.contains(s) || cat.contains(s) || rec.contains(s);
+      }).toList();
+    }
+    return list;
+  }
+
   Future<List<Expense>> getExpensesForBranchInRange(
     String branchName, {
     String? branchCode,
@@ -858,6 +960,63 @@ class DatabaseService {
       }
       return false;
     }).toList();
+  }
+
+  Stream<List<Expense>> watchExpensesInRange(DateTime start, DateTime end) async* {
+    yield await getAllExpenses(start: start, end: end);
+    await for (final _ in isar.expenses.watchLazy()) {
+      yield await getAllExpenses(start: start, end: end);
+    }
+  }
+
+  /// Settle / Pay Consignment supplier liability and record payment voucher
+  Future<Expense> recordConsignmentSettlement({
+    required Supplier supplier,
+    required double amountPaid,
+    required String paymentMethod, // 'Cash in Till', 'Main Bank Account', 'Airtel Money', 'MTN Money'
+    String? referenceNumber,
+    String? notes,
+    String? recordedBy,
+    String branch = 'Main Branch',
+  }) async {
+    final now = DateTime.now();
+    final count = await isar.expenses.count();
+    final voucherNo = 'SETTLE-${now.year}${now.month.toString().padLeft(2, '0')}-${(count + 1).toString().padLeft(5, '0')}';
+
+    final expense = Expense()
+      ..expenseNumber = voucherNo
+      ..category = 'Supplier Consignment Payout'
+      ..amount = amountPaid
+      ..paymentAccountName = paymentMethod
+      ..recordedBy = recordedBy ?? 'Manager'
+      ..branch = branch
+      ..referenceNumber = referenceNumber ?? 'SUPP-PAY-${supplier.id}'
+      ..notes = notes ?? 'Consignment settlement payout to ${supplier.name}'
+      ..expenseDate = now
+      ..createdAt = now;
+
+    await isar.writeTxn(() async {
+      // 1. Deduct supplier balance
+      supplier.balance = (supplier.balance - amountPaid).clamp(0.0, 99999999.0);
+      await isar.suppliers.put(supplier);
+
+      // 2. Save settlement expense record
+      await isar.expenses.put(expense);
+
+      // 3. If paid with Cash in Till, record under active shift deductions
+      if (paymentMethod.toLowerCase().contains('cash') || paymentMethod.toLowerCase().contains('till')) {
+        final activeShift = await isar.cashShifts
+            .filter()
+            .statusEqualTo('OPEN')
+            .findFirst();
+        if (activeShift != null) {
+          activeShift.cashExpenses += amountPaid;
+          await isar.cashShifts.put(activeShift);
+        }
+      }
+    });
+
+    return expense;
   }
 
   Future<List<SaleTransaction>> getTodayTransactionsForBranch(String branchCode, {String? branchBhfId, String? branchName}) async {
@@ -1200,6 +1359,11 @@ class DatabaseService {
     final transactions = await isar.saleTransactions.where().findAll();
     final saleItems = await isar.saleItems.where().findAll();
     final logs = await isar.attendanceLogs.where().findAll();
+    final suppliers = await isar.suppliers.where().findAll();
+    final expenses = await isar.expenses.where().findAll();
+    final paymentAccounts = await isar.paymentAccounts.where().findAll();
+    final storeBranches = await isar.storeBranchs.where().findAll();
+    final posTerminals = await isar.posTerminals.where().findAll();
 
     return {
       'version': 1,
@@ -1237,10 +1401,14 @@ class DatabaseService {
         'autoPrintReceipt': config.autoPrintReceipt,
       } : null,
       'users': users.map((u) => {
+        'id': u.id,
         'numericId': u.numericId,
         'name': u.name,
         'passwordHash': u.passwordHash,
         'role': u.role,
+        'branchName': u.branchName,
+        'branchCode': u.branchCode,
+        'phone': u.phone,
         'isActive': u.isActive,
       }).toList(),
       'categories': categories.map((c) => {
@@ -1262,10 +1430,23 @@ class DatabaseService {
         'imagePath': p.imagePath,
         'isTaxInclusive': p.isTaxInclusive,
         'taxRate': p.taxRate,
+        'zraTaxCode': p.zraTaxCode,
+        'itemClsCd': p.itemClsCd,
+        'branchCode': p.branchCode,
+        'branchName': p.branchName,
         'isArchived': p.isArchived,
         'discountPrice': p.discountPrice,
         'discountStartDate': p.discountStartDate?.toIso8601String(),
         'discountEndDate': p.discountEndDate?.toIso8601String(),
+        'isWeighted': p.isWeighted,
+        'unitOfMeasure': p.unitOfMeasure,
+        'tareWeight': p.tareWeight,
+        'scalePlu': p.scalePlu,
+        'isConsignment': p.isConsignment,
+        'supplierId': p.consignmentSupplierId,
+        'supplierName': p.consignmentSupplierName,
+        'consignmentCommissionRate': p.consignmentCommissionRate,
+        'consignmentSupplierPayoutPrice': p.consignmentSupplierPayoutPrice,
       }).toList(),
       'customers': customers.map((c) => {
         'id': c.id,
@@ -1275,6 +1456,74 @@ class DatabaseService {
         'accumulatedPoints': c.accumulatedPoints,
         'totalSpend': c.totalSpend,
         'createdAt': c.createdAt?.toIso8601String(),
+      }).toList(),
+      'suppliers': suppliers.map((s) => {
+        'id': s.id,
+        'name': s.name,
+        'tpin': s.tpin,
+        'contactPerson': s.contactPerson,
+        'phoneNumber': s.phoneNumber,
+        'email': s.email,
+        'address': s.address,
+        'balance': s.balance,
+        'totalPurchases': s.totalPurchases,
+        'createdAt': s.createdAt.toIso8601String(),
+      }).toList(),
+      'expenses': expenses.map((e) => {
+        'id': e.id,
+        'expenseNumber': e.expenseNumber,
+        'category': e.category,
+        'amount': e.amount,
+        'paymentAccountId': e.paymentAccountId,
+        'paymentAccountName': e.paymentAccountName,
+        'recordedBy': e.recordedBy,
+        'branch': e.branch,
+        'referenceNumber': e.referenceNumber,
+        'notes': e.notes,
+        'expenseDate': e.expenseDate.toIso8601String(),
+        'createdAt': e.createdAt.toIso8601String(),
+      }).toList(),
+      'paymentAccounts': paymentAccounts.map((a) => {
+        'id': a.id,
+        'name': a.name,
+        'accountType': a.accountType,
+        'accountNumber': a.accountNumber,
+        'balance': a.balance,
+        'currency': a.currency,
+        'isDefault': a.isDefault,
+        'createdAt': a.createdAt.toIso8601String(),
+      }).toList(),
+      'storeBranches': storeBranches.map((b) => {
+        'id': b.id,
+        'code': b.code,
+        'name': b.name,
+        'bhfId': b.bhfId,
+        'tpin': b.tpin,
+        'sdcId': b.sdcId,
+        'mrcNo': b.mrcNo,
+        'address': b.address,
+        'phone': b.phone,
+        'email': b.email,
+        'managerId': b.managerId,
+        'managerName': b.managerName,
+        'managerPhone': b.managerPhone,
+        'isHQ': b.isHQ,
+        'status': b.status,
+        'zraStatus': b.zraStatus,
+        'salesToday': b.salesToday,
+        'cloudStoreId': b.cloudStoreId,
+        'createdAt': b.createdAt.toIso8601String(),
+      }).toList(),
+      'posTerminals': posTerminals.map((t) => {
+        'id': t.id,
+        'terminalCode': t.terminalCode,
+        'name': t.name,
+        'branchCode': t.branchCode,
+        'branchName': t.branchName,
+        'deviceIp': t.deviceIp,
+        'serialNumber': t.serialNumber,
+        'assignedCashierId': t.assignedCashierId,
+        'assignedCashierName': t.assignedCashierName,
       }).toList(),
       'saleTransactions': transactions.map((t) => {
         'id': t.id,
@@ -1400,7 +1649,7 @@ class DatabaseService {
     }
   }
 
-  Future<Map<String, int>> restoreFromJsonMap(Map<String, dynamic> data) async {
+  Future<Map<String, int>> restoreFromJsonMap(Map<String, dynamic> data, {bool clearFirst = true}) async {
     final results = <String, int>{
       'users': 0,
       'products': 0,
@@ -1410,6 +1659,10 @@ class DatabaseService {
     };
 
     await isar.writeTxn(() async {
+      if (clearFirst) {
+        await isar.clear();
+      }
+
       // 1. Restore StoreConfig
       if (data['storeConfig'] != null) {
         final cfg = data['storeConfig'] as Map<String, dynamic>;
@@ -1479,7 +1732,11 @@ class DatabaseService {
             ..name = item['name'] ?? 'Staff'
             ..passwordHash = item['passwordHash'] ?? ''
             ..role = item['role'] ?? 'cashier'
+            ..branchName = item['branchName']
+            ..branchCode = item['branchCode']
+            ..phone = item['phone']
             ..isActive = item['isActive'] ?? true;
+          if (item['id'] != null) user.id = item['id'] as int;
           await isar.users.put(user);
           results['users'] = (results['users'] ?? 0) + 1;
         }
@@ -1500,13 +1757,30 @@ class DatabaseService {
             colors: (item['colors'] as List?)?.map((e) => e.toString()).toList(),
             imagePath: item['imagePath'],
             isTaxInclusive: item['isTaxInclusive'] ?? true,
-            taxRate: (item['taxRate'] as num?)?.toDouble() ?? 0.0,
+            taxRate: (item['taxRate'] as num?)?.toDouble() ?? 16.0,
+            zraTaxCode: item['zraTaxCode'] ?? 'A',
+            itemClsCd: item['itemClsCd'] ?? '10101501',
+            branchCode: item['branchCode'] ?? '00',
+            branchName: item['branchName'],
             isArchived: item['isArchived'] ?? false,
             discountPrice: (item['discountPrice'] as num?)?.toDouble(),
             discountStartDate: item['discountStartDate'] != null ? DateTime.tryParse(item['discountStartDate']) : null,
             discountEndDate: item['discountEndDate'] != null ? DateTime.tryParse(item['discountEndDate']) : null,
+            isWeighted: item['isWeighted'] ?? false,
+            unitOfMeasure: item['unitOfMeasure'] ?? 'kg',
+            tareWeight: (item['tareWeight'] as num?)?.toDouble() ?? 0.0,
+            scalePlu: item['scalePlu'],
           );
           if (item['id'] != null) product.id = item['id'] as int;
+          if (item['isConsignment'] == true) {
+            product.setConsignmentDetails(
+              enabled: true,
+              supplierId: (item['supplierId'] as num?)?.toInt(),
+              supplierName: item['supplierName']?.toString(),
+              commissionRate: (item['consignmentCommissionRate'] as num?)?.toDouble() ?? 0.0,
+              supplierPayoutPrice: (item['consignmentSupplierPayoutPrice'] as num?)?.toDouble() ?? 0.0,
+            );
+          }
           await isar.products.put(product);
           results['products'] = (results['products'] ?? 0) + 1;
         }
@@ -1530,7 +1804,110 @@ class DatabaseService {
         }
       }
 
-      // 6. Restore SaleItems & Transactions
+      // 6. Restore Suppliers
+      if (data['suppliers'] is List) {
+        final supplierList = data['suppliers'] as List;
+        for (final item in supplierList) {
+          final supplier = Supplier()
+            ..name = item['name'] ?? ''
+            ..tpin = item['tpin']
+            ..contactPerson = item['contactPerson']
+            ..phoneNumber = item['phoneNumber']
+            ..email = item['email']
+            ..address = item['address']
+            ..balance = (item['balance'] as num?)?.toDouble() ?? 0.0
+            ..totalPurchases = (item['totalPurchases'] as num?)?.toDouble() ?? 0.0
+            ..createdAt = item['createdAt'] != null ? (DateTime.tryParse(item['createdAt']) ?? DateTime.now()) : DateTime.now();
+          if (item['id'] != null) supplier.id = item['id'] as int;
+          await isar.suppliers.put(supplier);
+        }
+      }
+
+      // 7. Restore Expenses
+      if (data['expenses'] is List) {
+        final expenseList = data['expenses'] as List;
+        for (final item in expenseList) {
+          final expense = Expense()
+            ..expenseNumber = item['expenseNumber'] ?? 'EXP-000'
+            ..category = item['category'] ?? 'Other'
+            ..amount = (item['amount'] as num?)?.toDouble() ?? 0.0
+            ..paymentAccountId = (item['paymentAccountId'] as num?)?.toInt()
+            ..paymentAccountName = item['paymentAccountName'] ?? 'Cash'
+            ..recordedBy = item['recordedBy']
+            ..branch = item['branch'] ?? 'Main Branch'
+            ..referenceNumber = item['referenceNumber']
+            ..notes = item['notes']
+            ..expenseDate = item['expenseDate'] != null ? (DateTime.tryParse(item['expenseDate']) ?? DateTime.now()) : DateTime.now()
+            ..createdAt = item['createdAt'] != null ? (DateTime.tryParse(item['createdAt']) ?? DateTime.now()) : DateTime.now();
+          if (item['id'] != null) expense.id = item['id'] as int;
+          await isar.expenses.put(expense);
+        }
+      }
+
+      // 8. Restore Payment Accounts
+      if (data['paymentAccounts'] is List) {
+        final accountList = data['paymentAccounts'] as List;
+        for (final item in accountList) {
+          final account = PaymentAccount()
+            ..name = item['name'] ?? 'Cash'
+            ..accountType = item['accountType'] ?? 'CASH'
+            ..accountNumber = item['accountNumber']
+            ..balance = (item['balance'] as num?)?.toDouble() ?? 0.0
+            ..currency = item['currency'] ?? 'ZMW'
+            ..isDefault = item['isDefault'] ?? false
+            ..createdAt = item['createdAt'] != null ? (DateTime.tryParse(item['createdAt']) ?? DateTime.now()) : DateTime.now();
+          if (item['id'] != null) account.id = item['id'] as int;
+          await isar.paymentAccounts.put(account);
+        }
+      }
+
+      // 9. Restore Store Branches
+      if (data['storeBranches'] is List) {
+        final branchList = data['storeBranches'] as List;
+        for (final item in branchList) {
+          final branch = StoreBranch()
+            ..code = item['code'] ?? '00'
+            ..name = item['name'] ?? 'Main Branch'
+            ..bhfId = item['bhfId'] ?? '00'
+            ..tpin = item['tpin'] ?? '1000000000'
+            ..sdcId = item['sdcId']
+            ..mrcNo = item['mrcNo']
+            ..address = item['address']
+            ..phone = item['phone']
+            ..email = item['email']
+            ..managerId = item['managerId']
+            ..managerName = item['managerName']
+            ..managerPhone = item['managerPhone']
+            ..isHQ = item['isHQ'] ?? false
+            ..status = item['status'] ?? 'ONLINE'
+            ..zraStatus = item['zraStatus'] ?? 'FISCALIZED'
+            ..salesToday = (item['salesToday'] as num?)?.toDouble() ?? 0.0
+            ..cloudStoreId = (item['cloudStoreId'] as num?)?.toInt() ?? 0
+            ..createdAt = item['createdAt'] != null ? (DateTime.tryParse(item['createdAt']) ?? DateTime.now()) : DateTime.now();
+          if (item['id'] != null) branch.id = item['id'] as int;
+          await isar.storeBranchs.put(branch);
+        }
+      }
+
+      // 10. Restore POS Terminals
+      if (data['posTerminals'] is List) {
+        final terminalList = data['posTerminals'] as List;
+        for (final item in terminalList) {
+          final terminal = PosTerminal()
+            ..terminalCode = item['terminalCode'] ?? 'POS-01'
+            ..name = item['name'] ?? 'Main Terminal'
+            ..branchCode = item['branchCode'] ?? '00'
+            ..branchName = item['branchName'] ?? 'Main Branch'
+            ..deviceIp = item['deviceIp']
+            ..serialNumber = item['serialNumber']
+            ..assignedCashierId = item['assignedCashierId']
+            ..assignedCashierName = item['assignedCashierName'];
+          if (item['id'] != null) terminal.id = item['id'] as int;
+          await isar.posTerminals.put(terminal);
+        }
+      }
+
+      // 11. Restore SaleItems & Transactions
       if (data['saleItems'] is List) {
         final itemsList = data['saleItems'] as List;
         for (final item in itemsList) {
@@ -1594,7 +1971,7 @@ class DatabaseService {
         }
       }
 
-      // 7. Restore Attendance Logs
+      // 12. Restore Attendance Logs
       if (data['attendanceLogs'] is List) {
         final logsList = data['attendanceLogs'] as List;
         for (final item in logsList) {
@@ -1755,4 +2132,13 @@ class DatabaseService {
 
     return isar.stockMovements.where().sortByTimestampDesc().limit(limit).watch(fireImmediately: true);
   }
+
+  /// Completely purge and wipe all company/store records from the local Isar database.
+  /// Clears users, inventory products, categories, transactions, suppliers, customers, logs and configs.
+  Future<void> purgeEntireCompanyAccount() async {
+    await isar.writeTxn(() async {
+      await isar.clear();
+    });
+  }
 }
+

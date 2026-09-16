@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import engine, Base, seed_initial_data
-from app.routers import auth, users, stores, sync, products, reports, zra_digitax, purchases, tot, tax_statement
+from app.routers import auth, users, stores, sync, products, reports, zra_digitax, purchases, tot, tax_statement, expenses
 
 # Initialize PostgreSQL tables. Account and branch creation must be explicit.
 Base.metadata.create_all(bind=engine)
@@ -37,6 +37,8 @@ app.include_router(zra_digitax.router)
 app.include_router(purchases.router)
 app.include_router(tot.router)
 app.include_router(tax_statement.router)
+app.include_router(expenses.router)
+
 
 @app.get("/")
 def root():

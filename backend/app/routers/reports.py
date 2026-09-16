@@ -46,6 +46,13 @@ def get_sales_summary(
             func.coalesce(func.sum(models.SaleTransaction.tax_amount), 0).label("total_tax")
         ).filter(models.SaleTransaction.store_id.in_(org_store_ids)).first()
 
+        total_exp_query = db.query(
+            func.coalesce(func.sum(models.Expense.amount), 0).label("total_expenses")
+        ).filter(models.Expense.store_id.in_(org_store_ids)).first()
+
+        total_exp = float(total_exp_query.total_expenses or 0)
+        total_gross_profit = float(total_query.total_profit or 0)
+
         # Breakdown per store within organization
         by_store = []
         for s in org_stores:
@@ -55,6 +62,13 @@ def get_sales_summary(
                 func.coalesce(func.sum(models.SaleTransaction.gross_profit), 0).label("total_profit"),
                 func.coalesce(func.sum(models.SaleTransaction.tax_amount), 0).label("total_tax")
             ).filter(models.SaleTransaction.store_id == s.id).first()
+
+            s_exp_query = db.query(
+                func.coalesce(func.sum(models.Expense.amount), 0).label("total_expenses")
+            ).filter(models.Expense.store_id == s.id).first()
+
+            store_exp = float(s_exp_query.total_expenses or 0)
+            store_gross_profit = float(s_query.total_profit or 0)
             
             by_store.append({
                 "store_id": s.id,
@@ -62,7 +76,9 @@ def get_sales_summary(
                 "store_name": s.name,
                 "total_transactions": s_query.total_transactions or 0,
                 "total_revenue": float(s_query.total_revenue or 0),
-                "total_profit": float(s_query.total_profit or 0),
+                "total_profit": store_gross_profit,
+                "total_expenses": store_exp,
+                "net_profit": round(store_gross_profit - store_exp, 2),
                 "total_tax": float(s_query.total_tax or 0),
             })
 
@@ -70,7 +86,9 @@ def get_sales_summary(
             "store_id": 0,  # 0 indicates HQ multi-store aggregate
             "total_transactions": total_query.total_transactions or 0,
             "total_revenue": float(total_query.total_revenue or 0),
-            "total_profit": float(total_query.total_profit or 0),
+            "total_profit": total_gross_profit,
+            "total_expenses": total_exp,
+            "net_profit": round(total_gross_profit - total_exp, 2),
             "total_tax": float(total_query.total_tax or 0),
             "by_store": by_store,
         }
@@ -85,12 +103,20 @@ def get_sales_summary(
         func.coalesce(func.sum(models.SaleTransaction.tax_amount), 0).label("total_tax")
     ).filter(models.SaleTransaction.store_id == target_store_id)
 
+    exp_query = db.query(
+        func.coalesce(func.sum(models.Expense.amount), 0).label("total_expenses")
+    ).filter(models.Expense.store_id == target_store_id).first()
+
     result = query.first()
+    gross_profit = float(result.total_profit or 0)
+    store_exp = float(exp_query.total_expenses or 0)
 
     return {
         "store_id": target_store_id,
         "total_transactions": result.total_transactions or 0,
         "total_revenue": float(result.total_revenue or 0),
-        "total_profit": float(result.total_profit or 0),
+        "total_profit": gross_profit,
+        "total_expenses": store_exp,
+        "net_profit": round(gross_profit - store_exp, 2),
         "total_tax": float(result.total_tax or 0),
     }

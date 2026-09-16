@@ -306,6 +306,22 @@ class CartNotifier extends StateNotifier<CartState> {
     );
   }
 
+  void updateConfigDefaults({
+    required bool serviceChargeEnabled,
+    required double defaultServiceChargeRate,
+  }) {
+    if (state.items.isEmpty) {
+      state = state.copyWith(
+        serviceChargeEnabled:
+            serviceChargeEnabled && defaultServiceChargeRate > 0,
+        serviceChargeRate:
+            serviceChargeEnabled && defaultServiceChargeRate > 0
+                ? defaultServiceChargeRate
+                : 0.0,
+      );
+    }
+  }
+
   double get subtotal => double.parse(state.items.fold(0.0, (sum, item) => sum + item.subtotal).toStringAsFixed(2));
   double get tax => double.parse(state.items.fold(0.0, (sum, item) => sum + item.totalTax).toStringAsFixed(2));
   
@@ -319,10 +335,21 @@ class CartNotifier extends StateNotifier<CartState> {
 }
 
 final cartProvider = StateNotifierProvider<CartNotifier, CartState>((ref) {
-  final config = ref.watch(storeConfigProvider).value;
+  final config = ref.read(storeConfigProvider).value;
   final notifier = CartNotifier(
     defaultServiceChargeEnabled: config?.serviceChargeEnabled ?? false,
     defaultServiceChargeRate: config?.defaultServiceChargeRate ?? 0.0,
   );
+
+  ref.listen<AsyncValue<StoreConfig?>>(storeConfigProvider, (previous, next) {
+    final newConfig = next.value;
+    if (newConfig != null) {
+      notifier.updateConfigDefaults(
+        serviceChargeEnabled: newConfig.serviceChargeEnabled,
+        defaultServiceChargeRate: newConfig.defaultServiceChargeRate,
+      );
+    }
+  });
+
   return notifier;
 });

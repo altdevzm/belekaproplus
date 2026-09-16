@@ -35,8 +35,15 @@ final reportTransactionsProvider = StreamProvider<List<SaleTransaction>>((ref) {
   return db.watchTransactionsInRange(range.start, range.end);
 });
 
+final reportExpensesProvider = StreamProvider<List<Expense>>((ref) {
+  final range = ref.watch(reportDateRangeProvider);
+  final db = ref.watch(databaseServiceProvider);
+  return db.watchExpensesInRange(range.start, range.end);
+});
+
 final reportStatsProvider = Provider<Map<String, double>>((ref) {
   final transactions = ref.watch(reportTransactionsProvider).value ?? [];
+  final expenses = ref.watch(reportExpensesProvider).value ?? [];
 
   double revenue = transactions.fold(0.0, (sum, t) {
     if (t.totalAmount.isNaN) return sum;
@@ -57,6 +64,9 @@ final reportStatsProvider = Provider<Map<String, double>>((ref) {
     return sum + t.taxAmount;
   });
 
+  final double totalExpenses = expenses.fold(0.0, (sum, e) => sum + e.amount);
+  final double netProfit = profit - totalExpenses;
+
   final Map<String, double> paymentBreakdown = {};
   for (var t in transactions) {
     if (t.status == 'refunded' && !t.isCreditNote) continue;
@@ -74,6 +84,8 @@ final reportStatsProvider = Provider<Map<String, double>>((ref) {
     'revenue': revenue,
     'profit': profit,
     'tax': tax,
+    'expenses': totalExpenses,
+    'net_profit': netProfit,
     'count': activeCount.toDouble(),
     'cash': paymentBreakdown['cash'] ?? 0.0,
     'card': paymentBreakdown['card'] ?? 0.0,
@@ -167,41 +179,46 @@ class ReportsScreen extends ConsumerWidget {
     final topProducts = ref.watch(reportTopProductsProvider);
     final currency = ref.watch(storeConfigProvider).value?.currencySymbol ?? '\$';
 
-    return Container(
-      color: theme.scaffoldBackgroundColor,
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildHeader(context, ref, range, activePeriod, stats, topProducts),
-          const SizedBox(height: 16),
-          _buildPeriodSelector(context, ref, activePeriod, range),
-          const SizedBox(height: 20),
-          Expanded(
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildSummaryCards(context, ref, stats, currency, activePeriod, range),
-                  const SizedBox(height: 24),
-                  if (topProducts.isNotEmpty) ...[
-                    _buildTopProductsSection(context, topProducts),
-                    const SizedBox(height: 24),
-                  ],
-                  transactionsAsync.when(
-                    data: (transactions) => SizedBox(
-                      height: 500,
-                      child: _buildTransactionList(context, ref, transactions, currency),
-                    ),
-                    loading: () => Center(child: CircularProgressIndicator(color: primaryColor)),
-                    error: (e, _) => Center(child: Text('Error: $e', style: const TextStyle(color: Color(0xFFDC2626)))),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isPhone = constraints.maxWidth < 600;
+        return Container(
+          color: theme.scaffoldBackgroundColor,
+          padding: EdgeInsets.all(isPhone ? 12 : 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildHeader(context, ref, range, activePeriod, stats, topProducts),
+              const SizedBox(height: 16),
+              _buildPeriodSelector(context, ref, activePeriod, range),
+              const SizedBox(height: 20),
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildSummaryCards(context, ref, stats, currency, activePeriod, range),
+                      const SizedBox(height: 24),
+                      if (topProducts.isNotEmpty) ...[
+                        _buildTopProductsSection(context, topProducts),
+                        const SizedBox(height: 24),
+                      ],
+                      transactionsAsync.when(
+                        data: (transactions) => SizedBox(
+                          height: 500,
+                          child: _buildTransactionList(context, ref, transactions, currency),
+                        ),
+                        loading: () => Center(child: CircularProgressIndicator(color: primaryColor)),
+                        error: (e, _) => Center(child: Text('Error: $e', style: const TextStyle(color: Color(0xFFDC2626)))),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -915,67 +932,166 @@ class ReportsScreen extends ConsumerWidget {
     final theme = Theme.of(context);
     final primaryColor = theme.colorScheme.primary;
 
-    return Column(
-      children: [
-        Column(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isPhone = constraints.maxWidth < 600;
+        final cardSpacing = isPhone ? 10.0 : 16.0;
+
+        return Column(
           children: [
-            Row(
-              children: [
-                _buildStatCard(
-                  context,
-                  'Total Revenue',
-                  CurrencyFormatter.format(stats['revenue'] ?? 0.0, currency),
-                  Icons.payments_rounded,
-                  primaryColor,
-                  subtitle: 'Gross sales amount',
-                ),
-                const SizedBox(width: 16),
-                _buildStatCard(
-                  context,
-                  'Gross Profit',
-                  CurrencyFormatter.format(stats['profit'] ?? 0.0, currency),
-                  (stats['profit'] ?? 0) >= 0 ? Icons.trending_up_rounded : Icons.trending_down_rounded,
-                  (stats['profit'] ?? 0) >= 0 ? const Color(0xFF059669) : const Color(0xFFDC2626),
-                  subtitle: 'Revenue minus costs',
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                _buildStatCard(
-                  context,
-                  'Actual Tax (VAT/TOT)',
-                  CurrencyFormatter.format(stats['tax'] ?? 0.0, currency),
-                  Icons.account_balance_wallet_rounded,
-                  const Color(0xFF0284C7),
-                  subtitle: 'Total tax collected',
-                ),
-                const SizedBox(width: 16),
-                _buildStatCard(
-                  context,
-                  'Transactions',
-                  (stats['count'] ?? 0).toInt().toString(),
-                  Icons.receipt_long_rounded,
-                  const Color(0xFFD97706),
-                  subtitle: 'Completed sales count',
-                ),
-              ],
-            ),
+            if (isPhone) ...[
+              Row(
+                children: [
+                  _buildStatCard(
+                    context,
+                    'Total Revenue',
+                    CurrencyFormatter.format(stats['revenue'] ?? 0.0, currency),
+                    Icons.payments_rounded,
+                    primaryColor,
+                    subtitle: 'Gross sales',
+                    isPhone: true,
+                  ),
+                  SizedBox(width: cardSpacing),
+                  _buildStatCard(
+                    context,
+                    'Gross Profit',
+                    CurrencyFormatter.format(stats['profit'] ?? 0.0, currency),
+                    (stats['profit'] ?? 0) >= 0 ? Icons.trending_up_rounded : Icons.trending_down_rounded,
+                    (stats['profit'] ?? 0) >= 0 ? const Color(0xFF059669) : const Color(0xFFDC2626),
+                    subtitle: 'Rev minus COGS',
+                    isPhone: true,
+                  ),
+                ],
+              ),
+              SizedBox(height: cardSpacing),
+              Row(
+                children: [
+                  _buildStatCard(
+                    context,
+                    'Expenses (OPEX)',
+                    CurrencyFormatter.format(stats['expenses'] ?? 0.0, currency),
+                    Icons.receipt_long_rounded,
+                    const Color(0xFFDC2626),
+                    subtitle: 'Branch expenses',
+                    isPhone: true,
+                  ),
+                  SizedBox(width: cardSpacing),
+                  _buildStatCard(
+                    context,
+                    'Net Profit',
+                    CurrencyFormatter.format(stats['net_profit'] ?? (stats['profit'] ?? 0.0), currency),
+                    (stats['net_profit'] ?? 0) >= 0 ? Icons.account_balance_rounded : Icons.warning_amber_rounded,
+                    (stats['net_profit'] ?? 0) >= 0 ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                    subtitle: 'Profit minus OPEX',
+                    isPhone: true,
+                  ),
+                ],
+              ),
+              SizedBox(height: cardSpacing),
+              Row(
+                children: [
+                  _buildStatCard(
+                    context,
+                    'Actual Tax',
+                    CurrencyFormatter.format(stats['tax'] ?? 0.0, currency),
+                    Icons.account_balance_wallet_rounded,
+                    const Color(0xFF0284C7),
+                    subtitle: 'VAT/TOT tax',
+                    isPhone: true,
+                  ),
+                  SizedBox(width: cardSpacing),
+                  _buildStatCard(
+                    context,
+                    'Transactions',
+                    (stats['count'] ?? 0).toInt().toString(),
+                    Icons.point_of_sale_rounded,
+                    const Color(0xFFD97706),
+                    subtitle: 'Completed sales',
+                    isPhone: true,
+                  ),
+                ],
+              ),
+            ] else ...[
+              Row(
+                children: [
+                  _buildStatCard(
+                    context,
+                    'Total Revenue',
+                    CurrencyFormatter.format(stats['revenue'] ?? 0.0, currency),
+                    Icons.payments_rounded,
+                    primaryColor,
+                    subtitle: 'Gross sales amount',
+                  ),
+                  const SizedBox(width: 16),
+                  _buildStatCard(
+                    context,
+                    'Gross Profit',
+                    CurrencyFormatter.format(stats['profit'] ?? 0.0, currency),
+                    (stats['profit'] ?? 0) >= 0 ? Icons.trending_up_rounded : Icons.trending_down_rounded,
+                    (stats['profit'] ?? 0) >= 0 ? const Color(0xFF059669) : const Color(0xFFDC2626),
+                    subtitle: 'Revenue minus COGS',
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  _buildStatCard(
+                    context,
+                    'Operating Expenses (OPEX)',
+                    CurrencyFormatter.format(stats['expenses'] ?? 0.0, currency),
+                    Icons.receipt_long_rounded,
+                    const Color(0xFFDC2626),
+                    subtitle: 'Vouchers & branch expenses',
+                  ),
+                  const SizedBox(width: 16),
+                  _buildStatCard(
+                    context,
+                    'Net Operating Profit',
+                    CurrencyFormatter.format(stats['net_profit'] ?? (stats['profit'] ?? 0.0), currency),
+                    (stats['net_profit'] ?? 0) >= 0 ? Icons.account_balance_rounded : Icons.warning_amber_rounded,
+                    (stats['net_profit'] ?? 0) >= 0 ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                    subtitle: 'Gross profit minus expenses',
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  _buildStatCard(
+                    context,
+                    'Actual Tax (VAT/TOT)',
+                    CurrencyFormatter.format(stats['tax'] ?? 0.0, currency),
+                    Icons.account_balance_wallet_rounded,
+                    const Color(0xFF0284C7),
+                    subtitle: 'Total tax collected',
+                  ),
+                  const SizedBox(width: 16),
+                  _buildStatCard(
+                    context,
+                    'Transactions',
+                    (stats['count'] ?? 0).toInt().toString(),
+                    Icons.point_of_sale_rounded,
+                    const Color(0xFFD97706),
+                    subtitle: 'Completed sales count',
+                  ),
+                ],
+              ),
+            ],
+            const SizedBox(height: 20),
+            _buildPaymentBreakdown(context, stats, currency, isPhone: isPhone),
           ],
-        ),
-        const SizedBox(height: 24),
-        _buildPaymentBreakdown(context, stats, currency),
-      ],
+        );
+      },
     );
   }
 
-  Widget _buildPaymentBreakdown(BuildContext context, Map<String, double> stats, String currency) {
+  Widget _buildPaymentBreakdown(BuildContext context, Map<String, double> stats, String currency, {bool isPhone = false}) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(isPhone ? 14 : 20),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF151F32) : Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -1000,15 +1116,27 @@ class ReportsScreen extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 16),
-          Row(
-            children: [
-              _buildPaymentMethodItem(context, 'Cash Sales', stats['cash'] ?? 0.0, currency, const Color(0xFF059669)),
-              _buildVerticalDivider(context),
-              _buildPaymentMethodItem(context, 'Card Payments', stats['card'] ?? 0.0, currency, const Color(0xFF0284C7)),
-              _buildVerticalDivider(context),
-              _buildPaymentMethodItem(context, 'Mobile Money', stats['mobile_money'] ?? 0.0, currency, const Color(0xFFD97706)),
-            ],
-          ),
+          if (isPhone) ...[
+            Row(
+              children: [
+                _buildPaymentMethodItem(context, 'Cash', stats['cash'] ?? 0.0, currency, const Color(0xFF059669)),
+                const SizedBox(width: 12),
+                _buildPaymentMethodItem(context, 'Card', stats['card'] ?? 0.0, currency, const Color(0xFF0284C7)),
+                const SizedBox(width: 12),
+                _buildPaymentMethodItem(context, 'MoMo', stats['mobile_money'] ?? 0.0, currency, const Color(0xFFD97706)),
+              ],
+            ),
+          ] else ...[
+            Row(
+              children: [
+                _buildPaymentMethodItem(context, 'Cash Sales', stats['cash'] ?? 0.0, currency, const Color(0xFF059669)),
+                _buildVerticalDivider(context),
+                _buildPaymentMethodItem(context, 'Card Payments', stats['card'] ?? 0.0, currency, const Color(0xFF0284C7)),
+                _buildVerticalDivider(context),
+                _buildPaymentMethodItem(context, 'Mobile Money', stats['mobile_money'] ?? 0.0, currency, const Color(0xFFD97706)),
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -1043,12 +1171,16 @@ class ReportsScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 4),
-          Text(
-            CurrencyFormatter.format(amount, currency),
-            style: GoogleFonts.inter(
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
-              color: amount > 0 ? color : theme.colorScheme.onSurfaceVariant,
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              CurrencyFormatter.format(amount, currency),
+              style: GoogleFonts.inter(
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+                color: amount > 0 ? color : theme.colorScheme.onSurfaceVariant,
+              ),
             ),
           ),
         ],
@@ -1056,13 +1188,13 @@ class ReportsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildStatCard(BuildContext context, String label, String value, IconData icon, Color color, {String? subtitle}) {
+  Widget _buildStatCard(BuildContext context, String label, String value, IconData icon, Color color, {String? subtitle, bool isPhone = false}) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.all(20),
+        padding: EdgeInsets.all(isPhone ? 12 : 20),
         decoration: BoxDecoration(
           color: isDark ? const Color(0xFF151F32) : Colors.white,
           borderRadius: BorderRadius.circular(12),
@@ -1071,15 +1203,15 @@ class ReportsScreen extends ConsumerWidget {
         child: Row(
           children: [
             Container(
-              width: 44,
-              height: 44,
+              width: isPhone ? 36 : 44,
+              height: isPhone ? 36 : 44,
               decoration: BoxDecoration(
                 color: isDark ? color.withValues(alpha: 0.15) : color.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(icon, color: color, size: 22),
+              child: Icon(icon, color: color, size: isPhone ? 18 : 22),
             ),
-            const SizedBox(width: 14),
+            SizedBox(width: isPhone ? 10 : 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1088,31 +1220,37 @@ class ReportsScreen extends ConsumerWidget {
                   Text(
                     label.toUpperCase(),
                     style: GoogleFonts.inter(
-                      fontSize: 10.5,
+                      fontSize: isPhone ? 9.5 : 10.5,
                       fontWeight: FontWeight.w700,
                       color: theme.colorScheme.onSurfaceVariant,
                       letterSpacing: 0.3,
                     ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    value,
-                    style: GoogleFonts.inter(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      color: theme.colorScheme.onSurface,
-                    ),
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
+                  const SizedBox(height: 2),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      value,
+                      style: GoogleFonts.inter(
+                        fontSize: isPhone ? 15 : 18,
+                        fontWeight: FontWeight.w800,
+                        color: theme.colorScheme.onSurface,
+                      ),
+                    ),
+                  ),
                   if (subtitle != null) ...[
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 1),
                     Text(
                       subtitle,
                       style: GoogleFonts.inter(
-                        fontSize: 11,
+                        fontSize: isPhone ? 9.5 : 11,
                         fontWeight: FontWeight.w500,
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ],

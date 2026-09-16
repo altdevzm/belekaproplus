@@ -55,6 +55,22 @@ CREATE TABLE IF NOT EXISTS categories (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 3.1 SUPPLIERS TABLE
+CREATE TABLE IF NOT EXISTS suppliers (
+    id SERIAL PRIMARY KEY,
+    store_id INT REFERENCES stores(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    tpin VARCHAR(100),
+    contact_person VARCHAR(255),
+    phone_number VARCHAR(50),
+    email VARCHAR(255),
+    address TEXT,
+    balance NUMERIC(12,2) DEFAULT 0.00,
+    total_purchases NUMERIC(12,2) DEFAULT 0.00,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uk_supplier_store_name UNIQUE (store_id, name)
+);
+
 -- 4. PRODUCTS / INVENTORY TABLE
 CREATE TABLE IF NOT EXISTS products (
     id SERIAL PRIMARY KEY,
@@ -76,6 +92,12 @@ CREATE TABLE IF NOT EXISTS products (
     discount_price NUMERIC(12,2),
     discount_start_date TIMESTAMP WITH TIME ZONE,
     discount_end_date TIMESTAMP WITH TIME ZONE,
+    -- Consignment & Commission fields
+    is_consignment BOOLEAN DEFAULT FALSE,
+    consignment_supplier_id INT REFERENCES suppliers(id) ON DELETE SET NULL,
+    consignment_supplier_name VARCHAR(255),
+    consignment_commission_rate NUMERIC(5,2) DEFAULT 0.00,
+    consignment_supplier_payout_price NUMERIC(12,2) DEFAULT 0.00,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uk_product_store_sku UNIQUE (store_id, sku)
@@ -161,7 +183,11 @@ CREATE TABLE IF NOT EXISTS sale_items (
     quantity INT NOT NULL DEFAULT 1,
     tax_rate_at_sale NUMERIC(5,2) DEFAULT 0.00,
     is_tax_inclusive_at_sale BOOLEAN DEFAULT TRUE,
-    is_refunded BOOLEAN DEFAULT FALSE
+    is_refunded BOOLEAN DEFAULT FALSE,
+    -- Consignment Tracking
+    is_consignment BOOLEAN DEFAULT FALSE,
+    supplier_share NUMERIC(12,2) DEFAULT 0.00,
+    commission_share NUMERIC(12,2) DEFAULT 0.00
 );
 
 -- 8. ATTENDANCE LOGS TABLE
@@ -174,6 +200,28 @@ CREATE TABLE IF NOT EXISTS attendance_logs (
     timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 9. EXPENSES TABLE (PER STORE / MULTI-BRANCH)
+CREATE TABLE IF NOT EXISTS expenses (
+    id SERIAL PRIMARY KEY,
+    expense_number VARCHAR(100) UNIQUE NOT NULL,
+    store_id INT REFERENCES stores(id) ON DELETE CASCADE,
+    title VARCHAR(255) NOT NULL,
+    category VARCHAR(100) NOT NULL, -- 'Rent', 'Utilities', 'Salaries & Wages', 'Transport / Fuel', 'Supplies & Stationery', 'Repairs & Maintenance', 'Marketing & Advertising', 'Taxes & Licenses', 'Meals & Refreshments', 'Other'
+    amount NUMERIC(12,2) NOT NULL DEFAULT 0.00,
+    payment_account VARCHAR(100) DEFAULT 'Cash in Till',
+    payment_account_id INT,
+    branch_code VARCHAR(50) DEFAULT '00',
+    branch_name VARCHAR(100) DEFAULT 'Main Branch',
+    recorded_by VARCHAR(255),
+    recorded_by_id VARCHAR(50),
+    reference_number VARCHAR(100),
+    notes TEXT,
+    receipt_image_path TEXT,
+    expense_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 -- INDEXES FOR MULTI-STORE HIGH PERFORMANCE
 CREATE INDEX IF NOT EXISTS idx_products_store_sku ON products(store_id, sku);
 CREATE INDEX IF NOT EXISTS idx_products_store_archived ON products(store_id, is_archived);
@@ -181,8 +229,12 @@ CREATE INDEX IF NOT EXISTS idx_sales_store_timestamp ON sale_transactions(store_
 CREATE INDEX IF NOT EXISTS idx_sales_uuid ON sale_transactions(transaction_uuid);
 CREATE INDEX IF NOT EXISTS idx_users_store_numeric ON users(store_id, numeric_id);
 CREATE INDEX IF NOT EXISTS idx_customers_store_phone ON customers(store_id, phone_number);
+CREATE INDEX IF NOT EXISTS idx_expenses_store_date ON expenses(store_id, expense_date);
+CREATE INDEX IF NOT EXISTS idx_expenses_category ON expenses(category);
+CREATE INDEX IF NOT EXISTS idx_expenses_number ON expenses(expense_number);
 
 -- DEFAULT INITIAL STORE SEED DATA FOR QUICKSTART
 INSERT INTO stores (store_code, name, address, currency_symbol, branch_name)
 VALUES ('STORE-001', 'Beleka Main Store', 'Main Mall, Lusaka', 'K', 'Main Branch')
 ON CONFLICT (store_code) DO NOTHING;
+

@@ -23,10 +23,14 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Wrap(
+      alignment: WrapAlignment.spaceBetween,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 8,
+      runSpacing: 8,
       children: [
         Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             Text(
               'Workspace',
@@ -51,7 +55,10 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
             ),
           ],
         ),
-        Row(
+        Wrap(
+          spacing: 8,
+          runSpacing: 6,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -65,6 +72,7 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
                 ),
               ),
               child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
                     width: 7,
@@ -86,7 +94,6 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
                 ],
               ),
             ),
-            const SizedBox(width: 10),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
@@ -99,6 +106,7 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
                 ),
               ),
               child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
                     Icons.calendar_today_rounded,
@@ -128,71 +136,140 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
     String value,
     String subtitle,
     IconData icon,
-    Color color,
-  ) {
+    Color color, {
+    bool isPhone = false,
+  }) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(isPhone ? 10 : 14),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF151F32) : Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(
           color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0),
         ),
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: isDark
-                  ? color.withValues(alpha: 0.15)
-                  : color.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, color: color, size: 22),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
+      child: isPhone
+          ? Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(
-                  label,
-                  style: GoogleFonts.inter(
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w700,
-                    color: theme.colorScheme.onSurfaceVariant,
-                    letterSpacing: 0.3,
-                  ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        label,
+                        style: GoogleFonts.inter(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w800,
+                          color: theme.colorScheme.onSurfaceVariant,
+                          letterSpacing: 0.3,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? color.withValues(alpha: 0.15)
+                            : color.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Icon(icon, color: color, size: 14),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  value,
-                  style: GoogleFonts.inter(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    color: theme.colorScheme.onSurface,
+                const SizedBox(height: 4),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    value,
+                    style: GoogleFonts.inter(
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w800,
+                      color: theme.colorScheme.onSurface,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   subtitle,
                   style: GoogleFonts.inter(
-                    fontSize: 11,
+                    fontSize: 9.5,
                     fontWeight: FontWeight.w500,
                     color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            )
+          : Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? color.withValues(alpha: 0.15)
+                        : color.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, color: color, size: 20),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        label,
+                        style: GoogleFonts.inter(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: theme.colorScheme.onSurfaceVariant,
+                          letterSpacing: 0.3,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          value,
+                          style: GoogleFonts.inter(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: theme.colorScheme.onSurface,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: GoogleFonts.inter(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w500,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -271,185 +348,182 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Breadcrumb Bar
-              _buildTopBreadcrumbBar(context),
-              const SizedBox(height: 16),
+              // Breadcrumb Bar - hidden on phone
+              if (!isPhone) ...[
+                _buildTopBreadcrumbBar(context),
+                const SizedBox(height: 16),
+              ],
 
-              // Header Bar – adaptive: Row on wide screens, Column on phones
+              // Header Bar – adaptive: streamlined single-row on phones, full row on desktop
               if (isPhone) ...[
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                Row(
                   children: [
-                    Text(
-                      'MULTI-BRANCH & STORE NETWORK',
-                      style: GoogleFonts.inter(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0.4,
-                        color: theme.colorScheme.onSurface,
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                'BRANCHES',
+                                style: GoogleFonts.inter(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 0.4,
+                                  color: theme.colorScheme.onSurface,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 7,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: primaryColor.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  '${branches.length} LOCATIONS',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 9.5,
+                                    fontWeight: FontWeight.w800,
+                                    color: primaryColor,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Multi-store network & ZRA DigiTax',
+                            style: GoogleFonts.inter(
+                              fontSize: 11,
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Manage branches, assign managers and ZRA DigiTax codes.',
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        PopupMenuButton<String>(
-                          onSelected: (value) async {
-                            final export = ref.read(exportServiceProvider);
-                            final config = ref.read(storeConfigProvider).value;
-                            final branchesList = await ref.read(
-                              storeBranchesProvider.future,
-                            );
-                            if (value == 'pdf') {
-                              export.exportBranchesReportToPdf(
-                                branchesList,
-                                config: config,
-                              );
-                            }
-                            if (value == 'excel') {
-                              export.exportBranchesReportToExcel(
-                                branchesList,
-                                config: config,
-                              );
-                            }
-                          },
-                          itemBuilder: (context) => [
-                            const PopupMenuItem(
-                              value: 'pdf',
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    Icons.picture_as_pdf_rounded,
-                                    color: Color(0xFFDC2626),
-                                    size: 16,
-                                  ),
-                                  SizedBox(width: 8),
-                                  Text('Export PDF'),
-                                ],
-                              ),
-                            ),
-                            const PopupMenuItem(
-                              value: 'excel',
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    Icons.table_chart_rounded,
-                                    color: Color(0xFF059669),
-                                    size: 16,
-                                  ),
-                                  SizedBox(width: 8),
-                                  Text('Export Excel'),
-                                ],
-                              ),
-                            ),
-                          ],
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 10,
-                            ),
-                            decoration: BoxDecoration(
-                              color: isDark
-                                  ? const Color(0xFF151F32)
-                                  : Colors.white,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: isDark
-                                    ? const Color(0xFF293548)
-                                    : const Color(0xFFE2E8F0),
-                              ),
-                            ),
+                    const SizedBox(width: 8),
+                    PopupMenuButton<String>(
+                      onSelected: (value) async {
+                        final export = ref.read(exportServiceProvider);
+                        final config = ref.read(storeConfigProvider).value;
+                        final branchesList = await ref.read(
+                          storeBranchesProvider.future,
+                        );
+                        if (!context.mounted) return;
+                        if (value == 'pdf') {
+                          export.exportBranchesReportToPdf(
+                            branchesList,
+                            config: config,
+                          );
+                        } else if (value == 'excel') {
+                          export.exportBranchesReportToExcel(
+                            branchesList,
+                            config: config,
+                          );
+                        } else if (value == 'reports' && branches.isNotEmpty) {
+                          _openBranchReports(context, branches.first);
+                        }
+                      },
+                      itemBuilder: (context) => [
+                        if (branches.isNotEmpty)
+                          const PopupMenuItem(
+                            value: 'reports',
                             child: Row(
-                              mainAxisSize: MainAxisSize.min,
                               children: [
                                 Icon(
-                                  Icons.download_rounded,
-                                  size: 15,
-                                  color: theme.colorScheme.onSurfaceVariant,
+                                  Icons.analytics_rounded,
+                                  color: Color(0xFF2563EB),
+                                  size: 16,
                                 ),
-                                const SizedBox(width: 5),
-                                Text(
-                                  'Export',
-                                  style: GoogleFonts.inter(
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 12,
-                                    color: theme.colorScheme.onSurface,
-                                  ),
-                                ),
+                                SizedBox(width: 8),
+                                Text('Branch Reports Hub'),
                               ],
                             ),
                           ),
-                        ),
-                        OutlinedButton.icon(
-                          onPressed: () {
-                            if (branches.isNotEmpty) {
-                              _openBranchReports(context, branches.first);
-                            }
-                          },
-                          icon: const Icon(
-                            Icons.analytics_rounded,
-                            size: 15,
-                            color: Color(0xFF2563EB),
-                          ),
-                          label: Text(
-                            'Reports',
-                            style: GoogleFonts.inter(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 12,
-                              color: const Color(0xFF2563EB),
-                            ),
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 10,
-                            ),
-                            side: const BorderSide(color: Color(0xFF2563EB)),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
+                        const PopupMenuItem(
+                          value: 'pdf',
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.picture_as_pdf_rounded,
+                                color: Color(0xFFDC2626),
+                                size: 16,
+                              ),
+                              SizedBox(width: 8),
+                              Text('Export PDF'),
+                            ],
                           ),
                         ),
-                        ElevatedButton.icon(
-                          onPressed: () => _showAddEditBranchDialog(
-                            context,
-                            primaryColor,
-                            users,
-                          ),
-                          icon: const Icon(
-                            Icons.add_business_rounded,
-                            size: 16,
-                          ),
-                          label: Text(
-                            '+ New Branch',
-                            style: GoogleFonts.inter(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 12,
-                            ),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: primaryColor,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 10,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            elevation: 0,
+                        const PopupMenuItem(
+                          value: 'excel',
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.table_chart_rounded,
+                                color: Color(0xFF059669),
+                                size: 16,
+                              ),
+                              SizedBox(width: 8),
+                              Text('Export Excel'),
+                            ],
                           ),
                         ),
                       ],
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? const Color(0xFF151F32)
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: isDark
+                                ? const Color(0xFF293548)
+                                : const Color(0xFFE2E8F0),
+                          ),
+                        ),
+                        child: Icon(
+                          Icons.more_horiz_rounded,
+                          size: 18,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    ElevatedButton.icon(
+                      onPressed: () => _showAddEditBranchDialog(
+                        context,
+                        primaryColor,
+                        users,
+                      ),
+                      icon: const Icon(
+                        Icons.add_business_rounded,
+                        size: 15,
+                      ),
+                      label: Text(
+                        'Branch',
+                        style: GoogleFonts.inter(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: primaryColor,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 9,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        elevation: 0,
+                      ),
                     ),
                   ],
                 ),
@@ -639,52 +713,106 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
                   ],
                 ),
               ],
-              const SizedBox(height: 20),
+              SizedBox(height: isPhone ? 12 : 20),
 
               // Top Executive Metric Cards Grid – responsive
-              GridView.count(
-                crossAxisCount: isPhone ? 2 : (isTablet ? 2 : 4),
-                crossAxisSpacing: 14,
-                mainAxisSpacing: 14,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                childAspectRatio: isPhone ? 2.0 : 2.5,
-                children: [
-                  _buildKpiCard(
-                    'TOTAL BRANCHES',
-                    '${branches.length} Locations',
-                    'Store network size',
-                    Icons.store_mall_directory_rounded,
-                    primaryColor,
-                  ),
-                  _buildKpiCard(
-                    'ACTIVE HQ STORE',
-                    currentConfig?.businessName ?? 'Main HQ Branch',
-                    'bhfId: ${currentConfig?.bhfId ?? "00"}',
-                    Icons.storefront_rounded,
-                    const Color(0xFF0284C7),
-                  ),
-                  _buildKpiCard(
-                    'NETWORK SALES TODAY',
-                    '$currency ${totalNetworkSales.toStringAsFixed(2)}',
-                    'Combined daily revenue',
-                    Icons.payments_rounded,
-                    const Color(0xFF059669),
-                  ),
-                  _buildKpiCard(
-                    'ZRA DIGITAX CONNECTED',
-                    '$activeCount / ${branches.length} Online',
-                    'Fiscalized locations',
-                    Icons.verified_rounded,
-                    const Color(0xFFD97706),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
+              if (isPhone) ...[
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildKpiCard(
+                        'TOTAL BRANCHES',
+                        '${branches.length} Locations',
+                        'Network size',
+                        Icons.store_mall_directory_rounded,
+                        primaryColor,
+                        isPhone: true,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _buildKpiCard(
+                        'ACTIVE HQ STORE',
+                        currentConfig?.businessName ?? 'Main HQ',
+                        'bhfId: ${currentConfig?.bhfId ?? "00"}',
+                        Icons.storefront_rounded,
+                        const Color(0xFF0284C7),
+                        isPhone: true,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildKpiCard(
+                        'TODAY NETWORK SALES',
+                        '$currency ${totalNetworkSales.toStringAsFixed(2)}',
+                        'Combined revenue',
+                        Icons.payments_rounded,
+                        const Color(0xFF059669),
+                        isPhone: true,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _buildKpiCard(
+                        'ZRA DIGITAX CONNECTED',
+                        '$activeCount / ${branches.length} Online',
+                        'Fiscalized locations',
+                        Icons.verified_rounded,
+                        const Color(0xFFD97706),
+                        isPhone: true,
+                      ),
+                    ),
+                  ],
+                ),
+              ] else ...[
+                GridView.count(
+                  crossAxisCount: isTablet ? 2 : 4,
+                  crossAxisSpacing: 14,
+                  mainAxisSpacing: 14,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  childAspectRatio: 2.5,
+                  children: [
+                    _buildKpiCard(
+                      'TOTAL BRANCHES',
+                      '${branches.length} Locations',
+                      'Store network size',
+                      Icons.store_mall_directory_rounded,
+                      primaryColor,
+                    ),
+                    _buildKpiCard(
+                      'ACTIVE HQ STORE',
+                      currentConfig?.businessName ?? 'Main HQ Branch',
+                      'bhfId: ${currentConfig?.bhfId ?? "00"}',
+                      Icons.storefront_rounded,
+                      const Color(0xFF0284C7),
+                    ),
+                    _buildKpiCard(
+                      'NETWORK SALES TODAY',
+                      '$currency ${totalNetworkSales.toStringAsFixed(2)}',
+                      'Combined daily revenue',
+                      Icons.payments_rounded,
+                      const Color(0xFF059669),
+                    ),
+                    _buildKpiCard(
+                      'ZRA DIGITAX CONNECTED',
+                      '$activeCount / ${branches.length} Online',
+                      'Fiscalized locations',
+                      Icons.verified_rounded,
+                      const Color(0xFFD97706),
+                    ),
+                  ],
+                ),
+              ],
+              SizedBox(height: isPhone ? 12 : 20),
 
               // Active HQ Branch Highlight Card
               Container(
-                padding: const EdgeInsets.all(20),
+                padding: EdgeInsets.all(isPhone ? 12 : 16),
                 decoration: BoxDecoration(
                   color: isDark ? const Color(0xFF151F32) : Colors.white,
                   borderRadius: BorderRadius.circular(12),
@@ -694,94 +822,187 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
                         : const Color(0xFFE2E8F0),
                   ),
                 ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: isDark
-                            ? primaryColor.withValues(alpha: 0.15)
-                            : const Color(0xFFEFF6FF),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(
-                        Icons.storefront_rounded,
-                        color: primaryColor,
-                        size: 24,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
+                child: isPhone
+                    ? Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            'HEADQUARTERS & ACTIVE TERMINAL BRANCH',
-                            style: GoogleFonts.inter(
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.w800,
-                              color: primaryColor,
-                              letterSpacing: 0.8,
-                            ),
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: isDark
+                                      ? primaryColor.withValues(alpha: 0.15)
+                                      : const Color(0xFFEFF6FF),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Icon(
+                                  Icons.storefront_rounded,
+                                  color: primaryColor,
+                                  size: 20,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'HEADQUARTERS (MAIN STORE)',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w800,
+                                        color: primaryColor,
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      currentConfig?.businessName ??
+                                          'Lusaka Main Branch (HQ)',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w800,
+                                        color: theme.colorScheme.onSurface,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFECFDF5),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                      width: 5,
+                                      height: 5,
+                                      decoration: const BoxDecoration(
+                                        color: Color(0xFF059669),
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'DIGITAX',
+                                      style: GoogleFonts.inter(
+                                        color: const Color(0xFF059669),
+                                        fontSize: 9.5,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 8),
                           Text(
-                            currentConfig?.businessName ??
-                                'Lusaka Main Branch (HQ)',
+                            'bhfId: ${currentConfig?.bhfId ?? "00"} • TPIN: ${currentConfig?.tpin ?? "1002948192"}',
                             style: GoogleFonts.inter(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w800,
-                              color: theme.colorScheme.onSurface,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'ZRA Branch Code (bhfId): ${currentConfig?.bhfId ?? "00"} • TPIN: ${currentConfig?.tpin ?? "1002948192"}',
-                            style: GoogleFonts.inter(
-                              fontSize: 12,
+                              fontSize: 11,
                               color: theme.colorScheme.onSurfaceVariant,
                             ),
                           ),
                         ],
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFECFDF5),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Row(
+                      )
+                    : Row(
                         children: [
                           Container(
-                            width: 7,
-                            height: 7,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFF059669),
-                              shape: BoxShape.circle,
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: isDark
+                                  ? primaryColor.withValues(alpha: 0.15)
+                                  : const Color(0xFFEFF6FF),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Icon(
+                              Icons.storefront_rounded,
+                              color: primaryColor,
+                              size: 24,
                             ),
                           ),
-                          const SizedBox(width: 6),
-                          Text(
-                            'ZRA DIGITAX ACTIVE',
-                            style: GoogleFonts.inter(
-                              color: const Color(0xFF059669),
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'HEADQUARTERS & ACTIVE TERMINAL BRANCH',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w800,
+                                    color: primaryColor,
+                                    letterSpacing: 0.8,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  currentConfig?.businessName ??
+                                      'Lusaka Main Branch (HQ)',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w800,
+                                    color: theme.colorScheme.onSurface,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'ZRA Branch Code (bhfId): ${currentConfig?.bhfId ?? "00"} • TPIN: ${currentConfig?.tpin ?? "1002948192"}',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFECFDF5),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 7,
+                                  height: 7,
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFF059669),
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'ZRA DIGITAX ACTIVE',
+                                  style: GoogleFonts.inter(
+                                    color: const Color(0xFF059669),
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
                       ),
-                    ),
-                  ],
-                ),
               ),
-              const SizedBox(height: 20),
+              SizedBox(height: isPhone ? 12 : 20),
 
-              // Branches Grid
+              // Branches List / Grid
               Expanded(
                 child: branches.isEmpty
                     ? Center(
@@ -814,58 +1035,48 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
                           ],
                         ),
                       )
-                    : GridView.builder(
-                        gridDelegate:
-                            const SliverGridDelegateWithMaxCrossAxisExtent(
-                              maxCrossAxisExtent: 420,
-                              mainAxisExtent: 260,
-                              crossAxisSpacing: 16,
-                              mainAxisSpacing: 16,
-                            ),
-                        itemCount: branches.length,
-                        itemBuilder: (context, index) {
-                          final b = branches[index];
-                          final isOnline =
-                              b.status == 'ONLINE' || b.status == 'ACTIVE';
-                          return Container(
-                            padding: const EdgeInsets.all(20),
-                            decoration: BoxDecoration(
-                              color: isDark
-                                  ? const Color(0xFF151F32)
-                                  : Colors.white,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: isDark
-                                    ? const Color(0xFF293548)
-                                    : const Color(0xFFE2E8F0),
-                              ),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
+                    : isPhone
+                        ? _buildMobileBranchList(
+                            context,
+                            branches,
+                            theme,
+                            isDark,
+                            primaryColor,
+                            currency,
+                            users,
+                          )
+                        : GridView.builder(
+                            gridDelegate:
+                                const SliverGridDelegateWithMaxCrossAxisExtent(
+                                  maxCrossAxisExtent: 420,
+                                  mainAxisExtent: 260,
+                                  crossAxisSpacing: 16,
+                                  mainAxisSpacing: 16,
+                                ),
+                            itemCount: branches.length,
+                            itemBuilder: (context, index) {
+                              final b = branches[index];
+                              final isOnline =
+                                  b.status == 'ONLINE' || b.status == 'ACTIVE';
+                              return Container(
+                                padding: const EdgeInsets.all(20),
+                                decoration: BoxDecoration(
+                                  color: isDark
+                                      ? const Color(0xFF151F32)
+                                      : Colors.white,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: isDark
+                                        ? const Color(0xFF293548)
+                                        : const Color(0xFFE2E8F0),
+                                  ),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 4,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFF0F9FF),
-                                        borderRadius: BorderRadius.circular(6),
-                                      ),
-                                      child: Text(
-                                        'BHF ID: ${b.bhfId}',
-                                        style: GoogleFonts.inter(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.bold,
-                                          color: const Color(0xFF0284C7),
-                                        ),
-                                      ),
-                                    ),
                                     Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
                                       children: [
                                         Container(
                                           padding: const EdgeInsets.symmetric(
@@ -873,386 +1084,791 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
                                             vertical: 4,
                                           ),
                                           decoration: BoxDecoration(
-                                            color: isOnline
-                                                ? const Color(0xFFECFDF5)
-                                                : (isDark
-                                                      ? const Color(0xFF1C283D)
-                                                      : const Color(
-                                                          0xFFF1F5F9,
-                                                        )),
-                                            borderRadius: BorderRadius.circular(
-                                              6,
-                                            ),
+                                            color: const Color(0xFFF0F9FF),
+                                            borderRadius:
+                                                BorderRadius.circular(6),
                                           ),
                                           child: Text(
-                                            b.isHQ
-                                                ? 'HQ STORE'
-                                                : (isOnline
-                                                      ? 'ONLINE'
-                                                      : 'OFFLINE'),
-                                            style: TextStyle(
-                                              fontSize: 10,
+                                            'BHF ID: ${b.bhfId}',
+                                            style: GoogleFonts.inter(
+                                              fontSize: 11,
                                               fontWeight: FontWeight.bold,
-                                              color: isOnline
-                                                  ? const Color(0xFF059669)
-                                                  : theme
-                                                        .colorScheme
-                                                        .onSurfaceVariant,
+                                              color: const Color(0xFF0284C7),
                                             ),
                                           ),
                                         ),
-                                        const SizedBox(width: 4),
-                                        PopupMenuButton<String>(
-                                          icon: Icon(
-                                            Icons.more_vert_rounded,
-                                            size: 18,
-                                            color: theme
-                                                .colorScheme
-                                                .onSurfaceVariant,
-                                          ),
-                                          padding: EdgeInsets.zero,
-                                          onSelected: (val) async {
-                                            if (val == 'view_reports') {
-                                              _openBranchReports(context, b);
-                                            } else if (val ==
-                                                'daily_report_pdf') {
-                                              _generateBranchDailyReport(
-                                                context,
-                                                b,
-                                                printDirectly: false,
-                                              );
-                                            } else if (val ==
-                                                'daily_report_print') {
-                                              _generateBranchDailyReport(
-                                                context,
-                                                b,
-                                                printDirectly: true,
-                                              );
-                                            } else if (val == 'edit') {
-                                              _showAddEditBranchDialog(
-                                                context,
-                                                primaryColor,
-                                                users,
-                                                branch: b,
-                                              );
-                                            } else if (val == 'toggle_status') {
-                                              final isar = ref.read(
-                                                isarProvider,
-                                              );
-                                              await isar.writeTxn(() async {
-                                                b.status = isOnline
-                                                    ? 'OFFLINE'
-                                                    : 'ONLINE';
-                                                await isar.storeBranchs.put(b);
-                                              });
-                                              ref.invalidate(
-                                                storeBranchesProvider,
-                                              );
-                                            } else if (val == 'delete') {
-                                              _deleteBranch(context, b);
-                                            }
-                                          },
-                                          itemBuilder: (context) => [
-                                            const PopupMenuItem(
-                                              value: 'view_reports',
-                                              child: Row(
-                                                children: [
-                                                  Icon(
-                                                    Icons.analytics_rounded,
-                                                    color: Color(0xFF2563EB),
-                                                    size: 16,
-                                                  ),
-                                                  SizedBox(width: 8),
-                                                  Text(
-                                                    'Branch Reports (Sales, Profit, Stock)',
-                                                    style: TextStyle(
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                    ),
-                                                  ),
-                                                ],
+                                        Row(
+                                          children: [
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                horizontal: 8,
+                                                vertical: 4,
                                               ),
-                                            ),
-                                            const PopupMenuDivider(),
-                                            const PopupMenuItem(
-                                              value: 'daily_report_pdf',
-                                              child: Row(
-                                                children: [
-                                                  Icon(
-                                                    Icons
-                                                        .picture_as_pdf_rounded,
-                                                    color: Color(0xFFDC2626),
-                                                    size: 16,
-                                                  ),
-                                                  SizedBox(width: 8),
-                                                  Text(
-                                                    'Daily Branch Report (PDF)',
-                                                  ),
-                                                ],
+                                              decoration: BoxDecoration(
+                                                color: isOnline
+                                                    ? const Color(0xFFECFDF5)
+                                                    : (isDark
+                                                          ? const Color(
+                                                              0xFF1C283D,
+                                                            )
+                                                          : const Color(
+                                                              0xFFF1F5F9,
+                                                            )),
+                                                borderRadius:
+                                                    BorderRadius.circular(6),
                                               ),
-                                            ),
-                                            const PopupMenuItem(
-                                              value: 'daily_report_print',
-                                              child: Row(
-                                                children: [
-                                                  Icon(
-                                                    Icons.print_rounded,
-                                                    color: Color(0xFF059669),
-                                                    size: 16,
-                                                  ),
-                                                  SizedBox(width: 8),
-                                                  Text('Print Daily Report'),
-                                                ],
-                                              ),
-                                            ),
-                                            const PopupMenuDivider(),
-                                            const PopupMenuItem(
-                                              value: 'edit',
-                                              child: Row(
-                                                children: [
-                                                  Icon(
-                                                    Icons.edit_rounded,
-                                                    size: 16,
-                                                  ),
-                                                  SizedBox(width: 8),
-                                                  Text('Edit Branch'),
-                                                ],
-                                              ),
-                                            ),
-                                            PopupMenuItem(
-                                              value: 'toggle_status',
-                                              child: Row(
-                                                children: [
-                                                  Icon(
-                                                    Icons.toggle_on_rounded,
-                                                    size: 16,
-                                                  ),
-                                                  SizedBox(width: 8),
-                                                  Text(
-                                                    isOnline
-                                                        ? 'Set Offline'
-                                                        : 'Set Online',
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                            if (!b.isHQ)
-                                              const PopupMenuItem(
-                                                value: 'delete',
-                                                child: Row(
-                                                  children: [
-                                                    Icon(
-                                                      Icons
-                                                          .delete_outline_rounded,
-                                                      color: Color(0xFFDC2626),
-                                                      size: 16,
-                                                    ),
-                                                    SizedBox(width: 8),
-                                                    Text(
-                                                      'Delete Branch',
-                                                      style: TextStyle(
-                                                        color: Color(
-                                                          0xFFDC2626,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ],
+                                              child: Text(
+                                                b.isHQ
+                                                    ? 'HQ STORE'
+                                                    : (isOnline
+                                                          ? 'ONLINE'
+                                                          : 'OFFLINE'),
+                                                style: TextStyle(
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: isOnline
+                                                      ? const Color(0xFF059669)
+                                                      : theme
+                                                            .colorScheme
+                                                            .onSurfaceVariant,
                                                 ),
                                               ),
+                                            ),
+                                            const SizedBox(width: 4),
+                                            PopupMenuButton<String>(
+                                              icon: Icon(
+                                                Icons.more_vert_rounded,
+                                                size: 18,
+                                                color: theme
+                                                    .colorScheme
+                                                    .onSurfaceVariant,
+                                              ),
+                                              padding: EdgeInsets.zero,
+                                              onSelected: (val) async {
+                                                if (val == 'view_reports') {
+                                                  _openBranchReports(
+                                                    context,
+                                                    b,
+                                                  );
+                                                } else if (val ==
+                                                    'daily_report_pdf') {
+                                                  _generateBranchDailyReport(
+                                                    context,
+                                                    b,
+                                                    printDirectly: false,
+                                                  );
+                                                } else if (val ==
+                                                    'daily_report_print') {
+                                                  _generateBranchDailyReport(
+                                                    context,
+                                                    b,
+                                                    printDirectly: true,
+                                                  );
+                                                } else if (val == 'edit') {
+                                                  _showAddEditBranchDialog(
+                                                    context,
+                                                    primaryColor,
+                                                    users,
+                                                    branch: b,
+                                                  );
+                                                } else if (val ==
+                                                    'toggle_status') {
+                                                  final isar = ref.read(
+                                                    isarProvider,
+                                                  );
+                                                  await isar.writeTxn(() async {
+                                                    b.status = isOnline
+                                                        ? 'OFFLINE'
+                                                        : 'ONLINE';
+                                                    await isar.storeBranchs
+                                                        .put(b);
+                                                  });
+                                                  ref.invalidate(
+                                                    storeBranchesProvider,
+                                                  );
+                                                } else if (val == 'delete') {
+                                                  _deleteBranch(context, b);
+                                                }
+                                              },
+                                              itemBuilder: (context) => [
+                                                const PopupMenuItem(
+                                                  value: 'view_reports',
+                                                  child: Row(
+                                                    children: [
+                                                      Icon(
+                                                        Icons.analytics_rounded,
+                                                        color:
+                                                            Color(0xFF2563EB),
+                                                        size: 16,
+                                                      ),
+                                                      SizedBox(width: 8),
+                                                      Text(
+                                                        'Branch Reports (Sales, Profit, Stock)',
+                                                        style: TextStyle(
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                                const PopupMenuDivider(),
+                                                const PopupMenuItem(
+                                                  value: 'daily_report_pdf',
+                                                  child: Row(
+                                                    children: [
+                                                      Icon(
+                                                        Icons
+                                                            .picture_as_pdf_rounded,
+                                                        color:
+                                                            Color(0xFFDC2626),
+                                                        size: 16,
+                                                      ),
+                                                      SizedBox(width: 8),
+                                                      Text(
+                                                        'Daily Branch Report (PDF)',
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                                const PopupMenuItem(
+                                                  value: 'daily_report_print',
+                                                  child: Row(
+                                                    children: [
+                                                      Icon(
+                                                        Icons.print_rounded,
+                                                        color:
+                                                            Color(0xFF059669),
+                                                        size: 16,
+                                                      ),
+                                                      SizedBox(width: 8),
+                                                      Text(
+                                                        'Print Daily Report',
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                                const PopupMenuDivider(),
+                                                const PopupMenuItem(
+                                                  value: 'edit',
+                                                  child: Row(
+                                                    children: [
+                                                      Icon(
+                                                        Icons.edit_rounded,
+                                                        size: 16,
+                                                      ),
+                                                      SizedBox(width: 8),
+                                                      Text('Edit Branch'),
+                                                    ],
+                                                  ),
+                                                ),
+                                                PopupMenuItem(
+                                                  value: 'toggle_status',
+                                                  child: Row(
+                                                    children: [
+                                                      Icon(
+                                                        Icons.toggle_on_rounded,
+                                                        size: 16,
+                                                      ),
+                                                      SizedBox(width: 8),
+                                                      Text(
+                                                        isOnline
+                                                            ? 'Set Offline'
+                                                            : 'Set Online',
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                                if (!b.isHQ)
+                                                  const PopupMenuItem(
+                                                    value: 'delete',
+                                                    child: Row(
+                                                      children: [
+                                                        Icon(
+                                                          Icons
+                                                              .delete_outline_rounded,
+                                                          color:
+                                                              Color(0xFFDC2626),
+                                                          size: 16,
+                                                        ),
+                                                        SizedBox(width: 8),
+                                                        Text(
+                                                          'Delete Branch',
+                                                          style: TextStyle(
+                                                            color: Color(
+                                                              0xFFDC2626,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                              ],
+                                            ),
                                           ],
                                         ),
                                       ],
                                     ),
-                                  ],
-                                ),
-                                const SizedBox(height: 10),
-                                Text(
-                                  b.name,
-                                  style: GoogleFonts.inter(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.bold,
-                                    color: theme.colorScheme.onSurface,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  b.address?.isNotEmpty == true
-                                      ? b.address!
-                                      : 'Location details not set',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 12,
-                                    color: theme.colorScheme.onSurfaceVariant,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                const SizedBox(height: 12),
-                                // Branch Manager Card
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 8,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: isDark
-                                        ? const Color(0xFF1C283D)
-                                        : const Color(0xFFF8FAFC),
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(
+                                    const SizedBox(height: 10),
+                                    Text(
+                                      b.name,
+                                      style: GoogleFonts.inter(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.bold,
+                                        color: theme.colorScheme.onSurface,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      b.address?.isNotEmpty == true
+                                          ? b.address!
+                                          : 'Location details not set',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 12,
+                                        color:
+                                            theme.colorScheme.onSurfaceVariant,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 12),
+                                    // Branch Manager Card
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 8,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: isDark
+                                            ? const Color(0xFF1C283D)
+                                            : const Color(0xFFF8FAFC),
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(
+                                          color: isDark
+                                              ? const Color(0xFF293548)
+                                              : const Color(0xFFE2E8F0),
+                                        ),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            Icons.person_pin_rounded,
+                                            size: 18,
+                                            color: primaryColor,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  'Manager: ${b.managerName ?? "Unassigned"}',
+                                                  style: GoogleFonts.inter(
+                                                    fontSize: 11.5,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: theme
+                                                        .colorScheme
+                                                        .onSurface,
+                                                  ),
+                                                ),
+                                                if (b.managerPhone != null &&
+                                                    b.managerPhone!.isNotEmpty)
+                                                  Text(
+                                                    'Contact: ${b.managerPhone}',
+                                                    style: GoogleFonts.inter(
+                                                      fontSize: 10.5,
+                                                      color: theme
+                                                          .colorScheme
+                                                          .onSurfaceVariant,
+                                                    ),
+                                                  ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const Spacer(),
+                                    Divider(
                                       color: isDark
                                           ? const Color(0xFF293548)
                                           : const Color(0xFFE2E8F0),
                                     ),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        Icons.person_pin_rounded,
-                                        size: 18,
-                                        color: primaryColor,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: Column(
+                                    Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Column(
                                           crossAxisAlignment:
                                               CrossAxisAlignment.start,
                                           children: [
                                             Text(
-                                              'Manager: ${b.managerName ?? "Unassigned"}',
+                                              'Sales Today',
                                               style: GoogleFonts.inter(
-                                                fontSize: 11.5,
-                                                fontWeight: FontWeight.bold,
-                                                color:
-                                                    theme.colorScheme.onSurface,
+                                                fontSize: 10,
+                                                color: theme
+                                                    .colorScheme
+                                                    .onSurfaceVariant,
                                               ),
                                             ),
-                                            if (b.managerPhone != null &&
-                                                b.managerPhone!.isNotEmpty)
-                                              Text(
-                                                'Contact: ${b.managerPhone}',
-                                                style: GoogleFonts.inter(
-                                                  fontSize: 10.5,
-                                                  color: theme
-                                                      .colorScheme
-                                                      .onSurfaceVariant,
-                                                ),
+                                            Text(
+                                              '$currency ${b.salesToday.toStringAsFixed(2)}',
+                                              style: GoogleFonts.inter(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.bold,
+                                                color: primaryColor,
                                               ),
+                                            ),
                                           ],
                                         ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const Spacer(),
-                                Divider(
-                                  color: isDark
-                                      ? const Color(0xFF293548)
-                                      : const Color(0xFFE2E8F0),
-                                ),
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          'Sales Today',
-                                          style: GoogleFonts.inter(
-                                            fontSize: 10,
-                                            color: theme
-                                                .colorScheme
-                                                .onSurfaceVariant,
-                                          ),
-                                        ),
-                                        Text(
-                                          '$currency ${b.salesToday.toStringAsFixed(2)}',
-                                          style: GoogleFonts.inter(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.bold,
-                                            color: primaryColor,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    Row(
-                                      children: [
-                                        TextButton.icon(
-                                          onPressed: () =>
-                                              _openBranchReports(context, b),
-                                          icon: const Icon(
-                                            Icons.analytics_rounded,
-                                            size: 15,
-                                            color: Color(0xFF2563EB),
-                                          ),
-                                          label: Text(
-                                            'Reports',
-                                            style: GoogleFonts.inter(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.bold,
-                                              color: const Color(0xFF2563EB),
+                                        Row(
+                                          children: [
+                                            TextButton.icon(
+                                              onPressed: () =>
+                                                  _openBranchReports(
+                                                context,
+                                                b,
+                                              ),
+                                              icon: const Icon(
+                                                Icons.analytics_rounded,
+                                                size: 15,
+                                                color: Color(0xFF2563EB),
+                                              ),
+                                              label: Text(
+                                                'Reports',
+                                                style: GoogleFonts.inter(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.bold,
+                                                  color:
+                                                      const Color(0xFF2563EB),
+                                                ),
+                                              ),
+                                              style: TextButton.styleFrom(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                  horizontal: 10,
+                                                  vertical: 6,
+                                                ),
+                                                backgroundColor: const Color(
+                                                  0xFF2563EB,
+                                                ).withValues(alpha: 0.1),
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(6),
+                                                ),
+                                              ),
                                             ),
-                                          ),
-                                          style: TextButton.styleFrom(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 10,
-                                              vertical: 6,
-                                            ),
-                                            backgroundColor: const Color(
-                                              0xFF2563EB,
-                                            ).withValues(alpha: 0.1),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(6),
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 4),
-                                        IconButton(
-                                          onPressed: () =>
-                                              _generateBranchDailyReport(
+                                            const SizedBox(width: 4),
+                                            IconButton(
+                                              onPressed: () =>
+                                                  _generateBranchDailyReport(
                                                 context,
                                                 b,
                                                 printDirectly: false,
                                               ),
-                                          icon: const Icon(
-                                            Icons.picture_as_pdf_rounded,
-                                            size: 16,
-                                            color: Color(0xFFDC2626),
-                                          ),
-                                          tooltip:
-                                              'Generate Daily Report (PDF)',
-                                          splashRadius: 18,
-                                        ),
-                                        IconButton(
-                                          onPressed: () =>
-                                              _generateBranchDailyReport(
+                                              icon: const Icon(
+                                                Icons.picture_as_pdf_rounded,
+                                                size: 16,
+                                                color: Color(0xFFDC2626),
+                                              ),
+                                              tooltip:
+                                                  'Generate Daily Report (PDF)',
+                                              splashRadius: 18,
+                                            ),
+                                            IconButton(
+                                              onPressed: () =>
+                                                  _generateBranchDailyReport(
                                                 context,
                                                 b,
                                                 printDirectly: true,
                                               ),
-                                          icon: Icon(
-                                            Icons.print_rounded,
-                                            size: 16,
-                                            color: theme
-                                                .colorScheme
-                                                .onSurfaceVariant,
-                                          ),
-                                          tooltip: 'Print Daily Report',
-                                          splashRadius: 18,
+                                              icon: Icon(
+                                                Icons.print_rounded,
+                                                size: 16,
+                                                color: theme
+                                                    .colorScheme
+                                                    .onSurfaceVariant,
+                                              ),
+                                              tooltip: 'Print Daily Report',
+                                              splashRadius: 18,
+                                            ),
+                                          ],
                                         ),
                                       ],
                                     ),
                                   ],
                                 ),
-                              ],
-                            ),
-                          );
-                        },
+                              );
+                            },
+                          ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildMobileBranchList(
+    BuildContext context,
+    List<StoreBranch> branches,
+    ThemeData theme,
+    bool isDark,
+    Color primaryColor,
+    String currency,
+    List<User> users,
+  ) {
+    return ListView.separated(
+      itemCount: branches.length,
+      separatorBuilder: (context, index) => const SizedBox(height: 10),
+      itemBuilder: (context, index) {
+        final b = branches[index];
+        final isOnline = b.status == 'ONLINE' || b.status == 'ACTIVE';
+        return Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF151F32) : Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isDark
+                  ? const Color(0xFF293548)
+                  : const Color(0xFFE2E8F0),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Top chips & Actions
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 7,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF0F9FF),
+                      borderRadius: BorderRadius.circular(5),
+                    ),
+                    child: Text(
+                      'BHF ID: ${b.bhfId}',
+                      style: GoogleFonts.inter(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF0284C7),
                       ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 7,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isOnline
+                          ? const Color(0xFFECFDF5)
+                          : (isDark
+                                ? const Color(0xFF1C283D)
+                                : const Color(0xFFF1F5F9)),
+                      borderRadius: BorderRadius.circular(5),
+                    ),
+                    child: Text(
+                      b.isHQ
+                          ? 'HQ STORE'
+                          : (isOnline ? 'ONLINE' : 'OFFLINE'),
+                      style: TextStyle(
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.bold,
+                        color: isOnline
+                            ? const Color(0xFF059669)
+                            : theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  PopupMenuButton<String>(
+                    icon: Icon(
+                      Icons.more_vert_rounded,
+                      size: 18,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                    padding: EdgeInsets.zero,
+                    onSelected: (val) async {
+                      if (val == 'view_reports') {
+                        _openBranchReports(context, b);
+                      } else if (val == 'daily_report_pdf') {
+                        _generateBranchDailyReport(
+                          context,
+                          b,
+                          printDirectly: false,
+                        );
+                      } else if (val == 'daily_report_print') {
+                        _generateBranchDailyReport(
+                          context,
+                          b,
+                          printDirectly: true,
+                        );
+                      } else if (val == 'edit') {
+                        _showAddEditBranchDialog(
+                          context,
+                          primaryColor,
+                          users,
+                          branch: b,
+                        );
+                      } else if (val == 'toggle_status') {
+                        final isar = ref.read(isarProvider);
+                        await isar.writeTxn(() async {
+                          b.status = isOnline ? 'OFFLINE' : 'ONLINE';
+                          await isar.storeBranchs.put(b);
+                        });
+                        ref.invalidate(storeBranchesProvider);
+                      } else if (val == 'delete') {
+                        _deleteBranch(context, b);
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      const PopupMenuItem(
+                        value: 'view_reports',
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.analytics_rounded,
+                              color: Color(0xFF2563EB),
+                              size: 16,
+                            ),
+                            SizedBox(width: 8),
+                            Text('Branch Reports'),
+                          ],
+                        ),
+                      ),
+                      const PopupMenuItem(
+                        value: 'daily_report_pdf',
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.picture_as_pdf_rounded,
+                              color: Color(0xFFDC2626),
+                              size: 16,
+                            ),
+                            SizedBox(width: 8),
+                            Text('Daily Report (PDF)'),
+                          ],
+                        ),
+                      ),
+                      const PopupMenuItem(
+                        value: 'daily_report_print',
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.print_rounded,
+                              color: Color(0xFF059669),
+                              size: 16,
+                            ),
+                            SizedBox(width: 8),
+                            Text('Print Daily Report'),
+                          ],
+                        ),
+                      ),
+                      const PopupMenuDivider(),
+                      const PopupMenuItem(
+                        value: 'edit',
+                        child: Row(
+                          children: [
+                            Icon(Icons.edit_rounded, size: 16),
+                            SizedBox(width: 8),
+                            Text('Edit Branch'),
+                          ],
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'toggle_status',
+                        child: Row(
+                          children: [
+                            Icon(Icons.toggle_on_rounded, size: 16),
+                            SizedBox(width: 8),
+                            Text(isOnline ? 'Set Offline' : 'Set Online'),
+                          ],
+                        ),
+                      ),
+                      if (!b.isHQ)
+                        const PopupMenuItem(
+                          value: 'delete',
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.delete_outline_rounded,
+                                color: Color(0xFFDC2626),
+                                size: 16,
+                              ),
+                              SizedBox(width: 8),
+                              Text(
+                                'Delete Branch',
+                                style: TextStyle(color: Color(0xFFDC2626)),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              // Name and Address
+              Text(
+                b.name,
+                style: GoogleFonts.inter(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.onSurface,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 2),
+              Text(
+                b.address?.isNotEmpty == true
+                    ? b.address!
+                    : 'Location details not set',
+                style: GoogleFonts.inter(
+                  fontSize: 11.5,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 8),
+              // Manager info
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? const Color(0xFF1C283D)
+                      : const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(
+                    color: isDark
+                        ? const Color(0xFF293548)
+                        : const Color(0xFFE2E8F0),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.person_pin_rounded,
+                      size: 15,
+                      color: primaryColor,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Manager: ${b.managerName ?? "Unassigned"}${b.managerPhone != null && b.managerPhone!.isNotEmpty ? " (${b.managerPhone})" : ""}',
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: theme.colorScheme.onSurface,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              // Sales Today & Action Buttons
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Sales Today',
+                        style: GoogleFonts.inter(
+                          fontSize: 9.5,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      Text(
+                        '$currency ${b.salesToday.toStringAsFixed(2)}',
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: primaryColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      TextButton.icon(
+                        onPressed: () => _openBranchReports(context, b),
+                        icon: const Icon(
+                          Icons.analytics_rounded,
+                          size: 14,
+                          color: Color(0xFF2563EB),
+                        ),
+                        label: Text(
+                          'Reports',
+                          style: GoogleFonts.inter(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.bold,
+                            color: const Color(0xFF2563EB),
+                          ),
+                        ),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 5,
+                          ),
+                          backgroundColor: const Color(
+                            0xFF2563EB,
+                          ).withValues(alpha: 0.1),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 2),
+                      IconButton(
+                        onPressed: () => _generateBranchDailyReport(
+                          context,
+                          b,
+                          printDirectly: false,
+                        ),
+                        icon: const Icon(
+                          Icons.picture_as_pdf_rounded,
+                          size: 15,
+                          color: Color(0xFFDC2626),
+                        ),
+                        tooltip: 'PDF Report',
+                        splashRadius: 16,
+                      ),
+                      IconButton(
+                        onPressed: () => _generateBranchDailyReport(
+                          context,
+                          b,
+                          printDirectly: true,
+                        ),
+                        icon: Icon(
+                          Icons.print_rounded,
+                          size: 15,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                        tooltip: 'Print Report',
+                        splashRadius: 16,
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ],
           ),
@@ -1442,11 +2058,19 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
           final isDark = theme.brightness == Brightness.dark;
           final primaryColor = theme.colorScheme.primary;
 
+          final isMobile = MediaQuery.of(context).size.width < 600;
+
           return Dialog(
             backgroundColor: Colors.transparent,
+            insetPadding: EdgeInsets.symmetric(
+              horizontal: isMobile ? 12 : 40,
+              vertical: isMobile ? 16 : 24,
+            ),
             child: Container(
               width: 540,
-              constraints: const BoxConstraints(maxHeight: 750),
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.88,
+              ),
               decoration: BoxDecoration(
                 color: isDark ? const Color(0xFF151F32) : Colors.white,
                 borderRadius: BorderRadius.circular(16),
@@ -1456,7 +2080,7 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
                       : const Color(0xFFE2E8F0),
                 ),
               ),
-              padding: const EdgeInsets.all(24),
+              padding: EdgeInsets.all(isMobile ? 16 : 24),
               child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
