@@ -587,6 +587,67 @@ class CloudDatabaseService {
     }
   }
 
+  /// Upload a local terminal backup snapshot to the VPS cloud storage.
+  Future<Map<String, dynamic>?> uploadVpsBackup({
+    required String baseUrl,
+    required int storeId,
+    required Map<String, dynamic> data,
+    String? backupName,
+    String? token,
+  }) async {
+    try {
+      final sanitizedUrl = baseUrl.endsWith('/')
+          ? baseUrl.substring(0, baseUrl.length - 1)
+          : baseUrl;
+      final response = await _dio.post(
+        '$sanitizedUrl/api/v1/sync/upload-backup',
+        data: {
+          'store_id': storeId,
+          'backup_name': backupName ?? 'pos_manual_snapshot',
+          'data': data,
+        },
+        options: _buildAuthOptions(token),
+      );
+
+      if (response.statusCode == 200 && response.data is Map) {
+        return Map<String, dynamic>.from(response.data);
+      }
+      return null;
+    } catch (e) {
+      debugPrint('VPS Cloud Backup Upload Failed: $e');
+      rethrow;
+    }
+  }
+
+  /// List available cloud backup snapshots stored on the VPS.
+  Future<List<Map<String, dynamic>>> getCloudSnapshots({
+    required String baseUrl,
+    required int storeId,
+    String? token,
+  }) async {
+    try {
+      final sanitizedUrl = baseUrl.endsWith('/')
+          ? baseUrl.substring(0, baseUrl.length - 1)
+          : baseUrl;
+      final response = await _dio.get(
+        '$sanitizedUrl/api/v1/sync/cloud-snapshots',
+        queryParameters: {'store_id': storeId},
+        options: _buildAuthOptions(token),
+      );
+
+      if (response.statusCode == 200 && response.data is Map) {
+        final list = response.data['snapshots'] as List?;
+        if (list != null) {
+          return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        }
+      }
+      return [];
+    } catch (e) {
+      debugPrint('VPS Cloud Snapshots List Failed: $e');
+      return [];
+    }
+  }
+
   /// Permanently purge the company organization account and all branches on the VPS.
   Future<Map<String, dynamic>> purgeCompanyAccount({
     required String baseUrl,

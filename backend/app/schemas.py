@@ -298,4 +298,13 @@ class SyncBatchExpensesRequest(BaseModel):
     store_id: int
     expenses: List[ExpenseCreate]
 
+class CloudBackupUploadRequest(BaseModel):
+    store_id: int
+    backup_name: Optional[str] = None
+    data: dict
 
+class CloudBackupUploadResponse(BaseModel):
+    success: bool
+    message: str
+    snapshot_filename: Optional[str] = None
+    records_saved: Optional[dict] = None

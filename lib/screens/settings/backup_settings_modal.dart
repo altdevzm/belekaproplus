@@ -6,6 +6,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:beleka_pos/providers/store_provider.dart';
 import 'package:beleka_pos/services/database_service.dart';
+import 'package:beleka_pos/services/cloud_database_service.dart';
+import 'package:beleka_pos/services/backup_service.dart';
 import 'package:beleka_pos/screens/auth/backup_restore_modal.dart';
 import 'package:intl/intl.dart';
 
@@ -18,6 +20,113 @@ class BackupSettingsModal extends ConsumerStatefulWidget {
 
 class _BackupSettingsModalState extends ConsumerState<BackupSettingsModal> {
   bool _isBackingUp = false;
+  bool _isUploadingCloud = false;
+  bool _isDownloadingCloud = false;
+
+  Future<void> _uploadSnapshotToCloud() async {
+    final config = ref.read(storeConfigProvider).value;
+    final cloudUrl = config?.cloudApiUrl;
+    final storeId = config?.cloudStoreId ?? 1;
+    final token = config?.cloudAuthToken;
+
+    if (cloudUrl == null || cloudUrl.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cloud API Server URL is not configured in Store Settings.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isUploadingCloud = true);
+    try {
+      final db = ref.read(databaseServiceProvider);
+      final backupData = await db.exportBackupData();
+      final cloudService = CloudDatabaseService();
+
+      final result = await cloudService.uploadVpsBackup(
+        baseUrl: cloudUrl,
+        storeId: storeId,
+        data: backupData,
+        backupName: 'manual_${config?.terminalName ?? "POS"}',
+        token: token,
+      );
+
+      if (mounted) {
+        final records = result?['records_saved'] as Map?;
+        final summary = records != null
+            ? ' (${records['products'] ?? 0} prods, ${records['users'] ?? 0} staff, ${records['sales'] ?? 0} sales)'
+            : '';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Cloud snapshot successfully saved to VPS server!$summary'),
+            backgroundColor: const Color(0xFF059669),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Cloud backup upload failed: $e'), backgroundColor: Colors.redAccent),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isUploadingCloud = false);
+    }
+  }
+
+  Future<void> _downloadCloudSnapshot() async {
+    final config = ref.read(storeConfigProvider).value;
+    final cloudUrl = config?.cloudApiUrl;
+    final storeId = config?.cloudStoreId ?? 1;
+    final token = config?.cloudAuthToken;
+
+    if (cloudUrl == null || cloudUrl.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cloud API Server URL is not configured in Store Settings.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isDownloadingCloud = true);
+    try {
+      final backupService = BackupService();
+      final success = await backupService.fetchAndSaveVpsBackup(
+        baseUrl: cloudUrl,
+        storeId: storeId,
+        token: token,
+      );
+
+      if (mounted) {
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Cloud database snapshot downloaded & saved to local backup vault.'),
+              backgroundColor: Color(0xFF059669),
+              duration: Duration(seconds: 4),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to download cloud snapshot.'), backgroundColor: Colors.redAccent),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Cloud download failed: $e'), backgroundColor: Colors.redAccent),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isDownloadingCloud = false);
+    }
+  }
 
   Future<void> _pickBackupPath() async {
     try {
@@ -239,16 +348,79 @@ class _BackupSettingsModalState extends ConsumerState<BackupSettingsModal> {
 
               const SizedBox(height: 24),
 
-              // Manual Backup Button
+              // Cloud Snapshot Section
+              Text(
+                'CLOUD VPS VAULT',
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0.5,
+                  color: const Color(0xFF059669),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 42,
+                      child: ElevatedButton.icon(
+                        onPressed: _isUploadingCloud ? null : _uploadSnapshotToCloud,
+                        icon: _isUploadingCloud 
+                            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                            : const Icon(Icons.cloud_upload_rounded, size: 16),
+                        label: Text(_isUploadingCloud ? 'UPLOADING...' : 'SAVE TO CLOUD', style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 11)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF059669),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          elevation: 0,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: SizedBox(
+                      height: 42,
+                      child: OutlinedButton.icon(
+                        onPressed: _isDownloadingCloud ? null : _downloadCloudSnapshot,
+                        icon: _isDownloadingCloud
+                            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF059669)))
+                            : const Icon(Icons.cloud_download_rounded, size: 16, color: Color(0xFF059669)),
+                        label: Text(_isDownloadingCloud ? 'PULLING...' : 'PULL FROM VPS', style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 11, color: const Color(0xFF059669))),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Color(0xFF059669)),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 18),
+              Text(
+                'LOCAL BACKUP & RESTORE',
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0.5,
+                  color: primaryColor,
+                ),
+              ),
+              const SizedBox(height: 8),
+
+              // Manual Local Backup Button
               SizedBox(
                 width: double.infinity,
-                height: 44,
+                height: 42,
                 child: ElevatedButton.icon(
                   onPressed: _isBackingUp ? null : _runManualBackup,
                   icon: _isBackingUp 
-                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Icon(Icons.cloud_upload_rounded, size: 18),
-                  label: Text(_isBackingUp ? 'BACKING UP...' : 'RUN MANUAL BACKUP NOW', style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 12)),
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Icon(Icons.save_rounded, size: 16),
+                  label: Text(_isBackingUp ? 'SAVING...' : 'RUN LOCAL BACKUP NOW', style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 11)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: primaryColor,
                     foregroundColor: Colors.white,
@@ -257,10 +429,10 @@ class _BackupSettingsModalState extends ConsumerState<BackupSettingsModal> {
                   ),
                 ),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               SizedBox(
                 width: double.infinity,
-                height: 44,
+                height: 42,
                 child: OutlinedButton.icon(
                   onPressed: () => showDialog(
                     context: context,
@@ -268,7 +440,7 @@ class _BackupSettingsModalState extends ConsumerState<BackupSettingsModal> {
                   ),
                   icon: Icon(Icons.settings_backup_restore_rounded, size: 16, color: primaryColor),
                   label: Text(
-                    'RESTORE SYSTEM BACKUP', 
+                    'RESTORE BACKUP (LOCAL OR CLOUD)', 
                     style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 11, color: primaryColor),
                   ),
                   style: OutlinedButton.styleFrom(

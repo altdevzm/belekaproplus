@@ -431,3 +431,100 @@ def sync_batch_expenses(
     }
 
 
+@router.post("/upload-backup", response_model=schemas.CloudBackupUploadResponse, status_code=status.HTTP_200_OK)
+def upload_cloud_backup(
+    payload: schemas.CloudBackupUploadRequest,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Upload a terminal JSON backup snapshot to the VPS cloud storage.
+    Enforces store and tenant scoping.
+    """
+    import json
+    import os
+    from datetime import datetime
+
+    verify_store_access(payload.store_id, current_user, db)
+
+    user_store = current_user.store or db.query(models.Store).filter(models.Store.id == current_user.store_id).first()
+    tpin_folder = (user_store.tpin or "default_org").strip() if user_store else "default_org"
+
+    snapshot_dir = os.path.join("/root/backups/beleka_pos_cloud/snapshots", tpin_folder)
+    try:
+        os.makedirs(snapshot_dir, exist_ok=True)
+    except Exception:
+        # Fallback to local app backup path if not root
+        snapshot_dir = os.path.join(os.getcwd(), "cloud_snapshots", tpin_folder)
+        os.makedirs(snapshot_dir, exist_ok=True)
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    clean_name = (payload.backup_name or "terminal_snapshot").replace(" ", "_")
+    filename = f"snapshot_{payload.store_id}_{clean_name}_{timestamp}.json"
+    file_path = os.path.join(snapshot_dir, filename)
+
+    try:
+        with open(file_path, "w", encoding="utf-8") as f:
+            json.dump(payload.data, f, indent=2)
+    except Exception as e:
+        logger.exception("Failed to write cloud snapshot file: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to persist cloud backup snapshot: {e}",
+        )
+
+    # Count records in payload
+    data = payload.data
+    counts = {
+        "users": len(data.get("users", [])) if isinstance(data.get("users"), list) else 0,
+        "categories": len(data.get("categories", [])) if isinstance(data.get("categories"), list) else 0,
+        "products": len(data.get("products", [])) if isinstance(data.get("products"), list) else 0,
+        "sales": len(data.get("saleTransactions", [])) if isinstance(data.get("saleTransactions"), list) else 0,
+        "customers": len(data.get("customers", [])) if isinstance(data.get("customers"), list) else 0,
+        "expenses": len(data.get("expenses", [])) if isinstance(data.get("expenses"), list) else 0,
+    }
+
+    return schemas.CloudBackupUploadResponse(
+        success=True,
+        message=f"Cloud snapshot safely saved on VPS server ({filename})",
+        snapshot_filename=filename,
+        records_saved=counts,
+    )
+
+
+@router.get("/cloud-snapshots")
+def list_cloud_snapshots(
+    store_id: int,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    List available cloud backup snapshots for the store's organization.
+    """
+    import os
+
+    verify_store_access(store_id, current_user, db)
+
+    user_store = current_user.store or db.query(models.Store).filter(models.Store.id == current_user.store_id).first()
+    tpin_folder = (user_store.tpin or "default_org").strip() if user_store else "default_org"
+
+    snapshot_dir = os.path.join("/root/backups/beleka_pos_cloud/snapshots", tpin_folder)
+    if not os.path.exists(snapshot_dir):
+        snapshot_dir = os.path.join(os.getcwd(), "cloud_snapshots", tpin_folder)
+
+    snapshots = []
+    if os.path.exists(snapshot_dir):
+        for entry in sorted(os.listdir(snapshot_dir), reverse=True):
+            if entry.endswith(".json"):
+                full_p = os.path.join(snapshot_dir, entry)
+                stat = os.stat(full_p)
+                snapshots.append({
+                    "filename": entry,
+                    "size_bytes": stat.st_size,
+                    "size_kb": round(stat.st_size / 1024, 1),
+                    "created_at": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                })
+
+    return {"store_id": store_id, "snapshots": snapshots}
+
+

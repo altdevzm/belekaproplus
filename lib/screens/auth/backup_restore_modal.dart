@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:beleka_pos/services/database_service.dart';
+import 'package:beleka_pos/services/cloud_database_service.dart';
+import 'package:beleka_pos/providers/store_provider.dart';
 import 'package:beleka_pos/main.dart';
 import 'package:beleka_pos/providers/users_provider.dart';
 
@@ -22,7 +24,8 @@ class _BackupRestoreModalState extends ConsumerState<BackupRestoreModal> {
   Map<String, dynamic>? _previewData;
   String? _selectedFilePath;
   final TextEditingController _pasteController = TextEditingController();
-  bool _isPasteMode = false;
+  final TextEditingController _cloudUrlController = TextEditingController(text: 'http://23.139.36.20:8003');
+  int _activeTab = 0; // 0: file, 1: paste, 2: cloud
 
   @override
   void dispose() {
@@ -106,6 +109,46 @@ class _BackupRestoreModalState extends ConsumerState<BackupRestoreModal> {
     }
   }
 
+  Future<void> _fetchCloudBackup() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+      _statusMessage = 'Connecting to Beleka Cloud Server...';
+      _previewData = null;
+    });
+
+    try {
+      final config = ref.read(storeConfigProvider).value;
+      final url = _cloudUrlController.text.trim().isNotEmpty
+          ? _cloudUrlController.text.trim()
+          : (config?.cloudApiUrl ?? 'http://23.139.36.20:8003');
+      final storeId = config?.cloudStoreId ?? 1;
+      final token = config?.cloudAuthToken;
+
+      final cloudService = CloudDatabaseService();
+      final data = await cloudService.downloadVpsBackup(
+        baseUrl: url,
+        storeId: storeId,
+        token: token,
+      );
+
+      if (data == null) {
+        throw Exception('Could not fetch cloud backup snapshot from server $url. Verify server is online.');
+      }
+
+      setState(() {
+        _isLoading = false;
+        _previewData = data;
+        _statusMessage = 'Cloud database snapshot loaded successfully from VPS.';
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'Cloud fetch failed: $e';
+      });
+    }
+  }
+
   Future<void> _executeRestore() async {
     if (_previewData == null) return;
 
@@ -119,7 +162,7 @@ class _BackupRestoreModalState extends ConsumerState<BackupRestoreModal> {
       final db = ref.read(databaseServiceProvider);
       Map<String, int> stats;
 
-      if (_isPasteMode || _selectedFilePath?.endsWith('.json') == true) {
+      if (_activeTab == 1 || _activeTab == 2 || _selectedFilePath?.endsWith('.json') == true || _previewData != null) {
         stats = await db.restoreFromJsonMap(_previewData!);
       } else if (_selectedFilePath != null) {
         stats = await db.restoreFromFile(_selectedFilePath!);
@@ -253,20 +296,30 @@ class _BackupRestoreModalState extends ConsumerState<BackupRestoreModal> {
                   Expanded(
                     child: _buildTabButton(
                       context,
-                      'IMPORT BACKUP FILE',
-                      !_isPasteMode,
+                      'FILE',
+                      _activeTab == 0,
                       Icons.file_open_rounded,
-                      () => setState(() => _isPasteMode = false),
+                      () => setState(() => _activeTab = 0),
                     ),
                   ),
                   const SizedBox(width: 4),
                   Expanded(
                     child: _buildTabButton(
                       context,
-                      'PASTE BACKUP DATA',
-                      _isPasteMode,
+                      'PASTE',
+                      _activeTab == 1,
                       Icons.paste_rounded,
-                      () => setState(() => _isPasteMode = true),
+                      () => setState(() => _activeTab = 1),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: _buildTabButton(
+                      context,
+                      'CLOUD VPS',
+                      _activeTab == 2,
+                      Icons.cloud_download_rounded,
+                      () => setState(() => _activeTab = 2),
                     ),
                   ),
                 ],
@@ -274,8 +327,8 @@ class _BackupRestoreModalState extends ConsumerState<BackupRestoreModal> {
             ),
             const SizedBox(height: 16),
 
-            // File Picker Mode or Paste Mode
-            if (!_isPasteMode) ...[
+            // File Picker Mode, Paste Mode, or Cloud Mode
+            if (_activeTab == 0) ...[
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
@@ -314,7 +367,7 @@ class _BackupRestoreModalState extends ConsumerState<BackupRestoreModal> {
                   ],
                 ),
               ),
-            ] else ...[
+            ] else if (_activeTab == 1) ...[
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -348,6 +401,66 @@ class _BackupRestoreModalState extends ConsumerState<BackupRestoreModal> {
                           elevation: 0,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                         ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ] else ...[
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: innerBg,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: borderColor),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.cloud_done_rounded, color: Color(0xFF059669), size: 18),
+                        const SizedBox(width: 8),
+                        Text(
+                          'PULL LIVE CLOUD DATABASE SNAPSHOT',
+                          style: GoogleFonts.jetBrainsMono(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w800,
+                            color: const Color(0xFF059669),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: _cloudUrlController,
+                      style: GoogleFonts.jetBrainsMono(color: theme.colorScheme.onSurface, fontSize: 11),
+                      decoration: InputDecoration(
+                        labelText: 'Cloud API Server URL',
+                        labelStyle: GoogleFonts.inter(fontSize: 11, color: theme.colorScheme.onSurfaceVariant),
+                        hintText: 'http://23.139.36.20:8003',
+                        filled: true,
+                        fillColor: isDark ? const Color(0xFF151F32) : Colors.white,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: borderColor),
+                        ),
+                        isDense: true,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    ElevatedButton.icon(
+                      onPressed: _isLoading ? null : _fetchCloudBackup,
+                      icon: _isLoading 
+                          ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : const Icon(Icons.cloud_download_rounded, size: 16, color: Colors.white),
+                      label: Text(_isLoading ? 'PULLING FROM CLOUD...' : 'FETCH CLOUD SNAPSHOT', style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 11, color: Colors.white)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF059669),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                     ),
                   ],
