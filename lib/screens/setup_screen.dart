@@ -39,7 +39,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
   final _formKey = GlobalKey<FormState>();
   final _businessNameController = TextEditingController();
   final _businessTpinController = TextEditingController();
-  final _businessBhfIdController = TextEditingController(text: '00');
+  final _businessBhfIdController = TextEditingController(text: '001');
   final _adminIdController = TextEditingController();
   final _pinController = TextEditingController();
   final _confirmPinController = TextEditingController();
@@ -404,7 +404,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       final businessName = _businessNameController.text.trim();
       final tpin = _businessTpinController.text.trim();
       final bhfId = _businessBhfIdController.text.trim().isEmpty
-          ? '00'
+          ? '001'
           : _businessBhfIdController.text.trim();
       final adminId = _adminIdController.text.trim();
       final pin = _pinController.text.trim();
@@ -441,7 +441,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
         ..cloudStoreCode = registeredStore['store_code']?.toString() ?? 'HQ-00'
         ..digitaxApiKey = null
         ..tpin = registeredStore['tpin']?.toString() ?? tpin
-        ..bhfId = registeredStore['bhf_id']?.toString() ?? bhfId
+        ..bhfId = bhfId.isNotEmpty ? bhfId : (registeredStore['bhf_id']?.toString() ?? '00')
         ..cloudAuthToken = authToken
         ..cloudAuthUserId = registeredUser['numeric_id']?.toString() ?? adminId
         ..cloudAuthPin = pin

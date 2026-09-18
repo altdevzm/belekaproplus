@@ -29,6 +29,7 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
   late TextEditingController _taxController;
   late TextEditingController _taxIdController;
   late TextEditingController _tpinController;
+  late TextEditingController _bhfIdController;
   late TextEditingController _sdcIdController;
   late TextEditingController _mrcNoController;
   late TextEditingController _currencyController;
@@ -71,6 +72,7 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
     _taxController = TextEditingController();
     _taxIdController = TextEditingController();
     _tpinController = TextEditingController();
+    _bhfIdController = TextEditingController();
     _sdcIdController = TextEditingController();
     _mrcNoController = TextEditingController();
     _currencyController = TextEditingController();
@@ -95,6 +97,7 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
       _taxController.text = _currentConfig!.taxRate.toString();
       _taxIdController.text = _currentConfig!.taxId ?? '';
       _tpinController.text = _currentConfig!.tpin ?? '';
+      _bhfIdController.text = _currentConfig!.bhfId.isNotEmpty ? _currentConfig!.bhfId : '00';
       _sdcIdController.text = _currentConfig!.sdcId ?? '';
       _mrcNoController.text = _currentConfig!.mrcNo ?? '';
       _currencyController.text = _currentConfig!.currencySymbol ?? 'ZK';
@@ -113,15 +116,14 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
         _selectedBrandColorHex = colorHex.startsWith('#') ? colorHex : '#$colorHex';
         _brandColorHexController.text = _selectedBrandColorHex;
       }
+      
+      if (mounted) setState(() => _isLoading = false);
     } else {
       _currencyController.text = 'ZK';
       _taxController.text = '16.0';
       _terminalController.text = 'TERMINAL-01';
       _serviceChargeRateController.text = '10.0';
-    }
-
-    if (mounted) {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -136,6 +138,7 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
     _taxController.dispose();
     _taxIdController.dispose();
     _tpinController.dispose();
+    _bhfIdController.dispose();
     _sdcIdController.dispose();
     _mrcNoController.dispose();
     _currencyController.dispose();
@@ -158,19 +161,20 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
 
   Future<void> _saveConfig() async {
     if (!_formKey.currentState!.validate()) return;
-
+    
     final db = ref.read(databaseServiceProvider);
     final config = _currentConfig ?? StoreConfig();
     
-    config.businessName = _nameController.text;
+    config.businessName = _nameController.text.trim();
     config.branchName = _branchController.text.trim().isEmpty ? null : _branchController.text.trim();
-    config.address = _addressController.text;
-    config.contactNumber = _contactController.text;
+    config.address = _addressController.text.trim().isEmpty ? null : _addressController.text.trim();
+    config.contactNumber = _contactController.text.trim().isEmpty ? null : _contactController.text.trim();
     config.email = _emailController.text.trim().isEmpty ? null : _emailController.text.trim();
     config.website = _websiteController.text.trim().isEmpty ? null : _websiteController.text.trim();
-    config.taxRate = double.tryParse(_taxController.text) ?? 16.0;
-    config.taxId = _taxIdController.text;
+    config.taxRate = double.tryParse(_taxController.text.trim()) ?? 0.0;
+    config.taxId = _taxIdController.text.trim().isEmpty ? null : _taxIdController.text.trim();
     config.tpin = _tpinController.text.trim().isEmpty ? null : _tpinController.text.trim();
+    config.bhfId = _bhfIdController.text.trim().isEmpty ? '00' : _bhfIdController.text.trim();
     config.sdcId = _sdcIdController.text;
     config.mrcNo = _mrcNoController.text;
     config.currencySymbol = _currencyController.text;
@@ -363,6 +367,7 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
                         Row(
                           children: [
                             Expanded(
+                              flex: 2,
                               child: _buildTextField(
                                 label: 'ZRA TPIN / TAX PIN', 
                                 hint: '1234567890',
@@ -372,6 +377,17 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
                             ),
                             const SizedBox(width: 16),
                             Expanded(
+                              flex: 1,
+                              child: _buildTextField(
+                                label: 'BRANCH CODE (bhfId)', 
+                                hint: '00, 001, HQ',
+                                controller: _bhfIdController,
+                                isOptional: true,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              flex: 2,
                               child: _buildTextField(
                                 label: 'VAT / TAX ID', 
                                 hint: '1234567890',

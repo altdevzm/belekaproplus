@@ -49,14 +49,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (mounted && _companyController.text.isEmpty) {
         _companyController.text = configuredName;
       }
-      if (mounted &&
-          _branchCodeController.text.isEmpty &&
-          config.bhfId.isNotEmpty) {
-        _branchCodeController.text = config.bhfId;
-      }
-      if (configuredName != 'Beleka POS Store') {
-        return;
-      }
+    }
+    if (mounted && config.bhfId.isNotEmpty) {
+      _branchCodeController.text = config.bhfId;
+    }
+    if (configuredName.isNotEmpty && configuredName != 'Beleka POS Store') {
+      return;
     }
 
     final cloudUrl = config.cloudApiUrl?.trim();
@@ -194,6 +192,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         return;
       }
 
+      // Early branch code validation against local device configuration
+      final enteredBranchCode = _branchCodeController.text.trim();
+      if (enteredBranchCode.isNotEmpty &&
+          config != null &&
+          config.bhfId.isNotEmpty) {
+        final enteredLower = enteredBranchCode.toLowerCase();
+        final configLower = config.bhfId.toLowerCase();
+        if (enteredLower != configLower) {
+          setState(() =>
+              _errorMessage = 'Invalid branch code: expected ${config.bhfId}');
+          return;
+        }
+      }
+
       // 1. Try local login only when the entered TPIN matches this device's tenant.
       final localTpin = config?.tpin?.trim();
       User? user;
@@ -203,7 +215,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           (localTpin == null ||
               localTpin.isEmpty ||
               localTpin == enteredTpin)) {
-        user = await db.login(_idController.text.trim(), _pin.trim());
+        user = await db.login(
+          _idController.text.trim(),
+          _pin.trim(),
+          branchCode: enteredBranchCode,
+        );
       }
 
       if (user != null) {
@@ -214,14 +230,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           if (config.tpin == null || config.tpin!.trim().isEmpty) {
             config.tpin = enteredTpin;
           }
-          final enteredBranchCode = _branchCodeController.text.trim();
-          if (enteredBranchCode.isNotEmpty) {
-            config.bhfId = enteredBranchCode;
-            user.branchCode = enteredBranchCode;
-            await db.isar.writeTxn(() async {
-              await db.isar.users.put(user!);
-            });
-          } else if (config.bhfId.isNotEmpty) {
+          if (config.bhfId.isNotEmpty) {
             user.branchCode = config.bhfId;
             await db.isar.writeTxn(() async {
               await db.isar.users.put(user!);
@@ -313,29 +322,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       // 3. Authenticate against Cloud PostgreSQL only when local/LAN auth failed.
       if (user == null) {
         try {
-          Map<String, dynamic>? cloudAuth;
-          try {
-            cloudAuth = await cloudDb.authenticateUser(
-              baseUrl: cloudUrl,
-              numericId: _idController.text.trim(),
-              pin: _pin.trim(),
-              tpin: enteredTpin,
-              branchCode: _branchCodeController.text.trim(),
-              terminalName: config?.terminalName ?? 'BRANCH-POS',
-            );
-          } catch (e) {
-            // A stale local branch code must not prevent a valid tenant login.
-            // Retry without the branch filter; the VPS still validates TPIN,
-            // staff ID and PIN before issuing a token.
-            if (!e.toString().toLowerCase().contains('branch code')) rethrow;
-            cloudAuth = await cloudDb.authenticateUser(
-              baseUrl: cloudUrl,
-              numericId: _idController.text.trim(),
-              pin: _pin.trim(),
-              tpin: enteredTpin,
-              terminalName: config?.terminalName ?? 'BRANCH-POS',
-            );
-          }
+          final cloudAuth = await cloudDb.authenticateUser(
+            baseUrl: cloudUrl,
+            numericId: _idController.text.trim(),
+            pin: _pin.trim(),
+            tpin: enteredTpin,
+            branchCode: _branchCodeController.text.trim(),
+            terminalName: config?.terminalName ?? 'BRANCH-POS',
+          );
 
           final authenticatedCloudResponse = cloudAuth;
           if (authenticatedCloudResponse != null &&
@@ -393,7 +387,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   config ??
                   await db.isar.storeConfigs.where().findFirst() ??
                   StoreConfig();
-              activeConfig.bhfId = branchBhfId;
+              if (activeConfig.bhfId.isEmpty) {
+                activeConfig.bhfId = branchBhfId;
+              }
               activeConfig.cloudApiUrl = cloudUrl;
 
               // Keep the VPS sync token owned by an administrator. Cashier
@@ -445,6 +441,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           }
         } catch (e) {
           debugPrint('Cloud VPS Login notice: $e');
+          final errStr = e.toString().toLowerCase();
+          if (errStr.contains('branch code') || errStr.contains('branch')) {
+            setState(() => _errorMessage =
+                'Invalid branch code: expected ${config?.bhfId ?? "configured branch code"}');
+            return;
+          }
         }
       }
 
@@ -454,10 +456,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           localTpin != null &&
           localTpin.isNotEmpty &&
           localTpin == enteredTpin) {
-        user = await db.login(_idController.text.trim(), _pin.trim());
+        user = await db.login(
+          _idController.text.trim(),
+          _pin.trim(),
+          branchCode: enteredBranchCode,
+        );
       }
 
       if (user != null) {
+        // Enforce branch check before starting session
+        if (config != null && config.bhfId.isNotEmpty && enteredBranchCode.isNotEmpty) {
+          if (enteredBranchCode.toLowerCase() != config.bhfId.toLowerCase()) {
+            setState(() => _errorMessage =
+                'Invalid branch code: expected ${config.bhfId}');
+            return;
+          }
+        }
         if (mounted) {
           ref.read(authProvider.notifier).login(user);
         }
@@ -1045,7 +1059,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   'ZRA BRANCH CODE',
                   _branchCodeController,
                   Icons.store_outlined,
-                  '000 for HQ, 001, 002 for a branch',
+                  'e.g. 001, HQ, etc.',
                 ),
                 const SizedBox(height: 10),
 
@@ -1482,7 +1496,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   'ZRA BRANCH CODE',
                   _branchCodeController,
                   Icons.store_outlined,
-                  '000 for HQ, 001, 002 for a branch',
+                  'e.g. 001, HQ, etc.',
                 ),
                 const SizedBox(height: 12),
 

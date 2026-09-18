@@ -279,9 +279,16 @@ class _BannerContent extends ConsumerWidget {
   Future<void> _startUpdate(
       BuildContext context, WidgetRef ref, bool isWindows) async {
     if (!isWindows) {
-      // Android / other: open browser
+      // Non-windows or mobile: open browser with platform URL
       try {
-        await Process.run('xdg-open', [info.androidDownloadUrl]);
+        final targetUrl = Platform.isAndroid ? info.androidDownloadUrl : info.windowsDownloadUrl;
+        if (Platform.isLinux) {
+          await Process.run('xdg-open', [targetUrl]);
+        } else if (Platform.isMacOS) {
+          await Process.run('open', [targetUrl]);
+        } else {
+          await Process.run('start', [targetUrl], runInShell: true);
+        }
       } catch (_) {}
       return;
     }
@@ -300,7 +307,7 @@ class _BannerContent extends ConsumerWidget {
       progressNotifier.state = null;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Download failed. Please visit github.com/altdevzm/belekapro to download manually.'),
+          content: Text('Download failed. Please visit github.com/altdevzm/belekaproplus to download manually.'),
           backgroundColor: Colors.redAccent,
           duration: Duration(seconds: 6),
         ),

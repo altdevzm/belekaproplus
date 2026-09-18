@@ -691,12 +691,7 @@ class _ZraTaxConfigModalState extends ConsumerState<ZraTaxConfigModal> {
                             ),
                           ),
                         ),
-                        validator: (val) {
-                          if (val == null || val.trim().isEmpty) {
-                            return 'DigiTax Secret API Key is required for fiscalization';
-                          }
-                          return null;
-                        },
+                        validator: (val) => null, // Optional
                       ),
                       const SizedBox(height: 12),
 

@@ -42,13 +42,22 @@ class DatabaseService {
 
 
   // User methods
-  Future<User?> login(String numericId, String pin) async {
+  Future<User?> login(String numericId, String pin, {String? branchCode}) async {
     final hashedPin = hashPin(pin);
-    return await isar.users
+    final user = await isar.users
         .filter()
         .numericIdEqualTo(numericId)
+        .and()
         .passwordHashEqualTo(hashedPin)
         .findFirst();
+    if (user != null && branchCode != null && branchCode.trim().isNotEmpty) {
+      final bTrim = branchCode.trim().toLowerCase();
+      final userBTrim = (user.branchCode ?? '').trim().toLowerCase();
+      if (userBTrim.isNotEmpty && userBTrim != bTrim) {
+        return null;
+      }
+    }
+    return user;
   }
 
   Future<List<User>> getAllUsers() async {

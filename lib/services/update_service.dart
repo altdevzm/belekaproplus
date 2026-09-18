@@ -30,9 +30,9 @@ class UpdateInfo {
 
 class UpdateService {
   static const String _githubApiUrl =
-      'https://api.github.com/repos/altdevzm/belekapro/releases/latest';
+      'https://api.github.com/repos/altdevzm/belekaproplus/releases/latest';
   static const String _githubRepoBase =
-      'https://github.com/altdevzm/belekapro/releases';
+      'https://github.com/altdevzm/belekaproplus/releases';
 
   final Dio _dio;
 
@@ -72,9 +72,11 @@ class UpdateService {
       for (final asset in assets) {
         final name = (asset['name'] as String? ?? '').toLowerCase();
         final url = asset['browser_download_url'] as String? ?? '';
-        if (name.endsWith('.exe') && name.contains('setup')) {
+        if (name.endsWith('.exe')) {
           windowsUrl = url;
-        } else if (name.endsWith('.apk')) {
+        } else if (name.endsWith('.apk') &&
+            !name.contains('generator') &&
+            !name.contains('license')) {
           androidUrl = url;
         }
       }

@@ -2,7 +2,7 @@
 #define MyAppName "Beleka POS"
 #define MyAppVersion "2.0.0"
 #define MyAppPublisher "Beleka Technologies"
-#define MyAppURL "https://github.com/altdevzm/belekapro"
+#define MyAppURL "https://github.com/altdevzm/belekaproplus"
 #define MyAppExeName "beleka_pos.exe"
 
 [Setup]

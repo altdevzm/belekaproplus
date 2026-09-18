@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:beleka_pos/providers/update_provider.dart';
 import 'package:beleka_pos/services/update_service.dart';
 
@@ -67,35 +68,51 @@ class _SoftwareUpdateModalState extends ConsumerState<SoftwareUpdateModal> {
     }
   }
 
-  Future<void> _startDownloadAndInstall(UpdateInfo info) async {
-    final isWindows = Platform.isWindows;
-    if (!isWindows) {
-      try {
-        await Process.run('xdg-open', [info.androidDownloadUrl]);
-      } catch (_) {}
+  Future<void> _startDownloadAndInstall(UpdateInfo info,
+      {bool isWindows = true}) async {
+    final onWindowsPlatform = Platform.isWindows;
+
+    if (onWindowsPlatform && isWindows) {
+      final progressNotifier =
+          ref.read(updateDownloadProgressProvider.notifier);
+      progressNotifier.state = 0.0;
+
+      final service = ref.read(updateServiceProvider);
+      final success = await service.downloadAndInstall(
+        info,
+        onProgress: (p) => progressNotifier.state = p,
+      );
+
+      if (!success && mounted) {
+        progressNotifier.state = null;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Update download failed. Please check your internet connection or download manually from GitHub.',
+            ),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
       return;
     }
 
-    final progressNotifier = ref.read(updateDownloadProgressProvider.notifier);
-    progressNotifier.state = 0.0;
-
-    final service = ref.read(updateServiceProvider);
-    final success = await service.downloadAndInstall(
-      info,
-      onProgress: (p) => progressNotifier.state = p,
-    );
-
-    if (!success && mounted) {
-      progressNotifier.state = null;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Update download failed. Please check your internet connection or download manually from GitHub.',
-          ),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
-    }
+    final downloadUrl =
+        isWindows ? info.windowsDownloadUrl : info.androidDownloadUrl;
+    try {
+      final uri = Uri.parse(downloadUrl);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        if (Platform.isLinux) {
+          await Process.run('xdg-open', [downloadUrl]);
+        } else if (Platform.isMacOS) {
+          await Process.run('open', [downloadUrl]);
+        } else if (Platform.isWindows) {
+          await Process.run('start', [downloadUrl], runInShell: true);
+        }
+      }
+    } catch (_) {}
   }
 
   @override
@@ -454,18 +471,31 @@ class _SoftwareUpdateModalState extends ConsumerState<SoftwareUpdateModal> {
                     ),
                   ),
                 ),
-                if (hasUpdate) ...[
+                if (info != null) ...[
                   const SizedBox(width: 10),
                   ElevatedButton.icon(
                     onPressed: isDownloading
                         ? null
-                        : () => _startDownloadAndInstall(info),
+                        : () => _startDownloadAndInstall(
+                              info,
+                              isWindows: !Platform.isAndroid,
+                            ),
                     icon: const Icon(Icons.download_rounded, size: 16),
                     label: Text(
-                      isDownloading ? 'Downloading...' : 'Download & Install v${info.latestVersion}',
+                      isDownloading
+                          ? 'Downloading...'
+                          : Platform.isAndroid
+                              ? (hasUpdate
+                                  ? 'Download Android APK (v${info.latestVersion})'
+                                  : 'Download Android APK (.apk)')
+                              : (hasUpdate
+                                  ? 'Download Windows Setup (v${info.latestVersion})'
+                                  : 'Download Windows Setup (.exe)'),
                     ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF059669),
+                      backgroundColor: hasUpdate
+                          ? const Color(0xFF059669)
+                          : const Color(0xFF2563EB),
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(
                         horizontal: 18,

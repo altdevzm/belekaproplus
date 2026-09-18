@@ -431,7 +431,7 @@ class PostgresSyncService {
         if (remoteTaxType?.isNotEmpty == true) {
           config?.businessTaxType = remoteTaxType!;
         }
-        if (remoteBhfId?.isNotEmpty == true) {
+        if ((config?.bhfId.isEmpty ?? true) && remoteBhfId?.isNotEmpty == true) {
           config?.bhfId = remoteBhfId!;
         }
         if (targetStore['sdc_id'] != null) {
