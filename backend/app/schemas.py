@@ -221,6 +221,7 @@ class RegistrationRequest(BaseModel):
     pin: str
     owner_name: str = "Owner"
     store_code: str = "HQ-00"
+    bhf_id: Optional[str] = "00"
     branch_name: str = "Headquarters (HQ)"
     terminal_name: Optional[str] = "MANAGER-01"
 

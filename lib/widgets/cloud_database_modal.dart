@@ -50,8 +50,8 @@ class _CloudDatabaseModalState extends ConsumerState<CloudDatabaseModal> {
             _config!.cloudApiUrl ?? 'http://23.139.36.20:8003';
         _storeIdController.text = (_config!.cloudStoreId ?? 1).toString();
         _storeCodeController.text = _config!.bhfId.trim().isEmpty
-            ? '000'
-            : _config!.bhfId.trim().padLeft(3, '0');
+            ? '00'
+            : _config!.bhfId.trim().padLeft(2, '0');
         _tpinController.text = _config!.tpin ?? '';
         _cloudUserIdController.text = _config!.cloudAuthUserId ?? '1001';
         _cloudPinController.text = _config!.cloudAuthPin ?? '';
@@ -154,15 +154,18 @@ class _CloudDatabaseModalState extends ConsumerState<CloudDatabaseModal> {
 
     await isar.writeTxn(() async {
       final config = _config ?? StoreConfig()
-        ..businessName = 'Beleka POS Store'
         ..terminalName = 'POS-Main';
+
+      if (config.businessName.trim().isEmpty) {
+        config.businessName = 'Beleka POS Store';
+      }
 
       config.isCloudSyncEnabled = _isCloudSyncEnabled;
       config.cloudApiUrl = _apiUrlController.text.trim();
       config.cloudStoreId = storeId;
       config.bhfId = _storeCodeController.text.trim().isEmpty
-          ? '000'
-          : _storeCodeController.text.trim().padLeft(3, '0');
+          ? '00'
+          : _storeCodeController.text.trim();
       config.tpin = _tpinController.text.trim().isEmpty
           ? null
           : _tpinController.text.trim();

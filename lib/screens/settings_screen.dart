@@ -14,6 +14,7 @@ import 'package:beleka_pos/widgets/cloud_database_modal.dart';
 import 'package:beleka_pos/widgets/zra_tax_config_modal.dart';
 import 'package:beleka_pos/screens/settings/scale_settings_modal.dart';
 import 'package:beleka_pos/screens/settings/company_account_delete_modal.dart';
+import 'package:beleka_pos/screens/settings/software_update_modal.dart';
 import 'package:beleka_pos/providers/auth_provider.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -162,6 +163,19 @@ class SettingsScreen extends ConsumerWidget {
                         builder: (context) => const ScaleSettingsModal(),
                       ),
                       buttonLabel: 'Configure Scale',
+                    ),
+                    // Software Updates (Accessible to all users / managers / owners)
+                    _buildSettingsCard(
+                      context,
+                      'Software & App Updates',
+                      'Check for latest releases on GitHub, view release notes and install updates with 1-click',
+                      Icons.system_update_alt_rounded,
+                      const Color(0xFF059669),
+                      onPressed: () => showDialog(
+                        context: context,
+                        builder: (context) => const SoftwareUpdateModal(),
+                      ),
+                      buttonLabel: 'Check Updates',
                     ),
                     // Administrative / Manager-Only Settings
                     if (isOwner || isManager) ...[

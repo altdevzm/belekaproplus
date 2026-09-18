@@ -140,42 +140,170 @@ class DigiTaxInventoryService {
   // 1. DE-DUPLICATION ENGINE
   // --------------------------------------------------------------------------
 
+  /// Canonical branch code normalization (preserves configured custom code like '000', 'HQ', '00', etc.)
+  static String normalizeBranchCode(String? value, {String? defaultBhfId}) {
+    final trimmed = value?.trim() ?? '';
+    if (trimmed.isEmpty) {
+      return (defaultBhfId != null && defaultBhfId.trim().isNotEmpty) ? defaultBhfId.trim() : '00';
+    }
+    return trimmed;
+  }
+
   /// Purge all duplicate products in the local database, keeping only one unique entry per name/SKU per branch
   Future<int> deduplicateLocalProducts({String? branchCode}) async {
     final db = ref.read(databaseServiceProvider);
-    final allProducts = branchCode != null
-        ? await db.getAllProducts(branchCode: branchCode)
-        : await db.isar.products.where().findAll();
+    final localSql = ref.read(localSqlServiceProvider);
+    final config = ref.read(storeConfigProvider).value;
+    final configuredBhfId = config?.bhfId.trim().isNotEmpty == true ? config!.bhfId.trim() : '00';
+    final isar = db.isar;
 
-    final Map<String, Product> uniqueMap = {};
+    final targetBranch = branchCode != null ? normalizeBranchCode(branchCode, defaultBhfId: configuredBhfId) : null;
+    final allProducts = await isar.products.where().findAll();
+
+    final Map<String, Product> canonicalMap = {};
     final List<Id> duplicateIdsToDelete = [];
+    final List<Product> productsToUpdate = [];
 
     for (final p in allProducts) {
-      final nameKey = '${p.branchCode}_${p.name.trim().toLowerCase()}';
-      if (p.name.trim().isEmpty) continue;
+      final normBranch = normalizeBranchCode(p.branchCode, defaultBhfId: configuredBhfId);
+      if (p.branchCode != normBranch) {
+        p.branchCode = normBranch;
+        if (!productsToUpdate.contains(p)) {
+          productsToUpdate.add(p);
+        }
+      }
 
-      if (uniqueMap.containsKey(nameKey)) {
-        final existing = uniqueMap[nameKey]!;
-        if (p.stockLevel > existing.stockLevel) {
-          existing.stockLevel = p.stockLevel;
+      // If filtering for a specific branch, only deduplicate that branch
+      if (targetBranch != null && normBranch != targetBranch) {
+        continue;
+      }
+
+      final normName = p.name.trim().toLowerCase();
+      final normSku = p.sku.trim().toLowerCase();
+      final dtItemId = p.itemClsCd.trim();
+
+      if (normName.isEmpty && normSku.isEmpty) continue;
+
+      Product? existingMatch;
+
+      // 1. Match by DigiTax item ID if valid
+      if (dtItemId.isNotEmpty && dtItemId.startsWith('item_')) {
+        final dtKey = '${normBranch}_dt_$dtItemId';
+        if (canonicalMap.containsKey(dtKey)) {
+          existingMatch = canonicalMap[dtKey];
         }
-        if (p.price > 0 && existing.price == 0) {
-          existing.price = p.price;
+      }
+
+      // 2. Match by exact Product Name within same branch
+      if (existingMatch == null && normName.isNotEmpty) {
+        final nameKey = '${normBranch}_name_$normName';
+        if (canonicalMap.containsKey(nameKey)) {
+          existingMatch = canonicalMap[nameKey];
         }
+      }
+
+      // 3. Match by SKU within same branch (skip auto-generated placeholders)
+      if (existingMatch == null && normSku.isNotEmpty && !normSku.startsWith('sku-')) {
+        final skuKey = '${normBranch}_sku_$normSku';
+        if (canonicalMap.containsKey(skuKey)) {
+          existingMatch = canonicalMap[skuKey];
+        }
+      }
+
+      if (existingMatch != null && existingMatch.id != p.id) {
+        bool modified = false;
+
+        // Keep higher / non-zero stock
+        if (p.stockLevel > existingMatch.stockLevel) {
+          existingMatch.stockLevel = p.stockLevel;
+          modified = true;
+        }
+
+        // Keep non-zero price
+        if (p.price > 0 && existingMatch.price == 0) {
+          existingMatch.price = p.price;
+          modified = true;
+        }
+        if (p.unitCost > 0 && existingMatch.unitCost == 0) {
+          existingMatch.unitCost = p.unitCost;
+          modified = true;
+        }
+
+        // Keep specific category if existing is default
+        if (p.categoryId != 0 && existingMatch.categoryId == 0) {
+          existingMatch.categoryId = p.categoryId;
+          modified = true;
+        }
+
+        // Keep DigiTax sync status & date
+        if (p.isSyncedWithDigitax && !existingMatch.isSyncedWithDigitax) {
+          existingMatch.isSyncedWithDigitax = true;
+          existingMatch.lastDigitaxSyncDate = p.lastDigitaxSyncDate ?? DateTime.now();
+          modified = true;
+        }
+
+        // Keep DigiTax item ID
+        if (p.itemClsCd.isNotEmpty && !existingMatch.itemClsCd.startsWith('item_')) {
+          existingMatch.itemClsCd = p.itemClsCd;
+          modified = true;
+        }
+
+        // Keep image if present
+        if (p.imagePath != null && p.imagePath!.isNotEmpty && (existingMatch.imagePath == null || existingMatch.imagePath!.isEmpty)) {
+          existingMatch.imagePath = p.imagePath;
+          modified = true;
+        }
+
+        if (modified && !productsToUpdate.contains(existingMatch)) {
+          productsToUpdate.add(existingMatch);
+        }
+
         duplicateIdsToDelete.add(p.id);
       } else {
-        uniqueMap[nameKey] = p;
+        if (dtItemId.isNotEmpty && dtItemId.startsWith('item_')) {
+          canonicalMap['${normBranch}_dt_$dtItemId'] = p;
+        }
+        if (normName.isNotEmpty) {
+          canonicalMap['${normBranch}_name_$normName'] = p;
+        }
+        if (normSku.isNotEmpty && !normSku.startsWith('sku-')) {
+          canonicalMap['${normBranch}_sku_$normSku'] = p;
+        }
       }
     }
 
-    if (duplicateIdsToDelete.isNotEmpty) {
-      await db.isar.writeTxn(() async {
+    if (duplicateIdsToDelete.isNotEmpty || productsToUpdate.isNotEmpty) {
+      await isar.writeTxn(() async {
+        for (final p in productsToUpdate) {
+          await isar.products.put(p);
+        }
         for (final id in duplicateIdsToDelete) {
-          await db.isar.products.delete(id);
+          await isar.products.delete(id);
         }
       });
+
+      try {
+        for (final id in duplicateIdsToDelete) {
+          await localSql.db.delete('products', where: 'id = ?', whereArgs: [id]);
+        }
+        for (final p in productsToUpdate) {
+          await localSql.db.update(
+            'products',
+            {
+              'name': p.name,
+              'price': p.price,
+              'stock_level': p.stockLevel,
+              'branch_code': p.branchCode,
+              'is_synced_with_digitax': p.isSyncedWithDigitax ? 1 : 0,
+            },
+            where: 'id = ?',
+            whereArgs: [p.id],
+          );
+        }
+      } catch (_) {}
+
       debugPrint(
-        'DIGITAX_DEDUPLICATION: Removed ${duplicateIdsToDelete.length} duplicate products',
+        'DIGITAX_DEDUPLICATION: Removed ${duplicateIdsToDelete.length} duplicate products, updated ${productsToUpdate.length} canonical records.',
       );
     }
     return duplicateIdsToDelete.length;
@@ -338,28 +466,19 @@ class DigiTaxInventoryService {
 
       final isOwner = ref.read(isOwnerProvider);
       final currentUser = ref.read(authProvider);
-
-      String normalizeBranchCode(String? value) {
-        final trimmed = value?.trim() ?? '';
-        if (trimmed.isEmpty || trimmed == '000' || trimmed == '00') return '00';
-        return trimmed.length == 1 ? '0$trimmed' : trimmed;
-      }
-
+      final configuredBhfId = config?.bhfId.trim().isNotEmpty == true ? config!.bhfId.trim() : '00';
       final String bhfId;
       if (branchCode != null && branchCode.isNotEmpty) {
-        bhfId = normalizeBranchCode(branchCode);
+        bhfId = branchCode.trim();
       } else if (!isOwner &&
           currentUser?.branchCode != null &&
-          currentUser!.branchCode!.isNotEmpty &&
-          currentUser.branchCode != '00') {
-        bhfId = normalizeBranchCode(currentUser.branchCode);
-      } else if (config?.bhfId != null &&
-          config!.bhfId.isNotEmpty &&
-          config.bhfId != '00') {
-        bhfId = normalizeBranchCode(config.bhfId);
+          currentUser!.branchCode!.isNotEmpty) {
+        bhfId = currentUser.branchCode!.trim();
       } else {
-        bhfId = isOwner ? '00' : '01';
+        bhfId = configuredBhfId;
       }
+
+      final isCurrentHq = isOwner || bhfId == configuredBhfId;
 
       final headers = {
         'Authorization': 'Bearer $apiKey',
@@ -420,18 +539,6 @@ class DigiTaxInventoryService {
 
       // ──────────────────────────────────────────────────────────────────────────
       // 3. Pull — Branch-Isolated Sync
-      //
-      // IMPORTANT: DigiTax GET /items returns ALL items for the business (confirmed
-      // from official API docs — no bhf_id filter parameter exists).
-      // The shared catalog must be isolated here in the local Isar DB using branchCode.
-      //
-      // Rules:
-      //  • Branch managers ('01', '02', …): ONLY update products that were already
-      //    pushed BY THIS BRANCH, matched exclusively by DigiTax item id (itemClsCd).
-      //    Name-matching is disabled to prevent cross-contamination with identically-
-      //    named HQ / other-branch products.
-      //  • HQ owner ('00'): can match by DigiTax ID first, then fall back to name/
-      //    barcode, and can auto-create new products from the master catalog.
       // ──────────────────────────────────────────────────────────────────────────
       for (final r in remoteList) {
         if (r is! Map) continue;
@@ -466,158 +573,95 @@ class DigiTaxInventoryService {
 
         if (rName.isEmpty) continue;
 
-        if (bhfId != '00') {
-          // ── BRANCH MANAGER ── import only into this branch's local scope.
-          Product? existingByDtId;
-          if (rId.isNotEmpty) {
-            existingByDtId = await db.isar.products
-                .filter()
-                .branchCodeEqualTo(bhfId)
-                .and()
-                .itemClsCdEqualTo(rId)
-                .findFirst();
-          }
-
-          final remoteSku = rBarcode.isNotEmpty
-              ? rBarcode
-              : (rItemCode.isNotEmpty ? rItemCode : rId);
-          if (remoteSku.isNotEmpty) {
-            existingByDtId ??= await db.isar.products
-                .filter()
-                .branchCodeEqualTo(bhfId)
-                .and()
-                .skuEqualTo(remoteSku)
-                .findFirst();
-          }
-
-          if (existingByDtId != null) {
-            bool modified = false;
-            if (existingByDtId.price != rPrice && rPrice > 0) {
-              existingByDtId.price = rPrice;
-              modified = true;
-            }
-            if (existingByDtId.stockLevel != remoteStock) {
-              existingByDtId.stockLevel = remoteStock;
-              modified = true;
-            }
-            if (rId.isNotEmpty && existingByDtId.itemClsCd != rId) {
-              existingByDtId.itemClsCd = rId;
-              modified = true;
-            }
-            if (!existingByDtId.isSyncedWithDigitax) {
-              existingByDtId.isSyncedWithDigitax = true;
-              modified = true;
-            }
-            existingByDtId.lastDigitaxSyncDate = DateTime.now();
-            if (modified) {
-              await db.isar.writeTxn(() async {
-                await db.isar.products.put(existingByDtId!);
-              });
-            }
-            pulledCount++;
-          } else {
-            final imported = Product(
-              name: rName,
-              sku: remoteSku.isNotEmpty ? remoteSku : rName,
-              price: rPrice,
-              stockLevel: remoteStock,
-              categoryId: 0,
-              itemClsCd: rId.isNotEmpty ? rId : '10101501',
-              branchCode: bhfId,
-              branchName: config?.branchName,
-              isSyncedWithDigitax: true,
-              lastDigitaxSyncDate: DateTime.now(),
-            );
-            await db.isar.writeTxn(() async {
-              await db.isar.products.put(imported);
-            });
-            pulledCount++;
-          }
-        } else {
-          // ── HQ OWNER ── can match broadly and auto-create ──────────────────
-          // Priority 1: exact DigiTax item id (safest — no name collision risk)
-          Product? existing;
-          if (rId.isNotEmpty) {
-            existing = await db.isar.products
-                .filter()
-                .group((q) => q.branchCodeEqualTo('00').or().branchCodeEqualTo(''))
-                .and()
-                .itemClsCdEqualTo(rId)
-                .findFirst();
-          }
-
-          // Priority 2: name or barcode (for products pushed before itemClsCd was stored)
-          existing ??= await db.isar.products
+        // 1. Match by DigiTax ID
+        Product? existing;
+        if (rId.isNotEmpty) {
+          existing = await db.isar.products
               .filter()
-              .group((q) => q.branchCodeEqualTo('00').or().branchCodeEqualTo(''))
+              .group((q) => isCurrentHq
+                  ? q.branchCodeEqualTo(bhfId).or().branchCodeEqualTo(configuredBhfId).or().branchCodeEqualTo('00').or().branchCodeEqualTo('000').or().branchCodeEqualTo('')
+                  : q.branchCodeEqualTo(bhfId))
               .and()
-              .group(
-                (q) => q
-                    .nameEqualTo(rName, caseSensitive: false)
-                    .or()
-                    .skuEqualTo(
-                      rBarcode.isNotEmpty
-                          ? rBarcode
-                          : (rItemCode.isNotEmpty ? rItemCode : '__no_match__'),
-                    ),
-              )
+              .itemClsCdEqualTo(rId)
               .findFirst();
+        }
 
-          if (existing != null) {
-            bool modified = false;
-            if (existing.price != rPrice && rPrice > 0) {
-              existing.price = rPrice;
-              modified = true;
-            }
-            if (existing.stockLevel != remoteStock) {
-              existing.stockLevel = remoteStock;
-              modified = true;
-            }
-            if (rId.isNotEmpty && existing.itemClsCd != rId) {
-              existing.itemClsCd = rId;
-              modified = true;
-            }
-            if (!existing.isSyncedWithDigitax) {
-              existing.isSyncedWithDigitax = true;
-              modified = true;
-            }
-            existing.lastDigitaxSyncDate = DateTime.now();
-            if (modified) {
-              await db.isar.writeTxn(() async {
-                await db.isar.products.put(existing!);
-              });
-            }
-            pulledCount++;
-          } else {
-            final remoteSku = rBarcode.isNotEmpty
-                ? rBarcode
-                : (rItemCode.isNotEmpty ? rItemCode : rId);
-            final imported = Product(
-              name: rName,
-              sku: remoteSku.isNotEmpty ? remoteSku : rName,
-              price: rPrice,
-              stockLevel: remoteStock,
-              categoryId: 0,
-              itemClsCd: rId.isNotEmpty ? rId : '10101501',
-              branchCode: '00',
-              branchName: config?.branchName,
-              isSyncedWithDigitax: true,
-              lastDigitaxSyncDate: DateTime.now(),
-            );
-            await db.isar.writeTxn(() async {
-              await db.isar.products.put(imported);
-            });
-            pulledCount++;
+        // 2. Match by Barcode / SKU
+        final remoteSku = rBarcode.isNotEmpty
+            ? rBarcode
+            : (rItemCode.isNotEmpty ? rItemCode : rId);
+        if (existing == null && remoteSku.isNotEmpty) {
+          existing = await db.isar.products
+              .filter()
+              .group((q) => isCurrentHq
+                  ? q.branchCodeEqualTo(bhfId).or().branchCodeEqualTo(configuredBhfId).or().branchCodeEqualTo('00').or().branchCodeEqualTo('000').or().branchCodeEqualTo('')
+                  : q.branchCodeEqualTo(bhfId))
+              .and()
+              .skuEqualTo(remoteSku, caseSensitive: false)
+              .findFirst();
+        }
+
+        // 3. Match by Name
+        if (existing == null && rName.isNotEmpty) {
+          existing = await db.isar.products
+              .filter()
+              .group((q) => isCurrentHq
+                  ? q.branchCodeEqualTo(bhfId).or().branchCodeEqualTo(configuredBhfId).or().branchCodeEqualTo('00').or().branchCodeEqualTo('000').or().branchCodeEqualTo('')
+                  : q.branchCodeEqualTo(bhfId))
+              .and()
+              .nameEqualTo(rName, caseSensitive: false)
+              .findFirst();
+        }
+
+        if (existing != null) {
+          existing.branchCode = bhfId;
+          if (existing.price != rPrice && rPrice > 0) {
+            existing.price = rPrice;
           }
+          if (existing.stockLevel != remoteStock) {
+            existing.stockLevel = remoteStock;
+          }
+          if (rId.isNotEmpty && existing.itemClsCd != rId) {
+            existing.itemClsCd = rId;
+          }
+          if (!existing.isSyncedWithDigitax) {
+            existing.isSyncedWithDigitax = true;
+          }
+          existing.lastDigitaxSyncDate = DateTime.now();
+          await db.isar.writeTxn(() async {
+            await db.isar.products.put(existing!);
+          });
+          pulledCount++;
+        } else {
+          final imported = Product(
+            name: rName,
+            sku: remoteSku.isNotEmpty ? remoteSku : rName,
+            price: rPrice,
+            stockLevel: remoteStock,
+            categoryId: 0,
+            itemClsCd: rId.isNotEmpty ? rId : '10101501',
+            branchCode: bhfId,
+            branchName: config?.branchName,
+            isSyncedWithDigitax: true,
+            lastDigitaxSyncDate: DateTime.now(),
+          );
+          await db.isar.writeTxn(() async {
+            await db.isar.products.put(imported);
+          });
+          pulledCount++;
         }
       }
+
+      // Final deduplication pass to ensure perfect database cleanliness
+      final postCleanDups = await deduplicateLocalProducts(branchCode: branchCode);
+      final totalCleaned = cleanedDups + postCleanDups;
 
       // 4. Push local products & price updates UP to DigiTax (Only for products belonging to this branch!)
       final localProducts = await db.getAllProducts(branchCode: bhfId);
 
       for (final p in localProducts) {
-        // Tax Exclusive items are local-only stock: do not push to DigiTax
-        if (!p.isTaxInclusive) {
+        // Offline / Exempt items (isDigitaxSyncEnabled == false) or Tax Exclusive items are local-only stock: do not push to DigiTax
+        if (!p.isDigitaxSyncEnabled || !p.isTaxInclusive) {
           continue;
         }
 
@@ -782,14 +826,14 @@ class DigiTaxInventoryService {
 
       final success = errors.isEmpty || (pushedCount > 0 || pulledCount > 0);
       final statusMsg = success
-          ? 'DigiTax Synced: $pushedCount active, $pulledCount pulled down${cleanedDups > 0 ? " (Cleaned $cleanedDups duplicates)" : ""}'
+          ? 'DigiTax Synced: $pushedCount active, $pulledCount pulled down${totalCleaned > 0 ? " (Cleaned $totalCleaned duplicates)" : ""}'
           : 'Sync encountered errors: ${errors.first}';
 
       return DigiTaxSyncResult(
         success: success,
         pushedCount: pushedCount,
         pulledCount: pulledCount,
-        deduplicatedCount: cleanedDups,
+        deduplicatedCount: totalCleaned,
         message: statusMsg,
         errors: errors,
       );

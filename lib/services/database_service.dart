@@ -89,32 +89,38 @@ class DatabaseService {
   // Product methods
   Future<List<Product>> getAllProducts({bool includeArchived = false, String? branchCode}) async {
     if (branchCode != null && branchCode.isNotEmpty) {
-      if (branchCode == '00') {
+      final norm = (branchCode == '000' || branchCode == '00' || branchCode == '0' || branchCode == '')
+          ? '00'
+          : branchCode.trim();
+
+      if (norm == '00') {
         if (!includeArchived) {
           return await isar.products
               .filter()
               .isArchivedEqualTo(false)
               .and()
-              .group((q) => q.branchCodeEqualTo('00').or().branchCodeEqualTo(''))
+              .group((q) => q.branchCodeEqualTo('00').or().branchCodeEqualTo('000').or().branchCodeEqualTo(''))
               .findAll();
         } else {
           return await isar.products
               .filter()
-              .group((q) => q.branchCodeEqualTo('00').or().branchCodeEqualTo(''))
+              .group((q) => q.branchCodeEqualTo('00').or().branchCodeEqualTo('000').or().branchCodeEqualTo(''))
               .findAll();
         }
       } else {
+        final padded = norm.length == 1 ? '0$norm' : norm;
+        final padded3 = norm.padLeft(3, '0');
         if (!includeArchived) {
           return await isar.products
               .filter()
               .isArchivedEqualTo(false)
               .and()
-              .branchCodeEqualTo(branchCode)
+              .group((q) => q.branchCodeEqualTo(norm).or().branchCodeEqualTo(padded).or().branchCodeEqualTo(padded3))
               .findAll();
         } else {
           return await isar.products
               .filter()
-              .branchCodeEqualTo(branchCode)
+              .group((q) => q.branchCodeEqualTo(norm).or().branchCodeEqualTo(padded).or().branchCodeEqualTo(padded3))
               .findAll();
         }
       }
@@ -129,35 +135,41 @@ class DatabaseService {
 
   Stream<List<Product>> watchAllProducts({bool includeArchived = false, String? branchCode}) {
     if (branchCode != null && branchCode.isNotEmpty) {
-      if (branchCode == '00') {
+      final norm = (branchCode == '000' || branchCode == '00' || branchCode == '0' || branchCode == '')
+          ? '00'
+          : branchCode.trim();
+
+      if (norm == '00') {
         if (!includeArchived) {
           return isar.products
               .filter()
               .isArchivedEqualTo(false)
               .and()
-              .group((q) => q.branchCodeEqualTo('00').or().branchCodeEqualTo(''))
+              .group((q) => q.branchCodeEqualTo('00').or().branchCodeEqualTo('000').or().branchCodeEqualTo(''))
               .build()
               .watch(fireImmediately: true);
         } else {
           return isar.products
               .filter()
-              .group((q) => q.branchCodeEqualTo('00').or().branchCodeEqualTo(''))
+              .group((q) => q.branchCodeEqualTo('00').or().branchCodeEqualTo('000').or().branchCodeEqualTo(''))
               .build()
               .watch(fireImmediately: true);
         }
       } else {
+        final padded = norm.length == 1 ? '0$norm' : norm;
+        final padded3 = norm.padLeft(3, '0');
         if (!includeArchived) {
           return isar.products
               .filter()
               .isArchivedEqualTo(false)
               .and()
-              .branchCodeEqualTo(branchCode)
+              .group((q) => q.branchCodeEqualTo(norm).or().branchCodeEqualTo(padded).or().branchCodeEqualTo(padded3))
               .build()
               .watch(fireImmediately: true);
         } else {
           return isar.products
               .filter()
-              .branchCodeEqualTo(branchCode)
+              .group((q) => q.branchCodeEqualTo(norm).or().branchCodeEqualTo(padded).or().branchCodeEqualTo(padded3))
               .build()
               .watch(fireImmediately: true);
         }

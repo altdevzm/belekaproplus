@@ -45,7 +45,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (config == null) return;
 
     final configuredName = config.businessName.trim();
-    if (configuredName.isNotEmpty && configuredName != 'Beleka POS Store') {
+    if (configuredName.isNotEmpty) {
       if (mounted && _companyController.text.isEmpty) {
         _companyController.text = configuredName;
       }
@@ -54,7 +54,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           config.bhfId.isNotEmpty) {
         _branchCodeController.text = config.bhfId;
       }
-      return;
+      if (configuredName != 'Beleka POS Store') {
+        return;
+      }
     }
 
     final cloudUrl = config.cloudApiUrl?.trim();
@@ -205,22 +207,25 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       }
 
       if (user != null) {
-        if (config != null &&
-            (config.businessName.trim().isEmpty ||
-                config.businessName.trim().toLowerCase() ==
-                    'beleka pos store')) {
-          config.businessName = companyName;
-        }
-        if (config != null &&
-            (config.tpin == null || config.tpin!.trim().isEmpty)) {
-          config.tpin = enteredTpin;
-        }
-        if (user.branchCode != null &&
-            user.branchCode!.isNotEmpty &&
-            config != null) {
-          config.bhfId = user.branchCode!;
-          if (user.branchName != null && user.branchName!.isNotEmpty) {
-            config.branchName = user.branchName;
+        if (config != null) {
+          if (companyName.isNotEmpty && companyName != 'Beleka POS Store') {
+            config.businessName = companyName;
+          }
+          if (config.tpin == null || config.tpin!.trim().isEmpty) {
+            config.tpin = enteredTpin;
+          }
+          final enteredBranchCode = _branchCodeController.text.trim();
+          if (enteredBranchCode.isNotEmpty) {
+            config.bhfId = enteredBranchCode;
+            user.branchCode = enteredBranchCode;
+            await db.isar.writeTxn(() async {
+              await db.isar.users.put(user!);
+            });
+          } else if (config.bhfId.isNotEmpty) {
+            user.branchCode = config.bhfId;
+            await db.isar.writeTxn(() async {
+              await db.isar.users.put(user!);
+            });
           }
           await db.isar.writeTxn(() async {
             await db.isar.storeConfigs.put(config);

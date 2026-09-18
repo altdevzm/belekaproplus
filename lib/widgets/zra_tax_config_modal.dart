@@ -17,6 +17,7 @@ class ZraTaxConfigModal extends ConsumerStatefulWidget {
 
 class _ZraTaxConfigModalState extends ConsumerState<ZraTaxConfigModal> {
   final _formKey = GlobalKey<FormState>();
+  late TextEditingController _businessNameController;
   late TextEditingController _tpinController;
   late TextEditingController _apiKeyController;
   late TextEditingController _bhfIdController;
@@ -82,9 +83,10 @@ class _ZraTaxConfigModalState extends ConsumerState<ZraTaxConfigModal> {
   @override
   void initState() {
     super.initState();
+    _businessNameController = TextEditingController();
     _tpinController = TextEditingController();
     _apiKeyController = TextEditingController();
-    _bhfIdController = TextEditingController(text: '000');
+    _bhfIdController = TextEditingController(text: '00');
     _loadConfig();
   }
 
@@ -93,11 +95,12 @@ class _ZraTaxConfigModalState extends ConsumerState<ZraTaxConfigModal> {
     _config = await isar.storeConfigs.where().findFirst();
     if (_config != null) {
       setState(() {
+        _businessNameController.text = _config!.businessName;
         _tpinController.text = _config!.tpin ?? '';
         _apiKeyController.text = _config!.digitaxApiKey ?? '';
         _bhfIdController.text = (_config!.bhfId.isNotEmpty)
-            ? _config!.bhfId.trim().padLeft(3, '0')
-            : '000';
+            ? _config!.bhfId.trim()
+            : '00';
 
         const validTaxTypes = [
           'VAT_STANDARD',
@@ -177,6 +180,7 @@ class _ZraTaxConfigModalState extends ConsumerState<ZraTaxConfigModal> {
 
   @override
   void dispose() {
+    _businessNameController.dispose();
     _tpinController.dispose();
     _apiKeyController.dispose();
     _bhfIdController.dispose();
@@ -188,13 +192,19 @@ class _ZraTaxConfigModalState extends ConsumerState<ZraTaxConfigModal> {
 
     final isar = ref.read(isarProvider);
     final config = _config ?? StoreConfig()
-      ..businessName = 'Beleka POS Store'
       ..terminalName = 'POS-Main';
+
+    final nameInput = _businessNameController.text.trim();
+    if (nameInput.isNotEmpty) {
+      config.businessName = nameInput;
+    } else if (config.businessName.trim().isEmpty) {
+      config.businessName = 'Beleka POS Store';
+    }
 
     config.tpin = _tpinController.text.trim();
     config.bhfId = _bhfIdController.text.trim().isEmpty
-        ? '000'
-        : _bhfIdController.text.trim().padLeft(3, '0');
+        ? '00'
+        : _bhfIdController.text.trim();
     config.digitaxApiKey = _apiKeyController.text.trim();
     config.businessTaxType = _businessTaxType;
     config.digitaxEnvironment = _digitaxEnv;
@@ -435,6 +445,44 @@ class _ZraTaxConfigModalState extends ConsumerState<ZraTaxConfigModal> {
                           letterSpacing: 0.5,
                         ),
                       ),
+                      TextFormField(
+                        controller: _businessNameController,
+                        style: GoogleFonts.inter(
+                          color: theme.colorScheme.onSurface,
+                          fontSize: 13,
+                        ),
+                        decoration: InputDecoration(
+                          labelText: 'Registered Company / Business Name',
+                          labelStyle: TextStyle(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                          hintText: 'e.g. My Business Ltd',
+                          hintStyle: TextStyle(
+                            color: theme.colorScheme.onSurfaceVariant
+                                .withValues(alpha: 0.5),
+                          ),
+                          filled: true,
+                          fillColor: isDark
+                              ? const Color(0xFF1C283D)
+                              : const Color(0xFFF8FAFC),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(
+                              color: isDark
+                                  ? const Color(0xFF293548)
+                                  : const Color(0xFFE2E8F0),
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(color: primaryColor),
+                          ),
+                          prefixIcon: Icon(
+                            Icons.business_rounded,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
                       const SizedBox(height: 12),
 
                       Row(
@@ -501,8 +549,8 @@ class _ZraTaxConfigModalState extends ConsumerState<ZraTaxConfigModal> {
                                 labelStyle: TextStyle(
                                   color: theme.colorScheme.onSurfaceVariant,
                                 ),
-                                hintText: '000',
-                                helperText: '000 = HQ, 001 = Branch 1',
+                                hintText: '00',
+                                helperText: '00 = HQ, 01 = Branch 1',
                                 helperStyle: TextStyle(
                                   color: theme.colorScheme.onSurfaceVariant,
                                   fontSize: 10,

@@ -10,6 +10,7 @@ import 'package:beleka_pos/services/export_service.dart';
 import 'package:beleka_pos/services/postgres_sync_service.dart';
 import 'package:beleka_pos/providers/auth_provider.dart';
 import 'package:beleka_pos/screens/branches/branch_report_screen.dart';
+import 'package:beleka_pos/widgets/zra_tax_config_modal.dart';
 
 class BranchesScreen extends ConsumerStatefulWidget {
   const BranchesScreen({super.key});
@@ -905,13 +906,31 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
                               ),
                             ],
                           ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'bhfId: ${currentConfig?.bhfId ?? "00"} • TPIN: ${currentConfig?.tpin ?? "1002948192"}',
-                            style: GoogleFonts.inter(
-                              fontSize: 11,
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'bhfId: ${currentConfig?.bhfId ?? "00"} • TPIN: ${currentConfig?.tpin ?? "1002948192"}',
+                                style: GoogleFonts.inter(
+                                  fontSize: 11,
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                              InkWell(
+                                onTap: () => showDialog(
+                                  context: context,
+                                  builder: (context) => const ZraTaxConfigModal(),
+                                ),
+                                child: Text(
+                                  'Configure HQ',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: primaryColor,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       )
@@ -966,36 +985,57 @@ class _BranchesScreenState extends ConsumerState<BranchesScreen> {
                               ],
                             ),
                           ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFECFDF5),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 7,
-                                  height: 7,
-                                  decoration: const BoxDecoration(
-                                    color: Color(0xFF059669),
-                                    shape: BoxShape.circle,
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFECFDF5),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 7,
+                                      height: 7,
+                                      decoration: const BoxDecoration(
+                                        color: Color(0xFF059669),
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      'ZRA DIGITAX ACTIVE',
+                                      style: GoogleFonts.inter(
+                                        color: const Color(0xFF059669),
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              OutlinedButton.icon(
+                                onPressed: () => showDialog(
+                                  context: context,
+                                  builder: (context) => const ZraTaxConfigModal(),
+                                ),
+                                icon: const Icon(Icons.tune_rounded, size: 16),
+                                label: const Text('Configure HQ (bhfId)'),
+                                style: OutlinedButton.styleFrom(
+                                  visualDensity: VisualDensity.compact,
+                                  foregroundColor: primaryColor,
+                                  side: BorderSide(color: primaryColor.withValues(alpha: 0.5)),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
                                   ),
                                 ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  'ZRA DIGITAX ACTIVE',
-                                  style: GoogleFonts.inter(
-                                    color: const Color(0xFF059669),
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
                         ],
                       ),

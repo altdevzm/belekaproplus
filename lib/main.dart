@@ -108,23 +108,84 @@ void main() async {
         });
       }
 
-      // Automatic product deduplication purge (strictly branch isolated)
+      // Automatic product deduplication and branch code normalization on startup
       final allProducts = await isar.products.where().findAll();
-      final Map<String, Product> uniqueMap = {};
+      final Map<String, Product> canonicalMap = {};
       final List<Id> duplicateProductIds = [];
+      final List<Product> productsToUpdate = [];
+
       for (final p in allProducts) {
-        final key = '${p.branchCode}_${p.name.trim().toLowerCase()}';
-        if (p.name.trim().isEmpty) continue;
-        if (uniqueMap.containsKey(key)) {
-          final existing = uniqueMap[key]!;
-          if (p.stockLevel > existing.stockLevel) existing.stockLevel = p.stockLevel;
+        final rawBranch = p.branchCode.trim();
+        final normBranch = (rawBranch.isEmpty || rawBranch == '000' || rawBranch == '00' || rawBranch == '0')
+            ? '00'
+            : (rawBranch.length == 1 ? '0$rawBranch' : rawBranch);
+
+        if (p.branchCode != normBranch) {
+          p.branchCode = normBranch;
+          if (!productsToUpdate.contains(p)) {
+            productsToUpdate.add(p);
+          }
+        }
+
+        final normName = p.name.trim().toLowerCase();
+        final normSku = p.sku.trim().toLowerCase();
+        final dtItemId = p.itemClsCd.trim();
+
+        if (normName.isEmpty && normSku.isEmpty) continue;
+
+        Product? existingMatch;
+        if (dtItemId.isNotEmpty && dtItemId.startsWith('item_')) {
+          existingMatch = canonicalMap['${normBranch}_dt_$dtItemId'];
+        }
+        if (existingMatch == null && normName.isNotEmpty) {
+          existingMatch = canonicalMap['${normBranch}_name_$normName'];
+        }
+        if (existingMatch == null && normSku.isNotEmpty && !normSku.startsWith('sku-')) {
+          existingMatch = canonicalMap['${normBranch}_sku_$normSku'];
+        }
+
+        if (existingMatch != null && existingMatch.id != p.id) {
+          if (p.stockLevel > existingMatch.stockLevel) {
+            existingMatch.stockLevel = p.stockLevel;
+          }
+          if (p.price > 0 && existingMatch.price == 0) {
+            existingMatch.price = p.price;
+          }
+          if (p.unitCost > 0 && existingMatch.unitCost == 0) {
+            existingMatch.unitCost = p.unitCost;
+          }
+          if (p.categoryId != 0 && existingMatch.categoryId == 0) {
+            existingMatch.categoryId = p.categoryId;
+          }
+          if (p.isSyncedWithDigitax && !existingMatch.isSyncedWithDigitax) {
+            existingMatch.isSyncedWithDigitax = true;
+            existingMatch.lastDigitaxSyncDate = p.lastDigitaxSyncDate ?? DateTime.now();
+          }
+          if (p.itemClsCd.isNotEmpty && !existingMatch.itemClsCd.startsWith('item_')) {
+            existingMatch.itemClsCd = p.itemClsCd;
+          }
+          if (!productsToUpdate.contains(existingMatch)) {
+            productsToUpdate.add(existingMatch);
+          }
           duplicateProductIds.add(p.id);
         } else {
-          uniqueMap[key] = p;
+          if (dtItemId.isNotEmpty && dtItemId.startsWith('item_')) {
+            canonicalMap['${normBranch}_dt_$dtItemId'] = p;
+          }
+          if (normName.isNotEmpty) {
+            canonicalMap['${normBranch}_name_$normName'] = p;
+          }
+          if (normSku.isNotEmpty && !normSku.startsWith('sku-')) {
+            canonicalMap['${normBranch}_sku_$normSku'] = p;
+          }
         }
       }
-      if (duplicateProductIds.isNotEmpty) {
+
+      if (duplicateProductIds.isNotEmpty || productsToUpdate.isNotEmpty) {
         await isar.writeTxn(() async {
+          for (final p in productsToUpdate) {
+            await isar.products.put(p);
+          }
           for (final id in duplicateProductIds) {
             await isar.products.delete(id);
           }

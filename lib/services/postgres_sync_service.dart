@@ -343,6 +343,7 @@ class PostgresSyncService {
       data: {
         'name': config.businessName,
         'tpin': config.tpin,
+        'bhf_id': config.bhfId,
         'tax_id': config.taxId,
         'currency_symbol': config.currencySymbol,
         'business_tax_type': config.businessTaxType,
@@ -365,6 +366,7 @@ class PostgresSyncService {
           data: {
             'name': config.businessName,
             'tpin': config.tpin,
+            'bhf_id': config.bhfId,
             'tax_id': config.taxId,
             'currency_symbol': config.currencySymbol,
             'business_tax_type': config.businessTaxType,
@@ -430,7 +432,7 @@ class PostgresSyncService {
           config?.businessTaxType = remoteTaxType!;
         }
         if (remoteBhfId?.isNotEmpty == true) {
-          config?.bhfId = remoteBhfId!.padLeft(2, '0');
+          config?.bhfId = remoteBhfId!;
         }
         if (targetStore['sdc_id'] != null) {
           config?.sdcId = targetStore['sdc_id']?.toString();

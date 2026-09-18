@@ -68,9 +68,10 @@ def register_organization(req: schemas.RegistrationRequest, db: Session = Depend
         else:
             raise HTTPException(status_code=409, detail="This branch code is already registered.")
 
+    bhf_id = (req.bhf_id or "00").strip()
     store = models.Store(
         store_code=store_code,
-        bhf_id="000",
+        bhf_id=bhf_id,
         name=business_name,
         branch_name=req.branch_name.strip() or "Headquarters (HQ)",
         tpin=tpin,

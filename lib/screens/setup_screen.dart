@@ -39,6 +39,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
   final _formKey = GlobalKey<FormState>();
   final _businessNameController = TextEditingController();
   final _businessTpinController = TextEditingController();
+  final _businessBhfIdController = TextEditingController(text: '00');
   final _adminIdController = TextEditingController();
   final _pinController = TextEditingController();
   final _confirmPinController = TextEditingController();
@@ -77,6 +78,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     _ownerStoreCodeController.dispose();
     _businessNameController.dispose();
     _businessTpinController.dispose();
+    _businessBhfIdController.dispose();
     _adminIdController.dispose();
     _pinController.dispose();
     _confirmPinController.dispose();
@@ -316,20 +318,49 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
           for (final p in cloudProducts) {
             final catName = (p['category'] as String?) ?? 'General';
             final catId = catMap[catName] ?? 1;
-            final prod = Product(
-              name: (p['name'] as String?) ?? 'Product',
-              sku:
-                  (p['sku'] as String?) ??
-                  (p['barcode'] as String?) ??
-                  'SKU-${DateTime.now().millisecondsSinceEpoch}',
-              price: (p['price'] as num?)?.toDouble() ?? 0.0,
-              unitCost: (p['cost_price'] as num?)?.toDouble() ?? 0.0,
-              stockLevel: (p['stock_quantity'] as num?)?.toInt() ?? 0,
-              categoryId: catId,
-              branchCode: bhfId,
-              branchName: branchName,
-            );
-            await db.saveProduct(prod);
+            final rawSku = (p['sku'] as String?) ?? (p['barcode'] as String?) ?? '';
+            final name = (p['name'] as String?) ?? 'Product';
+            final price = (p['price'] as num?)?.toDouble() ?? 0.0;
+            final cost = (p['cost_price'] as num?)?.toDouble() ?? 0.0;
+            final stock = (p['stock_quantity'] as num?)?.toInt() ?? 0;
+
+            Product? existing;
+            if (rawSku.isNotEmpty) {
+              existing = await db.isar.products
+                  .filter()
+                  .group((q) => q.branchCodeEqualTo(bhfId).or().branchCodeEqualTo(bhfId == '00' ? '000' : bhfId).or().branchCodeEqualTo(bhfId == '00' ? '' : bhfId))
+                  .and()
+                  .skuEqualTo(rawSku, caseSensitive: false)
+                  .findFirst();
+            }
+            existing ??= await db.isar.products
+                .filter()
+                .group((q) => q.branchCodeEqualTo(bhfId).or().branchCodeEqualTo(bhfId == '00' ? '000' : bhfId).or().branchCodeEqualTo(bhfId == '00' ? '' : bhfId))
+                .and()
+                .nameEqualTo(name, caseSensitive: false)
+                .findFirst();
+
+            if (existing != null) {
+              existing.branchCode = bhfId;
+              existing.branchName = branchName;
+              if (price > 0) existing.price = price;
+              if (cost > 0) existing.unitCost = cost;
+              existing.stockLevel = stock;
+              existing.categoryId = catId;
+              await db.saveProduct(existing);
+            } else {
+              final prod = Product(
+                name: name,
+                sku: rawSku.isNotEmpty ? rawSku : 'SKU-${DateTime.now().millisecondsSinceEpoch}',
+                price: price,
+                unitCost: cost,
+                stockLevel: stock,
+                categoryId: catId,
+                branchCode: bhfId,
+                branchName: branchName,
+              );
+              await db.saveProduct(prod);
+            }
           }
         }
       } catch (e) {
@@ -372,6 +403,9 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       final cloudService = CloudDatabaseService();
       final businessName = _businessNameController.text.trim();
       final tpin = _businessTpinController.text.trim();
+      final bhfId = _businessBhfIdController.text.trim().isEmpty
+          ? '00'
+          : _businessBhfIdController.text.trim();
       final adminId = _adminIdController.text.trim();
       final pin = _pinController.text.trim();
 
@@ -382,6 +416,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
         tpin: tpin,
         numericId: adminId,
         pin: pin,
+        bhfId: bhfId,
       );
       if (registration == null) {
         throw const CloudAuthException('Cloud registration returned no account.');
@@ -406,7 +441,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
         ..cloudStoreCode = registeredStore['store_code']?.toString() ?? 'HQ-00'
         ..digitaxApiKey = null
         ..tpin = registeredStore['tpin']?.toString() ?? tpin
-        ..bhfId = registeredStore['bhf_id']?.toString() ?? '00'
+        ..bhfId = registeredStore['bhf_id']?.toString() ?? bhfId
         ..cloudAuthToken = authToken
         ..cloudAuthUserId = registeredUser['numeric_id']?.toString() ?? adminId
         ..cloudAuthPin = pin
@@ -420,7 +455,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
         ..passwordHash = hashPin(pin)
         ..role = registeredUser['role']?.toString() ?? 'owner'
         ..name = registeredUser['name']?.toString() ?? 'Owner'
-        ..branchCode = '00'
+        ..branchCode = config.bhfId
         ..branchName = 'Headquarters (HQ)';
 
       await db.saveUser(admin);
@@ -646,60 +681,85 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
         } catch (_) {}
       }
 
-      // 6. Pull products & categories from Cloud DB ONLY IF HEADQUARTERS ('00')
-      // Branch terminals ('01', '02', etc.) maintain their own isolated local stock.
-      if (bhfId == '00') {
-        setState(() => _statusMessage = 'Syncing master catalog & products...');
-        try {
-          final cloudProducts = await cloudService.getProducts(
-            baseUrl,
-            storeId: storeId,
-            authToken: authToken,
-          );
-          if (cloudProducts.isNotEmpty) {
-            final Set<String> catNames = {};
-            for (final p in cloudProducts) {
-              final catName = (p['category'] as String?) ?? 'General';
-              catNames.add(catName);
-            }
-            if (catNames.isNotEmpty) {
-              final catList = catNames
-                  .map((name) => Category(name: name))
-                  .toList();
-              await db.saveCategories(catList);
-            }
+      // 6. Pull products & categories from Cloud DB for this store
+      setState(() => _statusMessage = 'Syncing master catalog & products...');
+      try {
+        final cloudProducts = await cloudService.getProducts(
+          baseUrl,
+          storeId: storeId,
+          authToken: authToken,
+        );
+        if (cloudProducts.isNotEmpty) {
+          final Set<String> catNames = {};
+          for (final p in cloudProducts) {
+            final catName = (p['category'] as String?) ?? 'General';
+            catNames.add(catName);
+          }
+          if (catNames.isNotEmpty) {
+            final catList = catNames
+                .map((name) => Category(name: name))
+                .toList();
+            await db.saveCategories(catList);
+          }
 
-            final savedCategories = await db.getAllCategories();
-            final Map<String, int> catMap = {
-              for (final c in savedCategories) c.name: c.id,
-            };
+          final savedCategories = await db.getAllCategories();
+          final Map<String, int> catMap = {
+            for (final c in savedCategories) c.name: c.id,
+          };
 
-            for (final p in cloudProducts) {
-              final catName = (p['category'] as String?) ?? 'General';
-              final catId = catMap[catName] ?? 1;
+          for (final p in cloudProducts) {
+            final catName = (p['category'] as String?) ?? 'General';
+            final catId = catMap[catName] ?? 1;
+            final rawSku = (p['sku'] as String?) ?? (p['barcode'] as String?) ?? '';
+            final name = (p['name'] as String?) ?? 'Product';
+            final price = (p['price'] as num?)?.toDouble() ?? 0.0;
+            final cost = (p['cost_price'] as num?)?.toDouble() ?? 0.0;
+            final stock = (p['stock_quantity'] as num?)?.toInt() ?? 0;
+
+            final norm = bhfId.trim();
+            final altPadded = norm.length == 1 ? '0$norm' : (norm.length == 2 ? '0$norm' : (norm.startsWith('0') ? norm.substring(1) : norm));
+
+            Product? existing;
+            if (rawSku.isNotEmpty) {
+              existing = await db.isar.products
+                  .filter()
+                  .group((q) => q.branchCodeEqualTo(bhfId).or().branchCodeEqualTo(norm).or().branchCodeEqualTo(altPadded).or().branchCodeEqualTo(''))
+                  .and()
+                  .skuEqualTo(rawSku, caseSensitive: false)
+                  .findFirst();
+            }
+            existing ??= await db.isar.products
+                .filter()
+                .group((q) => q.branchCodeEqualTo(bhfId).or().branchCodeEqualTo(norm).or().branchCodeEqualTo(altPadded).or().branchCodeEqualTo(''))
+                .and()
+                .nameEqualTo(name, caseSensitive: false)
+                .findFirst();
+
+            if (existing != null) {
+              existing.branchCode = bhfId;
+              existing.branchName = storeName;
+              if (price > 0) existing.price = price;
+              if (cost > 0) existing.unitCost = cost;
+              existing.stockLevel = stock;
+              existing.categoryId = catId;
+              await db.saveProduct(existing);
+            } else {
               final prod = Product(
-                name: (p['name'] as String?) ?? 'Product',
-                sku:
-                    (p['sku'] as String?) ??
-                    (p['barcode'] as String?) ??
-                    'SKU-${DateTime.now().millisecondsSinceEpoch}',
-                price: (p['price'] as num?)?.toDouble() ?? 0.0,
-                unitCost: (p['cost_price'] as num?)?.toDouble() ?? 0.0,
-                stockLevel: (p['stock_quantity'] as num?)?.toInt() ?? 0,
+                name: name,
+                sku: rawSku.isNotEmpty ? rawSku : 'SKU-${DateTime.now().millisecondsSinceEpoch}',
+                price: price,
+                unitCost: cost,
+                stockLevel: stock,
                 categoryId: catId,
-                branchCode: '00',
+                branchCode: bhfId,
                 branchName: storeName,
               );
               await db.saveProduct(prod);
             }
           }
-        } catch (e) {
-          debugPrint('Cloud product pull warning: $e');
         }
-      } else {
-        debugPrint(
-          'Branch setup initialized with isolated stock (bhfId: $bhfId). HQ products skipped.',
-        );
+      } catch (e) {
+        debugPrint('Cloud product pull warning: $e');
       }
 
       // 7. Auto-login & Navigate to POS
@@ -1742,14 +1802,34 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
             validator: (v) => v!.isEmpty ? 'Enter business name' : null,
           ),
           const SizedBox(height: 14),
-          _buildField(
-            context: context,
-            label: 'ORGANIZATION TPIN',
-            controller: _businessTpinController,
-            hint: '10-digit organization TPIN',
-            validator: (v) => (v == null || v.trim().isEmpty)
-                ? 'Enter organization TPIN'
-                : null,
+          Row(
+            children: [
+              Expanded(
+                flex: 3,
+                child: _buildField(
+                  context: context,
+                  label: 'ORGANIZATION TPIN',
+                  controller: _businessTpinController,
+                  hint: '10-digit organization TPIN',
+                  validator: (v) => (v == null || v.trim().isEmpty)
+                      ? 'Enter organization TPIN'
+                      : null,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 2,
+                child: _buildField(
+                  context: context,
+                  label: 'ZRA BRANCH CODE (bhfId)',
+                  controller: _businessBhfIdController,
+                  hint: '00, 001, HQ, etc.',
+                  validator: (v) => (v == null || v.trim().isEmpty)
+                      ? 'Enter branch code'
+                      : null,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 14),
           _buildField(

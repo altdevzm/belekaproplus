@@ -39,7 +39,7 @@ def create_store(
 ):
     """Register or update a store branch under the user's organization TPIN."""
     store_data = store_in.model_dump()
-    store_data["bhf_id"] = (store_data.get("bhf_id") or "000").strip().zfill(3)
+    store_data["bhf_id"] = (store_data.get("bhf_id") or "000").strip()
     store_data["store_code"] = store_data["bhf_id"]
     
     # Auto-inherit corporate TPIN & DigiTax credentials from owner's / manager's store
@@ -108,7 +108,7 @@ def update_store(
     update_data = store_in.model_dump(exclude_unset=True)
     requested_bhf_id = update_data.get("bhf_id")
     if requested_bhf_id:
-        requested_bhf_id = requested_bhf_id.strip().zfill(3)
+        requested_bhf_id = requested_bhf_id.strip()
         update_data["bhf_id"] = requested_bhf_id
         update_data["store_code"] = requested_bhf_id
         duplicate = db.query(models.Store).filter(

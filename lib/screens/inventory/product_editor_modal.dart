@@ -1500,11 +1500,20 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
       
       final storeConfig = ref.read(storeConfigProvider).value;
       final isOwner = ref.read(isOwnerProvider);
-      final branchBhfId = (currentUser?.branchCode != null && currentUser!.branchCode!.isNotEmpty && currentUser.branchCode != '00')
-          ? currentUser.branchCode!
-          : ((storeConfig != null && storeConfig.bhfId.isNotEmpty && storeConfig.bhfId != '00')
-              ? storeConfig.bhfId
-              : (isOwner ? '00' : '01'));
+      
+      String normalizeBranch(String? code) {
+        final c = code?.trim() ?? '';
+        if (c.isEmpty || c == '000' || c == '00' || c == '0') return '00';
+        return c.length == 1 ? '0$c' : c;
+      }
+
+      final branchBhfId = normalizeBranch(
+        (currentUser?.branchCode != null && currentUser!.branchCode!.isNotEmpty && currentUser.branchCode != '00')
+            ? currentUser.branchCode!
+            : ((storeConfig != null && storeConfig.bhfId.isNotEmpty)
+                ? storeConfig.bhfId
+                : (isOwner ? '00' : '01')),
+      );
       final branchName = (storeConfig != null && storeConfig.branchName != null && storeConfig.branchName!.isNotEmpty)
           ? storeConfig.branchName!
           : (currentUser?.branchName ?? (isOwner ? 'Headquarters (HQ)' : 'Main Branch'));
@@ -1516,7 +1525,21 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
       final parsedTaxRate = double.tryParse(_taxRateController.text.trim()) ?? (_isTaxInclusive ? 16.0 : 0.0);
       final zraTaxCode = !_isDigitaxSyncEnabled ? 'EXEMPT' : (parsedTaxRate == 0 ? 'C' : 'A');
 
-      final product = widget.product ?? Product(
+      // Check if another product already exists with the same SKU in this branch
+      Product? targetProduct = widget.product;
+      if (targetProduct == null && _skuController.text.trim().isNotEmpty) {
+        final existingBySku = await db.isar.products
+            .filter()
+            .group((q) => q.branchCodeEqualTo(branchBhfId).or().branchCodeEqualTo(branchBhfId == '00' ? '000' : branchBhfId).or().branchCodeEqualTo(branchBhfId == '00' ? '' : branchBhfId))
+            .and()
+            .skuEqualTo(_skuController.text.trim(), caseSensitive: false)
+            .findFirst();
+        if (existingBySku != null) {
+          targetProduct = existingBySku;
+        }
+      }
+
+      final product = targetProduct ?? Product(
         name: _nameController.text.trim(),
         sku: _skuController.text.trim(),
         price: double.parse(_priceController.text),
@@ -1541,16 +1564,18 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
         scalePlu: scalePlu,
       );
       
-      final previousStock = widget.product?.stockLevel;
+      final previousStock = targetProduct?.stockLevel;
 
-      if (widget.product != null) {
+      if (targetProduct != null) {
         product.name = _nameController.text.trim();
         product.sku = _skuController.text.trim();
         product.price = double.parse(_priceController.text);
         product.unitCost = double.tryParse(_unitCostController.text) ?? 0.0;
-        product.stockLevel = widget.product!.stockLevel; // Stock quantity is locked in edit mode
-        product.categoryId = _selectedCategoryId ?? 0;
-        product.imagePath = _imagePath;
+        if (widget.product == null) {
+          product.stockLevel += initialStock;
+        }
+        product.categoryId = _selectedCategoryId ?? product.categoryId;
+        product.imagePath = _imagePath ?? product.imagePath;
         product.discountPrice = discountPrice;
         product.discountStartDate = _hasDiscount ? (product.discountStartDate ?? DateTime.now()) : null;
         product.discountEndDate = (_hasDiscount && durationDays != null) ? DateTime.now().add(Duration(days: durationDays)) : null;

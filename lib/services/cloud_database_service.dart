@@ -98,6 +98,7 @@ class CloudDatabaseService {
     required String tpin,
     required String numericId,
     required String pin,
+    String? bhfId,
     String ownerName = 'Owner',
   }) async {
     try {
@@ -111,6 +112,9 @@ class CloudDatabaseService {
           'tpin': tpin.trim(),
           'numeric_id': numericId.trim(),
           'pin': pin.trim(),
+          'bhf_id': (bhfId != null && bhfId.trim().isNotEmpty)
+              ? bhfId.trim()
+              : '00',
           'owner_name': ownerName.trim().isEmpty ? 'Owner' : ownerName.trim(),
           'store_code': '${tpin.trim()}-HQ',
           'branch_name': 'Headquarters (HQ)',
