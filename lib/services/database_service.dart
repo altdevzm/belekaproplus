@@ -124,12 +124,34 @@ class DatabaseService {
               .filter()
               .isArchivedEqualTo(false)
               .and()
-              .group((q) => q.branchCodeEqualTo(norm).or().branchCodeEqualTo(padded).or().branchCodeEqualTo(padded3))
+              .group((q) => q
+                  .branchCodeEqualTo(norm)
+                  .or()
+                  .branchCodeEqualTo(padded)
+                  .or()
+                  .branchCodeEqualTo(padded3)
+                  .or()
+                  .branchCodeEqualTo('00')
+                  .or()
+                  .branchCodeEqualTo('000')
+                  .or()
+                  .branchCodeEqualTo(''))
               .findAll();
         } else {
           return await isar.products
               .filter()
-              .group((q) => q.branchCodeEqualTo(norm).or().branchCodeEqualTo(padded).or().branchCodeEqualTo(padded3))
+              .group((q) => q
+                  .branchCodeEqualTo(norm)
+                  .or()
+                  .branchCodeEqualTo(padded)
+                  .or()
+                  .branchCodeEqualTo(padded3)
+                  .or()
+                  .branchCodeEqualTo('00')
+                  .or()
+                  .branchCodeEqualTo('000')
+                  .or()
+                  .branchCodeEqualTo(''))
               .findAll();
         }
       }
@@ -172,13 +194,35 @@ class DatabaseService {
               .filter()
               .isArchivedEqualTo(false)
               .and()
-              .group((q) => q.branchCodeEqualTo(norm).or().branchCodeEqualTo(padded).or().branchCodeEqualTo(padded3))
+              .group((q) => q
+                  .branchCodeEqualTo(norm)
+                  .or()
+                  .branchCodeEqualTo(padded)
+                  .or()
+                  .branchCodeEqualTo(padded3)
+                  .or()
+                  .branchCodeEqualTo('00')
+                  .or()
+                  .branchCodeEqualTo('000')
+                  .or()
+                  .branchCodeEqualTo(''))
               .build()
               .watch(fireImmediately: true);
         } else {
           return isar.products
               .filter()
-              .group((q) => q.branchCodeEqualTo(norm).or().branchCodeEqualTo(padded).or().branchCodeEqualTo(padded3))
+              .group((q) => q
+                  .branchCodeEqualTo(norm)
+                  .or()
+                  .branchCodeEqualTo(padded)
+                  .or()
+                  .branchCodeEqualTo(padded3)
+                  .or()
+                  .branchCodeEqualTo('00')
+                  .or()
+                  .branchCodeEqualTo('000')
+                  .or()
+                  .branchCodeEqualTo(''))
               .build()
               .watch(fireImmediately: true);
         }

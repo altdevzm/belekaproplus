@@ -21,27 +21,7 @@ import 'package:beleka_pos/core/core.dart';
 
 final productsProvider = StreamProvider<List<Product>>((ref) {
   final db = ref.watch(databaseServiceProvider);
-  final isOwner = ref.watch(isOwnerProvider);
-  final currentUser = ref.watch(authProvider);
-  final bhfId = ref.watch(storeConfigProvider.select((c) => c.value?.bhfId));
-
-  final String? effectiveBranchCode;
-  if (!isOwner) {
-    final userBranch = currentUser?.branchCode?.trim();
-    if (userBranch != null && userBranch.isNotEmpty && userBranch != '00') {
-      effectiveBranchCode = userBranch;
-    } else if (bhfId != null && bhfId.isNotEmpty && bhfId != '00') {
-      effectiveBranchCode = bhfId;
-    } else {
-      effectiveBranchCode =
-          null; // In Headquarters or default store, show all local inventory!
-    }
-  } else {
-    effectiveBranchCode =
-        null; // Owner/HQ can sell all or default branch products
-  }
-
-  return db.watchAllProducts(branchCode: effectiveBranchCode);
+  return db.watchAllProducts();
 });
 
 class SalesScreen extends ConsumerStatefulWidget {
@@ -55,7 +35,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
 
-  int? _selectedCategoryId; // null means "ALL"
+  int? _selectedCategoryId; // null means "ALL", 0 means "GENERAL / UNCATEGORIZED"
   bool _isGridView = true; // true = Grid, false = List
 
   bool _isProcessingPayment = false;
@@ -94,25 +74,28 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     String? userRole,
   }) {
     final query = _searchController.text.trim().toLowerCase();
-    final branch = activeBranch ?? '00';
+    final branch = (activeBranch ?? '00').trim();
 
     return allProducts.where((p) {
       if (p.isArchived) return false;
 
       // Multi-Branch Inventory Isolation:
       if (userRole == 'cashier' || userRole == 'branch_manager') {
-        if (branch.isNotEmpty && branch != '00') {
-          // In a sub-branch: can sell sub-branch stock, HQ master stock ('00'), or unassigned stock ('')
-          if (p.branchCode != branch &&
-              p.branchCode != '00' &&
-              p.branchCode.isNotEmpty) {
+        if (branch.isNotEmpty && branch != '00' && branch != '000') {
+          final pBranch = p.branchCode.trim();
+          // In a sub-branch: can sell sub-branch stock, HQ master stock ('00' / '000'), or unassigned stock ('')
+          if (pBranch.isNotEmpty &&
+              pBranch != branch &&
+              pBranch != '00' &&
+              pBranch != '000') {
             return false;
           }
         }
       }
 
-      final matchesCategory =
-          _selectedCategoryId == null || p.categoryId == _selectedCategoryId;
+      final matchesCategory = _selectedCategoryId == null ||
+          p.categoryId == _selectedCategoryId ||
+          (_selectedCategoryId == 0 && p.categoryId == 0);
       if (!matchesCategory) return false;
 
       if (query.isEmpty) return true;
@@ -2650,6 +2633,14 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
             label: 'ALL ITEMS',
             isSelected: _selectedCategoryId == null,
             onTap: () => setState(() => _selectedCategoryId = null),
+          ),
+          const SizedBox(width: 6),
+          // General / Uncategorized Chip
+          _buildCategoryChip(
+            context,
+            label: 'GENERAL',
+            isSelected: _selectedCategoryId == 0,
+            onTap: () => setState(() => _selectedCategoryId = 0),
           ),
           const SizedBox(width: 6),
           ...categories.map((cat) {
