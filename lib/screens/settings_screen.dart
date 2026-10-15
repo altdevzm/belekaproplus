@@ -15,6 +15,7 @@ import 'package:beleka_pos/widgets/zra_tax_config_modal.dart';
 import 'package:beleka_pos/screens/settings/scale_settings_modal.dart';
 import 'package:beleka_pos/screens/settings/company_account_delete_modal.dart';
 import 'package:beleka_pos/screens/settings/software_update_modal.dart';
+import 'package:beleka_pos/screens/settings/lenco_settings_modal.dart';
 import 'package:beleka_pos/providers/auth_provider.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -258,6 +259,18 @@ class SettingsScreen extends ConsumerWidget {
                         onPressed: () => showDialog(
                           context: context,
                           builder: (context) => const ZraTaxConfigModal(),
+                        ),
+                      ),
+                      _buildSettingsCard(
+                        context,
+                        'Lenco Payment Gateway & Banking',
+                        'Configure Lenco API Token, Universal Webhook, Mobile Money & Bank Transfer resolution',
+                        Icons.account_balance_wallet_rounded,
+                        const Color(0xFF0284C7),
+                        buttonLabel: 'Configure Lenco',
+                        onPressed: () => showDialog(
+                          context: context,
+                          builder: (context) => const LencoSettingsModal(),
                         ),
                       ),
                       _buildSettingsCard(

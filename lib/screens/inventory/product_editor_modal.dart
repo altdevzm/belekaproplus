@@ -56,9 +56,50 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
   bool _isTaxInclusive = true;
   bool _isWeighted = false;
   bool _isDigitaxSyncEnabled = true;
-  String _unitOfMeasure = 'kg';
+  String _unitOfMeasure = 'pcs';
+  String _selectedZraTaxCode = 'A';
+  late TextEditingController _customUnitController;
+  bool _isCustomUnit = false;
   int? _selectedCategoryId;
   String? _imagePath;
+
+  static const List<Map<String, String>> commonPackagingUnits = [
+    // General Retail & Wholesale
+    {'id': 'pcs', 'name': 'Piece (pcs)', 'group': 'Retail'},
+    {'id': 'box', 'name': 'Box (bx)', 'group': 'Retail/Wholesale'},
+    {'id': 'pkt', 'name': 'Packet (pkt)', 'group': 'Retail'},
+    {'id': 'crt', 'name': 'Carton (crt)', 'group': 'Wholesale'},
+    {'id': 'set', 'name': 'Set', 'group': 'Retail'},
+    {'id': 'dz', 'name': 'Dozen (dz)', 'group': 'Wholesale'},
+    {'id': 'pack', 'name': 'Pack (pk)', 'group': 'Retail'},
+    {'id': 'bdl', 'name': 'Bundle (bdl)', 'group': 'Wholesale'},
+    {'id': 'unit', 'name': 'Unit (unit)', 'group': 'General'},
+
+    // Pharmaceuticals & Healthcare
+    {'id': 'tab', 'name': 'Tablet (tab)', 'group': 'Pharmacy'},
+    {'id': 'stp', 'name': 'Strip (stp)', 'group': 'Pharmacy'},
+    {'id': 'btl', 'name': 'Bottle (btl)', 'group': 'Pharmacy/Drinks'},
+    {'id': 'cap', 'name': 'Capsule (cap)', 'group': 'Pharmacy'},
+    {'id': 'sch', 'name': 'Sachet (sch)', 'group': 'Pharmacy/Grocery'},
+    {'id': 'tub', 'name': 'Tube (tub)', 'group': 'Pharmacy/Cosmetics'},
+    {'id': 'via', 'name': 'Vial (via)', 'group': 'Clinical'},
+    {'id': 'amp', 'name': 'Ampoule (amp)', 'group': 'Clinical'},
+
+    // Hardware, Building & Textiles
+    {'id': 'm', 'name': 'Metre (m)', 'group': 'Fabric/Hardware'},
+    {'id': 'rol', 'name': 'Roll (rol)', 'group': 'Fabric/Hardware'},
+    {'id': 'pr', 'name': 'Pair (pr)', 'group': 'Apparel/Shoes'},
+    {'id': 'bag', 'name': 'Bag (bag)', 'group': 'Bulk/Agric'},
+    {'id': 'sht', 'name': 'Sheet (sht)', 'group': 'Hardware'},
+
+    // Food, Butchery & Scale / Liquids
+    {'id': 'kg', 'name': 'Kilogram (kg)', 'group': 'Weight/Scale'},
+    {'id': 'g', 'name': 'Gram (g)', 'group': 'Weight/Scale'},
+    {'id': 'ltr', 'name': 'Litre (ltr)', 'group': 'Liquid'},
+    {'id': 'ml', 'name': 'Millilitre (ml)', 'group': 'Liquid'},
+    {'id': 'can', 'name': 'Can / Tin (can)', 'group': 'Drinks/Food'},
+    {'id': 'lb', 'name': 'Pound (lb)', 'group': 'Weight/Scale'},
+  ];
 
   @override
   void initState() {
@@ -70,9 +111,16 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
     _stockController = TextEditingController(text: widget.product?.stockLevel.toString() ?? '');
     _discountPriceController = TextEditingController(text: widget.product?.discountPrice?.toString() ?? '');
     
-    // Scale properties
+    // Scale & Unit properties
     _isWeighted = widget.product?.isWeighted ?? false;
-    _unitOfMeasure = widget.product?.unitOfMeasure ?? 'kg';
+    _unitOfMeasure = widget.product?.unitOfMeasure ?? (_isWeighted ? 'kg' : 'pcs');
+    if (_unitOfMeasure.isEmpty) {
+      _unitOfMeasure = _isWeighted ? 'kg' : 'pcs';
+    }
+    final isPredefined = commonPackagingUnits.any((u) => u['id']!.toLowerCase() == _unitOfMeasure.toLowerCase());
+    _isCustomUnit = !isPredefined && _unitOfMeasure.isNotEmpty;
+    _customUnitController = TextEditingController(text: _isCustomUnit ? _unitOfMeasure : '');
+
     _tareWeightController = TextEditingController(
       text: (widget.product?.tareWeight ?? 0.0) > 0 ? widget.product!.tareWeight.toString() : '',
     );
@@ -104,8 +152,17 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
     
     _isTaxInclusive = widget.product?.isTaxInclusive ?? true;
     _isDigitaxSyncEnabled = widget.product?.isDigitaxSyncEnabled ?? true;
+
+    // ZRA Tax Classification
+    _selectedZraTaxCode = widget.product?.zraTaxCode ?? '';
+    if (_selectedZraTaxCode.isEmpty) {
+      _selectedZraTaxCode = (widget.product?.taxRate == 0) ? 'E' : 'A';
+    }
+    if (_selectedZraTaxCode == 'C') _selectedZraTaxCode = 'E';
+    if (_selectedZraTaxCode == 'TOT') _selectedZraTaxCode = 'D';
+
     _taxRateController = TextEditingController(
-      text: (widget.product?.taxRate ?? 16.0).toStringAsFixed(1).replaceAll('.0', ''),
+      text: (widget.product?.taxRate ?? (_selectedZraTaxCode == 'A' ? 16.0 : 0.0)).toStringAsFixed(1).replaceAll('.0', ''),
     );
     
     _selectedCategoryId = widget.product?.categoryId;
@@ -124,6 +181,7 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
     _tareWeightController.dispose();
     _scalePluController.dispose();
     _taxRateController.dispose();
+    _customUnitController.dispose();
     _commissionRateController.dispose();
     _supplierPayoutPriceController.dispose();
     super.dispose();
@@ -221,7 +279,7 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                     Expanded(
                       child: _buildTextField(
                         controller: _unitCostController,
-                        label: _isWeighted ? 'COST (PER ${_unitOfMeasure.toUpperCase()})' : 'COST PRICE',
+                        label: 'COST (PER ${_unitOfMeasure.toUpperCase()})',
                         hint: '0.00',
                         keyboardType: TextInputType.number,
                         prefix: currencySymbol,
@@ -233,7 +291,7 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                     Expanded(
                       child: _buildTextField(
                         controller: _priceController,
-                        label: _isWeighted ? 'PRICE (PER ${_unitOfMeasure.toUpperCase()})' : 'SELLING PRICE',
+                        label: 'PRICE (PER ${_unitOfMeasure.toUpperCase()})',
                         hint: '0.00',
                         keyboardType: TextInputType.number,
                         prefix: currencySymbol,
@@ -243,6 +301,8 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                     ),
                   ],
                 ),
+                const SizedBox(height: 20),
+                _buildPackagingUnitSelector(accentColor),
                 const SizedBox(height: 20),
                 _buildConsignmentSection(accentColor, currencySymbol),
                 const SizedBox(height: 20),
@@ -692,7 +752,7 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
 
     return _buildTextField(
       controller: _stockController,
-      label: _isWeighted ? 'INITIAL OPENING STOCK (${_unitOfMeasure.toUpperCase()})' : 'INITIAL OPENING STOCK (UNITS)',
+      label: 'INITIAL OPENING STOCK (${_unitOfMeasure.toUpperCase()})',
       hint: '0',
       keyboardType: TextInputType.number,
       accentColor: accentColor,
@@ -700,16 +760,212 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
     );
   }
 
-  Widget _buildScaleSection(Color accentColor) {
-    final units = [
-      {'id': 'kg', 'name': 'kg (Kilograms)'},
-      {'id': 'g', 'name': 'g (Grams)'},
-      {'id': 'lb', 'name': 'lb (Pounds)'},
-      {'id': 'pcs', 'name': 'pcs (Pieces)'},
-      {'id': 'ltr', 'name': 'ltr (Litres)'},
-      {'id': 'unit', 'name': 'unit (Units)'},
+  Widget _buildPackagingUnitSelector(Color accentColor) {
+    final bool isCustom = _isCustomUnit;
+    final hasMatch = commonPackagingUnits.any((u) => u['id']!.toLowerCase() == _unitOfMeasure.toLowerCase());
+    final currentDropdownValue = isCustom ? 'custom' : (hasMatch ? _unitOfMeasure.toLowerCase() : 'custom');
+
+    const quickUnits = [
+      {'id': 'pcs', 'label': 'Piece'},
+      {'id': 'box', 'label': 'Box'},
+      {'id': 'tab', 'label': 'Tablet'},
+      {'id': 'stp', 'label': 'Strip'},
+      {'id': 'pkt', 'label': 'Packet'},
+      {'id': 'btl', 'label': 'Bottle'},
+      {'id': 'kg', 'label': 'Kg'},
     ];
 
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.02),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.inventory_2_outlined, color: accentColor, size: 18),
+                  const SizedBox(width: 8),
+                  Text(
+                    'PACKAGING / SELLING UNIT',
+                    style: GoogleFonts.manrope(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.8,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: accentColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  'SELLING AS: ${_unitOfMeasure.toUpperCase()}',
+                  style: GoogleFonts.inter(
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w800,
+                    color: accentColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // Quick Tap Chips
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: quickUnits.map((qu) {
+                final isSelected = !_isCustomUnit && _unitOfMeasure.toLowerCase() == qu['id']!;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: ChoiceChip(
+                    label: Text(qu['label']!),
+                    selected: isSelected,
+                    onSelected: (selected) {
+                      if (selected) {
+                        setState(() {
+                          _isCustomUnit = false;
+                          _unitOfMeasure = qu['id']!;
+                        });
+                      }
+                    },
+                    selectedColor: accentColor,
+                    backgroundColor: Colors.white.withValues(alpha: 0.04),
+                    labelStyle: GoogleFonts.inter(
+                      fontSize: 11,
+                      fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
+                      color: isSelected ? Colors.black : Colors.white70,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      side: BorderSide(
+                        color: isSelected ? accentColor : Colors.white.withValues(alpha: 0.08),
+                      ),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          const SizedBox(height: 12),
+          // Full Dropdown with categories
+          Container(
+            height: 48,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.04),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: currentDropdownValue,
+                isExpanded: true,
+                dropdownColor: const Color(0xFF1E2230),
+                icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white54),
+                items: [
+                  ...commonPackagingUnits.map((u) {
+                    return DropdownMenuItem<String>(
+                      value: u['id'],
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            u['name']!,
+                            style: GoogleFonts.inter(fontSize: 12.5, color: Colors.white, fontWeight: FontWeight.w600),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.06),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              u['group']!,
+                              style: GoogleFonts.inter(fontSize: 9.5, color: Colors.white38),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                  DropdownMenuItem<String>(
+                    value: 'custom',
+                    child: Row(
+                      children: [
+                        Icon(Icons.edit_note_rounded, size: 16, color: accentColor),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Custom / Specific Unit...',
+                          style: TextStyle(fontSize: 12.5, color: accentColor, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                onChanged: (val) {
+                  if (val == null) return;
+                  setState(() {
+                    if (val == 'custom') {
+                      _isCustomUnit = true;
+                      if (_customUnitController.text.trim().isNotEmpty) {
+                        _unitOfMeasure = _customUnitController.text.trim();
+                      }
+                    } else {
+                      _isCustomUnit = false;
+                      _unitOfMeasure = val;
+                    }
+                  });
+                },
+              ),
+            ),
+          ),
+          if (_isCustomUnit) ...[
+            const SizedBox(height: 10),
+            Container(
+              height: 42,
+              decoration: BoxDecoration(
+                color: accentColor.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: accentColor.withValues(alpha: 0.3)),
+              ),
+              child: TextField(
+                controller: _customUnitController,
+                style: GoogleFonts.inter(fontSize: 12, color: Colors.white, fontWeight: FontWeight.bold),
+                decoration: InputDecoration(
+                  hintText: 'Type custom unit (e.g. bale, strip, dose, tin, loaf)',
+                  hintStyle: GoogleFonts.inter(fontSize: 11, color: Colors.white38),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  border: InputBorder.none,
+                  prefixIcon: Icon(Icons.edit_rounded, size: 15, color: accentColor),
+                ),
+                onChanged: (text) {
+                  final cleaned = text.trim();
+                  setState(() {
+                    _unitOfMeasure = cleaned.isNotEmpty ? cleaned : 'unit';
+                  });
+                },
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScaleSection(Color accentColor) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -760,7 +1016,14 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
               ),
               Switch(
                 value: _isWeighted,
-                onChanged: (v) => setState(() => _isWeighted = v),
+                onChanged: (v) {
+                  setState(() {
+                    _isWeighted = v;
+                    if (v && (_unitOfMeasure == 'pcs' || _unitOfMeasure == 'unit' || _unitOfMeasure == 'box' || _unitOfMeasure == 'tab')) {
+                      _unitOfMeasure = 'kg';
+                    }
+                  });
+                },
                 activeThumbColor: const Color(0xFFC1F11D),
               ),
             ],
@@ -770,54 +1033,6 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
             Row(
               children: [
                 Expanded(
-                  flex: 3,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'UNIT OF MEASURE',
-                        style: GoogleFonts.manrope(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1,
-                          color: Colors.white.withValues(alpha: 0.4),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        height: 52,
-                        padding: const EdgeInsets.symmetric(horizontal: 14),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.04),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-                        ),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            value: units.any((u) => u['id'] == _unitOfMeasure) ? _unitOfMeasure : units.first['id'],
-                            isExpanded: true,
-                            dropdownColor: const Color(0xFF1A1A20),
-                            items: units.map((u) {
-                              return DropdownMenuItem<String>(
-                                value: u['id'],
-                                child: Text(
-                                  u['name']!,
-                                  style: GoogleFonts.inter(fontSize: 13, color: Colors.white),
-                                ),
-                              );
-                            }).toList(),
-                            onChanged: (val) {
-                              if (val != null) setState(() => _unitOfMeasure = val);
-                            },
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  flex: 2,
                   child: _buildTextField(
                     controller: _tareWeightController,
                     label: 'TARE WEIGHT (${_unitOfMeasure.toUpperCase()})',
@@ -826,14 +1041,16 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                     accentColor: accentColor,
                   ),
                 ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: _buildTextField(
+                    controller: _scalePluController,
+                    label: 'SCALE PLU CODE',
+                    hint: 'e.g. 00123',
+                    accentColor: accentColor,
+                  ),
+                ),
               ],
-            ),
-            const SizedBox(height: 14),
-            _buildTextField(
-              controller: _scalePluController,
-              label: 'SCALE PLU / BARCODE CODE (OPTIONAL)',
-              hint: 'e.g. 00123 (for embedded barcode scales)',
-              accentColor: accentColor,
             ),
             Builder(
               builder: (context) {
@@ -1044,12 +1261,23 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
   }
 
   Widget _buildTaxSection(Color accentColor) {
+    final isExempt = _selectedZraTaxCode == 'E' || _selectedZraTaxCode == 'C';
+    final isZeroRated = _selectedZraTaxCode == 'B';
+    final isStandard = _selectedZraTaxCode == 'A';
+    final isTot = _selectedZraTaxCode == 'D' || _selectedZraTaxCode == 'TOT';
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: _isTaxInclusive ? accentColor.withValues(alpha: 0.04) : Colors.white.withValues(alpha: 0.02),
+        color: isExempt
+            ? const Color(0xFF10B981).withValues(alpha: 0.05)
+            : (_isTaxInclusive ? accentColor.withValues(alpha: 0.04) : Colors.white.withValues(alpha: 0.02)),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _isTaxInclusive ? accentColor.withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.05)),
+        border: Border.all(
+          color: isExempt
+              ? const Color(0xFF10B981).withValues(alpha: 0.3)
+              : (_isTaxInclusive ? accentColor.withValues(alpha: 0.2) : Colors.white.withValues(alpha: 0.05)),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1060,8 +1288,10 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
               Row(
                 children: [
                   Icon(
-                    _isTaxInclusive ? Icons.percent_rounded : Icons.money_off_csred_rounded,
-                    color: _isTaxInclusive ? accentColor : Colors.white38,
+                    isExempt
+                        ? Icons.health_and_safety_rounded
+                        : (isTot ? Icons.receipt_long_rounded : Icons.account_balance_rounded),
+                    color: isExempt ? const Color(0xFF10B981) : accentColor,
                     size: 22,
                   ),
                   const SizedBox(width: 14),
@@ -1069,7 +1299,7 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'TAX INCLUSIVE',
+                        'ZRA TAX CLASSIFICATION & VAT',
                         style: GoogleFonts.manrope(
                           fontSize: 12,
                           fontWeight: FontWeight.w900,
@@ -1079,14 +1309,168 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        _isTaxInclusive
-                            ? 'Price includes tax'
-                            : 'Price is tax exclusive',
+                        isExempt
+                            ? 'Code E • 0% VAT Exempt (Medicines, Medical Supplies & Books)'
+                            : (isZeroRated
+                                ? 'Code B • 0% Zero-Rated (Mealie Meal, Bread, Milk, Exports)'
+                                : (isTot
+                                    ? 'Code D • Turnover Tax (TOT Presumptive 4%)'
+                                    : 'Code A • 16% Standard VAT (General Goods)')),
                         style: GoogleFonts.inter(
                           fontSize: 11,
-                          color: _isTaxInclusive ? accentColor : Colors.white38,
-                          fontWeight: FontWeight.w500,
+                          color: isExempt ? const Color(0xFF10B981) : (isZeroRated ? Colors.amberAccent : accentColor),
+                          fontWeight: FontWeight.w600,
                         ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isExempt
+                      ? const Color(0xFF10B981).withValues(alpha: 0.2)
+                      : (isZeroRated
+                          ? Colors.amber.withValues(alpha: 0.2)
+                          : (isTot ? Colors.purple.withValues(alpha: 0.2) : accentColor.withValues(alpha: 0.15))),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: isExempt
+                        ? const Color(0xFF10B981).withValues(alpha: 0.4)
+                        : (isZeroRated
+                            ? Colors.amber.withValues(alpha: 0.4)
+                            : (isTot ? Colors.purple.withValues(alpha: 0.4) : accentColor.withValues(alpha: 0.3))),
+                  ),
+                ),
+                child: Text(
+                  'CODE ${_selectedZraTaxCode.toUpperCase()}',
+                  style: GoogleFonts.manrope(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                    color: isExempt
+                        ? const Color(0xFF10B981)
+                        : (isZeroRated ? Colors.amberAccent : (isTot ? Colors.purpleAccent : accentColor)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Text(
+            'SELECT TAX CATEGORY ACCORDING TO ZRA REGULATIONS',
+            style: GoogleFonts.manrope(
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1,
+              color: Colors.white.withValues(alpha: 0.45),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: _buildTaxOptionCard(
+                  code: 'A',
+                  title: 'Standard VAT',
+                  badge: '16%',
+                  subtitle: 'General retail, groceries, drinks, electronics & clothes',
+                  isSelected: isStandard,
+                  activeColor: accentColor,
+                  onTap: () {
+                    setState(() {
+                      _selectedZraTaxCode = 'A';
+                      _taxRateController.text = '16';
+                    });
+                  },
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _buildTaxOptionCard(
+                  code: 'E',
+                  title: 'VAT Exempt',
+                  badge: '0%',
+                  subtitle: 'Medicines, pharmaceuticals, medical supplies & books',
+                  isSelected: isExempt,
+                  activeColor: const Color(0xFF10B981),
+                  onTap: () {
+                    setState(() {
+                      _selectedZraTaxCode = 'E';
+                      _taxRateController.text = '0';
+                    });
+                  },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: _buildTaxOptionCard(
+                  code: 'B',
+                  title: 'Zero-Rated',
+                  badge: '0%',
+                  subtitle: 'Mealie meal, fresh bread, milk, agricultural produce & feed',
+                  isSelected: isZeroRated,
+                  activeColor: Colors.amberAccent,
+                  onTap: () {
+                    setState(() {
+                      _selectedZraTaxCode = 'B';
+                      _taxRateController.text = '0';
+                    });
+                  },
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _buildTaxOptionCard(
+                  code: 'D',
+                  title: 'Turnover Tax',
+                  badge: '4% TOT',
+                  subtitle: 'Small business presumptive tax bracket (Code D)',
+                  isSelected: isTot,
+                  activeColor: Colors.purpleAccent,
+                  onTap: () {
+                    setState(() {
+                      _selectedZraTaxCode = 'D';
+                      _taxRateController.text = '4';
+                    });
+                  },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          const Divider(color: Colors.white12, height: 1),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    _isTaxInclusive ? Icons.check_circle_outline_rounded : Icons.remove_circle_outline_rounded,
+                    color: _isTaxInclusive ? accentColor : Colors.white38,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 10),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'TAX INCLUSIVE PRICING',
+                        style: GoogleFonts.manrope(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.5,
+                          color: Colors.white,
+                        ),
+                      ),
+                      Text(
+                        _isTaxInclusive ? 'Selling price includes tax' : 'Tax will be added on top at checkout',
+                        style: GoogleFonts.inter(fontSize: 10.5, color: Colors.white54),
                       ),
                     ],
                   ),
@@ -1099,54 +1483,133 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
               ),
             ],
           ),
-          if (!_isDigitaxSyncEnabled) ...[
-            const SizedBox(height: 16),
-            const Divider(color: Colors.white12, height: 1),
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'TAX RATE (%) - OFFLINE ITEM',
-                        style: GoogleFonts.manrope(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1,
-                          color: Colors.white54,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Choose 0% for untaxed or enter custom rate',
-                        style: GoogleFonts.inter(fontSize: 10, color: Colors.white38),
-                      ),
-                    ],
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'APPLIED TAX RATE PERCENTAGE:',
+                  style: GoogleFonts.manrope(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.5,
+                    color: Colors.white38,
                   ),
                 ),
-                SizedBox(
-                  width: 110,
-                  height: 42,
-                  child: TextFormField(
-                    controller: _taxRateController,
-                    keyboardType: TextInputType.number,
-                    style: GoogleFonts.inter(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
-                    decoration: InputDecoration(
-                      suffixText: '%',
-                      suffixStyle: const TextStyle(color: Colors.white60),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      filled: true,
-                      fillColor: Colors.white.withValues(alpha: 0.05),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+              ),
+              SizedBox(
+                width: 110,
+                height: 40,
+                child: TextFormField(
+                  controller: _taxRateController,
+                  keyboardType: TextInputType.number,
+                  style: GoogleFonts.inter(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                  decoration: InputDecoration(
+                    suffixText: '%',
+                    suffixStyle: const TextStyle(color: Colors.white60),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    filled: true,
+                    fillColor: Colors.white.withValues(alpha: 0.05),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTaxOptionCard({
+    required String code,
+    required String title,
+    required String badge,
+    required String subtitle,
+    required bool isSelected,
+    required Color activeColor,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isSelected ? activeColor.withValues(alpha: 0.12) : Colors.white.withValues(alpha: 0.03),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? activeColor : Colors.white.withValues(alpha: 0.08),
+            width: isSelected ? 1.5 : 1.0,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 22,
+                      height: 22,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: isSelected ? activeColor : Colors.white12,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Text(
+                        code,
+                        style: GoogleFonts.manrope(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                          color: isSelected ? Colors.black : Colors.white70,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      title,
+                      style: GoogleFonts.manrope(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        color: isSelected ? Colors.white : Colors.white70,
+                      ),
+                    ),
+                  ],
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: isSelected ? activeColor.withValues(alpha: 0.25) : Colors.white.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    badge,
+                    style: GoogleFonts.inter(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      color: isSelected ? activeColor : Colors.white38,
                     ),
                   ),
                 ),
               ],
             ),
+            const SizedBox(height: 6),
+            Text(
+              subtitle,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.inter(
+                fontSize: 10,
+                color: isSelected ? Colors.white70 : Colors.white38,
+                height: 1.25,
+              ),
+            ),
           ],
-        ],
+        ),
       ),
     );
   }
@@ -1522,8 +1985,9 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
           ? widget.product!.stockLevel
           : (int.tryParse(_stockController.text.trim()) ?? 0);
 
-      final parsedTaxRate = double.tryParse(_taxRateController.text.trim()) ?? (_isTaxInclusive ? 16.0 : 0.0);
-      final zraTaxCode = !_isDigitaxSyncEnabled ? 'EXEMPT' : (parsedTaxRate == 0 ? 'C' : 'A');
+      final parsedTaxRate = double.tryParse(_taxRateController.text.trim()) ?? (_selectedZraTaxCode == 'A' ? 16.0 : 0.0);
+      final zraTaxCode = _selectedZraTaxCode;
+      final finalUom = _isCustomUnit && _customUnitController.text.trim().isNotEmpty ? _customUnitController.text.trim() : _unitOfMeasure;
 
       // Check if another product already exists with the same SKU in this branch
       Product? targetProduct = widget.product;
@@ -1559,7 +2023,7 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
         isDigitaxSyncEnabled: _isDigitaxSyncEnabled,
         lastDigitaxSyncDate: null,
         isWeighted: _isWeighted,
-        unitOfMeasure: _unitOfMeasure,
+        unitOfMeasure: finalUom,
         tareWeight: tareWeight,
         scalePlu: scalePlu,
       );
@@ -1586,7 +2050,7 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
         product.branchCode = branchBhfId;
         product.branchName = branchName;
         product.isWeighted = _isWeighted;
-        product.unitOfMeasure = _unitOfMeasure;
+        product.unitOfMeasure = finalUom;
         product.tareWeight = tareWeight;
         product.scalePlu = scalePlu;
       }

@@ -10,9 +10,11 @@ DATABASE_URL = os.getenv(
     "postgresql://postgres:postgres@localhost:5432/beleka_pos_cloud"
 )
 
-# Handle Heroku / Supabase style postgres:// URLs
+# Handle Heroku / Supabase style postgres:// URLs and ensure psycopg2 driver is used
 if DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+psycopg2://", 1)
+elif DATABASE_URL.startswith("postgresql://") and not DATABASE_URL.startswith("postgresql+"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://", 1)
 
 try:
     if DATABASE_URL.startswith("sqlite"):

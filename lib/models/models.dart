@@ -391,6 +391,15 @@ class StoreConfig {
   String? digitaxApiKey;
   String digitaxEnvironment = 'sandbox'; // 'sandbox', 'production'
 
+  // Lenco Payment Gateway & Banking Configuration
+  bool lencoEnabled = false;
+  String? lencoApiKey;
+  String lencoEnvironment = 'sandbox'; // 'sandbox', 'production'
+  String? lencoAccountId;
+  String? lencoBankName;
+  String? lencoAccountNumber;
+  String? lencoAccountName;
+
   // Network Multi-Terminal Settings
   bool isManagerMode = true; // true = Server/Manager, false = Terminal/Cashier
   String? serverIp; // IP of the manager terminal (for client mode)

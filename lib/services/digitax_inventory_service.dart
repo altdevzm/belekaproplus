@@ -786,13 +786,32 @@ class DigiTaxInventoryService {
               "item_type_code": "2", // Finished Product
               "item_name": p.name.trim(),
               "origin_nation_code": "ZM",
-              "package_unit_code": "CT",
-              "quantity_unit_code": "U",
-              "vat_category_code": (isTot || isExempt)
+              "package_unit_code": (p.unitOfMeasure.toLowerCase().contains('box') || p.unitOfMeasure.toLowerCase().contains('bx') || p.unitOfMeasure.toLowerCase().contains('tab') || p.unitOfMeasure.toLowerCase().contains('stp'))
+                  ? "BX"
+                  : (p.unitOfMeasure.toLowerCase().contains('btl') || p.unitOfMeasure.toLowerCase().contains('bottle'))
+                      ? "BT"
+                      : (p.unitOfMeasure.toLowerCase().contains('pkt') || p.unitOfMeasure.toLowerCase().contains('pack'))
+                          ? "PK"
+                          : (p.unitOfMeasure.toLowerCase().contains('can'))
+                              ? "CN"
+                              : "CT",
+              "quantity_unit_code": p.unitOfMeasure.toLowerCase() == 'kg'
+                  ? "KG"
+                  : (p.unitOfMeasure.toLowerCase() == 'g'
+                      ? "G"
+                      : (p.unitOfMeasure.toLowerCase() == 'ltr' || p.unitOfMeasure.toLowerCase() == 'l'
+                          ? "L"
+                          : (p.unitOfMeasure.toLowerCase() == 'm' ? "M" : "U"))),
+              "vat_category_code": (isTot || p.zraTaxCode == 'TOT' || p.zraTaxCode == 'D')
                   ? "D"
-                  : "A", // In ZRA, TOT uses VAT code D + tot_category_code TOT
-              if (isTot) "tot_category_code": "TOT",
+                  : (p.zraTaxCode == 'E' || p.zraTaxCode == 'C' || isExempt
+                      ? "E"
+                      : (p.zraTaxCode == 'B'
+                          ? "B"
+                          : (p.taxRate == 0 ? "E" : "A"))),
+              if (isTot || p.zraTaxCode == 'TOT' || p.zraTaxCode == 'D') "tot_category_code": "TOT",
               "default_unit_price": p.price > 0 ? p.price : 1.0,
+              "recommended_retail_price": p.price > 0 ? p.price : 1.0,
               "stock_quantity": p.stockLevel > 0 ? p.stockLevel : 0,
               "is_stock_item": true,
               if (p.sku.isNotEmpty) "bar_code": p.sku.trim(),
@@ -1046,11 +1065,32 @@ class DigiTaxInventoryService {
           "item_type_code": "2", // Finished product
           "item_name": product.name.trim(),
           "origin_nation_code": "ZM",
-          "package_unit_code": "CT",
-          "quantity_unit_code": "U",
-          "vat_category_code": (isTot || isExempt) ? "D" : "A",
-          if (isTot) "tot_category_code": "TOT",
+          "package_unit_code": (product.unitOfMeasure.toLowerCase().contains('box') || product.unitOfMeasure.toLowerCase().contains('bx') || product.unitOfMeasure.toLowerCase().contains('tab') || product.unitOfMeasure.toLowerCase().contains('stp'))
+              ? "BX"
+              : (product.unitOfMeasure.toLowerCase().contains('btl') || product.unitOfMeasure.toLowerCase().contains('bottle'))
+                  ? "BT"
+                  : (product.unitOfMeasure.toLowerCase().contains('pkt') || product.unitOfMeasure.toLowerCase().contains('pack'))
+                      ? "PK"
+                      : (product.unitOfMeasure.toLowerCase().contains('can'))
+                          ? "CN"
+                          : "CT",
+          "quantity_unit_code": product.unitOfMeasure.toLowerCase() == 'kg'
+              ? "KG"
+              : (product.unitOfMeasure.toLowerCase() == 'g'
+                  ? "G"
+                  : (product.unitOfMeasure.toLowerCase() == 'ltr' || product.unitOfMeasure.toLowerCase() == 'l'
+                      ? "L"
+                      : (product.unitOfMeasure.toLowerCase() == 'm' ? "M" : "U"))),
+          "vat_category_code": (isTot || product.zraTaxCode == 'TOT' || product.zraTaxCode == 'D')
+              ? "D"
+              : (product.zraTaxCode == 'E' || product.zraTaxCode == 'C' || isExempt
+                  ? "E"
+                  : (product.zraTaxCode == 'B'
+                      ? "B"
+                      : (product.taxRate == 0 ? "E" : "A"))),
+          if (isTot || product.zraTaxCode == 'TOT' || product.zraTaxCode == 'D') "tot_category_code": "TOT",
           "default_unit_price": product.price > 0 ? product.price : 1.0,
+          "recommended_retail_price": product.price > 0 ? product.price : 1.0,
           "stock_quantity": product.stockLevel > 0 ? product.stockLevel : 0,
           "is_stock_item": true,
           if (product.sku.isNotEmpty) "bar_code": product.sku.trim(),
@@ -1348,11 +1388,30 @@ class DigiTaxInventoryService {
             "item_type_code": "2",
             "item_name": item.productName.trim(),
             "origin_nation_code": "ZM",
-            "package_unit_code": "CT",
-            "quantity_unit_code": "U",
-            "vat_category_code": isTot ? "D" : "A",
-            if (isTot) "tot_category_code": "TOT",
+            "package_unit_code": ((localProd?.unitOfMeasure.toLowerCase().contains('box') ?? false) || (localProd?.unitOfMeasure.toLowerCase().contains('bx') ?? false) || (localProd?.unitOfMeasure.toLowerCase().contains('tab') ?? false) || (localProd?.unitOfMeasure.toLowerCase().contains('stp') ?? false))
+                ? "BX"
+                : ((localProd?.unitOfMeasure.toLowerCase().contains('btl') ?? false) || (localProd?.unitOfMeasure.toLowerCase().contains('bottle') ?? false))
+                    ? "BT"
+                    : ((localProd?.unitOfMeasure.toLowerCase().contains('pkt') ?? false) || (localProd?.unitOfMeasure.toLowerCase().contains('pack') ?? false))
+                        ? "PK"
+                        : "CT",
+            "quantity_unit_code": (localProd?.unitOfMeasure.toLowerCase() == 'kg')
+                ? "KG"
+                : ((localProd?.unitOfMeasure.toLowerCase() == 'g')
+                    ? "G"
+                    : ((localProd?.unitOfMeasure.toLowerCase() == 'ltr' || localProd?.unitOfMeasure.toLowerCase() == 'l')
+                        ? "L"
+                        : ((localProd?.unitOfMeasure.toLowerCase() == 'm') ? "M" : "U"))),
+            "vat_category_code": isTot || (localProd?.zraTaxCode == 'TOT') || (localProd?.zraTaxCode == 'D')
+                ? "D"
+                : (((localProd?.zraTaxCode == 'E' || localProd?.zraTaxCode == 'C') || item.taxRateAtSale == 0)
+                    ? "E"
+                    : ((localProd?.zraTaxCode == 'B')
+                        ? "B"
+                        : "A")),
+            if (isTot || (localProd?.zraTaxCode == 'TOT') || (localProd?.zraTaxCode == 'D')) "tot_category_code": "TOT",
             "default_unit_price": item.priceAtSale > 0 ? item.priceAtSale : 1.0,
+            "recommended_retail_price": item.priceAtSale > 0 ? item.priceAtSale : 1.0,
             "stock_quantity": localProd?.stockLevel != null && localProd!.stockLevel > 0 ? localProd.stockLevel : 0,
             "is_stock_item": true,
             "bar_code": "SKU-${item.productId}",
@@ -1386,15 +1445,20 @@ class DigiTaxInventoryService {
         vatCategoryCode = "D";
       } else {
         final prodCode = (localProd?.zraTaxCode ?? '').trim().toUpperCase();
-        if (prodCode.isNotEmpty &&
-            ['A', 'B', 'C', 'D', 'E', 'TOT'].contains(prodCode)) {
-          vatCategoryCode = prodCode == 'TOT' ? 'D' : prodCode;
+        if (prodCode == 'TOT' || prodCode == 'D') {
+          vatCategoryCode = "D";
+        } else if (prodCode == 'E' || prodCode == 'C') {
+          vatCategoryCode = "E"; // Official ZRA & DigiTax VAT Exempt code
+        } else if (prodCode == 'B') {
+          vatCategoryCode = "B"; // 0% Zero-rated
+        } else if (prodCode == 'A') {
+          vatCategoryCode = "A"; // 16% Standard VAT
         } else if (item.taxRateAtSale == 0) {
-          vatCategoryCode = 'C'; // 0% Exempt
+          vatCategoryCode = "E"; // 0% Exempt
         } else if (item.taxRateAtSale > 0 && item.taxRateAtSale < 16.0) {
-          vatCategoryCode = 'B'; // 0% Zero-rated / reduced
+          vatCategoryCode = "B"; // 0% Zero-rated / reduced
         } else {
-          vatCategoryCode = 'A'; // 16% Standard VAT
+          vatCategoryCode = "A"; // 16% Standard VAT
         }
       }
 
@@ -1837,8 +1901,8 @@ class DigiTaxInventoryService {
           ? item.weight
           : item.quantity.toDouble();
       final lineTotal = (effectiveQty * item.priceAtSale).abs();
-      final taxRate = item.taxRateAtSale > 0 ? item.taxRateAtSale : 16.0;
-      final vatCode = item.taxRateAtSale == 0 ? 'B' : 'A'; // A=16%, B=0%
+      final taxRate = item.taxRateAtSale;
+      final vatCode = item.taxRateAtSale == 0 ? 'E' : 'A'; // A=16%, E=0% Exempt
 
       digitaxItemsPayload.add({
         'item_name': item.productName,
@@ -2374,8 +2438,8 @@ class DigiTaxInventoryService {
           ? item.weight
           : item.quantity.toDouble();
       final lineTotal = (effectiveQty * item.priceAtSale).abs();
-      final taxRate = item.taxRateAtSale > 0 ? item.taxRateAtSale : 16.0;
-      final vatCode = item.taxRateAtSale == 0 ? 'B' : 'A';
+      final taxRate = item.taxRateAtSale;
+      final vatCode = item.taxRateAtSale == 0 ? 'E' : 'A';
 
       digitaxItemsPayload.add({
         'item_name': item.productName,

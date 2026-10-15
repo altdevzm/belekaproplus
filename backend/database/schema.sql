@@ -24,6 +24,10 @@ CREATE TABLE IF NOT EXISTS stores (
     business_tax_type VARCHAR(50) DEFAULT 'VAT_STANDARD', -- 'VAT_STANDARD', 'TURNOVER_TAX', 'EXEMPT', 'COMPOSITE'
     digitax_api_key VARCHAR(255),
     digitax_environment VARCHAR(20) DEFAULT 'sandbox', -- 'sandbox', 'production'
+    lenco_api_key VARCHAR(255),
+    lenco_environment VARCHAR(20) DEFAULT 'sandbox', -- 'sandbox', 'production'
+    lenco_account_id VARCHAR(100),
+    lenco_enabled BOOLEAN DEFAULT FALSE,
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -142,6 +146,10 @@ CREATE TABLE IF NOT EXISTS sale_transactions (
     zra_mark_id VARCHAR(100),
     zra_qr_code TEXT,
     zra_status VARCHAR(50) DEFAULT 'pending',
+    -- Lenco Payment Gateway Metadata
+    lenco_reference VARCHAR(100),
+    lenco_status VARCHAR(50),
+    payment_details JSONB,
     timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     is_synced BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP

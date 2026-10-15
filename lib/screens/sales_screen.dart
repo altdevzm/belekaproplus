@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,6 +13,7 @@ import 'package:beleka_pos/services/scale_service.dart';
 import 'package:beleka_pos/services/sync_service.dart';
 import 'package:beleka_pos/services/postgres_sync_service.dart';
 import 'package:beleka_pos/services/digitax_inventory_service.dart';
+import 'package:beleka_pos/services/lenco_payment_service.dart';
 import 'package:beleka_pos/screens/sales/weight_scale_modal.dart';
 import 'package:beleka_pos/widgets/camera_barcode_scanner_modal.dart';
 import 'package:beleka_pos/widgets/product_image_widget.dart';
@@ -42,6 +44,26 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
   double _tenderedAmount = 0.0;
   String _selectedPaymentMethod = '';
 
+  // Lenco Gateway Payment States
+  String _momoOperator = 'airtel'; // 'airtel', 'mtn', 'zamtel'
+  final TextEditingController _momoPhoneController = TextEditingController();
+  bool _isRequestingMomo = false;
+  String? _momoStatusMessage;
+  bool _momoSuccess = false;
+  int _momoCountdownSeconds = 60;
+  Timer? _momoCountdownTimer;
+  Timer? _momoPollingTimer;
+  Timer? _momoResetTimer;
+
+  // Lenco Bank Transfer States
+  List<Map<String, dynamic>> _banksList = [];
+  String? _selectedBankId;
+  String? _selectedBankName;
+  final TextEditingController _bankAccountNumberController = TextEditingController();
+  bool _isResolvingBank = false;
+  String? _resolvedAccountName;
+  String? _bankResolveError;
+
   @override
   void initState() {
     super.initState();
@@ -58,13 +80,206 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         Navigator.of(context).pushReplacementNamed('/dashboard');
       }
       _searchFocusNode.requestFocus();
+      _loadBanksList();
     });
+  }
+
+  Future<void> _loadBanksList() async {
+    try {
+      final banks = await ref.read(lencoPaymentServiceProvider).getBanks(country: 'zm');
+      if (mounted && banks.isNotEmpty) {
+        setState(() {
+          _banksList = banks;
+          if (_selectedBankId == null && _banksList.isNotEmpty) {
+            _selectedBankId = _banksList.first['id']?.toString();
+            _selectedBankName = _banksList.first['name']?.toString();
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('Failed to load banks: $e');
+    }
+  }
+
+  Future<void> _resolveBankAccount() async {
+    final accountNum = _bankAccountNumberController.text.trim();
+    if (accountNum.isEmpty || _selectedBankId == null) return;
+
+    setState(() {
+      _isResolvingBank = true;
+      _resolvedAccountName = null;
+      _bankResolveError = null;
+    });
+
+    final res = await ref.read(lencoPaymentServiceProvider).resolveBankAccount(
+      accountNumber: accountNum,
+      bankId: _selectedBankId!,
+      country: 'zm',
+    );
+
+    if (!mounted) return;
+    setState(() {
+      _isResolvingBank = false;
+      if (res['status'] == true && res['account_name'] != null) {
+        _resolvedAccountName = res['account_name'];
+      } else {
+        _bankResolveError = res['message'] ?? 'Could not resolve account name';
+      }
+    });
+  }
+
+  void _cancelMobileMoneyPrompt({String? reason, bool manual = false}) {
+    _momoCountdownTimer?.cancel();
+    _momoPollingTimer?.cancel();
+    _momoResetTimer?.cancel();
+
+    if (!mounted) return;
+    setState(() {
+      _isRequestingMomo = false;
+      _momoSuccess = false;
+      _momoStatusMessage = reason ?? (manual
+          ? 'Payment cancelled by cashier.'
+          : 'Payment cancelled / declined by customer.');
+    });
+
+    // Automatically return console to clean idle state after 4 seconds
+    _momoResetTimer = Timer(const Duration(seconds: 4), () {
+      if (mounted && !_isRequestingMomo && !_momoSuccess) {
+        setState(() {
+          _momoStatusMessage = null;
+        });
+      }
+    });
+  }
+
+  Future<void> _initiateMobileMoneyPrompt(double total) async {
+    final phone = _momoPhoneController.text.trim();
+    if (phone.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter customer phone number')),
+      );
+      return;
+    }
+
+    _momoCountdownTimer?.cancel();
+    _momoPollingTimer?.cancel();
+    _momoResetTimer?.cancel();
+
+    setState(() {
+      _isRequestingMomo = true;
+      _momoStatusMessage = 'Sending prompt to customer device...';
+      _momoSuccess = false;
+      _momoCountdownSeconds = 60;
+    });
+
+    final refCode = 'BELEKA-${DateTime.now().millisecondsSinceEpoch}';
+    final lenco = ref.read(lencoPaymentServiceProvider);
+    final res = await lenco.initiateMobileMoneyPayment(
+      amount: total,
+      reference: refCode,
+      phone: phone,
+      operator: _momoOperator,
+      country: 'zm',
+    );
+
+    if (!mounted) return;
+
+    if (res['status'] == true) {
+      setState(() {
+        _momoStatusMessage = 'Prompt sent! Customer should enter PIN on phone...';
+      });
+
+      // 1-second countdown timer for active visibility and user cancellation/timeout
+      _momoCountdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+        if (!mounted) {
+          timer.cancel();
+          return;
+        }
+        if (_momoCountdownSeconds > 0) {
+          setState(() {
+            _momoCountdownSeconds--;
+          });
+        } else {
+          timer.cancel();
+          _cancelMobileMoneyPrompt(
+            reason: 'Payment prompt timed out. No PIN entered within 60s.',
+          );
+        }
+      });
+
+      // Real-time 1.2-second status polling loop
+      bool isChecking = false;
+      _momoPollingTimer = Timer.periodic(const Duration(milliseconds: 1200), (timer) async {
+        if (!mounted || _selectedPaymentMethod != 'MOBILE MONEY' || !_isRequestingMomo) {
+          timer.cancel();
+          return;
+        }
+
+        if (isChecking) return;
+        isChecking = true;
+
+        try {
+          final poll = await lenco.checkPaymentStatus(reference: refCode);
+          if (!mounted || !_isRequestingMomo) {
+            timer.cancel();
+            return;
+          }
+
+          if (poll['status'] == true && poll['data'] != null) {
+            final s = poll['data']['status'];
+            if (s == 'successful') {
+              timer.cancel();
+              _momoCountdownTimer?.cancel();
+              setState(() {
+                _isRequestingMomo = false;
+                _momoSuccess = true;
+                _momoStatusMessage = 'Payment Authorized & Received via Lenco!';
+                _tenderedAmount = total;
+              });
+
+              // Crucial Loophole Fix: Auto-finalize sale, record transaction, and clear cart
+              final cartNotifier = ref.read(cartProvider.notifier);
+              await _finalizeSale(cartNotifier);
+              return;
+            } else if (s == 'failed') {
+              timer.cancel();
+              _momoCountdownTimer?.cancel();
+              final reason = poll['data']['reasonForFailure'] ??
+                  'Customer cancelled or declined the payment prompt on device.';
+              _cancelMobileMoneyPrompt(reason: reason.toString());
+              return;
+            }
+          }
+        } catch (e) {
+          debugPrint('[Lenco Poll Error] $e');
+        } finally {
+          isChecking = false;
+        }
+      });
+    } else {
+      setState(() {
+        _isRequestingMomo = false;
+        _momoStatusMessage = res['message'] ?? 'Failed to initiate Mobile Money prompt';
+      });
+      _momoResetTimer = Timer(const Duration(seconds: 5), () {
+        if (mounted && !_isRequestingMomo && !_momoSuccess) {
+          setState(() {
+            _momoStatusMessage = null;
+          });
+        }
+      });
+    }
   }
 
   @override
   void dispose() {
+    _momoCountdownTimer?.cancel();
+    _momoPollingTimer?.cancel();
+    _momoResetTimer?.cancel();
     _searchController.dispose();
     _searchFocusNode.dispose();
+    _momoPhoneController.dispose();
+    _bankAccountNumberController.dispose();
     super.dispose();
   }
 
@@ -2267,6 +2482,20 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                                   }),
                                 ),
                               ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: _buildMobileMethodBtn(
+                                  context,
+                                  'BANK TRANSFER',
+                                  Icons.account_balance_rounded,
+                                  const Color(0xFF059669),
+                                  _selectedPaymentMethod == 'BANK TRANSFER',
+                                  () => setModalState(() {
+                                    _selectedPaymentMethod = 'BANK TRANSFER';
+                                    _tenderedAmount = total;
+                                  }),
+                                ),
+                              ),
                             ],
                           ),
                           const SizedBox(height: 16),
@@ -2462,11 +2691,20 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
+    String displayLabel;
+    if (method == 'MOBILE MONEY') {
+      displayLabel = 'M-MONEY';
+    } else if (method == 'BANK TRANSFER') {
+      displayLabel = 'TRANSFER';
+    } else {
+      displayLabel = method;
+    }
+
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(10),
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 2),
         decoration: BoxDecoration(
           color: isSelected
               ? color
@@ -2484,7 +2722,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
             ),
             const SizedBox(height: 4),
             Text(
-              method == 'MOBILE MONEY' ? 'M-MONEY' : method,
+              displayLabel,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: GoogleFonts.inter(
                 fontSize: 10,
                 fontWeight: FontWeight.w700,
@@ -2974,7 +3214,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                                     ),
                                   ),
                                   Text(
-                                    '${CurrencyFormatter.format(product.discountPrice!, currency)}${product.isWeighted ? "/${product.unitOfMeasure}" : ""}',
+                                    '${CurrencyFormatter.format(product.discountPrice!, currency)}${(product.unitOfMeasure.isNotEmpty && product.unitOfMeasure.toLowerCase() != 'unit' && product.unitOfMeasure.toLowerCase() != 'pcs') ? "/${product.unitOfMeasure}" : (product.isWeighted ? "/kg" : "")}',
                                     style: GoogleFonts.inter(
                                       fontSize: 13,
                                       fontWeight: FontWeight.w800,
@@ -2984,7 +3224,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                                   ),
                                 ] else ...[
                                   Text(
-                                    '${CurrencyFormatter.format(product.price, currency)}${product.isWeighted ? "/${product.unitOfMeasure}" : ""}',
+                                    '${CurrencyFormatter.format(product.price, currency)}${(product.unitOfMeasure.isNotEmpty && product.unitOfMeasure.toLowerCase() != 'unit' && product.unitOfMeasure.toLowerCase() != 'pcs') ? "/${product.unitOfMeasure}" : (product.isWeighted ? "/kg" : "")}',
                                     style: GoogleFonts.inter(
                                       fontSize: 13,
                                       fontWeight: FontWeight.w800,
@@ -3429,6 +3669,13 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
           Icons.credit_card_rounded,
           const Color(0xFF0284C7),
         ),
+        const SizedBox(width: 8),
+        _buildCompactMethodBtn(
+          context,
+          'BANK TRANSFER',
+          Icons.account_balance_rounded,
+          const Color(0xFF059669),
+        ),
       ],
     );
   }
@@ -3444,6 +3691,15 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     final isSelected = _selectedPaymentMethod == method;
     final cartTotal = ref.read(cartProvider.notifier).total;
 
+    String displayLabel;
+    if (method == 'MOBILE MONEY') {
+      displayLabel = 'M-MONEY';
+    } else if (method == 'BANK TRANSFER') {
+      displayLabel = 'TRANSFER';
+    } else {
+      displayLabel = method;
+    }
+
     return Expanded(
       child: GestureDetector(
         onTap: () => setState(() {
@@ -3452,7 +3708,8 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         }),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
-          height: 46,
+          height: 44,
+          padding: const EdgeInsets.symmetric(horizontal: 4),
           decoration: BoxDecoration(
             color: isSelected
                 ? color
@@ -3461,24 +3718,29 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
                 icon,
                 color: isSelected
                     ? Colors.white
                     : theme.colorScheme.onSurfaceVariant,
-                size: 16,
+                size: 15,
               ),
-              const SizedBox(width: 6),
-              Text(
-                method == 'MOBILE MONEY' ? 'M-MONEY' : method,
-                style: GoogleFonts.inter(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.5,
-                  color: isSelected
-                      ? Colors.white
-                      : theme.colorScheme.onSurface,
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  displayLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.3,
+                    color: isSelected
+                        ? Colors.white
+                        : theme.colorScheme.onSurface,
+                  ),
                 ),
               ),
             ],
@@ -3629,75 +3891,681 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
   }
 
   Widget _buildDigitalPaymentPrompt(BuildContext context, String currency) {
+    if (_selectedPaymentMethod == 'MOBILE MONEY') {
+      return _buildMobileMoneyPaymentConsole(context, currency);
+    } else if (_selectedPaymentMethod == 'BANK TRANSFER') {
+      return _buildBankTransferPaymentConsole(context, currency);
+    } else {
+      return _buildCardPaymentConsole(context, currency);
+    }
+  }
+
+  Widget _buildMobileMoneyPaymentConsole(BuildContext context, String currency) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final total = ref.read(cartProvider.notifier).total;
+    final selectedCustomer = ref.read(cartProvider).customer;
+
+    // Prepopulate customer phone if available and empty
+    if (_momoPhoneController.text.isEmpty && selectedCustomer != null) {
+      _momoPhoneController.text = selectedCustomer.phoneNumber;
+    }
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'MOBILE MONEY CHECKOUT',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: const Color(0xFFD97706),
+                  letterSpacing: 0.5,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFD97706).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  'Lenco Gateway',
+                  style: GoogleFonts.inter(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFFD97706),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            CurrencyFormatter.format(total, currency),
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(
+              fontSize: 32,
+              fontWeight: FontWeight.w900,
+              color: theme.colorScheme.onSurface,
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Network Operator Selector
+          Text(
+            'Select Network Operator',
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Expanded(child: _buildOperatorPill('airtel', 'Airtel Money', const Color(0xFFDC2626))),
+              const SizedBox(width: 6),
+              Expanded(child: _buildOperatorPill('mtn', 'MTN MoMo', const Color(0xFFD97706))),
+              const SizedBox(width: 6),
+              Expanded(child: _buildOperatorPill('zamtel', 'Zamtel', const Color(0xFF059669))),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Phone Number Input
+          Text(
+            'Customer Phone Number',
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 6),
+          TextField(
+            controller: _momoPhoneController,
+            keyboardType: TextInputType.phone,
+            decoration: InputDecoration(
+              hintText: 'e.g. 0970000000 or 0960000000',
+              hintStyle: GoogleFonts.inter(fontSize: 12),
+              prefixIcon: const Icon(Icons.phone_android_rounded, size: 20),
+              filled: true,
+              fillColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Action Button: Request Payment Prompt or Waiting / Cancel buttons
+          if (_isRequestingMomo) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFD97706).withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFF59E0B)),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.2,
+                              color: Color(0xFFD97706),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            'Awaiting PIN Authorization...',
+                            style: GoogleFonts.inter(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12.5,
+                              color: const Color(0xFFD97706),
+                            ),
+                          ),
+                        ],
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFD97706),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          '${_momoCountdownSeconds}s',
+                          style: GoogleFonts.inter(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: _momoCountdownSeconds / 60.0,
+                      backgroundColor: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                      valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFD97706)),
+                      minHeight: 4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 38,
+              child: OutlinedButton.icon(
+                onPressed: () => _cancelMobileMoneyPrompt(manual: true),
+                icon: const Icon(Icons.close_rounded, size: 16, color: Color(0xFFDC2626)),
+                label: Text(
+                  'Cancel Payment Prompt',
+                  style: GoogleFonts.inter(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                    color: const Color(0xFFDC2626),
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Color(0xFFFECACA)),
+                  backgroundColor: const Color(0xFFFEF2F2),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+            ),
+          ] else ...[
+            ElevatedButton.icon(
+              onPressed: total <= 0 ? null : () => _initiateMobileMoneyPrompt(total),
+              icon: const Icon(Icons.send_rounded, size: 18),
+              label: Text(
+                'Send Payment Prompt to Phone',
+                style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFD97706),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+          ],
+          const SizedBox(height: 10),
+
+          // Live Status Feedback
+          if (_momoStatusMessage != null)
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: _momoSuccess
+                    ? const Color(0xFFECFDF5)
+                    : (_momoStatusMessage!.contains('cancelled') ||
+                            _momoStatusMessage!.contains('declined') ||
+                            _momoStatusMessage!.contains('timed out') ||
+                            _momoStatusMessage!.contains('Failed'))
+                        ? const Color(0xFFFEF2F2)
+                        : (isDark ? const Color(0xFF1E293B) : const Color(0xFFFFFBEB)),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: _momoSuccess
+                      ? const Color(0xFFA7F3D0)
+                      : (_momoStatusMessage!.contains('cancelled') ||
+                              _momoStatusMessage!.contains('declined') ||
+                              _momoStatusMessage!.contains('timed out') ||
+                              _momoStatusMessage!.contains('Failed'))
+                          ? const Color(0xFFFECACA)
+                          : const Color(0xFFFDE68A),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    _momoSuccess
+                        ? Icons.check_circle_rounded
+                        : (_momoStatusMessage!.contains('cancelled') ||
+                                _momoStatusMessage!.contains('declined') ||
+                                _momoStatusMessage!.contains('timed out') ||
+                                _momoStatusMessage!.contains('Failed'))
+                            ? Icons.error_outline_rounded
+                            : Icons.info_outline_rounded,
+                    color: _momoSuccess
+                        ? const Color(0xFF059669)
+                        : (_momoStatusMessage!.contains('cancelled') ||
+                                _momoStatusMessage!.contains('declined') ||
+                                _momoStatusMessage!.contains('timed out') ||
+                                _momoStatusMessage!.contains('Failed'))
+                            ? const Color(0xFFDC2626)
+                            : const Color(0xFFD97706),
+                    size: 18,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _momoStatusMessage!,
+                      style: GoogleFonts.inter(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: _momoSuccess
+                            ? const Color(0xFF059669)
+                            : (_momoStatusMessage!.contains('cancelled') ||
+                                    _momoStatusMessage!.contains('declined') ||
+                                    _momoStatusMessage!.contains('timed out') ||
+                                    _momoStatusMessage!.contains('Failed'))
+                                ? const Color(0xFFB91C1C)
+                                : const Color(0xFFB45309),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBankTransferPaymentConsole(BuildContext context, String currency) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final total = ref.read(cartProvider.notifier).total;
+    final config = ref.watch(storeConfigProvider).value;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'BANK TRANSFER & RESOLVER',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: const Color(0xFF059669),
+                  letterSpacing: 0.5,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF059669).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  'Lenco Banking',
+                  style: GoogleFonts.inter(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF059669),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            CurrencyFormatter.format(total, currency),
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(
+              fontSize: 32,
+              fontWeight: FontWeight.w900,
+              color: theme.colorScheme.onSurface,
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // 1. Select Customer Bank of Choice
+          Text(
+            '1. Select Customer Bank of Choice',
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+              ),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: _selectedBankId,
+                isExpanded: true,
+                hint: const Text('Choose customer bank...'),
+                items: _banksList.map((b) {
+                  return DropdownMenuItem<String>(
+                    value: b['id']?.toString(),
+                    child: Text(
+                      b['name']?.toString() ?? 'Bank',
+                      style: GoogleFonts.inter(fontSize: 12.5),
+                    ),
+                  );
+                }).toList(),
+                onChanged: (val) {
+                  setState(() {
+                    _selectedBankId = val;
+                    final match = _banksList.firstWhere(
+                      (b) => b['id']?.toString() == val,
+                      orElse: () => {'name': ''},
+                    );
+                    _selectedBankName = match['name']?.toString();
+                    _resolvedAccountName = null;
+                  });
+                  if (_bankAccountNumberController.text.trim().isNotEmpty) {
+                    _resolveBankAccount();
+                  }
+                },
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // 2. Customer Bank Account Number & Auto Resolver
+          Text(
+            '2. Customer Bank Account Number',
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _bankAccountNumberController,
+                  keyboardType: TextInputType.number,
+                  onSubmitted: (_) => _resolveBankAccount(),
+                  decoration: InputDecoration(
+                    hintText: 'Enter account number...',
+                    hintStyle: GoogleFonts.inter(fontSize: 12),
+                    prefixIcon: const Icon(Icons.account_balance_rounded, size: 18),
+                    filled: true,
+                    fillColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton.icon(
+                onPressed: _isResolvingBank ? null : _resolveBankAccount,
+                icon: _isResolvingBank
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Icon(Icons.search_rounded, size: 16),
+                label: Text(
+                  _isResolvingBank ? 'Looking up...' : 'Lookup Name',
+                  style: GoogleFonts.inter(fontSize: 11.5, fontWeight: FontWeight.w700),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF059669),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          // Resolved Account Name Card (Prominent display as requested by user)
+          if (_resolvedAccountName != null)
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFECFDF5),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFA7F3D0), width: 1.5),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.verified_rounded, color: Color(0xFF059669), size: 18),
+                      const SizedBox(width: 8),
+                      Text(
+                        'RESOLVED ACCOUNT HOLDER',
+                        style: GoogleFonts.inter(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w800,
+                          color: const Color(0xFF059669),
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _resolvedAccountName!,
+                    style: GoogleFonts.inter(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      color: const Color(0xFF065F46),
+                    ),
+                  ),
+                  Text(
+                    '${_selectedBankName ?? 'Bank'} • Acc: ${_bankAccountNumberController.text.trim()}',
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: const Color(0xFF047857),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else if (_bankResolveError != null)
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF2F2),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFFECACA)),
+              ),
+              child: Text(
+                _bankResolveError!,
+                style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFFDC2626)),
+              ),
+            ),
+
+          const SizedBox(height: 12),
+
+          // Store Bank Receiving Details
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Store Receiving Bank Account:',
+                  style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${config?.lencoBankName ?? 'Absa Bank Zambia'} | Acc: ${config?.lencoAccountNumber ?? '9130001234567'}',
+                  style: GoogleFonts.inter(fontSize: 11, color: theme.colorScheme.onSurfaceVariant),
+                ),
+                Text(
+                  'Name: ${config?.lencoAccountName ?? config?.businessName ?? 'Beleka Store'}',
+                  style: GoogleFonts.inter(fontSize: 11, color: theme.colorScheme.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Confirm Bank Transfer Button
+          ElevatedButton.icon(
+            onPressed: () async {
+              setState(() {
+                _tenderedAmount = total;
+              });
+              final cartNotifier = ref.read(cartProvider.notifier);
+              await _finalizeSale(cartNotifier);
+            },
+            icon: const Icon(Icons.check_circle_rounded, size: 18),
+            label: Text(
+              'Confirm Transfer & Complete Sale',
+              style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF059669),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCardPaymentConsole(BuildContext context, String currency) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final total = ref.read(cartProvider.notifier).total;
 
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF151F32) : const Color(0xFFFFFFFF),
-              shape: BoxShape.circle,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF151F32) : const Color(0xFFF0F9FF),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.credit_card_rounded,
+                size: 42,
+                color: Color(0xFF0284C7),
+              ),
             ),
-            child: Icon(
-              _selectedPaymentMethod == 'CARD'
-                  ? Icons.credit_card_rounded
-                  : Icons.phone_android_rounded,
-              size: 48,
-              color: theme.colorScheme.onSurfaceVariant,
+            const SizedBox(height: 12),
+            Text(
+              'CARD PAYMENT (POS TERMINAL DEVICE)',
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: theme.colorScheme.onSurfaceVariant,
+                letterSpacing: 0.5,
+              ),
             ),
-          ),
-          const SizedBox(height: 18),
-          Text(
-            'PLEASE PROCESS ON MERCHANT DEVICE',
-            style: GoogleFonts.inter(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: theme.colorScheme.onSurfaceVariant,
-              letterSpacing: 0.5,
+            const SizedBox(height: 4),
+            Text(
+              CurrencyFormatter.format(total, currency),
+              style: GoogleFonts.inter(
+                fontSize: 32,
+                fontWeight: FontWeight.w900,
+                color: theme.colorScheme.onSurface,
+              ),
             ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            CurrencyFormatter.format(total, currency),
-            style: GoogleFonts.inter(
-              fontSize: 36,
-              fontWeight: FontWeight.w900,
-              color: theme.colorScheme.onSurface,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: const Color(0xFFECFDF5),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  Icons.check_circle_rounded,
-                  color: Color(0xFF059669),
-                  size: 16,
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0284C7).withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                'Swipe, Insert or Tap card on POS terminal device',
+                style: GoogleFonts.inter(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF0284C7),
                 ),
-                const SizedBox(width: 6),
-                Text(
-                  'READY FOR CONFIRMATION',
-                  style: GoogleFonts.inter(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFF059669),
-                  ),
-                ),
-              ],
+              ),
             ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: () async {
+                setState(() => _tenderedAmount = total);
+                final cartNotifier = ref.read(cartProvider.notifier);
+                await _finalizeSale(cartNotifier);
+              },
+              icon: const Icon(Icons.check_circle_rounded, size: 18),
+              label: Text(
+                'Terminal Approved - Complete Sale',
+                style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF0284C7),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOperatorPill(String opKey, String label, Color color) {
+    final isSelected = _momoOperator == opKey;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return InkWell(
+      onTap: () => setState(() => _momoOperator = opKey),
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: isSelected
+              ? color.withValues(alpha: 0.12)
+              : (isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9)),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isSelected ? color : (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
+            width: isSelected ? 1.5 : 1,
           ),
-        ],
+        ),
+        child: Text(
+          label,
+          style: GoogleFonts.inter(
+            fontSize: 11,
+            fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+            color: isSelected ? color : Theme.of(context).colorScheme.onSurface,
+          ),
+        ),
       ),
     );
   }
@@ -3975,7 +4843,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                 Text(
                   item.isWeighted
                       ? '${item.weight.toStringAsFixed(3)} $unitLabel @ ${CurrencyFormatter.format(item.unitPrice, currency)}/$unitLabel'
-                      : '${CurrencyFormatter.format(item.unitPrice, currency)} / unit',
+                      : '${CurrencyFormatter.format(item.unitPrice, currency)} / $unitLabel',
                   style: GoogleFonts.inter(
                     fontSize: 10,
                     color: theme.colorScheme.onSurfaceVariant,

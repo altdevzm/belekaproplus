@@ -2533,98 +2533,103 @@ const ProductSchema = CollectionSchema(
       name: r'discountStartDate',
       type: IsarType.dateTime,
     ),
-    r'imagePath': PropertySchema(
+    r'hasUsableDigitaxItemId': PropertySchema(
       id: 7,
+      name: r'hasUsableDigitaxItemId',
+      type: IsarType.bool,
+    ),
+    r'imagePath': PropertySchema(
+      id: 8,
       name: r'imagePath',
       type: IsarType.string,
     ),
     r'isArchived': PropertySchema(
-      id: 8,
+      id: 9,
       name: r'isArchived',
       type: IsarType.bool,
     ),
     r'isDigitaxSyncEnabled': PropertySchema(
-      id: 9,
+      id: 10,
       name: r'isDigitaxSyncEnabled',
       type: IsarType.bool,
     ),
     r'isSyncedWithDigitax': PropertySchema(
-      id: 10,
+      id: 11,
       name: r'isSyncedWithDigitax',
       type: IsarType.bool,
     ),
     r'isTaxInclusive': PropertySchema(
-      id: 11,
+      id: 12,
       name: r'isTaxInclusive',
       type: IsarType.bool,
     ),
     r'isWeighted': PropertySchema(
-      id: 12,
+      id: 13,
       name: r'isWeighted',
       type: IsarType.bool,
     ),
     r'itemClsCd': PropertySchema(
-      id: 13,
+      id: 14,
       name: r'itemClsCd',
       type: IsarType.string,
     ),
     r'lastDigitaxSyncDate': PropertySchema(
-      id: 14,
+      id: 15,
       name: r'lastDigitaxSyncDate',
       type: IsarType.dateTime,
     ),
     r'name': PropertySchema(
-      id: 15,
+      id: 16,
       name: r'name',
       type: IsarType.string,
     ),
     r'price': PropertySchema(
-      id: 16,
+      id: 17,
       name: r'price',
       type: IsarType.double,
     ),
     r'scalePlu': PropertySchema(
-      id: 17,
+      id: 18,
       name: r'scalePlu',
       type: IsarType.string,
     ),
     r'sizes': PropertySchema(
-      id: 18,
+      id: 19,
       name: r'sizes',
       type: IsarType.stringList,
     ),
     r'sku': PropertySchema(
-      id: 19,
+      id: 20,
       name: r'sku',
       type: IsarType.string,
     ),
     r'stockLevel': PropertySchema(
-      id: 20,
+      id: 21,
       name: r'stockLevel',
       type: IsarType.long,
     ),
     r'tareWeight': PropertySchema(
-      id: 21,
+      id: 22,
       name: r'tareWeight',
       type: IsarType.double,
     ),
     r'taxRate': PropertySchema(
-      id: 22,
+      id: 23,
       name: r'taxRate',
       type: IsarType.double,
     ),
     r'unitCost': PropertySchema(
-      id: 23,
+      id: 24,
       name: r'unitCost',
       type: IsarType.double,
     ),
     r'unitOfMeasure': PropertySchema(
-      id: 24,
+      id: 25,
       name: r'unitOfMeasure',
       type: IsarType.string,
     ),
     r'zraTaxCode': PropertySchema(
-      id: 25,
+      id: 26,
       name: r'zraTaxCode',
       type: IsarType.string,
     )
@@ -2753,25 +2758,26 @@ void _productSerialize(
   writer.writeDateTime(offsets[4], object.discountEndDate);
   writer.writeDouble(offsets[5], object.discountPrice);
   writer.writeDateTime(offsets[6], object.discountStartDate);
-  writer.writeString(offsets[7], object.imagePath);
-  writer.writeBool(offsets[8], object.isArchived);
-  writer.writeBool(offsets[9], object.isDigitaxSyncEnabled);
-  writer.writeBool(offsets[10], object.isSyncedWithDigitax);
-  writer.writeBool(offsets[11], object.isTaxInclusive);
-  writer.writeBool(offsets[12], object.isWeighted);
-  writer.writeString(offsets[13], object.itemClsCd);
-  writer.writeDateTime(offsets[14], object.lastDigitaxSyncDate);
-  writer.writeString(offsets[15], object.name);
-  writer.writeDouble(offsets[16], object.price);
-  writer.writeString(offsets[17], object.scalePlu);
-  writer.writeStringList(offsets[18], object.sizes);
-  writer.writeString(offsets[19], object.sku);
-  writer.writeLong(offsets[20], object.stockLevel);
-  writer.writeDouble(offsets[21], object.tareWeight);
-  writer.writeDouble(offsets[22], object.taxRate);
-  writer.writeDouble(offsets[23], object.unitCost);
-  writer.writeString(offsets[24], object.unitOfMeasure);
-  writer.writeString(offsets[25], object.zraTaxCode);
+  writer.writeBool(offsets[7], object.hasUsableDigitaxItemId);
+  writer.writeString(offsets[8], object.imagePath);
+  writer.writeBool(offsets[9], object.isArchived);
+  writer.writeBool(offsets[10], object.isDigitaxSyncEnabled);
+  writer.writeBool(offsets[11], object.isSyncedWithDigitax);
+  writer.writeBool(offsets[12], object.isTaxInclusive);
+  writer.writeBool(offsets[13], object.isWeighted);
+  writer.writeString(offsets[14], object.itemClsCd);
+  writer.writeDateTime(offsets[15], object.lastDigitaxSyncDate);
+  writer.writeString(offsets[16], object.name);
+  writer.writeDouble(offsets[17], object.price);
+  writer.writeString(offsets[18], object.scalePlu);
+  writer.writeStringList(offsets[19], object.sizes);
+  writer.writeString(offsets[20], object.sku);
+  writer.writeLong(offsets[21], object.stockLevel);
+  writer.writeDouble(offsets[22], object.tareWeight);
+  writer.writeDouble(offsets[23], object.taxRate);
+  writer.writeDouble(offsets[24], object.unitCost);
+  writer.writeString(offsets[25], object.unitOfMeasure);
+  writer.writeString(offsets[26], object.zraTaxCode);
 }
 
 Product _productDeserialize(
@@ -2788,25 +2794,25 @@ Product _productDeserialize(
     discountEndDate: reader.readDateTimeOrNull(offsets[4]),
     discountPrice: reader.readDoubleOrNull(offsets[5]),
     discountStartDate: reader.readDateTimeOrNull(offsets[6]),
-    imagePath: reader.readStringOrNull(offsets[7]),
-    isArchived: reader.readBoolOrNull(offsets[8]) ?? false,
-    isDigitaxSyncEnabled: reader.readBoolOrNull(offsets[9]) ?? true,
-    isSyncedWithDigitax: reader.readBoolOrNull(offsets[10]) ?? false,
-    isTaxInclusive: reader.readBoolOrNull(offsets[11]) ?? true,
-    isWeighted: reader.readBoolOrNull(offsets[12]) ?? false,
-    itemClsCd: reader.readStringOrNull(offsets[13]) ?? '10101501',
-    lastDigitaxSyncDate: reader.readDateTimeOrNull(offsets[14]),
-    name: reader.readString(offsets[15]),
-    price: reader.readDouble(offsets[16]),
-    scalePlu: reader.readStringOrNull(offsets[17]),
-    sizes: reader.readStringList(offsets[18]),
-    sku: reader.readString(offsets[19]),
-    stockLevel: reader.readLong(offsets[20]),
-    tareWeight: reader.readDoubleOrNull(offsets[21]) ?? 0.0,
-    taxRate: reader.readDoubleOrNull(offsets[22]) ?? 16.0,
-    unitCost: reader.readDoubleOrNull(offsets[23]) ?? 0.0,
-    unitOfMeasure: reader.readStringOrNull(offsets[24]) ?? 'kg',
-    zraTaxCode: reader.readStringOrNull(offsets[25]) ?? 'A',
+    imagePath: reader.readStringOrNull(offsets[8]),
+    isArchived: reader.readBoolOrNull(offsets[9]) ?? false,
+    isDigitaxSyncEnabled: reader.readBoolOrNull(offsets[10]) ?? true,
+    isSyncedWithDigitax: reader.readBoolOrNull(offsets[11]) ?? false,
+    isTaxInclusive: reader.readBoolOrNull(offsets[12]) ?? true,
+    isWeighted: reader.readBoolOrNull(offsets[13]) ?? false,
+    itemClsCd: reader.readStringOrNull(offsets[14]) ?? '10101501',
+    lastDigitaxSyncDate: reader.readDateTimeOrNull(offsets[15]),
+    name: reader.readString(offsets[16]),
+    price: reader.readDouble(offsets[17]),
+    scalePlu: reader.readStringOrNull(offsets[18]),
+    sizes: reader.readStringList(offsets[19]),
+    sku: reader.readString(offsets[20]),
+    stockLevel: reader.readLong(offsets[21]),
+    tareWeight: reader.readDoubleOrNull(offsets[22]) ?? 0.0,
+    taxRate: reader.readDoubleOrNull(offsets[23]) ?? 16.0,
+    unitCost: reader.readDoubleOrNull(offsets[24]) ?? 0.0,
+    unitOfMeasure: reader.readStringOrNull(offsets[25]) ?? 'kg',
+    zraTaxCode: reader.readStringOrNull(offsets[26]) ?? 'A',
   );
   object.id = id;
   return object;
@@ -2834,42 +2840,44 @@ P _productDeserializeProp<P>(
     case 6:
       return (reader.readDateTimeOrNull(offset)) as P;
     case 7:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readBool(offset)) as P;
     case 8:
-      return (reader.readBoolOrNull(offset) ?? false) as P;
-    case 9:
-      return (reader.readBoolOrNull(offset) ?? true) as P;
-    case 10:
-      return (reader.readBoolOrNull(offset) ?? false) as P;
-    case 11:
-      return (reader.readBoolOrNull(offset) ?? true) as P;
-    case 12:
-      return (reader.readBoolOrNull(offset) ?? false) as P;
-    case 13:
-      return (reader.readStringOrNull(offset) ?? '10101501') as P;
-    case 14:
-      return (reader.readDateTimeOrNull(offset)) as P;
-    case 15:
-      return (reader.readString(offset)) as P;
-    case 16:
-      return (reader.readDouble(offset)) as P;
-    case 17:
       return (reader.readStringOrNull(offset)) as P;
-    case 18:
-      return (reader.readStringList(offset)) as P;
-    case 19:
+    case 9:
+      return (reader.readBoolOrNull(offset) ?? false) as P;
+    case 10:
+      return (reader.readBoolOrNull(offset) ?? true) as P;
+    case 11:
+      return (reader.readBoolOrNull(offset) ?? false) as P;
+    case 12:
+      return (reader.readBoolOrNull(offset) ?? true) as P;
+    case 13:
+      return (reader.readBoolOrNull(offset) ?? false) as P;
+    case 14:
+      return (reader.readStringOrNull(offset) ?? '10101501') as P;
+    case 15:
+      return (reader.readDateTimeOrNull(offset)) as P;
+    case 16:
       return (reader.readString(offset)) as P;
+    case 17:
+      return (reader.readDouble(offset)) as P;
+    case 18:
+      return (reader.readStringOrNull(offset)) as P;
+    case 19:
+      return (reader.readStringList(offset)) as P;
     case 20:
-      return (reader.readLong(offset)) as P;
+      return (reader.readString(offset)) as P;
     case 21:
-      return (reader.readDoubleOrNull(offset) ?? 0.0) as P;
+      return (reader.readLong(offset)) as P;
     case 22:
-      return (reader.readDoubleOrNull(offset) ?? 16.0) as P;
-    case 23:
       return (reader.readDoubleOrNull(offset) ?? 0.0) as P;
+    case 23:
+      return (reader.readDoubleOrNull(offset) ?? 16.0) as P;
     case 24:
-      return (reader.readStringOrNull(offset) ?? 'kg') as P;
+      return (reader.readDoubleOrNull(offset) ?? 0.0) as P;
     case 25:
+      return (reader.readStringOrNull(offset) ?? 'kg') as P;
+    case 26:
       return (reader.readStringOrNull(offset) ?? 'A') as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -3889,6 +3897,16 @@ extension ProductQueryFilter
         includeLower: includeLower,
         upper: upper,
         includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<Product, Product, QAfterFilterCondition>
+      hasUsableDigitaxItemIdEqualTo(bool value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'hasUsableDigitaxItemId',
+        value: value,
       ));
     });
   }
@@ -5625,6 +5643,19 @@ extension ProductQuerySortBy on QueryBuilder<Product, Product, QSortBy> {
     });
   }
 
+  QueryBuilder<Product, Product, QAfterSortBy> sortByHasUsableDigitaxItemId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'hasUsableDigitaxItemId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Product, Product, QAfterSortBy>
+      sortByHasUsableDigitaxItemIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'hasUsableDigitaxItemId', Sort.desc);
+    });
+  }
+
   QueryBuilder<Product, Product, QAfterSortBy> sortByImagePath() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'imagePath', Sort.asc);
@@ -5917,6 +5948,19 @@ extension ProductQuerySortThenBy
     });
   }
 
+  QueryBuilder<Product, Product, QAfterSortBy> thenByHasUsableDigitaxItemId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'hasUsableDigitaxItemId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Product, Product, QAfterSortBy>
+      thenByHasUsableDigitaxItemIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'hasUsableDigitaxItemId', Sort.desc);
+    });
+  }
+
   QueryBuilder<Product, Product, QAfterSortBy> thenById() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'id', Sort.asc);
@@ -6193,6 +6237,12 @@ extension ProductQueryWhereDistinct
     });
   }
 
+  QueryBuilder<Product, Product, QDistinct> distinctByHasUsableDigitaxItemId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'hasUsableDigitaxItemId');
+    });
+  }
+
   QueryBuilder<Product, Product, QDistinct> distinctByImagePath(
       {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
@@ -6367,6 +6417,13 @@ extension ProductQueryProperty
     });
   }
 
+  QueryBuilder<Product, bool, QQueryOperations>
+      hasUsableDigitaxItemIdProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'hasUsableDigitaxItemId');
+    });
+  }
+
   QueryBuilder<Product, String?, QQueryOperations> imagePathProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'imagePath');
@@ -6509,158 +6566,163 @@ const SaleTransactionSchema = CollectionSchema(
       name: r'changeAmount',
       type: IsarType.double,
     ),
-    r'creditNoteReason': PropertySchema(
+    r'cloudStoreId': PropertySchema(
       id: 3,
+      name: r'cloudStoreId',
+      type: IsarType.long,
+    ),
+    r'creditNoteReason': PropertySchema(
+      id: 4,
       name: r'creditNoteReason',
       type: IsarType.string,
     ),
     r'customerAddress': PropertySchema(
-      id: 4,
+      id: 5,
       name: r'customerAddress',
       type: IsarType.string,
     ),
     r'customerBusinessName': PropertySchema(
-      id: 5,
+      id: 6,
       name: r'customerBusinessName',
       type: IsarType.string,
     ),
     r'customerId': PropertySchema(
-      id: 6,
+      id: 7,
       name: r'customerId',
       type: IsarType.long,
     ),
     r'customerTpin': PropertySchema(
-      id: 7,
+      id: 8,
       name: r'customerTpin',
       type: IsarType.string,
     ),
     r'discountAmount': PropertySchema(
-      id: 8,
+      id: 9,
       name: r'discountAmount',
       type: IsarType.double,
     ),
     r'grossProfit': PropertySchema(
-      id: 9,
+      id: 10,
       name: r'grossProfit',
       type: IsarType.double,
     ),
     r'isCreditNote': PropertySchema(
-      id: 10,
+      id: 11,
       name: r'isCreditNote',
       type: IsarType.bool,
     ),
     r'isSynced': PropertySchema(
-      id: 11,
+      id: 12,
       name: r'isSynced',
       type: IsarType.bool,
     ),
     r'orgInvoiceNo': PropertySchema(
-      id: 12,
+      id: 13,
       name: r'orgInvoiceNo',
       type: IsarType.string,
     ),
     r'paymentMethod': PropertySchema(
-      id: 13,
+      id: 14,
       name: r'paymentMethod',
       type: IsarType.string,
     ),
     r'pointsEarned': PropertySchema(
-      id: 14,
+      id: 15,
       name: r'pointsEarned',
       type: IsarType.long,
     ),
     r'pointsRedeemed': PropertySchema(
-      id: 15,
+      id: 16,
       name: r'pointsRedeemed',
       type: IsarType.long,
     ),
     r'serviceChargeAmount': PropertySchema(
-      id: 16,
+      id: 17,
       name: r'serviceChargeAmount',
       type: IsarType.double,
     ),
     r'serviceChargeRate': PropertySchema(
-      id: 17,
+      id: 18,
       name: r'serviceChargeRate',
       type: IsarType.double,
     ),
     r'status': PropertySchema(
-      id: 18,
+      id: 19,
       name: r'status',
       type: IsarType.string,
     ),
     r'subtotal': PropertySchema(
-      id: 19,
+      id: 20,
       name: r'subtotal',
       type: IsarType.double,
     ),
     r'taxAmount': PropertySchema(
-      id: 20,
+      id: 21,
       name: r'taxAmount',
       type: IsarType.double,
     ),
     r'tenderedAmount': PropertySchema(
-      id: 21,
+      id: 22,
       name: r'tenderedAmount',
       type: IsarType.double,
     ),
     r'terminalName': PropertySchema(
-      id: 22,
+      id: 23,
       name: r'terminalName',
       type: IsarType.string,
     ),
     r'timestamp': PropertySchema(
-      id: 23,
+      id: 24,
       name: r'timestamp',
       type: IsarType.dateTime,
     ),
     r'totalAmount': PropertySchema(
-      id: 24,
+      id: 25,
       name: r'totalAmount',
       type: IsarType.double,
     ),
     r'totalCost': PropertySchema(
-      id: 25,
+      id: 26,
       name: r'totalCost',
       type: IsarType.double,
     ),
     r'transactionId': PropertySchema(
-      id: 26,
+      id: 27,
       name: r'transactionId',
       type: IsarType.string,
     ),
     r'zraInternalData': PropertySchema(
-      id: 27,
+      id: 28,
       name: r'zraInternalData',
       type: IsarType.string,
     ),
     r'zraInvoiceType': PropertySchema(
-      id: 28,
+      id: 29,
       name: r'zraInvoiceType',
       type: IsarType.string,
     ),
     r'zraMarkId': PropertySchema(
-      id: 29,
+      id: 30,
       name: r'zraMarkId',
       type: IsarType.string,
     ),
     r'zraQrCode': PropertySchema(
-      id: 30,
+      id: 31,
       name: r'zraQrCode',
       type: IsarType.string,
     ),
     r'zraReceiptNumber': PropertySchema(
-      id: 31,
+      id: 32,
       name: r'zraReceiptNumber',
       type: IsarType.string,
     ),
     r'zraSdcId': PropertySchema(
-      id: 32,
+      id: 33,
       name: r'zraSdcId',
       type: IsarType.string,
     ),
     r'zraStatus': PropertySchema(
-      id: 33,
+      id: 34,
       name: r'zraStatus',
       type: IsarType.string,
     )
@@ -6694,6 +6756,19 @@ const SaleTransactionSchema = CollectionSchema(
           name: r'transactionId',
           type: IndexType.hash,
           caseSensitive: true,
+        )
+      ],
+    ),
+    r'cloudStoreId': IndexSchema(
+      id: -5959126805800750427,
+      name: r'cloudStoreId',
+      unique: false,
+      replace: false,
+      properties: [
+        IndexPropertySchema(
+          name: r'cloudStoreId',
+          type: IndexType.value,
+          caseSensitive: false,
         )
       ],
     )
@@ -6819,37 +6894,38 @@ void _saleTransactionSerialize(
   writer.writeString(offsets[0], object.cashierId);
   writer.writeString(offsets[1], object.cashierName);
   writer.writeDouble(offsets[2], object.changeAmount);
-  writer.writeString(offsets[3], object.creditNoteReason);
-  writer.writeString(offsets[4], object.customerAddress);
-  writer.writeString(offsets[5], object.customerBusinessName);
-  writer.writeLong(offsets[6], object.customerId);
-  writer.writeString(offsets[7], object.customerTpin);
-  writer.writeDouble(offsets[8], object.discountAmount);
-  writer.writeDouble(offsets[9], object.grossProfit);
-  writer.writeBool(offsets[10], object.isCreditNote);
-  writer.writeBool(offsets[11], object.isSynced);
-  writer.writeString(offsets[12], object.orgInvoiceNo);
-  writer.writeString(offsets[13], object.paymentMethod);
-  writer.writeLong(offsets[14], object.pointsEarned);
-  writer.writeLong(offsets[15], object.pointsRedeemed);
-  writer.writeDouble(offsets[16], object.serviceChargeAmount);
-  writer.writeDouble(offsets[17], object.serviceChargeRate);
-  writer.writeString(offsets[18], object.status);
-  writer.writeDouble(offsets[19], object.subtotal);
-  writer.writeDouble(offsets[20], object.taxAmount);
-  writer.writeDouble(offsets[21], object.tenderedAmount);
-  writer.writeString(offsets[22], object.terminalName);
-  writer.writeDateTime(offsets[23], object.timestamp);
-  writer.writeDouble(offsets[24], object.totalAmount);
-  writer.writeDouble(offsets[25], object.totalCost);
-  writer.writeString(offsets[26], object.transactionId);
-  writer.writeString(offsets[27], object.zraInternalData);
-  writer.writeString(offsets[28], object.zraInvoiceType);
-  writer.writeString(offsets[29], object.zraMarkId);
-  writer.writeString(offsets[30], object.zraQrCode);
-  writer.writeString(offsets[31], object.zraReceiptNumber);
-  writer.writeString(offsets[32], object.zraSdcId);
-  writer.writeString(offsets[33], object.zraStatus);
+  writer.writeLong(offsets[3], object.cloudStoreId);
+  writer.writeString(offsets[4], object.creditNoteReason);
+  writer.writeString(offsets[5], object.customerAddress);
+  writer.writeString(offsets[6], object.customerBusinessName);
+  writer.writeLong(offsets[7], object.customerId);
+  writer.writeString(offsets[8], object.customerTpin);
+  writer.writeDouble(offsets[9], object.discountAmount);
+  writer.writeDouble(offsets[10], object.grossProfit);
+  writer.writeBool(offsets[11], object.isCreditNote);
+  writer.writeBool(offsets[12], object.isSynced);
+  writer.writeString(offsets[13], object.orgInvoiceNo);
+  writer.writeString(offsets[14], object.paymentMethod);
+  writer.writeLong(offsets[15], object.pointsEarned);
+  writer.writeLong(offsets[16], object.pointsRedeemed);
+  writer.writeDouble(offsets[17], object.serviceChargeAmount);
+  writer.writeDouble(offsets[18], object.serviceChargeRate);
+  writer.writeString(offsets[19], object.status);
+  writer.writeDouble(offsets[20], object.subtotal);
+  writer.writeDouble(offsets[21], object.taxAmount);
+  writer.writeDouble(offsets[22], object.tenderedAmount);
+  writer.writeString(offsets[23], object.terminalName);
+  writer.writeDateTime(offsets[24], object.timestamp);
+  writer.writeDouble(offsets[25], object.totalAmount);
+  writer.writeDouble(offsets[26], object.totalCost);
+  writer.writeString(offsets[27], object.transactionId);
+  writer.writeString(offsets[28], object.zraInternalData);
+  writer.writeString(offsets[29], object.zraInvoiceType);
+  writer.writeString(offsets[30], object.zraMarkId);
+  writer.writeString(offsets[31], object.zraQrCode);
+  writer.writeString(offsets[32], object.zraReceiptNumber);
+  writer.writeString(offsets[33], object.zraSdcId);
+  writer.writeString(offsets[34], object.zraStatus);
 }
 
 SaleTransaction _saleTransactionDeserialize(
@@ -6862,39 +6938,40 @@ SaleTransaction _saleTransactionDeserialize(
     cashierId: reader.readStringOrNull(offsets[0]),
     cashierName: reader.readStringOrNull(offsets[1]) ?? '',
     changeAmount: reader.readDoubleOrNull(offsets[2]) ?? 0.0,
-    creditNoteReason: reader.readStringOrNull(offsets[3]),
-    customerAddress: reader.readStringOrNull(offsets[4]),
-    customerBusinessName: reader.readStringOrNull(offsets[5]),
-    customerId: reader.readLongOrNull(offsets[6]),
-    customerTpin: reader.readStringOrNull(offsets[7]),
-    discountAmount: reader.readDoubleOrNull(offsets[8]) ?? 0.0,
-    grossProfit: reader.readDoubleOrNull(offsets[9]) ?? 0.0,
-    isCreditNote: reader.readBoolOrNull(offsets[10]) ?? false,
-    isSynced: reader.readBoolOrNull(offsets[11]) ?? false,
-    orgInvoiceNo: reader.readStringOrNull(offsets[12]),
-    paymentMethod: reader.readString(offsets[13]),
-    pointsEarned: reader.readLongOrNull(offsets[14]) ?? 0,
-    pointsRedeemed: reader.readLongOrNull(offsets[15]) ?? 0,
-    serviceChargeAmount: reader.readDoubleOrNull(offsets[16]) ?? 0.0,
-    serviceChargeRate: reader.readDoubleOrNull(offsets[17]) ?? 0.0,
-    status: reader.readStringOrNull(offsets[18]) ?? 'completed',
-    subtotal: reader.readDoubleOrNull(offsets[19]) ?? 0.0,
-    taxAmount: reader.readDoubleOrNull(offsets[20]) ?? 0.0,
-    tenderedAmount: reader.readDoubleOrNull(offsets[21]) ?? 0.0,
-    terminalName: reader.readStringOrNull(offsets[22]),
-    totalAmount: reader.readDouble(offsets[24]),
-    totalCost: reader.readDoubleOrNull(offsets[25]) ?? 0.0,
-    transactionId: reader.readStringOrNull(offsets[26]),
-    zraInternalData: reader.readStringOrNull(offsets[27]),
-    zraInvoiceType: reader.readStringOrNull(offsets[28]),
-    zraMarkId: reader.readStringOrNull(offsets[29]),
-    zraQrCode: reader.readStringOrNull(offsets[30]),
-    zraReceiptNumber: reader.readStringOrNull(offsets[31]),
-    zraSdcId: reader.readStringOrNull(offsets[32]),
-    zraStatus: reader.readStringOrNull(offsets[33]) ?? 'pending',
+    cloudStoreId: reader.readLongOrNull(offsets[3]) ?? 0,
+    creditNoteReason: reader.readStringOrNull(offsets[4]),
+    customerAddress: reader.readStringOrNull(offsets[5]),
+    customerBusinessName: reader.readStringOrNull(offsets[6]),
+    customerId: reader.readLongOrNull(offsets[7]),
+    customerTpin: reader.readStringOrNull(offsets[8]),
+    discountAmount: reader.readDoubleOrNull(offsets[9]) ?? 0.0,
+    grossProfit: reader.readDoubleOrNull(offsets[10]) ?? 0.0,
+    isCreditNote: reader.readBoolOrNull(offsets[11]) ?? false,
+    isSynced: reader.readBoolOrNull(offsets[12]) ?? false,
+    orgInvoiceNo: reader.readStringOrNull(offsets[13]),
+    paymentMethod: reader.readString(offsets[14]),
+    pointsEarned: reader.readLongOrNull(offsets[15]) ?? 0,
+    pointsRedeemed: reader.readLongOrNull(offsets[16]) ?? 0,
+    serviceChargeAmount: reader.readDoubleOrNull(offsets[17]) ?? 0.0,
+    serviceChargeRate: reader.readDoubleOrNull(offsets[18]) ?? 0.0,
+    status: reader.readStringOrNull(offsets[19]) ?? 'completed',
+    subtotal: reader.readDoubleOrNull(offsets[20]) ?? 0.0,
+    taxAmount: reader.readDoubleOrNull(offsets[21]) ?? 0.0,
+    tenderedAmount: reader.readDoubleOrNull(offsets[22]) ?? 0.0,
+    terminalName: reader.readStringOrNull(offsets[23]),
+    totalAmount: reader.readDouble(offsets[25]),
+    totalCost: reader.readDoubleOrNull(offsets[26]) ?? 0.0,
+    transactionId: reader.readStringOrNull(offsets[27]),
+    zraInternalData: reader.readStringOrNull(offsets[28]),
+    zraInvoiceType: reader.readStringOrNull(offsets[29]),
+    zraMarkId: reader.readStringOrNull(offsets[30]),
+    zraQrCode: reader.readStringOrNull(offsets[31]),
+    zraReceiptNumber: reader.readStringOrNull(offsets[32]),
+    zraSdcId: reader.readStringOrNull(offsets[33]),
+    zraStatus: reader.readStringOrNull(offsets[34]) ?? 'pending',
   );
   object.id = id;
-  object.timestamp = reader.readDateTime(offsets[23]);
+  object.timestamp = reader.readDateTime(offsets[24]);
   return object;
 }
 
@@ -6912,53 +6989,53 @@ P _saleTransactionDeserializeProp<P>(
     case 2:
       return (reader.readDoubleOrNull(offset) ?? 0.0) as P;
     case 3:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readLongOrNull(offset) ?? 0) as P;
     case 4:
       return (reader.readStringOrNull(offset)) as P;
     case 5:
       return (reader.readStringOrNull(offset)) as P;
     case 6:
-      return (reader.readLongOrNull(offset)) as P;
-    case 7:
       return (reader.readStringOrNull(offset)) as P;
+    case 7:
+      return (reader.readLongOrNull(offset)) as P;
     case 8:
-      return (reader.readDoubleOrNull(offset) ?? 0.0) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 9:
       return (reader.readDoubleOrNull(offset) ?? 0.0) as P;
     case 10:
-      return (reader.readBoolOrNull(offset) ?? false) as P;
+      return (reader.readDoubleOrNull(offset) ?? 0.0) as P;
     case 11:
       return (reader.readBoolOrNull(offset) ?? false) as P;
     case 12:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readBoolOrNull(offset) ?? false) as P;
     case 13:
-      return (reader.readString(offset)) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 14:
-      return (reader.readLongOrNull(offset) ?? 0) as P;
+      return (reader.readString(offset)) as P;
     case 15:
       return (reader.readLongOrNull(offset) ?? 0) as P;
     case 16:
-      return (reader.readDoubleOrNull(offset) ?? 0.0) as P;
+      return (reader.readLongOrNull(offset) ?? 0) as P;
     case 17:
       return (reader.readDoubleOrNull(offset) ?? 0.0) as P;
     case 18:
-      return (reader.readStringOrNull(offset) ?? 'completed') as P;
-    case 19:
       return (reader.readDoubleOrNull(offset) ?? 0.0) as P;
+    case 19:
+      return (reader.readStringOrNull(offset) ?? 'completed') as P;
     case 20:
       return (reader.readDoubleOrNull(offset) ?? 0.0) as P;
     case 21:
       return (reader.readDoubleOrNull(offset) ?? 0.0) as P;
     case 22:
-      return (reader.readStringOrNull(offset)) as P;
-    case 23:
-      return (reader.readDateTime(offset)) as P;
-    case 24:
-      return (reader.readDouble(offset)) as P;
-    case 25:
       return (reader.readDoubleOrNull(offset) ?? 0.0) as P;
-    case 26:
+    case 23:
       return (reader.readStringOrNull(offset)) as P;
+    case 24:
+      return (reader.readDateTime(offset)) as P;
+    case 25:
+      return (reader.readDouble(offset)) as P;
+    case 26:
+      return (reader.readDoubleOrNull(offset) ?? 0.0) as P;
     case 27:
       return (reader.readStringOrNull(offset)) as P;
     case 28:
@@ -6972,6 +7049,8 @@ P _saleTransactionDeserializeProp<P>(
     case 32:
       return (reader.readStringOrNull(offset)) as P;
     case 33:
+      return (reader.readStringOrNull(offset)) as P;
+    case 34:
       return (reader.readStringOrNull(offset) ?? 'pending') as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -7061,6 +7140,15 @@ extension SaleTransactionQueryWhereSort
     return QueryBuilder.apply(this, (query) {
       return query.addWhereClause(
         const IndexWhereClause.any(indexName: r'timestamp'),
+      );
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterWhere>
+      anyCloudStoreId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(
+        const IndexWhereClause.any(indexName: r'cloudStoreId'),
       );
     });
   }
@@ -7293,6 +7381,99 @@ extension SaleTransactionQueryWhere
               includeUpper: false,
             ));
       }
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterWhereClause>
+      cloudStoreIdEqualTo(int cloudStoreId) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.equalTo(
+        indexName: r'cloudStoreId',
+        value: [cloudStoreId],
+      ));
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterWhereClause>
+      cloudStoreIdNotEqualTo(int cloudStoreId) {
+    return QueryBuilder.apply(this, (query) {
+      if (query.whereSort == Sort.asc) {
+        return query
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'cloudStoreId',
+              lower: [],
+              upper: [cloudStoreId],
+              includeUpper: false,
+            ))
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'cloudStoreId',
+              lower: [cloudStoreId],
+              includeLower: false,
+              upper: [],
+            ));
+      } else {
+        return query
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'cloudStoreId',
+              lower: [cloudStoreId],
+              includeLower: false,
+              upper: [],
+            ))
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'cloudStoreId',
+              lower: [],
+              upper: [cloudStoreId],
+              includeUpper: false,
+            ));
+      }
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterWhereClause>
+      cloudStoreIdGreaterThan(
+    int cloudStoreId, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'cloudStoreId',
+        lower: [cloudStoreId],
+        includeLower: include,
+        upper: [],
+      ));
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterWhereClause>
+      cloudStoreIdLessThan(
+    int cloudStoreId, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'cloudStoreId',
+        lower: [],
+        upper: [cloudStoreId],
+        includeUpper: include,
+      ));
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterWhereClause>
+      cloudStoreIdBetween(
+    int lowerCloudStoreId,
+    int upperCloudStoreId, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'cloudStoreId',
+        lower: [lowerCloudStoreId],
+        includeLower: includeLower,
+        upper: [upperCloudStoreId],
+        includeUpper: includeUpper,
+      ));
     });
   }
 }
@@ -7651,6 +7832,62 @@ extension SaleTransactionQueryFilter
         upper: upper,
         includeUpper: includeUpper,
         epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterFilterCondition>
+      cloudStoreIdEqualTo(int value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'cloudStoreId',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterFilterCondition>
+      cloudStoreIdGreaterThan(
+    int value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'cloudStoreId',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterFilterCondition>
+      cloudStoreIdLessThan(
+    int value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'cloudStoreId',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterFilterCondition>
+      cloudStoreIdBetween(
+    int lower,
+    int upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'cloudStoreId',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
       ));
     });
   }
@@ -11090,6 +11327,20 @@ extension SaleTransactionQuerySortBy
   }
 
   QueryBuilder<SaleTransaction, SaleTransaction, QAfterSortBy>
+      sortByCloudStoreId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'cloudStoreId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterSortBy>
+      sortByCloudStoreIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'cloudStoreId', Sort.desc);
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterSortBy>
       sortByCreditNoteReason() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'creditNoteReason', Sort.asc);
@@ -11568,6 +11819,20 @@ extension SaleTransactionQuerySortThenBy
   }
 
   QueryBuilder<SaleTransaction, SaleTransaction, QAfterSortBy>
+      thenByCloudStoreId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'cloudStoreId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterSortBy>
+      thenByCloudStoreIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'cloudStoreId', Sort.desc);
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterSortBy>
       thenByCreditNoteReason() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'creditNoteReason', Sort.asc);
@@ -12037,6 +12302,13 @@ extension SaleTransactionQueryWhereDistinct
   }
 
   QueryBuilder<SaleTransaction, SaleTransaction, QDistinct>
+      distinctByCloudStoreId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'cloudStoreId');
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QDistinct>
       distinctByCreditNoteReason({bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'creditNoteReason',
@@ -12287,6 +12559,12 @@ extension SaleTransactionQueryProperty
       changeAmountProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'changeAmount');
+    });
+  }
+
+  QueryBuilder<SaleTransaction, int, QQueryOperations> cloudStoreIdProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'cloudStoreId');
     });
   }
 
@@ -15067,114 +15345,149 @@ const StoreConfigSchema = CollectionSchema(
       name: r'lastCloudSyncDate',
       type: IsarType.dateTime,
     ),
-    r'logoPath': PropertySchema(
+    r'lencoAccountId': PropertySchema(
       id: 33,
+      name: r'lencoAccountId',
+      type: IsarType.string,
+    ),
+    r'lencoAccountName': PropertySchema(
+      id: 34,
+      name: r'lencoAccountName',
+      type: IsarType.string,
+    ),
+    r'lencoAccountNumber': PropertySchema(
+      id: 35,
+      name: r'lencoAccountNumber',
+      type: IsarType.string,
+    ),
+    r'lencoApiKey': PropertySchema(
+      id: 36,
+      name: r'lencoApiKey',
+      type: IsarType.string,
+    ),
+    r'lencoBankName': PropertySchema(
+      id: 37,
+      name: r'lencoBankName',
+      type: IsarType.string,
+    ),
+    r'lencoEnabled': PropertySchema(
+      id: 38,
+      name: r'lencoEnabled',
+      type: IsarType.bool,
+    ),
+    r'lencoEnvironment': PropertySchema(
+      id: 39,
+      name: r'lencoEnvironment',
+      type: IsarType.string,
+    ),
+    r'logoPath': PropertySchema(
+      id: 40,
       name: r'logoPath',
       type: IsarType.string,
     ),
     r'loyaltyEarnRate': PropertySchema(
-      id: 34,
+      id: 41,
       name: r'loyaltyEarnRate',
       type: IsarType.double,
     ),
     r'loyaltyEnabled': PropertySchema(
-      id: 35,
+      id: 42,
       name: r'loyaltyEnabled',
       type: IsarType.bool,
     ),
     r'loyaltyRedemptionValue': PropertySchema(
-      id: 36,
+      id: 43,
       name: r'loyaltyRedemptionValue',
       type: IsarType.double,
     ),
     r'mrcNo': PropertySchema(
-      id: 37,
+      id: 44,
       name: r'mrcNo',
       type: IsarType.string,
     ),
     r'openDrawerCashOnly': PropertySchema(
-      id: 38,
+      id: 45,
       name: r'openDrawerCashOnly',
       type: IsarType.bool,
     ),
     r'paperWidthMm': PropertySchema(
-      id: 39,
+      id: 46,
       name: r'paperWidthMm',
       type: IsarType.long,
     ),
     r'port': PropertySchema(
-      id: 40,
+      id: 47,
       name: r'port',
       type: IsarType.long,
     ),
     r'primarySector': PropertySchema(
-      id: 41,
+      id: 48,
       name: r'primarySector',
       type: IsarType.byte,
       enumMap: _StoreConfigprimarySectorEnumValueMap,
     ),
     r'recoveryCodeHash': PropertySchema(
-      id: 42,
+      id: 49,
       name: r'recoveryCodeHash',
       type: IsarType.string,
     ),
     r'scaleBaudRate': PropertySchema(
-      id: 43,
+      id: 50,
       name: r'scaleBaudRate',
       type: IsarType.long,
     ),
     r'scaleEnabled': PropertySchema(
-      id: 44,
+      id: 51,
       name: r'scaleEnabled',
       type: IsarType.bool,
     ),
     r'scalePort': PropertySchema(
-      id: 45,
+      id: 52,
       name: r'scalePort',
       type: IsarType.string,
     ),
     r'scaleProtocol': PropertySchema(
-      id: 46,
+      id: 53,
       name: r'scaleProtocol',
       type: IsarType.string,
     ),
     r'sdcId': PropertySchema(
-      id: 47,
+      id: 54,
       name: r'sdcId',
       type: IsarType.string,
     ),
     r'serverIp': PropertySchema(
-      id: 48,
+      id: 55,
       name: r'serverIp',
       type: IsarType.string,
     ),
     r'serviceChargeEnabled': PropertySchema(
-      id: 49,
+      id: 56,
       name: r'serviceChargeEnabled',
       type: IsarType.bool,
     ),
     r'taxId': PropertySchema(
-      id: 50,
+      id: 57,
       name: r'taxId',
       type: IsarType.string,
     ),
     r'taxRate': PropertySchema(
-      id: 51,
+      id: 58,
       name: r'taxRate',
       type: IsarType.double,
     ),
     r'terminalName': PropertySchema(
-      id: 52,
+      id: 59,
       name: r'terminalName',
       type: IsarType.string,
     ),
     r'tpin': PropertySchema(
-      id: 53,
+      id: 60,
       name: r'tpin',
       type: IsarType.string,
     ),
     r'website': PropertySchema(
-      id: 54,
+      id: 61,
       name: r'website',
       type: IsarType.string,
     )
@@ -15306,6 +15619,37 @@ int _storeConfigEstimateSize(
     }
   }
   {
+    final value = object.lencoAccountId;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
+  {
+    final value = object.lencoAccountName;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
+  {
+    final value = object.lencoAccountNumber;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
+  {
+    final value = object.lencoApiKey;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
+  {
+    final value = object.lencoBankName;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
+  bytesCount += 3 + object.lencoEnvironment.length * 3;
+  {
     final value = object.logoPath;
     if (value != null) {
       bytesCount += 3 + value.length * 3;
@@ -15398,28 +15742,35 @@ void _storeConfigSerialize(
   writer.writeBool(offsets[30], object.isManagerMode);
   writer.writeDateTime(offsets[31], object.lastBackupDate);
   writer.writeDateTime(offsets[32], object.lastCloudSyncDate);
-  writer.writeString(offsets[33], object.logoPath);
-  writer.writeDouble(offsets[34], object.loyaltyEarnRate);
-  writer.writeBool(offsets[35], object.loyaltyEnabled);
-  writer.writeDouble(offsets[36], object.loyaltyRedemptionValue);
-  writer.writeString(offsets[37], object.mrcNo);
-  writer.writeBool(offsets[38], object.openDrawerCashOnly);
-  writer.writeLong(offsets[39], object.paperWidthMm);
-  writer.writeLong(offsets[40], object.port);
-  writer.writeByte(offsets[41], object.primarySector.index);
-  writer.writeString(offsets[42], object.recoveryCodeHash);
-  writer.writeLong(offsets[43], object.scaleBaudRate);
-  writer.writeBool(offsets[44], object.scaleEnabled);
-  writer.writeString(offsets[45], object.scalePort);
-  writer.writeString(offsets[46], object.scaleProtocol);
-  writer.writeString(offsets[47], object.sdcId);
-  writer.writeString(offsets[48], object.serverIp);
-  writer.writeBool(offsets[49], object.serviceChargeEnabled);
-  writer.writeString(offsets[50], object.taxId);
-  writer.writeDouble(offsets[51], object.taxRate);
-  writer.writeString(offsets[52], object.terminalName);
-  writer.writeString(offsets[53], object.tpin);
-  writer.writeString(offsets[54], object.website);
+  writer.writeString(offsets[33], object.lencoAccountId);
+  writer.writeString(offsets[34], object.lencoAccountName);
+  writer.writeString(offsets[35], object.lencoAccountNumber);
+  writer.writeString(offsets[36], object.lencoApiKey);
+  writer.writeString(offsets[37], object.lencoBankName);
+  writer.writeBool(offsets[38], object.lencoEnabled);
+  writer.writeString(offsets[39], object.lencoEnvironment);
+  writer.writeString(offsets[40], object.logoPath);
+  writer.writeDouble(offsets[41], object.loyaltyEarnRate);
+  writer.writeBool(offsets[42], object.loyaltyEnabled);
+  writer.writeDouble(offsets[43], object.loyaltyRedemptionValue);
+  writer.writeString(offsets[44], object.mrcNo);
+  writer.writeBool(offsets[45], object.openDrawerCashOnly);
+  writer.writeLong(offsets[46], object.paperWidthMm);
+  writer.writeLong(offsets[47], object.port);
+  writer.writeByte(offsets[48], object.primarySector.index);
+  writer.writeString(offsets[49], object.recoveryCodeHash);
+  writer.writeLong(offsets[50], object.scaleBaudRate);
+  writer.writeBool(offsets[51], object.scaleEnabled);
+  writer.writeString(offsets[52], object.scalePort);
+  writer.writeString(offsets[53], object.scaleProtocol);
+  writer.writeString(offsets[54], object.sdcId);
+  writer.writeString(offsets[55], object.serverIp);
+  writer.writeBool(offsets[56], object.serviceChargeEnabled);
+  writer.writeString(offsets[57], object.taxId);
+  writer.writeDouble(offsets[58], object.taxRate);
+  writer.writeString(offsets[59], object.terminalName);
+  writer.writeString(offsets[60], object.tpin);
+  writer.writeString(offsets[61], object.website);
 }
 
 StoreConfig _storeConfigDeserialize(
@@ -15463,30 +15814,37 @@ StoreConfig _storeConfigDeserialize(
   object.isManagerMode = reader.readBool(offsets[30]);
   object.lastBackupDate = reader.readDateTimeOrNull(offsets[31]);
   object.lastCloudSyncDate = reader.readDateTimeOrNull(offsets[32]);
-  object.logoPath = reader.readStringOrNull(offsets[33]);
-  object.loyaltyEarnRate = reader.readDouble(offsets[34]);
-  object.loyaltyEnabled = reader.readBool(offsets[35]);
-  object.loyaltyRedemptionValue = reader.readDouble(offsets[36]);
-  object.mrcNo = reader.readStringOrNull(offsets[37]);
-  object.openDrawerCashOnly = reader.readBool(offsets[38]);
-  object.paperWidthMm = reader.readLong(offsets[39]);
-  object.port = reader.readLong(offsets[40]);
+  object.lencoAccountId = reader.readStringOrNull(offsets[33]);
+  object.lencoAccountName = reader.readStringOrNull(offsets[34]);
+  object.lencoAccountNumber = reader.readStringOrNull(offsets[35]);
+  object.lencoApiKey = reader.readStringOrNull(offsets[36]);
+  object.lencoBankName = reader.readStringOrNull(offsets[37]);
+  object.lencoEnabled = reader.readBool(offsets[38]);
+  object.lencoEnvironment = reader.readString(offsets[39]);
+  object.logoPath = reader.readStringOrNull(offsets[40]);
+  object.loyaltyEarnRate = reader.readDouble(offsets[41]);
+  object.loyaltyEnabled = reader.readBool(offsets[42]);
+  object.loyaltyRedemptionValue = reader.readDouble(offsets[43]);
+  object.mrcNo = reader.readStringOrNull(offsets[44]);
+  object.openDrawerCashOnly = reader.readBool(offsets[45]);
+  object.paperWidthMm = reader.readLong(offsets[46]);
+  object.port = reader.readLong(offsets[47]);
   object.primarySector = _StoreConfigprimarySectorValueEnumMap[
-          reader.readByteOrNull(offsets[41])] ??
+          reader.readByteOrNull(offsets[48])] ??
       CategorySector.pharmacy;
-  object.recoveryCodeHash = reader.readStringOrNull(offsets[42]);
-  object.scaleBaudRate = reader.readLong(offsets[43]);
-  object.scaleEnabled = reader.readBool(offsets[44]);
-  object.scalePort = reader.readString(offsets[45]);
-  object.scaleProtocol = reader.readString(offsets[46]);
-  object.sdcId = reader.readStringOrNull(offsets[47]);
-  object.serverIp = reader.readStringOrNull(offsets[48]);
-  object.serviceChargeEnabled = reader.readBool(offsets[49]);
-  object.taxId = reader.readStringOrNull(offsets[50]);
-  object.taxRate = reader.readDouble(offsets[51]);
-  object.terminalName = reader.readString(offsets[52]);
-  object.tpin = reader.readStringOrNull(offsets[53]);
-  object.website = reader.readStringOrNull(offsets[54]);
+  object.recoveryCodeHash = reader.readStringOrNull(offsets[49]);
+  object.scaleBaudRate = reader.readLong(offsets[50]);
+  object.scaleEnabled = reader.readBool(offsets[51]);
+  object.scalePort = reader.readString(offsets[52]);
+  object.scaleProtocol = reader.readString(offsets[53]);
+  object.sdcId = reader.readStringOrNull(offsets[54]);
+  object.serverIp = reader.readStringOrNull(offsets[55]);
+  object.serviceChargeEnabled = reader.readBool(offsets[56]);
+  object.taxId = reader.readStringOrNull(offsets[57]);
+  object.taxRate = reader.readDouble(offsets[58]);
+  object.terminalName = reader.readString(offsets[59]);
+  object.tpin = reader.readStringOrNull(offsets[60]);
+  object.website = reader.readStringOrNull(offsets[61]);
   return object;
 }
 
@@ -15566,48 +15924,62 @@ P _storeConfigDeserializeProp<P>(
     case 33:
       return (reader.readStringOrNull(offset)) as P;
     case 34:
-      return (reader.readDouble(offset)) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 35:
-      return (reader.readBool(offset)) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 36:
-      return (reader.readDouble(offset)) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 37:
       return (reader.readStringOrNull(offset)) as P;
     case 38:
       return (reader.readBool(offset)) as P;
     case 39:
-      return (reader.readLong(offset)) as P;
+      return (reader.readString(offset)) as P;
     case 40:
-      return (reader.readLong(offset)) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 41:
+      return (reader.readDouble(offset)) as P;
+    case 42:
+      return (reader.readBool(offset)) as P;
+    case 43:
+      return (reader.readDouble(offset)) as P;
+    case 44:
+      return (reader.readStringOrNull(offset)) as P;
+    case 45:
+      return (reader.readBool(offset)) as P;
+    case 46:
+      return (reader.readLong(offset)) as P;
+    case 47:
+      return (reader.readLong(offset)) as P;
+    case 48:
       return (_StoreConfigprimarySectorValueEnumMap[
               reader.readByteOrNull(offset)] ??
           CategorySector.pharmacy) as P;
-    case 42:
-      return (reader.readStringOrNull(offset)) as P;
-    case 43:
-      return (reader.readLong(offset)) as P;
-    case 44:
-      return (reader.readBool(offset)) as P;
-    case 45:
-      return (reader.readString(offset)) as P;
-    case 46:
-      return (reader.readString(offset)) as P;
-    case 47:
-      return (reader.readStringOrNull(offset)) as P;
-    case 48:
-      return (reader.readStringOrNull(offset)) as P;
     case 49:
-      return (reader.readBool(offset)) as P;
-    case 50:
       return (reader.readStringOrNull(offset)) as P;
+    case 50:
+      return (reader.readLong(offset)) as P;
     case 51:
-      return (reader.readDouble(offset)) as P;
+      return (reader.readBool(offset)) as P;
     case 52:
       return (reader.readString(offset)) as P;
     case 53:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readString(offset)) as P;
     case 54:
+      return (reader.readStringOrNull(offset)) as P;
+    case 55:
+      return (reader.readStringOrNull(offset)) as P;
+    case 56:
+      return (reader.readBool(offset)) as P;
+    case 57:
+      return (reader.readStringOrNull(offset)) as P;
+    case 58:
+      return (reader.readDouble(offset)) as P;
+    case 59:
+      return (reader.readString(offset)) as P;
+    case 60:
+      return (reader.readStringOrNull(offset)) as P;
+    case 61:
       return (reader.readStringOrNull(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -19492,6 +19864,922 @@ extension StoreConfigQueryFilter
   }
 
   QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoAccountIdIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'lencoAccountId',
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoAccountIdIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'lencoAccountId',
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoAccountIdEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'lencoAccountId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoAccountIdGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'lencoAccountId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoAccountIdLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'lencoAccountId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoAccountIdBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'lencoAccountId',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoAccountIdStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'lencoAccountId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoAccountIdEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'lencoAccountId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoAccountIdContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'lencoAccountId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoAccountIdMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'lencoAccountId',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoAccountIdIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'lencoAccountId',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoAccountIdIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'lencoAccountId',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoAccountNameIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'lencoAccountName',
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoAccountNameIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'lencoAccountName',
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoAccountNameEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'lencoAccountName',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoAccountNameGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'lencoAccountName',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoAccountNameLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'lencoAccountName',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoAccountNameBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'lencoAccountName',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoAccountNameStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'lencoAccountName',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoAccountNameEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'lencoAccountName',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoAccountNameContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'lencoAccountName',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoAccountNameMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'lencoAccountName',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoAccountNameIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'lencoAccountName',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoAccountNameIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'lencoAccountName',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoAccountNumberIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'lencoAccountNumber',
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoAccountNumberIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'lencoAccountNumber',
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoAccountNumberEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'lencoAccountNumber',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoAccountNumberGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'lencoAccountNumber',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoAccountNumberLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'lencoAccountNumber',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoAccountNumberBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'lencoAccountNumber',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoAccountNumberStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'lencoAccountNumber',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoAccountNumberEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'lencoAccountNumber',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoAccountNumberContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'lencoAccountNumber',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoAccountNumberMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'lencoAccountNumber',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoAccountNumberIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'lencoAccountNumber',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoAccountNumberIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'lencoAccountNumber',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoApiKeyIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'lencoApiKey',
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoApiKeyIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'lencoApiKey',
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoApiKeyEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'lencoApiKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoApiKeyGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'lencoApiKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoApiKeyLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'lencoApiKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoApiKeyBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'lencoApiKey',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoApiKeyStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'lencoApiKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoApiKeyEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'lencoApiKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoApiKeyContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'lencoApiKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoApiKeyMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'lencoApiKey',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoApiKeyIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'lencoApiKey',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoApiKeyIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'lencoApiKey',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoBankNameIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'lencoBankName',
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoBankNameIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'lencoBankName',
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoBankNameEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'lencoBankName',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoBankNameGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'lencoBankName',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoBankNameLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'lencoBankName',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoBankNameBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'lencoBankName',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoBankNameStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'lencoBankName',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoBankNameEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'lencoBankName',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoBankNameContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'lencoBankName',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoBankNameMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'lencoBankName',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoBankNameIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'lencoBankName',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoBankNameIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'lencoBankName',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoEnabledEqualTo(bool value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'lencoEnabled',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoEnvironmentEqualTo(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'lencoEnvironment',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoEnvironmentGreaterThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'lencoEnvironment',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoEnvironmentLessThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'lencoEnvironment',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoEnvironmentBetween(
+    String lower,
+    String upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'lencoEnvironment',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoEnvironmentStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'lencoEnvironment',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoEnvironmentEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'lencoEnvironment',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoEnvironmentContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'lencoEnvironment',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoEnvironmentMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'lencoEnvironment',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoEnvironmentIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'lencoEnvironment',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
+      lencoEnvironmentIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'lencoEnvironment',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterFilterCondition>
       logoPathIsNull() {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(const FilterCondition.isNull(
@@ -22007,6 +23295,99 @@ extension StoreConfigQuerySortBy
     });
   }
 
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy> sortByLencoAccountId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'lencoAccountId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy>
+      sortByLencoAccountIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'lencoAccountId', Sort.desc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy>
+      sortByLencoAccountName() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'lencoAccountName', Sort.asc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy>
+      sortByLencoAccountNameDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'lencoAccountName', Sort.desc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy>
+      sortByLencoAccountNumber() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'lencoAccountNumber', Sort.asc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy>
+      sortByLencoAccountNumberDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'lencoAccountNumber', Sort.desc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy> sortByLencoApiKey() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'lencoApiKey', Sort.asc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy> sortByLencoApiKeyDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'lencoApiKey', Sort.desc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy> sortByLencoBankName() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'lencoBankName', Sort.asc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy>
+      sortByLencoBankNameDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'lencoBankName', Sort.desc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy> sortByLencoEnabled() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'lencoEnabled', Sort.asc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy>
+      sortByLencoEnabledDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'lencoEnabled', Sort.desc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy>
+      sortByLencoEnvironment() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'lencoEnvironment', Sort.asc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy>
+      sortByLencoEnvironmentDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'lencoEnvironment', Sort.desc);
+    });
+  }
+
   QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy> sortByLogoPath() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'logoPath', Sort.asc);
@@ -22738,6 +24119,99 @@ extension StoreConfigQuerySortThenBy
     });
   }
 
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy> thenByLencoAccountId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'lencoAccountId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy>
+      thenByLencoAccountIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'lencoAccountId', Sort.desc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy>
+      thenByLencoAccountName() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'lencoAccountName', Sort.asc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy>
+      thenByLencoAccountNameDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'lencoAccountName', Sort.desc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy>
+      thenByLencoAccountNumber() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'lencoAccountNumber', Sort.asc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy>
+      thenByLencoAccountNumberDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'lencoAccountNumber', Sort.desc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy> thenByLencoApiKey() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'lencoApiKey', Sort.asc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy> thenByLencoApiKeyDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'lencoApiKey', Sort.desc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy> thenByLencoBankName() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'lencoBankName', Sort.asc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy>
+      thenByLencoBankNameDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'lencoBankName', Sort.desc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy> thenByLencoEnabled() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'lencoEnabled', Sort.asc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy>
+      thenByLencoEnabledDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'lencoEnabled', Sort.desc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy>
+      thenByLencoEnvironment() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'lencoEnvironment', Sort.asc);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy>
+      thenByLencoEnvironmentDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'lencoEnvironment', Sort.desc);
+    });
+  }
+
   QueryBuilder<StoreConfig, StoreConfig, QAfterSortBy> thenByLogoPath() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'logoPath', Sort.asc);
@@ -23261,6 +24735,59 @@ extension StoreConfigQueryWhereDistinct
     });
   }
 
+  QueryBuilder<StoreConfig, StoreConfig, QDistinct> distinctByLencoAccountId(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'lencoAccountId',
+          caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QDistinct> distinctByLencoAccountName(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'lencoAccountName',
+          caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QDistinct>
+      distinctByLencoAccountNumber({bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'lencoAccountNumber',
+          caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QDistinct> distinctByLencoApiKey(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'lencoApiKey', caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QDistinct> distinctByLencoBankName(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'lencoBankName',
+          caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QDistinct> distinctByLencoEnabled() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'lencoEnabled');
+    });
+  }
+
+  QueryBuilder<StoreConfig, StoreConfig, QDistinct> distinctByLencoEnvironment(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'lencoEnvironment',
+          caseSensitive: caseSensitive);
+    });
+  }
+
   QueryBuilder<StoreConfig, StoreConfig, QDistinct> distinctByLogoPath(
       {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
@@ -23632,6 +25159,52 @@ extension StoreConfigQueryProperty
       lastCloudSyncDateProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'lastCloudSyncDate');
+    });
+  }
+
+  QueryBuilder<StoreConfig, String?, QQueryOperations>
+      lencoAccountIdProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'lencoAccountId');
+    });
+  }
+
+  QueryBuilder<StoreConfig, String?, QQueryOperations>
+      lencoAccountNameProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'lencoAccountName');
+    });
+  }
+
+  QueryBuilder<StoreConfig, String?, QQueryOperations>
+      lencoAccountNumberProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'lencoAccountNumber');
+    });
+  }
+
+  QueryBuilder<StoreConfig, String?, QQueryOperations> lencoApiKeyProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'lencoApiKey');
+    });
+  }
+
+  QueryBuilder<StoreConfig, String?, QQueryOperations> lencoBankNameProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'lencoBankName');
+    });
+  }
+
+  QueryBuilder<StoreConfig, bool, QQueryOperations> lencoEnabledProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'lencoEnabled');
+    });
+  }
+
+  QueryBuilder<StoreConfig, String, QQueryOperations>
+      lencoEnvironmentProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'lencoEnvironment');
     });
   }
 
@@ -48098,78 +49671,83 @@ const StoreBranchSchema = CollectionSchema(
       name: r'bhfId',
       type: IsarType.string,
     ),
-    r'code': PropertySchema(
+    r'cloudStoreId': PropertySchema(
       id: 2,
+      name: r'cloudStoreId',
+      type: IsarType.long,
+    ),
+    r'code': PropertySchema(
+      id: 3,
       name: r'code',
       type: IsarType.string,
     ),
     r'createdAt': PropertySchema(
-      id: 3,
+      id: 4,
       name: r'createdAt',
       type: IsarType.dateTime,
     ),
     r'email': PropertySchema(
-      id: 4,
+      id: 5,
       name: r'email',
       type: IsarType.string,
     ),
     r'isHQ': PropertySchema(
-      id: 5,
+      id: 6,
       name: r'isHQ',
       type: IsarType.bool,
     ),
     r'managerId': PropertySchema(
-      id: 6,
+      id: 7,
       name: r'managerId',
       type: IsarType.string,
     ),
     r'managerName': PropertySchema(
-      id: 7,
+      id: 8,
       name: r'managerName',
       type: IsarType.string,
     ),
     r'managerPhone': PropertySchema(
-      id: 8,
+      id: 9,
       name: r'managerPhone',
       type: IsarType.string,
     ),
     r'mrcNo': PropertySchema(
-      id: 9,
+      id: 10,
       name: r'mrcNo',
       type: IsarType.string,
     ),
     r'name': PropertySchema(
-      id: 10,
+      id: 11,
       name: r'name',
       type: IsarType.string,
     ),
     r'phone': PropertySchema(
-      id: 11,
+      id: 12,
       name: r'phone',
       type: IsarType.string,
     ),
     r'salesToday': PropertySchema(
-      id: 12,
+      id: 13,
       name: r'salesToday',
       type: IsarType.double,
     ),
     r'sdcId': PropertySchema(
-      id: 13,
+      id: 14,
       name: r'sdcId',
       type: IsarType.string,
     ),
     r'status': PropertySchema(
-      id: 14,
+      id: 15,
       name: r'status',
       type: IsarType.string,
     ),
     r'tpin': PropertySchema(
-      id: 15,
+      id: 16,
       name: r'tpin',
       type: IsarType.string,
     ),
     r'zraStatus': PropertySchema(
-      id: 16,
+      id: 17,
       name: r'zraStatus',
       type: IsarType.string,
     )
@@ -48203,6 +49781,19 @@ const StoreBranchSchema = CollectionSchema(
           name: r'bhfId',
           type: IndexType.hash,
           caseSensitive: true,
+        )
+      ],
+    ),
+    r'cloudStoreId': IndexSchema(
+      id: -5959126805800750427,
+      name: r'cloudStoreId',
+      unique: false,
+      replace: false,
+      properties: [
+        IndexPropertySchema(
+          name: r'cloudStoreId',
+          type: IndexType.value,
+          caseSensitive: false,
         )
       ],
     ),
@@ -48299,21 +49890,22 @@ void _storeBranchSerialize(
 ) {
   writer.writeString(offsets[0], object.address);
   writer.writeString(offsets[1], object.bhfId);
-  writer.writeString(offsets[2], object.code);
-  writer.writeDateTime(offsets[3], object.createdAt);
-  writer.writeString(offsets[4], object.email);
-  writer.writeBool(offsets[5], object.isHQ);
-  writer.writeString(offsets[6], object.managerId);
-  writer.writeString(offsets[7], object.managerName);
-  writer.writeString(offsets[8], object.managerPhone);
-  writer.writeString(offsets[9], object.mrcNo);
-  writer.writeString(offsets[10], object.name);
-  writer.writeString(offsets[11], object.phone);
-  writer.writeDouble(offsets[12], object.salesToday);
-  writer.writeString(offsets[13], object.sdcId);
-  writer.writeString(offsets[14], object.status);
-  writer.writeString(offsets[15], object.tpin);
-  writer.writeString(offsets[16], object.zraStatus);
+  writer.writeLong(offsets[2], object.cloudStoreId);
+  writer.writeString(offsets[3], object.code);
+  writer.writeDateTime(offsets[4], object.createdAt);
+  writer.writeString(offsets[5], object.email);
+  writer.writeBool(offsets[6], object.isHQ);
+  writer.writeString(offsets[7], object.managerId);
+  writer.writeString(offsets[8], object.managerName);
+  writer.writeString(offsets[9], object.managerPhone);
+  writer.writeString(offsets[10], object.mrcNo);
+  writer.writeString(offsets[11], object.name);
+  writer.writeString(offsets[12], object.phone);
+  writer.writeDouble(offsets[13], object.salesToday);
+  writer.writeString(offsets[14], object.sdcId);
+  writer.writeString(offsets[15], object.status);
+  writer.writeString(offsets[16], object.tpin);
+  writer.writeString(offsets[17], object.zraStatus);
 }
 
 StoreBranch _storeBranchDeserialize(
@@ -48325,22 +49917,23 @@ StoreBranch _storeBranchDeserialize(
   final object = StoreBranch();
   object.address = reader.readStringOrNull(offsets[0]);
   object.bhfId = reader.readString(offsets[1]);
-  object.code = reader.readString(offsets[2]);
-  object.createdAt = reader.readDateTime(offsets[3]);
-  object.email = reader.readStringOrNull(offsets[4]);
+  object.cloudStoreId = reader.readLong(offsets[2]);
+  object.code = reader.readString(offsets[3]);
+  object.createdAt = reader.readDateTime(offsets[4]);
+  object.email = reader.readStringOrNull(offsets[5]);
   object.id = id;
-  object.isHQ = reader.readBool(offsets[5]);
-  object.managerId = reader.readStringOrNull(offsets[6]);
-  object.managerName = reader.readStringOrNull(offsets[7]);
-  object.managerPhone = reader.readStringOrNull(offsets[8]);
-  object.mrcNo = reader.readStringOrNull(offsets[9]);
-  object.name = reader.readString(offsets[10]);
-  object.phone = reader.readStringOrNull(offsets[11]);
-  object.salesToday = reader.readDouble(offsets[12]);
-  object.sdcId = reader.readStringOrNull(offsets[13]);
-  object.status = reader.readString(offsets[14]);
-  object.tpin = reader.readString(offsets[15]);
-  object.zraStatus = reader.readString(offsets[16]);
+  object.isHQ = reader.readBool(offsets[6]);
+  object.managerId = reader.readStringOrNull(offsets[7]);
+  object.managerName = reader.readStringOrNull(offsets[8]);
+  object.managerPhone = reader.readStringOrNull(offsets[9]);
+  object.mrcNo = reader.readStringOrNull(offsets[10]);
+  object.name = reader.readString(offsets[11]);
+  object.phone = reader.readStringOrNull(offsets[12]);
+  object.salesToday = reader.readDouble(offsets[13]);
+  object.sdcId = reader.readStringOrNull(offsets[14]);
+  object.status = reader.readString(offsets[15]);
+  object.tpin = reader.readString(offsets[16]);
+  object.zraStatus = reader.readString(offsets[17]);
   return object;
 }
 
@@ -48356,15 +49949,15 @@ P _storeBranchDeserializeProp<P>(
     case 1:
       return (reader.readString(offset)) as P;
     case 2:
-      return (reader.readString(offset)) as P;
+      return (reader.readLong(offset)) as P;
     case 3:
-      return (reader.readDateTime(offset)) as P;
+      return (reader.readString(offset)) as P;
     case 4:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readDateTime(offset)) as P;
     case 5:
-      return (reader.readBool(offset)) as P;
-    case 6:
       return (reader.readStringOrNull(offset)) as P;
+    case 6:
+      return (reader.readBool(offset)) as P;
     case 7:
       return (reader.readStringOrNull(offset)) as P;
     case 8:
@@ -48372,18 +49965,20 @@ P _storeBranchDeserializeProp<P>(
     case 9:
       return (reader.readStringOrNull(offset)) as P;
     case 10:
-      return (reader.readString(offset)) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 11:
-      return (reader.readStringOrNull(offset)) as P;
-    case 12:
-      return (reader.readDouble(offset)) as P;
-    case 13:
-      return (reader.readStringOrNull(offset)) as P;
-    case 14:
       return (reader.readString(offset)) as P;
+    case 12:
+      return (reader.readStringOrNull(offset)) as P;
+    case 13:
+      return (reader.readDouble(offset)) as P;
+    case 14:
+      return (reader.readStringOrNull(offset)) as P;
     case 15:
       return (reader.readString(offset)) as P;
     case 16:
+      return (reader.readString(offset)) as P;
+    case 17:
       return (reader.readString(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -48463,6 +50058,14 @@ extension StoreBranchQueryWhereSort
   QueryBuilder<StoreBranch, StoreBranch, QAfterWhere> anyId() {
     return QueryBuilder.apply(this, (query) {
       return query.addWhereClause(const IdWhereClause.any());
+    });
+  }
+
+  QueryBuilder<StoreBranch, StoreBranch, QAfterWhere> anyCloudStoreId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(
+        const IndexWhereClause.any(indexName: r'cloudStoreId'),
+      );
     });
   }
 
@@ -48630,6 +50233,98 @@ extension StoreBranchQueryWhere
               includeUpper: false,
             ));
       }
+    });
+  }
+
+  QueryBuilder<StoreBranch, StoreBranch, QAfterWhereClause> cloudStoreIdEqualTo(
+      int cloudStoreId) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.equalTo(
+        indexName: r'cloudStoreId',
+        value: [cloudStoreId],
+      ));
+    });
+  }
+
+  QueryBuilder<StoreBranch, StoreBranch, QAfterWhereClause>
+      cloudStoreIdNotEqualTo(int cloudStoreId) {
+    return QueryBuilder.apply(this, (query) {
+      if (query.whereSort == Sort.asc) {
+        return query
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'cloudStoreId',
+              lower: [],
+              upper: [cloudStoreId],
+              includeUpper: false,
+            ))
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'cloudStoreId',
+              lower: [cloudStoreId],
+              includeLower: false,
+              upper: [],
+            ));
+      } else {
+        return query
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'cloudStoreId',
+              lower: [cloudStoreId],
+              includeLower: false,
+              upper: [],
+            ))
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'cloudStoreId',
+              lower: [],
+              upper: [cloudStoreId],
+              includeUpper: false,
+            ));
+      }
+    });
+  }
+
+  QueryBuilder<StoreBranch, StoreBranch, QAfterWhereClause>
+      cloudStoreIdGreaterThan(
+    int cloudStoreId, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'cloudStoreId',
+        lower: [cloudStoreId],
+        includeLower: include,
+        upper: [],
+      ));
+    });
+  }
+
+  QueryBuilder<StoreBranch, StoreBranch, QAfterWhereClause>
+      cloudStoreIdLessThan(
+    int cloudStoreId, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'cloudStoreId',
+        lower: [],
+        upper: [cloudStoreId],
+        includeUpper: include,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreBranch, StoreBranch, QAfterWhereClause> cloudStoreIdBetween(
+    int lowerCloudStoreId,
+    int upperCloudStoreId, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'cloudStoreId',
+        lower: [lowerCloudStoreId],
+        includeLower: includeLower,
+        upper: [upperCloudStoreId],
+        includeUpper: includeUpper,
+      ));
     });
   }
 
@@ -49007,6 +50702,62 @@ extension StoreBranchQueryFilter
       return query.addFilterCondition(FilterCondition.greaterThan(
         property: r'bhfId',
         value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<StoreBranch, StoreBranch, QAfterFilterCondition>
+      cloudStoreIdEqualTo(int value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'cloudStoreId',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreBranch, StoreBranch, QAfterFilterCondition>
+      cloudStoreIdGreaterThan(
+    int value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'cloudStoreId',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreBranch, StoreBranch, QAfterFilterCondition>
+      cloudStoreIdLessThan(
+    int value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'cloudStoreId',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreBranch, StoreBranch, QAfterFilterCondition>
+      cloudStoreIdBetween(
+    int lower,
+    int upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'cloudStoreId',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
       ));
     });
   }
@@ -50950,6 +52701,19 @@ extension StoreBranchQuerySortBy
     });
   }
 
+  QueryBuilder<StoreBranch, StoreBranch, QAfterSortBy> sortByCloudStoreId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'cloudStoreId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<StoreBranch, StoreBranch, QAfterSortBy>
+      sortByCloudStoreIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'cloudStoreId', Sort.desc);
+    });
+  }
+
   QueryBuilder<StoreBranch, StoreBranch, QAfterSortBy> sortByCode() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'code', Sort.asc);
@@ -51155,6 +52919,19 @@ extension StoreBranchQuerySortThenBy
   QueryBuilder<StoreBranch, StoreBranch, QAfterSortBy> thenByBhfIdDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'bhfId', Sort.desc);
+    });
+  }
+
+  QueryBuilder<StoreBranch, StoreBranch, QAfterSortBy> thenByCloudStoreId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'cloudStoreId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<StoreBranch, StoreBranch, QAfterSortBy>
+      thenByCloudStoreIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'cloudStoreId', Sort.desc);
     });
   }
 
@@ -51368,6 +53145,12 @@ extension StoreBranchQueryWhereDistinct
     });
   }
 
+  QueryBuilder<StoreBranch, StoreBranch, QDistinct> distinctByCloudStoreId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'cloudStoreId');
+    });
+  }
+
   QueryBuilder<StoreBranch, StoreBranch, QDistinct> distinctByCode(
       {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
@@ -51488,6 +53271,12 @@ extension StoreBranchQueryProperty
   QueryBuilder<StoreBranch, String, QQueryOperations> bhfIdProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'bhfId');
+    });
+  }
+
+  QueryBuilder<StoreBranch, int, QQueryOperations> cloudStoreIdProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'cloudStoreId');
     });
   }
 

@@ -349,6 +349,10 @@ class PostgresSyncService {
         'business_tax_type': config.businessTaxType,
         'digitax_api_key': config.digitaxApiKey,
         'digitax_environment': config.digitaxEnvironment,
+        'lenco_api_key': config.lencoApiKey,
+        'lenco_environment': config.lencoEnvironment,
+        'lenco_account_id': config.lencoAccountId,
+        'lenco_enabled': config.lencoEnabled,
         'sdc_id': config.sdcId,
         'mrc_no': config.mrcNo,
         'address': config.address,
@@ -372,6 +376,10 @@ class PostgresSyncService {
             'business_tax_type': config.businessTaxType,
             'digitax_api_key': config.digitaxApiKey,
             'digitax_environment': config.digitaxEnvironment,
+            'lenco_api_key': config.lencoApiKey,
+            'lenco_environment': config.lencoEnvironment,
+            'lenco_account_id': config.lencoAccountId,
+            'lenco_enabled': config.lencoEnabled,
             'sdc_id': config.sdcId,
             'mrc_no': config.mrcNo,
             'address': config.address,
@@ -446,6 +454,18 @@ class PostgresSyncService {
         }
         if (targetStore['branch_name'] != null) {
           config?.branchName = targetStore['branch_name']?.toString();
+        }
+        if (targetStore['lenco_api_key'] != null) {
+          config?.lencoApiKey = targetStore['lenco_api_key']?.toString();
+        }
+        if (targetStore['lenco_environment'] != null) {
+          config?.lencoEnvironment = targetStore['lenco_environment']?.toString() ?? 'sandbox';
+        }
+        if (targetStore['lenco_account_id'] != null) {
+          config?.lencoAccountId = targetStore['lenco_account_id']?.toString();
+        }
+        if (targetStore['lenco_enabled'] != null) {
+          config?.lencoEnabled = targetStore['lenco_enabled'] == true;
         }
         if (config != null) {
           await isar.storeConfigs.put(config);

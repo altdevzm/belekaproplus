@@ -21,6 +21,10 @@ class StoreBase(BaseModel):
     business_tax_type: Optional[str] = "VAT_STANDARD"
     digitax_api_key: Optional[str] = None
     digitax_environment: Optional[str] = "sandbox"
+    lenco_api_key: Optional[str] = None
+    lenco_environment: Optional[str] = "sandbox"
+    lenco_account_id: Optional[str] = None
+    lenco_enabled: Optional[bool] = False
 
 class StoreCreate(StoreBase):
     pass
@@ -44,6 +48,10 @@ class StoreUpdate(BaseModel):
     business_tax_type: Optional[str] = None
     digitax_api_key: Optional[str] = None
     digitax_environment: Optional[str] = None
+    lenco_api_key: Optional[str] = None
+    lenco_environment: Optional[str] = None
+    lenco_account_id: Optional[str] = None
+    lenco_enabled: Optional[bool] = None
 
 class StoreResponse(StoreBase):
     id: int
@@ -309,3 +317,41 @@ class CloudBackupUploadResponse(BaseModel):
     message: str
     snapshot_filename: Optional[str] = None
     records_saved: Optional[dict] = None
+
+# ==========================================
+# LENCO PAYMENT GATEWAY SCHEMAS
+# ==========================================
+
+class LencoMobileMoneyRequest(BaseModel):
+    store_id: int
+    amount: float
+    reference: str
+    phone: str
+    operator: str  # airtel, mtn, zamtel
+    country: Optional[str] = "zm"
+    bearer: Optional[str] = "merchant"
+
+class LencoResolveBankRequest(BaseModel):
+    store_id: Optional[int] = None
+    account_number: str
+    bank_id: str
+    country: Optional[str] = "zm"
+
+class LencoResolveBankResponse(BaseModel):
+    status: bool
+    message: Optional[str] = ""
+    account_name: Optional[str] = None
+    account_number: Optional[str] = None
+    bank_name: Optional[str] = None
+    bank_id: Optional[str] = None
+
+class LencoResolveMoMoRequest(BaseModel):
+    store_id: Optional[int] = None
+    phone: str
+    operator: str
+    country: Optional[str] = "zm"
+
+class LencoTestCredentialsRequest(BaseModel):
+    api_key: str
+    environment: Optional[str] = "sandbox"
+

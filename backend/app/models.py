@@ -27,6 +27,10 @@ class Store(Base):
     business_tax_type = Column(String(50), default="VAT_STANDARD")
     digitax_api_key = Column(String(255), nullable=True)
     digitax_environment = Column(String(20), default="sandbox")
+    lenco_api_key = Column(String(255), nullable=True)
+    lenco_environment = Column(String(20), default="sandbox")
+    lenco_account_id = Column(String(100), nullable=True)
+    lenco_enabled = Column(Boolean, default=False)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
@@ -170,6 +174,11 @@ class SaleTransaction(Base):
     zra_mark_id = Column(String(100), nullable=True)
     zra_qr_code = Column(Text, nullable=True)
     zra_status = Column(String(50), default="pending")
+
+    # Lenco Payment Gateway Metadata
+    lenco_reference = Column(String(100), nullable=True, index=True)
+    lenco_status = Column(String(50), nullable=True)
+    payment_details = Column(JSON, nullable=True)
 
     timestamp = Column(DateTime(timezone=True), server_default=func.now(), index=True)
     is_synced = Column(Boolean, default=True)

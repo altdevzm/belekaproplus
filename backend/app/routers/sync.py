@@ -247,7 +247,15 @@ def sync_inventory(
         ).first()
         product_data = product_in.model_dump()
         product_data.pop("category_id", None)
-        category_id = product_in.category_id if (product_in.category_id or 0) > 0 else None
+        category_id = None
+        if (product_in.category_id or 0) > 0:
+            cat_exists = db.query(models.Category.id).filter(
+                models.Category.id == product_in.category_id,
+                models.Category.store_id == payload.store_id,
+            ).first()
+            if cat_exists:
+                category_id = product_in.category_id
+
         if product is None:
             product = models.Product(
                 store_id=payload.store_id,
@@ -259,8 +267,7 @@ def sync_inventory(
         else:
             for key, value in product_data.items():
                 setattr(product, key, value)
-            if category_id is not None:
-                product.category_id = category_id
+            product.category_id = category_id
         products_by_sku[product_in.sku] = product
 
     movement_count = 0
