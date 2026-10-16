@@ -1827,6 +1827,14 @@ class DigiTaxInventoryService {
       debugPrint(
         'DIGITAX_SALES_ERROR: [HTTP ${dioErr.response?.statusCode}] ${dioErr.response?.data ?? dioErr.message}',
       );
+      if (dioErr.response?.statusCode == 409 ||
+          dioErr.response?.data?.toString().contains('trader_invoice_number has already been used') == true) {
+        transaction.zraStatus = 'FISCALIZED';
+        await db.isar.writeTxn(() async {
+          await db.isar.saleTransactions.put(transaction);
+        });
+        return true;
+      }
     } catch (e) {
       debugPrint('DIGITAX_SALES_EXCEPTION: $e');
     }
