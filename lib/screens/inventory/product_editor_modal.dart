@@ -2114,6 +2114,7 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
             branchCode: branchBhfId,
             movementType: movementType,
             reasonNotes: 'Product Editor update',
+            throwOnError: true,
           );
         } catch (e) {
           syncErr = e.toString();
@@ -2147,8 +2148,17 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
         } else if (syncErr != null) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Product saved locally. DigiTax: $syncErr'),
-              backgroundColor: const Color(0xFFF59E0B),
+              content: Text('Saved locally. DigiTax Notice: $syncErr'),
+              backgroundColor: const Color(0xFFD97706),
+              duration: const Duration(seconds: 5),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('${product.name} saved locally. DigiTax sync queued.'),
+              backgroundColor: const Color(0xFF64748B),
+              duration: const Duration(seconds: 3),
             ),
           );
         }

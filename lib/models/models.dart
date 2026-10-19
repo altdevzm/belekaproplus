@@ -724,7 +724,7 @@ class StoreBranch {
   late String name;
   
   @Index()
-  late String bhfId; // ZRA Branch Code ('00' = HQ, '01', '02', etc.)
+  late String bhfId; // ZRA Branch Code (3 digits: '001' = HQ, '002', '003', etc.)
   
   String tpin = '1000000000';
   String? sdcId;
@@ -732,6 +732,10 @@ class StoreBranch {
   String? address;
   String? phone;
   String? email;
+
+  // Branch-isolated DigiTax API Key & Environment
+  String? digitaxApiKey;
+  String digitaxEnvironment = 'production'; // 'production', 'sandbox'
   
   String? managerId;
   String? managerName;

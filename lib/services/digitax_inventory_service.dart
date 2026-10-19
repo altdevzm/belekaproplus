@@ -193,6 +193,44 @@ class DigiTaxInventoryService {
     return trimmed;
   }
 
+  /// Resolves the isolated DigiTax API key for a specific branch.
+  /// Each branch MUST have its own isolated API key and isolated catalog.
+  Future<String?> resolveBranchApiKey(String? branchCode) async {
+    final db = ref.read(databaseServiceProvider);
+    final config = ref.read(storeConfigProvider).value ??
+        await db.isar.storeConfigs.where().findFirst();
+
+    final normConfig = normalizeBranchCode(config?.bhfId);
+    final targetBhf = normalizeBranchCode(branchCode, defaultBhfId: normConfig);
+
+    // 1. If this branch matches this device's configured store, use that key
+    if (targetBhf == normConfig &&
+        config?.digitaxApiKey?.trim().isNotEmpty == true) {
+      return config!.digitaxApiKey!.trim();
+    }
+
+    // 2. Look up the branch in StoreBranch collection
+    final branch = await db.isar.storeBranchs
+        .filter()
+        .bhfIdEqualTo(targetBhf)
+        .or()
+        .codeEqualTo(targetBhf)
+        .findFirst();
+
+    if (branch?.digitaxApiKey?.trim().isNotEmpty == true) {
+      return branch!.digitaxApiKey!.trim();
+    }
+
+    // 3. Fallback to active config key ONLY if target is HQ / main store
+    if (targetBhf == '00' || targetBhf == '000' || targetBhf == '001' || targetBhf == normConfig) {
+      return config?.digitaxApiKey?.trim();
+    }
+
+    // For any isolated non-HQ branch with no key of its own, return null to prevent
+    // contaminating another branch's or HQ's catalog!
+    return null;
+  }
+
   /// Purge all duplicate products in the local database, keeping only one unique entry per name/SKU per branch
   Future<int> deduplicateLocalProducts({String? branchCode}) async {
     final db = ref.read(databaseServiceProvider);
@@ -493,17 +531,7 @@ class DigiTaxInventoryService {
       final localSql = ref.read(localSqlServiceProvider);
       final config = await db.isar.storeConfigs.where().findFirst();
 
-      final apiKey = config?.digitaxApiKey?.trim();
-      if (apiKey == null || apiKey.isEmpty) {
-        return const DigiTaxSyncResult(
-          success: false,
-          statusCode: 401,
-          message:
-              'DigiTax Secret API Key is not configured. Go to Settings > DigiTax & ZRA to set your Sandbox API Key.',
-        );
-      }
-
-      // 1. Purge any duplicate records first
+      // 1. Purge any duplicate records first within the target branch
       final cleanedDups = await deduplicateLocalProducts(
         branchCode: branchCode,
       );
@@ -520,6 +548,17 @@ class DigiTaxInventoryService {
         bhfId = currentUser.branchCode!.trim();
       } else {
         bhfId = configuredBhfId;
+      }
+
+      // 2. Resolve the isolated DigiTax API key for THIS specific branch
+      final apiKey = await resolveBranchApiKey(bhfId);
+      if (apiKey == null || apiKey.isEmpty) {
+        return DigiTaxSyncResult(
+          success: false,
+          statusCode: 401,
+          message:
+              'DigiTax Secret API Key is not configured for branch $bhfId. Each branch must have its own isolated DigiTax API key.',
+        );
       }
 
       final isCurrentHq = isOwner || bhfId == configuredBhfId;
@@ -760,12 +799,6 @@ class DigiTaxInventoryService {
             });
             pushedCount++;
           } else {
-            if (bhfId != '00') {
-              // DigiTax has one universal catalog. A branch-only product must
-              // remain local until HQ registers it as a shared master item.
-              continue;
-            }
-
             // Strictly valid payload per company tax system
             final isTot =
                 config?.businessTaxType == 'TURNOVER_TAX' ||
@@ -802,14 +835,12 @@ class DigiTaxInventoryService {
                       : (p.unitOfMeasure.toLowerCase() == 'ltr' || p.unitOfMeasure.toLowerCase() == 'l'
                           ? "L"
                           : (p.unitOfMeasure.toLowerCase() == 'm' ? "M" : "U"))),
-              "vat_category_code": (isTot || p.zraTaxCode == 'TOT' || p.zraTaxCode == 'D')
+              "vat_category_code": (isTot || p.zraTaxCode == 'TOT' || p.zraTaxCode == 'D' || p.zraTaxCode == 'E' || p.zraTaxCode == 'C' || isExempt || p.taxRate == 0)
                   ? "D"
-                  : (p.zraTaxCode == 'E' || p.zraTaxCode == 'C' || isExempt
-                      ? "E"
-                      : (p.zraTaxCode == 'B'
-                          ? "B"
-                          : (p.taxRate == 0 ? "E" : "A"))),
-              if (isTot || p.zraTaxCode == 'TOT' || p.zraTaxCode == 'D') "tot_category_code": "TOT",
+                  : (p.zraTaxCode == 'B'
+                      ? "B"
+                      : "A"),
+              if (isTot || p.zraTaxCode == 'TOT' || p.zraTaxCode == 'D' || p.zraTaxCode == 'E' || isExempt) "tot_category_code": "TOT",
               "default_unit_price": p.price > 0 ? p.price : 1.0,
               "recommended_retail_price": p.price > 0 ? p.price : 1.0,
               "stock_quantity": p.stockLevel > 0 ? p.stockLevel : 0,
@@ -922,6 +953,7 @@ class DigiTaxInventoryService {
     String? branchCode,
     String? movementType,
     String? reasonNotes,
+    bool throwOnError = false,
   }) async {
     if (!product.isDigitaxSyncEnabled) {
       debugPrint(
@@ -943,9 +975,12 @@ class DigiTaxInventoryService {
                           ? config!.bhfId.trim().padLeft(2, '0')
                           : '00')));
 
-    final apiKey = config?.digitaxApiKey?.trim();
+    final apiKey = await resolveBranchApiKey(effectiveBranchCode);
     if (apiKey == null || apiKey.isEmpty) {
-      debugPrint('DIGITAX_SINGLE_PUSH: API Key is missing');
+      debugPrint('DIGITAX_SINGLE_PUSH: DigiTax API Key is missing for branch $effectiveBranchCode');
+      if (throwOnError) {
+        throw 'Branch $effectiveBranchCode does not have its own DigiTax API Key configured.';
+      }
       return false;
     }
 
@@ -1081,14 +1116,12 @@ class DigiTaxInventoryService {
                   : (product.unitOfMeasure.toLowerCase() == 'ltr' || product.unitOfMeasure.toLowerCase() == 'l'
                       ? "L"
                       : (product.unitOfMeasure.toLowerCase() == 'm' ? "M" : "U"))),
-          "vat_category_code": (isTot || product.zraTaxCode == 'TOT' || product.zraTaxCode == 'D')
+          "vat_category_code": (isTot || product.zraTaxCode == 'TOT' || product.zraTaxCode == 'D' || product.zraTaxCode == 'E' || product.zraTaxCode == 'C' || isExempt || product.taxRate == 0)
               ? "D"
-              : (product.zraTaxCode == 'E' || product.zraTaxCode == 'C' || isExempt
-                  ? "E"
-                  : (product.zraTaxCode == 'B'
-                      ? "B"
-                      : (product.taxRate == 0 ? "E" : "A"))),
-          if (isTot || product.zraTaxCode == 'TOT' || product.zraTaxCode == 'D') "tot_category_code": "TOT",
+              : (product.zraTaxCode == 'B'
+                  ? "B"
+                  : "A"),
+          if (isTot || product.zraTaxCode == 'TOT' || product.zraTaxCode == 'D' || product.zraTaxCode == 'E' || isExempt) "tot_category_code": "TOT",
           "default_unit_price": product.price > 0 ? product.price : 1.0,
           "recommended_retail_price": product.price > 0 ? product.price : 1.0,
           "stock_quantity": product.stockLevel > 0 ? product.stockLevel : 0,
@@ -1132,6 +1165,8 @@ class DigiTaxInventoryService {
                   "quantity": product.stockLevel.abs(),
                   "action": "ADD",
                   "movement_type": movementType ?? "01",
+                  "bhf_id": effectiveBranchCode,
+                  "branch_code": effectiveBranchCode,
                 },
                 options: Options(headers: headers),
               );
@@ -1144,6 +1179,13 @@ class DigiTaxInventoryService {
           }
 
           return true;
+        } else {
+          final serverMsg = resp.data is Map
+              ? (resp.data['message'] ?? resp.data['error'] ?? resp.data.toString())
+              : resp.data.toString();
+          if (throwOnError) {
+            throw 'DigiTax HTTP ${resp.statusCode}: $serverMsg';
+          }
         }
       }
     } on DioException catch (dioErr) {
@@ -1159,8 +1201,15 @@ class DigiTaxInventoryService {
         return true;
       }
       debugPrint('DIGITAX_SINGLE_PUSH_DIO_ERROR: $dioErr');
+      if (throwOnError) {
+        final serverMsg = dioErr.response?.data is Map
+            ? (dioErr.response?.data['message'] ?? dioErr.response?.data['error'] ?? dioErr.response?.data.toString())
+            : (dioErr.response?.data?.toString() ?? dioErr.message);
+        throw 'DigiTax HTTP ${dioErr.response?.statusCode ?? 'ERR'}: $serverMsg';
+      }
     } catch (e) {
       debugPrint('DIGITAX_SINGLE_PUSH_ERROR: $e');
+      if (throwOnError) rethrow;
     }
     return false;
   }
@@ -1192,9 +1241,9 @@ class DigiTaxInventoryService {
                     ? config!.bhfId.trim().padLeft(2, '0')
                     : '00'));
 
-    final apiKey = config?.digitaxApiKey?.trim();
+    final apiKey = await resolveBranchApiKey(resolvedBranchCode);
     if (apiKey == null || apiKey.isEmpty) {
-      debugPrint('DIGITAX_STOCK_ADJUST_SKIP: API Key is missing');
+      debugPrint('DIGITAX_STOCK_ADJUST_SKIP: API Key is missing for branch $resolvedBranchCode');
       return false;
     }
 
@@ -1312,9 +1361,16 @@ class DigiTaxInventoryService {
     final db = ref.read(databaseServiceProvider);
     final config = ref.read(storeConfigProvider).value;
 
-    final apiKey = config?.digitaxApiKey?.trim();
+    final currentUser = ref.read(authProvider);
+    final resolvedBhfId = (currentUser?.branchCode != null && currentUser!.branchCode!.trim().isNotEmpty)
+        ? currentUser.branchCode!.trim().padLeft(2, '0')
+        : (config?.bhfId.trim().isNotEmpty == true
+            ? config!.bhfId.trim().padLeft(2, '0')
+            : '00');
+
+    final apiKey = await resolveBranchApiKey(resolvedBhfId);
     if (apiKey == null || apiKey.isEmpty) {
-      debugPrint('DIGITAX_SALES: Cannot fiscalize - API Key is missing.');
+      debugPrint('DIGITAX_SALES: Cannot fiscalize - API Key is missing for branch $resolvedBhfId.');
       return false;
     }
 
@@ -1510,12 +1566,6 @@ class DigiTaxInventoryService {
       paymentCode = '06';
     }
 
-    final currentUser = ref.read(authProvider);
-    final resolvedBhfId = (currentUser?.branchCode != null && currentUser!.branchCode!.trim().isNotEmpty)
-        ? currentUser.branchCode!.trim().padLeft(2, '0')
-        : (config?.bhfId.trim().isNotEmpty == true
-            ? config!.bhfId.trim().padLeft(2, '0')
-            : '00');
     final customerTpin = transaction.customerTpin?.trim();
     final customerName =
         (transaction.customerBusinessName != null &&

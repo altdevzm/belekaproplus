@@ -49686,68 +49686,78 @@ const StoreBranchSchema = CollectionSchema(
       name: r'createdAt',
       type: IsarType.dateTime,
     ),
-    r'email': PropertySchema(
+    r'digitaxApiKey': PropertySchema(
       id: 5,
+      name: r'digitaxApiKey',
+      type: IsarType.string,
+    ),
+    r'digitaxEnvironment': PropertySchema(
+      id: 6,
+      name: r'digitaxEnvironment',
+      type: IsarType.string,
+    ),
+    r'email': PropertySchema(
+      id: 7,
       name: r'email',
       type: IsarType.string,
     ),
     r'isHQ': PropertySchema(
-      id: 6,
+      id: 8,
       name: r'isHQ',
       type: IsarType.bool,
     ),
     r'managerId': PropertySchema(
-      id: 7,
+      id: 9,
       name: r'managerId',
       type: IsarType.string,
     ),
     r'managerName': PropertySchema(
-      id: 8,
+      id: 10,
       name: r'managerName',
       type: IsarType.string,
     ),
     r'managerPhone': PropertySchema(
-      id: 9,
+      id: 11,
       name: r'managerPhone',
       type: IsarType.string,
     ),
     r'mrcNo': PropertySchema(
-      id: 10,
+      id: 12,
       name: r'mrcNo',
       type: IsarType.string,
     ),
     r'name': PropertySchema(
-      id: 11,
+      id: 13,
       name: r'name',
       type: IsarType.string,
     ),
     r'phone': PropertySchema(
-      id: 12,
+      id: 14,
       name: r'phone',
       type: IsarType.string,
     ),
     r'salesToday': PropertySchema(
-      id: 13,
+      id: 15,
       name: r'salesToday',
       type: IsarType.double,
     ),
     r'sdcId': PropertySchema(
-      id: 14,
+      id: 16,
       name: r'sdcId',
       type: IsarType.string,
     ),
     r'status': PropertySchema(
-      id: 15,
+      id: 17,
       name: r'status',
       type: IsarType.string,
     ),
     r'tpin': PropertySchema(
-      id: 16,
+      id: 18,
       name: r'tpin',
       type: IsarType.string,
     ),
     r'zraStatus': PropertySchema(
-      id: 17,
+      id: 19,
       name: r'zraStatus',
       type: IsarType.string,
     )
@@ -49834,6 +49844,13 @@ int _storeBranchEstimateSize(
   bytesCount += 3 + object.bhfId.length * 3;
   bytesCount += 3 + object.code.length * 3;
   {
+    final value = object.digitaxApiKey;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
+  bytesCount += 3 + object.digitaxEnvironment.length * 3;
+  {
     final value = object.email;
     if (value != null) {
       bytesCount += 3 + value.length * 3;
@@ -49893,19 +49910,21 @@ void _storeBranchSerialize(
   writer.writeLong(offsets[2], object.cloudStoreId);
   writer.writeString(offsets[3], object.code);
   writer.writeDateTime(offsets[4], object.createdAt);
-  writer.writeString(offsets[5], object.email);
-  writer.writeBool(offsets[6], object.isHQ);
-  writer.writeString(offsets[7], object.managerId);
-  writer.writeString(offsets[8], object.managerName);
-  writer.writeString(offsets[9], object.managerPhone);
-  writer.writeString(offsets[10], object.mrcNo);
-  writer.writeString(offsets[11], object.name);
-  writer.writeString(offsets[12], object.phone);
-  writer.writeDouble(offsets[13], object.salesToday);
-  writer.writeString(offsets[14], object.sdcId);
-  writer.writeString(offsets[15], object.status);
-  writer.writeString(offsets[16], object.tpin);
-  writer.writeString(offsets[17], object.zraStatus);
+  writer.writeString(offsets[5], object.digitaxApiKey);
+  writer.writeString(offsets[6], object.digitaxEnvironment);
+  writer.writeString(offsets[7], object.email);
+  writer.writeBool(offsets[8], object.isHQ);
+  writer.writeString(offsets[9], object.managerId);
+  writer.writeString(offsets[10], object.managerName);
+  writer.writeString(offsets[11], object.managerPhone);
+  writer.writeString(offsets[12], object.mrcNo);
+  writer.writeString(offsets[13], object.name);
+  writer.writeString(offsets[14], object.phone);
+  writer.writeDouble(offsets[15], object.salesToday);
+  writer.writeString(offsets[16], object.sdcId);
+  writer.writeString(offsets[17], object.status);
+  writer.writeString(offsets[18], object.tpin);
+  writer.writeString(offsets[19], object.zraStatus);
 }
 
 StoreBranch _storeBranchDeserialize(
@@ -49920,20 +49939,22 @@ StoreBranch _storeBranchDeserialize(
   object.cloudStoreId = reader.readLong(offsets[2]);
   object.code = reader.readString(offsets[3]);
   object.createdAt = reader.readDateTime(offsets[4]);
-  object.email = reader.readStringOrNull(offsets[5]);
+  object.digitaxApiKey = reader.readStringOrNull(offsets[5]);
+  object.digitaxEnvironment = reader.readString(offsets[6]);
+  object.email = reader.readStringOrNull(offsets[7]);
   object.id = id;
-  object.isHQ = reader.readBool(offsets[6]);
-  object.managerId = reader.readStringOrNull(offsets[7]);
-  object.managerName = reader.readStringOrNull(offsets[8]);
-  object.managerPhone = reader.readStringOrNull(offsets[9]);
-  object.mrcNo = reader.readStringOrNull(offsets[10]);
-  object.name = reader.readString(offsets[11]);
-  object.phone = reader.readStringOrNull(offsets[12]);
-  object.salesToday = reader.readDouble(offsets[13]);
-  object.sdcId = reader.readStringOrNull(offsets[14]);
-  object.status = reader.readString(offsets[15]);
-  object.tpin = reader.readString(offsets[16]);
-  object.zraStatus = reader.readString(offsets[17]);
+  object.isHQ = reader.readBool(offsets[8]);
+  object.managerId = reader.readStringOrNull(offsets[9]);
+  object.managerName = reader.readStringOrNull(offsets[10]);
+  object.managerPhone = reader.readStringOrNull(offsets[11]);
+  object.mrcNo = reader.readStringOrNull(offsets[12]);
+  object.name = reader.readString(offsets[13]);
+  object.phone = reader.readStringOrNull(offsets[14]);
+  object.salesToday = reader.readDouble(offsets[15]);
+  object.sdcId = reader.readStringOrNull(offsets[16]);
+  object.status = reader.readString(offsets[17]);
+  object.tpin = reader.readString(offsets[18]);
+  object.zraStatus = reader.readString(offsets[19]);
   return object;
 }
 
@@ -49957,28 +49978,32 @@ P _storeBranchDeserializeProp<P>(
     case 5:
       return (reader.readStringOrNull(offset)) as P;
     case 6:
-      return (reader.readBool(offset)) as P;
+      return (reader.readString(offset)) as P;
     case 7:
       return (reader.readStringOrNull(offset)) as P;
     case 8:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readBool(offset)) as P;
     case 9:
       return (reader.readStringOrNull(offset)) as P;
     case 10:
       return (reader.readStringOrNull(offset)) as P;
     case 11:
-      return (reader.readString(offset)) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 12:
       return (reader.readStringOrNull(offset)) as P;
     case 13:
-      return (reader.readDouble(offset)) as P;
+      return (reader.readString(offset)) as P;
     case 14:
       return (reader.readStringOrNull(offset)) as P;
     case 15:
-      return (reader.readString(offset)) as P;
+      return (reader.readDouble(offset)) as P;
     case 16:
-      return (reader.readString(offset)) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 17:
+      return (reader.readString(offset)) as P;
+    case 18:
+      return (reader.readString(offset)) as P;
+    case 19:
       return (reader.readString(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -50945,6 +50970,296 @@ extension StoreBranchQueryFilter
         includeLower: includeLower,
         upper: upper,
         includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreBranch, StoreBranch, QAfterFilterCondition>
+      digitaxApiKeyIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'digitaxApiKey',
+      ));
+    });
+  }
+
+  QueryBuilder<StoreBranch, StoreBranch, QAfterFilterCondition>
+      digitaxApiKeyIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'digitaxApiKey',
+      ));
+    });
+  }
+
+  QueryBuilder<StoreBranch, StoreBranch, QAfterFilterCondition>
+      digitaxApiKeyEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'digitaxApiKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreBranch, StoreBranch, QAfterFilterCondition>
+      digitaxApiKeyGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'digitaxApiKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreBranch, StoreBranch, QAfterFilterCondition>
+      digitaxApiKeyLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'digitaxApiKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreBranch, StoreBranch, QAfterFilterCondition>
+      digitaxApiKeyBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'digitaxApiKey',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreBranch, StoreBranch, QAfterFilterCondition>
+      digitaxApiKeyStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'digitaxApiKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreBranch, StoreBranch, QAfterFilterCondition>
+      digitaxApiKeyEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'digitaxApiKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreBranch, StoreBranch, QAfterFilterCondition>
+      digitaxApiKeyContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'digitaxApiKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreBranch, StoreBranch, QAfterFilterCondition>
+      digitaxApiKeyMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'digitaxApiKey',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreBranch, StoreBranch, QAfterFilterCondition>
+      digitaxApiKeyIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'digitaxApiKey',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<StoreBranch, StoreBranch, QAfterFilterCondition>
+      digitaxApiKeyIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'digitaxApiKey',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<StoreBranch, StoreBranch, QAfterFilterCondition>
+      digitaxEnvironmentEqualTo(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'digitaxEnvironment',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreBranch, StoreBranch, QAfterFilterCondition>
+      digitaxEnvironmentGreaterThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'digitaxEnvironment',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreBranch, StoreBranch, QAfterFilterCondition>
+      digitaxEnvironmentLessThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'digitaxEnvironment',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreBranch, StoreBranch, QAfterFilterCondition>
+      digitaxEnvironmentBetween(
+    String lower,
+    String upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'digitaxEnvironment',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreBranch, StoreBranch, QAfterFilterCondition>
+      digitaxEnvironmentStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'digitaxEnvironment',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreBranch, StoreBranch, QAfterFilterCondition>
+      digitaxEnvironmentEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'digitaxEnvironment',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreBranch, StoreBranch, QAfterFilterCondition>
+      digitaxEnvironmentContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'digitaxEnvironment',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreBranch, StoreBranch, QAfterFilterCondition>
+      digitaxEnvironmentMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'digitaxEnvironment',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StoreBranch, StoreBranch, QAfterFilterCondition>
+      digitaxEnvironmentIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'digitaxEnvironment',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<StoreBranch, StoreBranch, QAfterFilterCondition>
+      digitaxEnvironmentIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'digitaxEnvironment',
+        value: '',
       ));
     });
   }
@@ -52738,6 +53053,33 @@ extension StoreBranchQuerySortBy
     });
   }
 
+  QueryBuilder<StoreBranch, StoreBranch, QAfterSortBy> sortByDigitaxApiKey() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'digitaxApiKey', Sort.asc);
+    });
+  }
+
+  QueryBuilder<StoreBranch, StoreBranch, QAfterSortBy>
+      sortByDigitaxApiKeyDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'digitaxApiKey', Sort.desc);
+    });
+  }
+
+  QueryBuilder<StoreBranch, StoreBranch, QAfterSortBy>
+      sortByDigitaxEnvironment() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'digitaxEnvironment', Sort.asc);
+    });
+  }
+
+  QueryBuilder<StoreBranch, StoreBranch, QAfterSortBy>
+      sortByDigitaxEnvironmentDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'digitaxEnvironment', Sort.desc);
+    });
+  }
+
   QueryBuilder<StoreBranch, StoreBranch, QAfterSortBy> sortByEmail() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'email', Sort.asc);
@@ -52959,6 +53301,33 @@ extension StoreBranchQuerySortThenBy
     });
   }
 
+  QueryBuilder<StoreBranch, StoreBranch, QAfterSortBy> thenByDigitaxApiKey() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'digitaxApiKey', Sort.asc);
+    });
+  }
+
+  QueryBuilder<StoreBranch, StoreBranch, QAfterSortBy>
+      thenByDigitaxApiKeyDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'digitaxApiKey', Sort.desc);
+    });
+  }
+
+  QueryBuilder<StoreBranch, StoreBranch, QAfterSortBy>
+      thenByDigitaxEnvironment() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'digitaxEnvironment', Sort.asc);
+    });
+  }
+
+  QueryBuilder<StoreBranch, StoreBranch, QAfterSortBy>
+      thenByDigitaxEnvironmentDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'digitaxEnvironment', Sort.desc);
+    });
+  }
+
   QueryBuilder<StoreBranch, StoreBranch, QAfterSortBy> thenByEmail() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'email', Sort.asc);
@@ -53164,6 +53533,22 @@ extension StoreBranchQueryWhereDistinct
     });
   }
 
+  QueryBuilder<StoreBranch, StoreBranch, QDistinct> distinctByDigitaxApiKey(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'digitaxApiKey',
+          caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<StoreBranch, StoreBranch, QDistinct>
+      distinctByDigitaxEnvironment({bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'digitaxEnvironment',
+          caseSensitive: caseSensitive);
+    });
+  }
+
   QueryBuilder<StoreBranch, StoreBranch, QDistinct> distinctByEmail(
       {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
@@ -53289,6 +53674,19 @@ extension StoreBranchQueryProperty
   QueryBuilder<StoreBranch, DateTime, QQueryOperations> createdAtProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'createdAt');
+    });
+  }
+
+  QueryBuilder<StoreBranch, String?, QQueryOperations> digitaxApiKeyProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'digitaxApiKey');
+    });
+  }
+
+  QueryBuilder<StoreBranch, String, QQueryOperations>
+      digitaxEnvironmentProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'digitaxEnvironment');
     });
   }
 
