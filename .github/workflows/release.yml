@@ -161,6 +161,9 @@ jobs:
       - name: Flutter pub get
         run: flutter pub get
 
+      - name: Accept Android licenses
+        run: yes | sdkmanager --licenses 2>/dev/null || true
+
       - name: Build Android APK
         run: flutter build apk --release --build-name=${{ needs.create-release.outputs.version }}
 

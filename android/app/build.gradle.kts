@@ -7,7 +7,9 @@ plugins {
 android {
     namespace = "com.belekapos.beleka_pos"
     compileSdk = 36
-    ndkVersion = flutter.ndkVersion
+    val ciNdk = File(System.getenv("ANDROID_HOME") ?: (System.getenv("ANDROID_SDK_ROOT") ?: "/usr/local/lib/android/sdk"), "ndk")
+        .listFiles()?.map { it.name }?.sortedDescending()?.firstOrNull()
+    ndkVersion = if (System.getenv("CI") == "true" && ciNdk != null) ciNdk else flutter.ndkVersion
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
