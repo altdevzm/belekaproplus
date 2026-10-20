@@ -941,142 +941,150 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                         child: _buildPaymentMethodSelector(context),
                       ),
 
-                      // Tender / Quick Note Buttons (When CASH and cart not empty)
+                      // Tender / Quick Note Buttons (CASH only) or Digital Payment Prompt
                       if (cartState.items.isNotEmpty &&
-                          _selectedPaymentMethod.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              // Tender display row with tap to open numpad
-                              InkWell(
-                                onTap: () => _showQuickNumpadSheet(
-                                  context,
-                                  cartNotifier,
-                                  currency,
-                                ),
-                                borderRadius: BorderRadius.circular(8),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 8,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: isDark
-                                        ? const Color(0xFF1E293B)
-                                        : const Color(0xFFF1F5F9),
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(color: borderColor),
-                                  ),
-                                  child: Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Text(
-                                        'TENDERED:',
-                                        style: GoogleFonts.inter(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w700,
-                                          color: theme
-                                              .colorScheme
-                                              .onSurfaceVariant,
-                                        ),
-                                      ),
-                                      Row(
-                                        children: [
-                                          Text(
-                                            _tenderedAmount == 0
-                                                ? 'ENTER AMOUNT'
-                                                : CurrencyFormatter.format(
-                                                    _tenderedAmount,
-                                                    currency,
-                                                  ),
-                                            style: GoogleFonts.inter(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.w800,
-                                              color: _tenderedAmount == 0
-                                                  ? theme
-                                                        .colorScheme
-                                                        .onSurfaceVariant
-                                                        .withValues(alpha: 0.6)
-                                                  : primaryColor,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Icon(
-                                            Icons.dialpad_rounded,
-                                            size: 16,
-                                            color: primaryColor,
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              // Quick Cash Chips — Wrap so all are visible on PC without horizontal scroll
-                              Wrap(
-                                spacing: 6,
-                                runSpacing: 6,
-                                children: [
-                                  _buildSquareQuickNoteChip(
-                                    context,
-                                    1,
-                                    currency,
-                                  ),
-                                  _buildSquareQuickNoteChip(
-                                    context,
-                                    2,
-                                    currency,
-                                  ),
-                                  _buildSquareQuickNoteChip(
-                                    context,
-                                    5,
-                                    currency,
-                                  ),
-                                  _buildSquareQuickNoteChip(
-                                    context,
-                                    10,
-                                    currency,
-                                  ),
-                                  _buildSquareQuickNoteChip(
-                                    context,
-                                    20,
-                                    currency,
-                                  ),
-                                  _buildSquareQuickNoteChip(
-                                    context,
-                                    50,
-                                    currency,
-                                  ),
-                                  _buildSquareQuickNoteChip(
-                                    context,
-                                    100,
-                                    currency,
-                                  ),
-                                  _buildSquareQuickNoteChip(
-                                    context,
-                                    200,
-                                    currency,
-                                  ),
-                                  _buildSquareQuickNoteChip(
-                                    context,
-                                    500,
-                                    currency,
-                                  ),
-                                  _buildSquareClearChip(context),
-                                  _buildSquareExactChip(
+                          _selectedPaymentMethod.isNotEmpty) ...[
+                        if (_selectedPaymentMethod == 'CASH')
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                // Tender display row with tap to open numpad
+                                InkWell(
+                                  onTap: () => _showQuickNumpadSheet(
                                     context,
                                     cartNotifier,
                                     currency,
                                   ),
-                                ],
-                              ),
-                            ],
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 8,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: isDark
+                                          ? const Color(0xFF1E293B)
+                                          : const Color(0xFFF1F5F9),
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(color: borderColor),
+                                    ),
+                                    child: Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Text(
+                                          'TENDERED:',
+                                          style: GoogleFonts.inter(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w700,
+                                            color: theme
+                                                .colorScheme
+                                                .onSurfaceVariant,
+                                          ),
+                                        ),
+                                        Row(
+                                          children: [
+                                            Text(
+                                              _tenderedAmount == 0
+                                                  ? 'ENTER AMOUNT'
+                                                  : CurrencyFormatter.format(
+                                                      _tenderedAmount,
+                                                      currency,
+                                                    ),
+                                              style: GoogleFonts.inter(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w800,
+                                                color: _tenderedAmount == 0
+                                                    ? theme
+                                                          .colorScheme
+                                                          .onSurfaceVariant
+                                                          .withValues(alpha: 0.6)
+                                                    : primaryColor,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Icon(
+                                              Icons.dialpad_rounded,
+                                              size: 16,
+                                              color: primaryColor,
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                // Quick Cash Chips — Wrap so all are visible on PC without horizontal scroll
+                                Wrap(
+                                  spacing: 6,
+                                  runSpacing: 6,
+                                  children: [
+                                    _buildSquareQuickNoteChip(
+                                      context,
+                                      1,
+                                      currency,
+                                    ),
+                                    _buildSquareQuickNoteChip(
+                                      context,
+                                      2,
+                                      currency,
+                                    ),
+                                    _buildSquareQuickNoteChip(
+                                      context,
+                                      5,
+                                      currency,
+                                    ),
+                                    _buildSquareQuickNoteChip(
+                                      context,
+                                      10,
+                                      currency,
+                                    ),
+                                    _buildSquareQuickNoteChip(
+                                      context,
+                                      20,
+                                      currency,
+                                    ),
+                                    _buildSquareQuickNoteChip(
+                                      context,
+                                      50,
+                                      currency,
+                                    ),
+                                    _buildSquareQuickNoteChip(
+                                      context,
+                                      100,
+                                      currency,
+                                    ),
+                                    _buildSquareQuickNoteChip(
+                                      context,
+                                      200,
+                                      currency,
+                                    ),
+                                    _buildSquareQuickNoteChip(
+                                      context,
+                                      500,
+                                      currency,
+                                    ),
+                                    _buildSquareClearChip(context),
+                                    _buildSquareExactChip(
+                                      context,
+                                      cartNotifier,
+                                      currency,
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          )
+                        else
+                          // Digital payment prompt for MOBILE MONEY, CARD, BANK TRANSFER
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                            child: _buildDigitalPaymentPrompt(context, currency),
                           ),
-                        ),
+                      ],
 
                       // Totals & Complete Sale Button
                       _buildOrderSummary(
@@ -2501,124 +2509,128 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                           const SizedBox(height: 16),
 
                           if (_selectedPaymentMethod.isNotEmpty) ...[
-                            _buildTenderDisplay(context, currency),
-                            const SizedBox(height: 14),
+                            if (_selectedPaymentMethod == 'CASH') ...[
+                              _buildTenderDisplay(context, currency),
+                              const SizedBox(height: 14),
 
-                            // Tender shortcuts for every payment method
-                            SingleChildScrollView(
-                              scrollDirection: Axis.horizontal,
-                              child: Row(
-                                children: [
-                                  _buildNoteChip(
-                                    context,
-                                    20,
-                                    currency,
-                                    () => setModalState(
-                                      () => _tenderedAmount += 20,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  _buildNoteChip(
-                                    context,
-                                    50,
-                                    currency,
-                                    () => setModalState(
-                                      () => _tenderedAmount += 50,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  _buildNoteChip(
-                                    context,
-                                    100,
-                                    currency,
-                                    () => setModalState(
-                                      () => _tenderedAmount += 100,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  _buildNoteChip(
-                                    context,
-                                    200,
-                                    currency,
-                                    () => setModalState(
-                                      () => _tenderedAmount += 200,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  _buildNoteChip(
-                                    context,
-                                    500,
-                                    currency,
-                                    () => setModalState(
-                                      () => _tenderedAmount += 500,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  InkWell(
-                                    onTap: () => setModalState(
-                                      () => _tenderedAmount = total,
-                                    ),
-                                    borderRadius: BorderRadius.circular(8),
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 10,
+                              // Tender shortcuts for CASH only
+                              SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: Row(
+                                  children: [
+                                    _buildNoteChip(
+                                      context,
+                                      20,
+                                      currency,
+                                      () => setModalState(
+                                        () => _tenderedAmount += 20,
                                       ),
-                                      decoration: BoxDecoration(
-                                        color: theme.colorScheme.primary
-                                            .withValues(alpha: 0.12),
-                                        borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    _buildNoteChip(
+                                      context,
+                                      50,
+                                      currency,
+                                      () => setModalState(
+                                        () => _tenderedAmount += 50,
                                       ),
-                                      child: Text(
-                                        'EXACT (${CurrencyFormatter.format(total, currency)})',
-                                        style: GoogleFonts.inter(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w700,
-                                          color: theme.colorScheme.primary,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    _buildNoteChip(
+                                      context,
+                                      100,
+                                      currency,
+                                      () => setModalState(
+                                        () => _tenderedAmount += 100,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    _buildNoteChip(
+                                      context,
+                                      200,
+                                      currency,
+                                      () => setModalState(
+                                        () => _tenderedAmount += 200,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    _buildNoteChip(
+                                      context,
+                                      500,
+                                      currency,
+                                      () => setModalState(
+                                        () => _tenderedAmount += 500,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    InkWell(
+                                      onTap: () => setModalState(
+                                        () => _tenderedAmount = total,
+                                      ),
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 10,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: theme.colorScheme.primary
+                                              .withValues(alpha: 0.12),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: Text(
+                                          'EXACT (${CurrencyFormatter.format(total, currency)})',
+                                          style: GoogleFonts.inter(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w700,
+                                            color: theme.colorScheme.primary,
+                                          ),
                                         ),
                                       ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 14),
+                              const SizedBox(height: 14),
 
-                            // Numeric Keypad
-                            SizedBox(
-                              height: 220,
-                              child: _buildMobileKeypad(context, (key) {
-                                setModalState(() {
-                                  if (key == 'C') {
-                                    _tenderedAmount = 0.0;
-                                  } else if (key == '⌫') {
-                                    String digits = _tenderedAmount
-                                        .toStringAsFixed(2)
-                                        .replaceAll('.', '');
-                                    if (digits.length > 3) {
-                                      digits = digits.substring(
-                                        0,
-                                        digits.length - 1,
-                                      );
-                                      _tenderedAmount =
-                                          double.parse(digits) / 100;
-                                    } else {
+                              // Numeric Keypad
+                              SizedBox(
+                                height: 220,
+                                child: _buildMobileKeypad(context, (key) {
+                                  setModalState(() {
+                                    if (key == 'C') {
                                       _tenderedAmount = 0.0;
+                                    } else if (key == '⌫') {
+                                      String digits = _tenderedAmount
+                                          .toStringAsFixed(2)
+                                          .replaceAll('.', '');
+                                      if (digits.length > 3) {
+                                        digits = digits.substring(
+                                          0,
+                                          digits.length - 1,
+                                        );
+                                        _tenderedAmount =
+                                            double.parse(digits) / 100;
+                                      } else {
+                                        _tenderedAmount = 0.0;
+                                      }
+                                    } else {
+                                      String digits = _tenderedAmount
+                                          .toStringAsFixed(2)
+                                          .replaceAll('.', '');
+                                      if (digits == '000') digits = '';
+                                      digits += key;
+                                      if (digits.length <= 10) {
+                                        _tenderedAmount =
+                                            double.parse(digits) / 100;
+                                      }
                                     }
-                                  } else {
-                                    String digits = _tenderedAmount
-                                        .toStringAsFixed(2)
-                                        .replaceAll('.', '');
-                                    if (digits == '000') digits = '';
-                                    digits += key;
-                                    if (digits.length <= 10) {
-                                      _tenderedAmount =
-                                          double.parse(digits) / 100;
-                                    }
-                                  }
-                                });
-                              }),
-                            ),
+                                  });
+                                }),
+                              ),
+                            ] else
+                              // Digital payment prompt for MOBILE MONEY, CARD, BANK TRANSFER
+                              _buildDigitalPaymentPrompt(context, currency),
                           ],
                         ],
                       ),
