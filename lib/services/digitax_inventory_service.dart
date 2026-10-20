@@ -819,7 +819,7 @@ class DigiTaxInventoryService {
               "item_type_code": "2", // Finished Product
               "item_name": p.name.trim(),
               "origin_nation_code": "ZM",
-              "package_unit_code": (p.unitOfMeasure.toLowerCase().contains('box') || p.unitOfMeasure.toLowerCase().contains('bx') || p.unitOfMeasure.toLowerCase().contains('tab') || p.unitOfMeasure.toLowerCase().contains('stp'))
+              "packing_unit_code": (p.unitOfMeasure.toLowerCase().contains('box') || p.unitOfMeasure.toLowerCase().contains('bx') || p.unitOfMeasure.toLowerCase().contains('tab') || p.unitOfMeasure.toLowerCase().contains('stp'))
                   ? "BX"
                   : (p.unitOfMeasure.toLowerCase().contains('btl') || p.unitOfMeasure.toLowerCase().contains('bottle'))
                       ? "BT"
@@ -1100,7 +1100,7 @@ class DigiTaxInventoryService {
           "item_type_code": "2", // Finished product
           "item_name": product.name.trim(),
           "origin_nation_code": "ZM",
-          "package_unit_code": (product.unitOfMeasure.toLowerCase().contains('box') || product.unitOfMeasure.toLowerCase().contains('bx') || product.unitOfMeasure.toLowerCase().contains('tab') || product.unitOfMeasure.toLowerCase().contains('stp'))
+          "packing_unit_code": (product.unitOfMeasure.toLowerCase().contains('box') || product.unitOfMeasure.toLowerCase().contains('bx') || product.unitOfMeasure.toLowerCase().contains('tab') || product.unitOfMeasure.toLowerCase().contains('stp'))
               ? "BX"
               : (product.unitOfMeasure.toLowerCase().contains('btl') || product.unitOfMeasure.toLowerCase().contains('bottle'))
                   ? "BT"
@@ -1444,7 +1444,7 @@ class DigiTaxInventoryService {
             "item_type_code": "2",
             "item_name": item.productName.trim(),
             "origin_nation_code": "ZM",
-            "package_unit_code": ((localProd?.unitOfMeasure.toLowerCase().contains('box') ?? false) || (localProd?.unitOfMeasure.toLowerCase().contains('bx') ?? false) || (localProd?.unitOfMeasure.toLowerCase().contains('tab') ?? false) || (localProd?.unitOfMeasure.toLowerCase().contains('stp') ?? false))
+            "packing_unit_code": ((localProd?.unitOfMeasure.toLowerCase().contains('box') ?? false) || (localProd?.unitOfMeasure.toLowerCase().contains('bx') ?? false) || (localProd?.unitOfMeasure.toLowerCase().contains('tab') ?? false) || (localProd?.unitOfMeasure.toLowerCase().contains('stp') ?? false))
                 ? "BX"
                 : ((localProd?.unitOfMeasure.toLowerCase().contains('btl') ?? false) || (localProd?.unitOfMeasure.toLowerCase().contains('bottle') ?? false))
                     ? "BT"
