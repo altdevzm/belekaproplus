@@ -362,7 +362,6 @@ class DigiTaxZraService:
             "item_name": name.strip(),
             "origin_nation_code": "ZM",
             "package_unit_code": pkg_unit,
-            "packing_unit_code": pkg_unit,
             "quantity_unit_code": qty_unit,
             "vat_category_code": standard_tax,
             "default_unit_price": price if price > 0 else 1.0,

@@ -851,7 +851,6 @@ class DigiTaxInventoryService {
               "item_name": p.name.trim(),
               "origin_nation_code": "ZM",
               "package_unit_code": _resolvePackageUnitCode(p.unitOfMeasure),
-              "packing_unit_code": _resolvePackageUnitCode(p.unitOfMeasure),
               "quantity_unit_code": _resolveQuantityUnitCode(p.unitOfMeasure),
               "vat_category_code": (isTot || p.zraTaxCode == 'TOT' || p.zraTaxCode == 'D' || p.zraTaxCode == 'E' || p.zraTaxCode == 'C' || isExempt || p.taxRate == 0)
                   ? "D"
@@ -1119,7 +1118,6 @@ class DigiTaxInventoryService {
           "item_name": product.name.trim(),
           "origin_nation_code": "ZM",
           "package_unit_code": _resolvePackageUnitCode(product.unitOfMeasure),
-          "packing_unit_code": _resolvePackageUnitCode(product.unitOfMeasure),
           "quantity_unit_code": _resolveQuantityUnitCode(product.unitOfMeasure),
           "vat_category_code": (isTot || product.zraTaxCode == 'TOT' || product.zraTaxCode == 'D' || product.zraTaxCode == 'E' || product.zraTaxCode == 'C' || isExempt || product.taxRate == 0)
               ? "D"
@@ -1450,7 +1448,6 @@ class DigiTaxInventoryService {
             "item_name": item.productName.trim(),
             "origin_nation_code": "ZM",
             "package_unit_code": _resolvePackageUnitCode(localProd?.unitOfMeasure),
-            "packing_unit_code": _resolvePackageUnitCode(localProd?.unitOfMeasure),
             "quantity_unit_code": _resolveQuantityUnitCode(localProd?.unitOfMeasure),
             "vat_category_code": isTot || (localProd?.zraTaxCode == 'TOT') || (localProd?.zraTaxCode == 'D')
                 ? "D"
