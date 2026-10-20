@@ -92,6 +92,11 @@ class ProductBase(BaseModel):
     tax_rate: Optional[float] = 16.0
     zra_tax_code: Optional[str] = "A"
     item_cls_cd: Optional[str] = "10101501"
+    package_unit_code: Optional[str] = "CT"
+    unit_of_measure: Optional[str] = "kg"
+    is_digitax_sync_enabled: Optional[bool] = True
+    is_synced_with_digitax: Optional[bool] = False
+    branch_code: Optional[str] = "00"
     is_archived: Optional[bool] = False
     discount_price: Optional[float] = None
     # Consignment fields
@@ -159,6 +164,11 @@ class InventoryProductSync(BaseModel):
     tax_rate: Optional[float] = 16.0
     zra_tax_code: Optional[str] = "A"
     item_cls_cd: Optional[str] = "10101501"
+    package_unit_code: Optional[str] = "CT"
+    unit_of_measure: Optional[str] = "kg"
+    is_digitax_sync_enabled: Optional[bool] = True
+    is_synced_with_digitax: Optional[bool] = False
+    branch_code: Optional[str] = "00"
     is_archived: Optional[bool] = False
     discount_price: Optional[float] = None
 

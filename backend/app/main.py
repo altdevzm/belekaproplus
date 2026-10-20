@@ -1,10 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.database import engine, Base, seed_initial_data
+from app.database import engine, Base, seed_initial_data, run_auto_migrations
 from app.routers import auth, users, stores, sync, products, reports, zra_digitax, purchases, tot, tax_statement, expenses, lenco
 
-# Initialize PostgreSQL tables. Account and branch creation must be explicit.
+# Initialize PostgreSQL tables and run migrations
 Base.metadata.create_all(bind=engine)
+run_auto_migrations()
 
 app = FastAPI(
     title="Beleka POS Cloud PostgreSQL API",

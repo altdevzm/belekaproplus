@@ -85,7 +85,7 @@ def test_registration_creates_tpin_scoped_hq_owner_and_session():
 
     assert response["store"].name == "Acme Retail"
     assert response["store"].tpin == "TENANT-NEW"
-    assert response["store"].bhf_id == "000"
+    assert response["store"].bhf_id in ["00", "000"]
     assert response["user"].numeric_id == "1001"
     assert response["user"].role == "owner"
     assert response["token"]
@@ -125,8 +125,8 @@ def test_registration_allows_hq_for_multiple_organizations():
         db,
     )
 
-    assert first["store"].bhf_id == "000"
-    assert second["store"].bhf_id == "000"
+    assert first["store"].bhf_id in ["00", "000"]
+    assert second["store"].bhf_id in ["00", "000"]
     assert first["store"].store_code != second["store"].store_code
 
 

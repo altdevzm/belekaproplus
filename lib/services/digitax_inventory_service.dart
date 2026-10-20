@@ -121,6 +121,37 @@ class DigiTaxInventoryService {
     return <dynamic>[];
   }
 
+  String _resolvePackageUnitCode(String? unitOfMeasure) {
+    final uom = (unitOfMeasure ?? '').trim().toLowerCase();
+    if (uom.contains('box') ||
+        uom.contains('bx') ||
+        uom.contains('tab') ||
+        uom.contains('stp')) {
+      return 'BX';
+    } else if (uom.contains('btl') || uom.contains('bottle')) {
+      return 'BT';
+    } else if (uom.contains('pkt') || uom.contains('pack')) {
+      return 'PK';
+    } else if (uom.contains('can')) {
+      return 'CN';
+    }
+    return 'CT';
+  }
+
+  String _resolveQuantityUnitCode(String? unitOfMeasure) {
+    final uom = (unitOfMeasure ?? '').trim().toLowerCase();
+    if (uom == 'kg') {
+      return 'KG';
+    } else if (uom == 'g') {
+      return 'G';
+    } else if (uom == 'ltr' || uom == 'l') {
+      return 'L';
+    } else if (uom == 'm') {
+      return 'M';
+    }
+    return 'U';
+  }
+
   Future<List<Map<String, dynamic>>> _fetchAllRemoteItems(
     Map<String, String> headers,
   ) async {
@@ -819,22 +850,9 @@ class DigiTaxInventoryService {
               "item_type_code": "2", // Finished Product
               "item_name": p.name.trim(),
               "origin_nation_code": "ZM",
-              "packing_unit_code": (p.unitOfMeasure.toLowerCase().contains('box') || p.unitOfMeasure.toLowerCase().contains('bx') || p.unitOfMeasure.toLowerCase().contains('tab') || p.unitOfMeasure.toLowerCase().contains('stp'))
-                  ? "BX"
-                  : (p.unitOfMeasure.toLowerCase().contains('btl') || p.unitOfMeasure.toLowerCase().contains('bottle'))
-                      ? "BT"
-                      : (p.unitOfMeasure.toLowerCase().contains('pkt') || p.unitOfMeasure.toLowerCase().contains('pack'))
-                          ? "PK"
-                          : (p.unitOfMeasure.toLowerCase().contains('can'))
-                              ? "CN"
-                              : "CT",
-              "quantity_unit_code": p.unitOfMeasure.toLowerCase() == 'kg'
-                  ? "KG"
-                  : (p.unitOfMeasure.toLowerCase() == 'g'
-                      ? "G"
-                      : (p.unitOfMeasure.toLowerCase() == 'ltr' || p.unitOfMeasure.toLowerCase() == 'l'
-                          ? "L"
-                          : (p.unitOfMeasure.toLowerCase() == 'm' ? "M" : "U"))),
+              "package_unit_code": _resolvePackageUnitCode(p.unitOfMeasure),
+              "packing_unit_code": _resolvePackageUnitCode(p.unitOfMeasure),
+              "quantity_unit_code": _resolveQuantityUnitCode(p.unitOfMeasure),
               "vat_category_code": (isTot || p.zraTaxCode == 'TOT' || p.zraTaxCode == 'D' || p.zraTaxCode == 'E' || p.zraTaxCode == 'C' || isExempt || p.taxRate == 0)
                   ? "D"
                   : (p.zraTaxCode == 'B'
@@ -1100,22 +1118,9 @@ class DigiTaxInventoryService {
           "item_type_code": "2", // Finished product
           "item_name": product.name.trim(),
           "origin_nation_code": "ZM",
-          "packing_unit_code": (product.unitOfMeasure.toLowerCase().contains('box') || product.unitOfMeasure.toLowerCase().contains('bx') || product.unitOfMeasure.toLowerCase().contains('tab') || product.unitOfMeasure.toLowerCase().contains('stp'))
-              ? "BX"
-              : (product.unitOfMeasure.toLowerCase().contains('btl') || product.unitOfMeasure.toLowerCase().contains('bottle'))
-                  ? "BT"
-                  : (product.unitOfMeasure.toLowerCase().contains('pkt') || product.unitOfMeasure.toLowerCase().contains('pack'))
-                      ? "PK"
-                      : (product.unitOfMeasure.toLowerCase().contains('can'))
-                          ? "CN"
-                          : "CT",
-          "quantity_unit_code": product.unitOfMeasure.toLowerCase() == 'kg'
-              ? "KG"
-              : (product.unitOfMeasure.toLowerCase() == 'g'
-                  ? "G"
-                  : (product.unitOfMeasure.toLowerCase() == 'ltr' || product.unitOfMeasure.toLowerCase() == 'l'
-                      ? "L"
-                      : (product.unitOfMeasure.toLowerCase() == 'm' ? "M" : "U"))),
+          "package_unit_code": _resolvePackageUnitCode(product.unitOfMeasure),
+          "packing_unit_code": _resolvePackageUnitCode(product.unitOfMeasure),
+          "quantity_unit_code": _resolveQuantityUnitCode(product.unitOfMeasure),
           "vat_category_code": (isTot || product.zraTaxCode == 'TOT' || product.zraTaxCode == 'D' || product.zraTaxCode == 'E' || product.zraTaxCode == 'C' || isExempt || product.taxRate == 0)
               ? "D"
               : (product.zraTaxCode == 'B'
@@ -1444,20 +1449,9 @@ class DigiTaxInventoryService {
             "item_type_code": "2",
             "item_name": item.productName.trim(),
             "origin_nation_code": "ZM",
-            "packing_unit_code": ((localProd?.unitOfMeasure.toLowerCase().contains('box') ?? false) || (localProd?.unitOfMeasure.toLowerCase().contains('bx') ?? false) || (localProd?.unitOfMeasure.toLowerCase().contains('tab') ?? false) || (localProd?.unitOfMeasure.toLowerCase().contains('stp') ?? false))
-                ? "BX"
-                : ((localProd?.unitOfMeasure.toLowerCase().contains('btl') ?? false) || (localProd?.unitOfMeasure.toLowerCase().contains('bottle') ?? false))
-                    ? "BT"
-                    : ((localProd?.unitOfMeasure.toLowerCase().contains('pkt') ?? false) || (localProd?.unitOfMeasure.toLowerCase().contains('pack') ?? false))
-                        ? "PK"
-                        : "CT",
-            "quantity_unit_code": (localProd?.unitOfMeasure.toLowerCase() == 'kg')
-                ? "KG"
-                : ((localProd?.unitOfMeasure.toLowerCase() == 'g')
-                    ? "G"
-                    : ((localProd?.unitOfMeasure.toLowerCase() == 'ltr' || localProd?.unitOfMeasure.toLowerCase() == 'l')
-                        ? "L"
-                        : ((localProd?.unitOfMeasure.toLowerCase() == 'm') ? "M" : "U"))),
+            "package_unit_code": _resolvePackageUnitCode(localProd?.unitOfMeasure),
+            "packing_unit_code": _resolvePackageUnitCode(localProd?.unitOfMeasure),
+            "quantity_unit_code": _resolveQuantityUnitCode(localProd?.unitOfMeasure),
             "vat_category_code": isTot || (localProd?.zraTaxCode == 'TOT') || (localProd?.zraTaxCode == 'D')
                 ? "D"
                 : (((localProd?.zraTaxCode == 'E' || localProd?.zraTaxCode == 'C') || item.taxRateAtSale == 0)

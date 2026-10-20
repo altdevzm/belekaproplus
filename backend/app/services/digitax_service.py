@@ -14,8 +14,34 @@ class DigiTaxZraService:
     Requires only the DigiTax Secret API Key.
     """
 
-    DIGITAX_BASE_URL_SANDBOX = "https://sandbox.digitax.tech/v1/zambia"
-    DIGITAX_BASE_URL_PROD = "https://api.digitax.tech/v1/zambia"
+    DIGITAX_BASE_URL_SANDBOX = "https://api.digitax.tech/zm/v1"
+    DIGITAX_BASE_URL_PROD = "https://api.digitax.tech/zm/v1"
+
+    @staticmethod
+    def _resolve_package_unit(uom: Optional[str]) -> str:
+        u = (uom or "").strip().lower()
+        if any(x in u for x in ["box", "bx", "tab", "stp"]):
+            return "BX"
+        elif any(x in u for x in ["btl", "bottle"]):
+            return "BT"
+        elif any(x in u for x in ["pkt", "pack"]):
+            return "PK"
+        elif "can" in u:
+            return "CN"
+        return "CT"
+
+    @staticmethod
+    def _resolve_quantity_unit(uom: Optional[str]) -> str:
+        u = (uom or "").strip().lower()
+        if u == "kg":
+            return "KG"
+        elif u == "g":
+            return "G"
+        elif u in ["ltr", "l"]:
+            return "L"
+        elif u == "m":
+            return "M"
+        return "U"
 
     @classmethod
     def get_base_url(cls, env: str = "sandbox") -> str:
@@ -322,30 +348,28 @@ class DigiTaxZraService:
         tax_code = item_data.get("zra_tax_code") or item_data.get("taxTyCd") or "A"
         cls_code = item_data.get("item_cls_cd") or item_data.get("itemClsCd") or "10101501"
 
+        pkg_unit = item_data.get("package_unit_code") or DigiTaxZraService._resolve_package_unit(item_data.get("unit_of_measure"))
+        qty_unit = item_data.get("quantity_unit_code") or DigiTaxZraService._resolve_quantity_unit(item_data.get("unit_of_measure"))
+        standard_tax = tax_code if tax_code in ["A", "B", "C", "D", "E"] else "A"
+        if standard_tax == "TOT":
+            standard_tax = "D"
+
+        effective_cls = cls_code if (cls_code and len(cls_code) >= 8 and not cls_code.startswith("item_")) else "56101530"
+
         payload = {
-            "tpin": tpin,
-            "bhfId": bhf_id,
-            "itemCd": sku,
-            "itemNm": name,
-            "itemClsCd": cls_code,
-            "itemTyCd": "2", # 1: Raw Material, 2: Finished Product, 3: Service
-            "taxTyCd": tax_code,
-            "btchNo": item_data.get("batch_no", ""),
-            "bcd": item_data.get("barcode", sku),
-            "dftPrc": price,
-            "grpPrcL1": price,
-            "grpPrcL2": price,
-            "grpPrcL3": price,
-            "grpPrcL4": price,
-            "grpPrcL5": price,
-            "addInfo": "",
-            "sftyStckQty": int(item_data.get("min_stock_level", 0)),
-            "isrcAplcbYn": "N",
-            "useYn": "Y",
-            "regrId": "BELEKA_POS",
-            "regrNm": "Beleka System",
-            "modrId": "BELEKA_POS",
-            "modrNm": "Beleka System"
+            "item_class_code": effective_cls,
+            "item_type_code": "2",  # Finished product
+            "item_name": name.strip(),
+            "origin_nation_code": "ZM",
+            "package_unit_code": pkg_unit,
+            "packing_unit_code": pkg_unit,
+            "quantity_unit_code": qty_unit,
+            "vat_category_code": standard_tax,
+            "default_unit_price": price if price > 0 else 1.0,
+            "recommended_retail_price": price if price > 0 else 1.0,
+            "stock_quantity": int(item_data.get("stock_level") or item_data.get("stock_quantity") or 0),
+            "is_stock_item": True,
+            "bar_code": sku.strip(),
         }
 
         live_sent = False
@@ -357,8 +381,8 @@ class DigiTaxZraService:
                     "X-API-Key": api_key,
                     "Content-Type": "application/json"
                 }
-                # DigiTax endpoint for item registration
-                resp = requests.post(f"{base_url}/items/save", json=payload, headers=headers, timeout=8)
+                # DigiTax Zambia items registration endpoint
+                resp = requests.post(f"{base_url}/items", json=payload, headers=headers, timeout=8)
                 if resp.status_code in [200, 201]:
                     live_sent = True
                     remote_response = resp.json() if resp.text else {}

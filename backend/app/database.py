@@ -46,6 +46,27 @@ def get_db():
     finally:
         db.close()
 
+def run_auto_migrations():
+    """Ensure all required columns exist on PostgreSQL/SQLite for backward-compatibility."""
+    try:
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            if not str(engine.url).startswith("sqlite"):
+                conn.execute(text("""
+                    ALTER TABLE products 
+                    ADD COLUMN IF NOT EXISTS package_unit_code VARCHAR(20) DEFAULT 'CT',
+                    ADD COLUMN IF NOT EXISTS unit_of_measure VARCHAR(50) DEFAULT 'kg',
+                    ADD COLUMN IF NOT EXISTS is_digitax_sync_enabled BOOLEAN DEFAULT TRUE,
+                    ADD COLUMN IF NOT EXISTS is_synced_with_digitax BOOLEAN DEFAULT FALSE,
+                    ADD COLUMN IF NOT EXISTS branch_code VARCHAR(50) DEFAULT '00';
+
+                    CREATE INDEX IF NOT EXISTS idx_products_branch_code ON products(branch_code);
+                    CREATE INDEX IF NOT EXISTS idx_products_digitax_sync ON products(is_synced_with_digitax);
+                """))
+                conn.commit()
+    except Exception as e:
+        print(f"[Auto Migration Note] Products migration notice: {e}")
+
 
 def seed_initial_data():
     """Seed default Store 1 (HQ Store) and Admin User if DB is empty.

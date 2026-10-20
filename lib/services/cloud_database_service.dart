@@ -508,6 +508,19 @@ class CloudDatabaseService {
                 'item_cls_cd': product.itemClsCd,
                 'is_archived': product.isArchived,
                 'discount_price': product.discountPrice,
+                'package_unit_code': (product.unitOfMeasure.toLowerCase().contains('box') || product.unitOfMeasure.toLowerCase().contains('bx') || product.unitOfMeasure.toLowerCase().contains('tab') || product.unitOfMeasure.toLowerCase().contains('stp'))
+                    ? 'BX'
+                    : (product.unitOfMeasure.toLowerCase().contains('btl') || product.unitOfMeasure.toLowerCase().contains('bottle'))
+                        ? 'BT'
+                        : (product.unitOfMeasure.toLowerCase().contains('pkt') || product.unitOfMeasure.toLowerCase().contains('pack'))
+                            ? 'PK'
+                            : (product.unitOfMeasure.toLowerCase().contains('can'))
+                                ? 'CN'
+                                : 'CT',
+                'unit_of_measure': product.unitOfMeasure,
+                'is_digitax_sync_enabled': product.isDigitaxSyncEnabled,
+                'is_synced_with_digitax': product.isSyncedWithDigitax,
+                'branch_code': product.branchCode,
               },
             )
             .toList(),

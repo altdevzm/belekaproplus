@@ -92,6 +92,11 @@ CREATE TABLE IF NOT EXISTS products (
     tax_rate NUMERIC(5,2) DEFAULT 16.00,
     zra_tax_code VARCHAR(10) DEFAULT 'A', -- 'A' (Standard 16%), 'B' (Zero 0%), 'C' (Exempt), 'E' (Non-VAT), 'TOT' (Turnover)
     item_cls_cd VARCHAR(50) DEFAULT '10101501',
+    package_unit_code VARCHAR(20) DEFAULT 'CT',
+    unit_of_measure VARCHAR(50) DEFAULT 'kg',
+    is_digitax_sync_enabled BOOLEAN DEFAULT TRUE,
+    is_synced_with_digitax BOOLEAN DEFAULT FALSE,
+    branch_code VARCHAR(50) DEFAULT '00',
     is_archived BOOLEAN DEFAULT FALSE,
     discount_price NUMERIC(12,2),
     discount_start_date TIMESTAMP WITH TIME ZONE,
