@@ -19,6 +19,10 @@ class DigiTaxZraService:
 
     @staticmethod
     def _resolve_package_unit(uom: Optional[str]) -> str:
+        upper = (uom or "").strip().upper()
+        if upper in ["BO", "PA", "BX", "CT", "CA", "BG", "BA", "RO", "BE", "TB", "AM", "NT", "EACH"]:
+            return upper
+
         u = (uom or "").strip().lower()
         if any(x in u for x in ["box", "bx", "tab", "stp"]):
             return "BX"  # Box
@@ -47,6 +51,12 @@ class DigiTaxZraService:
 
     @staticmethod
     def _resolve_quantity_unit(uom: Optional[str]) -> str:
+        upper = (uom or "").strip().upper()
+        if upper in ["KG", "GRM", "L", "M", "BOT", "U"]:
+            return upper
+        if upper == "BO":
+            return "BOT"
+
         u = (uom or "").strip().lower()
         if u == "kg":
             return "KG"

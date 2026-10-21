@@ -56,7 +56,7 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
   bool _isTaxInclusive = true;
   bool _isWeighted = false;
   bool _isDigitaxSyncEnabled = true;
-  String _unitOfMeasure = 'pcs';
+  String _unitOfMeasure = 'NT';
   String _selectedZraTaxCode = 'A';
   String _selectedItemClsCode = '52151501';
   late TextEditingController _customClsCodeController;
@@ -109,43 +109,129 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
     },
   ];
 
+  /// Official DigiTax & ZRA Packaging Unit Codes (UNECE Rec 21 & Rec 20)
   static const List<Map<String, String>> commonPackagingUnits = [
-    // General Retail & Wholesale
-    {'id': 'pcs', 'name': 'Piece (pcs)', 'group': 'Retail'},
-    {'id': 'box', 'name': 'Box (bx)', 'group': 'Retail/Wholesale'},
-    {'id': 'pkt', 'name': 'Packet (pkt)', 'group': 'Retail'},
-    {'id': 'crt', 'name': 'Carton (crt)', 'group': 'Wholesale'},
-    {'id': 'set', 'name': 'Set', 'group': 'Retail'},
-    {'id': 'dz', 'name': 'Dozen (dz)', 'group': 'Wholesale'},
-    {'id': 'pack', 'name': 'Pack (pk)', 'group': 'Retail'},
-    {'id': 'bdl', 'name': 'Bundle (bdl)', 'group': 'Wholesale'},
-    {'id': 'unit', 'name': 'Unit (unit)', 'group': 'General'},
-
-    // Pharmaceuticals & Healthcare
-    {'id': 'tab', 'name': 'Tablet (tab)', 'group': 'Pharmacy'},
-    {'id': 'stp', 'name': 'Strip (stp)', 'group': 'Pharmacy'},
-    {'id': 'btl', 'name': 'Bottle (btl)', 'group': 'Pharmacy/Drinks'},
-    {'id': 'cap', 'name': 'Capsule (cap)', 'group': 'Pharmacy'},
-    {'id': 'sch', 'name': 'Sachet (sch)', 'group': 'Pharmacy/Grocery'},
-    {'id': 'tub', 'name': 'Tube (tub)', 'group': 'Pharmacy/Cosmetics'},
-    {'id': 'via', 'name': 'Vial (via)', 'group': 'Clinical'},
-    {'id': 'amp', 'name': 'Ampoule (amp)', 'group': 'Clinical'},
-
-    // Hardware, Building & Textiles
-    {'id': 'm', 'name': 'Metre (m)', 'group': 'Fabric/Hardware'},
-    {'id': 'rol', 'name': 'Roll (rol)', 'group': 'Fabric/Hardware'},
-    {'id': 'pr', 'name': 'Pair (pr)', 'group': 'Apparel/Shoes'},
-    {'id': 'bag', 'name': 'Bag (bag)', 'group': 'Bulk/Agric'},
-    {'id': 'sht', 'name': 'Sheet (sht)', 'group': 'Hardware'},
-
-    // Food, Butchery & Scale / Liquids
-    {'id': 'kg', 'name': 'Kilogram (kg)', 'group': 'Weight/Scale'},
-    {'id': 'g', 'name': 'Gram (g)', 'group': 'Weight/Scale'},
-    {'id': 'ltr', 'name': 'Litre (ltr)', 'group': 'Liquid'},
-    {'id': 'ml', 'name': 'Millilitre (ml)', 'group': 'Liquid'},
-    {'id': 'can', 'name': 'Can / Tin (can)', 'group': 'Drinks/Food'},
-    {'id': 'lb', 'name': 'Pound (lb)', 'group': 'Weight/Scale'},
+    {
+      'id': 'NT',
+      'code': 'NT',
+      'name': 'Piece / Each / Unit (NT)',
+      'desc': 'Single item, piece, unit (Default retail)',
+      'group': 'Retail',
+    },
+    {
+      'id': 'BO',
+      'code': 'BO',
+      'name': 'Bottle (BO)',
+      'desc': 'Bottled drinks, water, cooking oil, liquid bottles',
+      'group': 'Drinks / Liquids',
+    },
+    {
+      'id': 'PA',
+      'code': 'PA',
+      'name': 'Packet / Pack (PA)',
+      'desc': 'Packets, packs, multi-packs, sachets',
+      'group': 'Packaged Goods',
+    },
+    {
+      'id': 'BX',
+      'code': 'BX',
+      'name': 'Box (BX)',
+      'desc': 'Boxes, cartons, tablet boxes',
+      'group': 'Wholesale / Retail',
+    },
+    {
+      'id': 'CT',
+      'code': 'CT',
+      'name': 'Carton (CT)',
+      'desc': 'Shipping cartons, cases, wholesale boxes',
+      'group': 'Wholesale',
+    },
+    {
+      'id': 'CA',
+      'code': 'CA',
+      'name': 'Can / Tin (CA)',
+      'desc': 'Canned drinks, tinned food, aerosols',
+      'group': 'Cans & Tins',
+    },
+    {
+      'id': 'BG',
+      'code': 'BG',
+      'name': 'Bag (BG)',
+      'desc': 'Mealie meal bags, sugar sacks, cement bags',
+      'group': 'Bulk / Agric',
+    },
+    {
+      'id': 'KG',
+      'code': 'KG',
+      'name': 'Kilogram (KG)',
+      'desc': 'Weighing scale butchery, vegetables, produce',
+      'group': 'Weight / Scale',
+    },
+    {
+      'id': 'GRM',
+      'code': 'GRM',
+      'name': 'Gram (GRM)',
+      'desc': 'Spices, small weight items',
+      'group': 'Weight / Scale',
+    },
+    {
+      'id': 'L',
+      'code': 'L',
+      'name': 'Litre (L)',
+      'desc': 'Milk, liquids, fuel, bulk liquid',
+      'group': 'Liquid',
+    },
+    {
+      'id': 'RO',
+      'code': 'RO',
+      'name': 'Roll (RO)',
+      'desc': 'Fabric rolls, paper rolls, wire rolls',
+      'group': 'Hardware / Fabric',
+    },
+    {
+      'id': 'BE',
+      'code': 'BE',
+      'name': 'Bundle (BE)',
+      'desc': 'Bundles, bales, wholesale groups',
+      'group': 'Wholesale',
+    },
+    {
+      'id': 'TB',
+      'code': 'TB',
+      'name': 'Tub (TB)',
+      'desc': 'Butter tubs, cream tubs, cosmetic tubs',
+      'group': 'Food / Cosmetics',
+    },
+    {
+      'id': 'AM',
+      'code': 'AM',
+      'name': 'Ampoule (AM)',
+      'desc': 'Medical ampoules, injectables',
+      'group': 'Healthcare',
+    },
   ];
+
+  static String normalizeToDigitaxUnit(String? unitOfMeasure, {bool isWeighted = false}) {
+    final raw = (unitOfMeasure ?? '').trim();
+    if (raw.isEmpty) return isWeighted ? 'KG' : 'NT';
+    final upper = raw.toUpperCase();
+    if (['NT', 'BO', 'PA', 'BX', 'CT', 'CA', 'BG', 'RO', 'BE', 'TB', 'AM', 'KG', 'GRM', 'L', 'M'].contains(upper)) {
+      return upper;
+    }
+    final lower = raw.toLowerCase();
+    if (lower == 'pcs' || lower == 'piece' || lower == 'unit' || lower == 'each' || lower == 'item') return 'NT';
+    if (lower.contains('btl') || lower.contains('bottle')) return 'BO';
+    if (lower.contains('pkt') || lower.contains('pack') || lower == 'pk') return 'PA';
+    if (lower.contains('box') || lower.contains('bx') || lower.contains('tab') || lower.contains('stp')) return 'BX';
+    if (lower.contains('carton') || lower == 'ctn' || lower == 'crt') return 'CT';
+    if (lower.contains('can') || lower == 'tin') return 'CA';
+    if (lower.contains('bag') || lower == 'bg') return 'BG';
+    if (lower == 'kg') return 'KG';
+    if (lower == 'g' || lower == 'grm') return 'GRM';
+    if (lower == 'ltr' || lower == 'l') return 'L';
+    if (lower == 'm') return 'M';
+    return upper;
+  }
 
   @override
   void initState() {
@@ -159,11 +245,8 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
     
     // Scale & Unit properties
     _isWeighted = widget.product?.isWeighted ?? false;
-    _unitOfMeasure = widget.product?.unitOfMeasure ?? (_isWeighted ? 'kg' : 'pcs');
-    if (_unitOfMeasure.isEmpty) {
-      _unitOfMeasure = _isWeighted ? 'kg' : 'pcs';
-    }
-    final isPredefined = commonPackagingUnits.any((u) => u['id']!.toLowerCase() == _unitOfMeasure.toLowerCase());
+    _unitOfMeasure = normalizeToDigitaxUnit(widget.product?.unitOfMeasure, isWeighted: _isWeighted);
+    final isPredefined = commonPackagingUnits.any((u) => u['id']!.toUpperCase() == _unitOfMeasure.toUpperCase());
     _isCustomUnit = !isPredefined && _unitOfMeasure.isNotEmpty;
     _customUnitController = TextEditingController(text: _isCustomUnit ? _unitOfMeasure : '');
 
@@ -827,17 +910,18 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
 
   Widget _buildPackagingUnitSelector(Color accentColor) {
     final bool isCustom = _isCustomUnit;
-    final hasMatch = commonPackagingUnits.any((u) => u['id']!.toLowerCase() == _unitOfMeasure.toLowerCase());
-    final currentDropdownValue = isCustom ? 'custom' : (hasMatch ? _unitOfMeasure.toLowerCase() : 'custom');
+    final hasMatch = commonPackagingUnits.any((u) => u['id']!.toUpperCase() == _unitOfMeasure.toUpperCase());
+    final currentDropdownValue = isCustom ? 'custom' : (hasMatch ? _unitOfMeasure.toUpperCase() : 'custom');
 
     const quickUnits = [
-      {'id': 'pcs', 'label': 'Piece'},
-      {'id': 'box', 'label': 'Box'},
-      {'id': 'tab', 'label': 'Tablet'},
-      {'id': 'stp', 'label': 'Strip'},
-      {'id': 'pkt', 'label': 'Packet'},
-      {'id': 'btl', 'label': 'Bottle'},
-      {'id': 'kg', 'label': 'Kg'},
+      {'id': 'NT', 'label': 'Piece (NT)'},
+      {'id': 'BO', 'label': 'Bottle (BO)'},
+      {'id': 'PA', 'label': 'Packet (PA)'},
+      {'id': 'BX', 'label': 'Box (BX)'},
+      {'id': 'CT', 'label': 'Carton (CT)'},
+      {'id': 'CA', 'label': 'Can (CA)'},
+      {'id': 'BG', 'label': 'Bag (BG)'},
+      {'id': 'KG', 'label': 'Kg (KG)'},
     ];
 
     return Container(
@@ -858,7 +942,7 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                   Icon(Icons.inventory_2_outlined, color: accentColor, size: 18),
                   const SizedBox(width: 8),
                   Text(
-                    'PACKAGING / SELLING UNIT',
+                    'DIGITAX / ZRA PACKAGING UNIT',
                     style: GoogleFonts.manrope(
                       fontSize: 11,
                       fontWeight: FontWeight.w900,
@@ -875,7 +959,7 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
-                  'SELLING AS: ${_unitOfMeasure.toUpperCase()}',
+                  'DIGITAX CODE: ${_unitOfMeasure.toUpperCase()}',
                   style: GoogleFonts.inter(
                     fontSize: 9.5,
                     fontWeight: FontWeight.w800,
@@ -886,12 +970,12 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
             ],
           ),
           const SizedBox(height: 12),
-          // Quick Tap Chips
+          // Quick Tap Chips with DigiTax official abbreviations
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
               children: quickUnits.map((qu) {
-                final isSelected = !_isCustomUnit && _unitOfMeasure.toLowerCase() == qu['id']!;
+                final isSelected = !_isCustomUnit && _unitOfMeasure.toUpperCase() == qu['id']!;
                 return Padding(
                   padding: const EdgeInsets.only(right: 6),
                   child: ChoiceChip(
@@ -925,7 +1009,7 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
             ),
           ),
           const SizedBox(height: 12),
-          // Full Dropdown with categories
+          // Full Dropdown with official DigiTax / ZRA codes
           Container(
             height: 48,
             padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -947,9 +1031,25 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            u['name']!,
-                            style: GoogleFonts.inter(fontSize: 12.5, color: Colors.white, fontWeight: FontWeight.w600),
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: accentColor.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  u['code']!,
+                                  style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w800, color: accentColor),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                u['name']!,
+                                style: GoogleFonts.inter(fontSize: 12.5, color: Colors.white, fontWeight: FontWeight.w600),
+                              ),
+                            ],
                           ),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -973,7 +1073,7 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                         Icon(Icons.edit_note_rounded, size: 16, color: accentColor),
                         const SizedBox(width: 8),
                         Text(
-                          'Custom / Specific Unit...',
+                          'Custom / Specific Code...',
                           style: TextStyle(fontSize: 12.5, color: accentColor, fontWeight: FontWeight.bold),
                         ),
                       ],
@@ -986,7 +1086,7 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                     if (val == 'custom') {
                       _isCustomUnit = true;
                       if (_customUnitController.text.trim().isNotEmpty) {
-                        _unitOfMeasure = _customUnitController.text.trim();
+                        _unitOfMeasure = _customUnitController.text.trim().toUpperCase();
                       }
                     } else {
                       _isCustomUnit = false;
@@ -1084,8 +1184,8 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                 onChanged: (v) {
                   setState(() {
                     _isWeighted = v;
-                    if (v && (_unitOfMeasure == 'pcs' || _unitOfMeasure == 'unit' || _unitOfMeasure == 'box' || _unitOfMeasure == 'tab')) {
-                      _unitOfMeasure = 'kg';
+                    if (v && (_unitOfMeasure == 'pcs' || _unitOfMeasure == 'unit' || _unitOfMeasure == 'box' || _unitOfMeasure == 'tab' || _unitOfMeasure == 'NT' || _unitOfMeasure == 'BX')) {
+                      _unitOfMeasure = 'KG';
                     }
                   });
                 },

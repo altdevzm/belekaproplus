@@ -127,6 +127,15 @@ class DigiTaxInventoryService {
   /// BX (Box), BO (Bottle - NOT BT), PA (Packet/Pack - NOT PK), CA (Can - NOT CN),
   /// CT (Carton), BG (Bag), RO (Roll), BE (Bundle), TB (Tub), AM (Ampoule), NT (Net/Unit).
   String _resolvePackageUnitCode(String? unitOfMeasure) {
+    final upper = (unitOfMeasure ?? '').trim().toUpperCase();
+    // Direct match with official DigiTax/ZRA packaging codes
+    if (upper == 'BO' || upper == 'PA' || upper == 'BX' || upper == 'CT' ||
+        upper == 'CA' || upper == 'BG' || upper == 'BA' || upper == 'RO' ||
+        upper == 'BE' || upper == 'TB' || upper == 'AM' || upper == 'NT' ||
+        upper == 'EACH') {
+      return upper;
+    }
+
     final uom = (unitOfMeasure ?? '').trim().toLowerCase();
     if (uom.contains('box') ||
         uom.contains('bx') ||
@@ -159,6 +168,14 @@ class DigiTaxInventoryService {
   }
 
   String _resolveQuantityUnitCode(String? unitOfMeasure) {
+    final upper = (unitOfMeasure ?? '').trim().toUpperCase();
+    if (upper == 'KG') return 'KG';
+    if (upper == 'GRM') return 'GRM';
+    if (upper == 'L') return 'L';
+    if (upper == 'M') return 'M';
+    if (upper == 'BOT' || upper == 'BO') return 'BOT';
+    if (upper == 'U') return 'U';
+
     final uom = (unitOfMeasure ?? '').trim().toLowerCase();
     if (uom == 'kg') {
       return 'KG';
