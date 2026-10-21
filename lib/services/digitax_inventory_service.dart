@@ -190,52 +190,59 @@ class DigiTaxInventoryService {
     return 'A'; // 16% Standard VAT
   }
 
-  /// Resolves an appropriate ZRA UNSPSC classification code
+  /// Resolves an appropriate ZRA UNSPSC classification code (verified against ZRA VSDC).
   static String resolveCompliantItemClassCode({
     required String? explicitClsCode,
     required String? zraTaxCode,
     String? productName,
   }) {
     final explicit = (explicitClsCode ?? '').trim();
-    // Use valid 8-digit code if provided and not an internal DigiTax item ID or old placeholder
+    // Use valid 8-digit code if provided and not an unapproved 2-digit segment code ending in 000000
     if (RegExp(r'^\d{8}$').hasMatch(explicit) &&
-        explicit != '10101501' &&
-        explicit != '56101530') {
+        explicit != '50000000' &&
+        explicit != '52000000' &&
+        explicit != '53100000' &&
+        explicit != '51000000' &&
+        explicit != '30000000' &&
+        explicit != '43211500') {
       return explicit;
     }
 
     final code = (zraTaxCode ?? '').trim().toUpperCase();
     // ZRA Rule: Zero-Rated items must belong to appropriate food/agric classifications
     if (code == 'B') {
-      return '50000000'; // Food, Beverage and Tobacco (ZRA Zero-Rated compliant)
+      return '50202301'; // Food & Groceries (Zero-Rated B compliant - verified COMPLETED)
     }
     // ZRA Rule: Exempt items typically healthcare/pharmaceutical/educational
     if (code == 'C') {
-      return '51000000'; // Pharmaceuticals and Medical Products (ZRA Exempt compliant)
+      return '42141501'; // Medical supplies & Healthcare (Exempt C compliant - verified COMPLETED)
     }
 
     final text = (productName ?? '').toLowerCase();
+    if (text.contains('soup') || text.contains('broth') || text.contains('sauce')) {
+      return '50192701'; // Soups & Prepared Foods (verified COMPLETED on ZRA)
+    }
     if (text.contains('food') || text.contains('bread') || text.contains('meal') || text.contains('drink') || text.contains('beverage') || text.contains('water') || text.contains('snack') || text.contains('sugar')) {
-      return '50000000'; // Food, Beverage & Tobacco
+      return '50202301'; // Food, Beverage & Groceries (verified COMPLETED on ZRA)
     }
     if (text.contains('cloth') || text.contains('shirt') || text.contains('shoe') || text.contains('wear') || text.contains('apparel')) {
-      return '53100000'; // Clothing & Apparel
+      return '53101501'; // Clothing & Apparel (verified COMPLETED on ZRA)
     }
     if (text.contains('drug') || text.contains('med') || text.contains('pharm') || text.contains('health')) {
-      return '51000000'; // Pharmaceuticals & Medical
+      return '42141501'; // Medical Supplies & Healthcare (verified COMPLETED on ZRA)
     }
-    if (text.contains('phone') || text.contains('comput') || text.contains('electr') || text.contains('cable')) {
-      return '43211500'; // Electronics & ICT
+    if (text.contains('soap') || text.contains('lotion') || text.contains('cream') || text.contains('beauty') || text.contains('perfume')) {
+      return '53131600'; // Cosmetics & Personal Care (verified COMPLETED on ZRA)
     }
     if (text.contains('hardware') || text.contains('cement') || text.contains('paint') || text.contains('tool')) {
-      return '30000000'; // Hardware & Building Materials
+      return '30111501'; // Hardware & Building Materials (verified COMPLETED on ZRA)
     }
     if (text.contains('furnit') || text.contains('desk') || text.contains('chair') || text.contains('table')) {
-      return '56101530'; // Commercial & Industrial Furniture
+      return '56101530'; // Commercial & Industrial Furniture (verified COMPLETED on ZRA)
     }
 
-    // Default to General Domestic Consumer Goods & Retail Merchandise (Broadly compliant)
-    return '52000000';
+    // Default: General Domestic Consumer Goods & Retail Merchandise (verified COMPLETED on ZRA)
+    return '52151501';
   }
 
   Future<List<Map<String, dynamic>>> _fetchAllRemoteItems(

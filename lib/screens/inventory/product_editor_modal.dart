@@ -58,7 +58,7 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
   bool _isDigitaxSyncEnabled = true;
   String _unitOfMeasure = 'pcs';
   String _selectedZraTaxCode = 'A';
-  String _selectedItemClsCode = '52000000';
+  String _selectedItemClsCode = '52151501';
   late TextEditingController _customClsCodeController;
   bool _isCustomClsCode = false;
   late TextEditingController _customUnitController;
@@ -68,12 +68,17 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
 
   static const List<Map<String, String>> commonZraClassifications = [
     {
-      'code': '50000000',
+      'code': '50202301',
       'name': 'Food, Beverage & Groceries',
-      'desc': 'Flour, mealie meal, bread, drinks, snacks & packaged food (Zero-Rated B & Standard A)',
+      'desc': 'Bread, flour, mealie meal, packaged food, drinks & snacks (Standard A & Zero-Rated B)',
     },
     {
-      'code': '52000000',
+      'code': '50192701',
+      'name': 'Soups, Broths & Prepared Foods',
+      'desc': 'Canned soups, dried soups, ready meals, broth & sauces (Standard A & Zero-Rated B)',
+    },
+    {
+      'code': '52151501',
       'name': 'General Consumer & Retail Goods',
       'desc': 'Household goods, domestic essentials, stationery & general retail (Standard A)',
     },
@@ -83,22 +88,17 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
       'desc': 'Soaps, lotions, hair care, detergents, beauty & personal hygiene (Standard A)',
     },
     {
-      'code': '53100000',
+      'code': '53101501',
       'name': 'Clothing, Footwear & Apparel',
       'desc': 'Shirts, dresses, trousers, shoes, garments & textiles (Standard A)',
     },
     {
-      'code': '51000000',
-      'name': 'Pharmaceuticals & Health (Medicines)',
-      'desc': 'Medicines, pharmaceuticals & medical supplies (Exempt C & Zero-Rated B)',
+      'code': '42141501',
+      'name': 'Medical Supplies & Healthcare',
+      'desc': 'Medicines, medical supplies, clinical & healthcare essentials (Exempt C & Zero-Rated B)',
     },
     {
-      'code': '43211500',
-      'name': 'Computers, Phones & Electronics',
-      'desc': 'Laptops, mobile devices, accessories, cables & audio gadgets (Standard A)',
-    },
-    {
-      'code': '30000000',
+      'code': '30111501',
       'name': 'Hardware & Building Materials',
       'desc': 'Tools, paint, cement, electricals, plumbing & construction items (Standard A)',
     },
@@ -212,12 +212,18 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
 
     // ZRA UNSPSC Item Classification
     final rawCls = widget.product?.itemClsCd.trim() ?? '';
-    if (RegExp(r'^\d{8}$').hasMatch(rawCls) && rawCls != '10101501') {
+    if (RegExp(r'^\d{8}$').hasMatch(rawCls) &&
+        rawCls != '50000000' &&
+        rawCls != '52000000' &&
+        rawCls != '53100000' &&
+        rawCls != '51000000' &&
+        rawCls != '30000000' &&
+        rawCls != '43211500') {
       _selectedItemClsCode = rawCls;
     } else {
       _selectedItemClsCode = _selectedZraTaxCode == 'B'
-          ? '50000000'
-          : (_selectedZraTaxCode == 'C' ? '51000000' : '52000000');
+          ? '50202301'
+          : (_selectedZraTaxCode == 'C' ? '42141501' : '52151501');
     }
     final isPredefinedCls = commonZraClassifications.any((c) => c['code'] == _selectedItemClsCode);
     _isCustomClsCode = !isPredefinedCls && _selectedItemClsCode.isNotEmpty;
@@ -1457,8 +1463,8 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                     setState(() {
                       _selectedZraTaxCode = 'C';
                       _taxRateController.text = '0';
-                      if (_selectedItemClsCode == '56101530' || _selectedItemClsCode == '50000000') {
-                        _selectedItemClsCode = '51000000';
+                      if (_selectedItemClsCode == '56101530' || _selectedItemClsCode == '50202301' || _selectedItemClsCode == '50192701') {
+                        _selectedItemClsCode = '42141501';
                       }
                     });
                   },
@@ -1481,8 +1487,8 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                     setState(() {
                       _selectedZraTaxCode = 'B';
                       _taxRateController.text = '0';
-                      if (_selectedItemClsCode == '56101530' || _selectedItemClsCode == '51000000') {
-                        _selectedItemClsCode = '50000000';
+                      if (_selectedItemClsCode == '56101530' || _selectedItemClsCode == '42141501') {
+                        _selectedItemClsCode = '50202301';
                       }
                     });
                   },

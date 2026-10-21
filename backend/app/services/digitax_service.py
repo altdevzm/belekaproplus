@@ -371,14 +371,15 @@ class DigiTaxZraService:
         if standard_tax == "TOT":
             standard_tax = "D"
 
-        effective_cls = cls_code if (cls_code and len(cls_code) >= 8 and not cls_code.startswith("item_") and cls_code != "10101501" and cls_code != "56101530") else None
+        invalid_segments = {"50000000", "52000000", "53100000", "51000000", "30000000", "43211500"}
+        effective_cls = cls_code if (cls_code and len(cls_code) >= 8 and not cls_code.startswith("item_") and cls_code not in invalid_segments) else None
         if not effective_cls:
             if standard_tax == "B":
-                effective_cls = "50000000"  # Food & Beverage / Agricultural supplies (Zero-Rated B)
+                effective_cls = "50202301"  # Food & Beverage / Agricultural supplies (Zero-Rated B)
             elif standard_tax == "C":
-                effective_cls = "51000000"  # Pharmaceuticals & Health (Exempt C)
+                effective_cls = "42141501"  # Medical Supplies & Health (Exempt C)
             else:
-                effective_cls = "52000000"  # General Consumer Goods & Retail (Standard A)
+                effective_cls = "52151501"  # General Consumer Goods & Retail (Standard A)
 
         payload = {
             "item_class_code": effective_cls,
