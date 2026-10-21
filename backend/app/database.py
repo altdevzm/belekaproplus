@@ -54,7 +54,7 @@ def run_auto_migrations():
             if not str(engine.url).startswith("sqlite"):
                 conn.execute(text("""
                     ALTER TABLE products 
-                    ADD COLUMN IF NOT EXISTS package_unit_code VARCHAR(20) DEFAULT 'CT',
+                    ADD COLUMN IF NOT EXISTS package_unit_code VARCHAR(20) DEFAULT 'NT',
                     ADD COLUMN IF NOT EXISTS unit_of_measure VARCHAR(50) DEFAULT 'kg',
                     ADD COLUMN IF NOT EXISTS is_digitax_sync_enabled BOOLEAN DEFAULT TRUE,
                     ADD COLUMN IF NOT EXISTS is_synced_with_digitax BOOLEAN DEFAULT FALSE,

@@ -94,7 +94,7 @@ class Product(Base):
     tax_rate = Column(Numeric(5, 2), default=16.00)
     zra_tax_code = Column(String(10), default="A")
     item_cls_cd = Column(String(50), default="10101501")
-    package_unit_code = Column(String(20), default="CT")
+    package_unit_code = Column(String(20), default="NT")
     unit_of_measure = Column(String(50), default="kg")
     is_digitax_sync_enabled = Column(Boolean, default=True)
     is_synced_with_digitax = Column(Boolean, default=False)

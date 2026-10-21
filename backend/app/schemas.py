@@ -92,7 +92,7 @@ class ProductBase(BaseModel):
     tax_rate: Optional[float] = 16.0
     zra_tax_code: Optional[str] = "A"
     item_cls_cd: Optional[str] = "10101501"
-    package_unit_code: Optional[str] = "CT"
+    package_unit_code: Optional[str] = "NT"
     unit_of_measure: Optional[str] = "kg"
     is_digitax_sync_enabled: Optional[bool] = True
     is_synced_with_digitax: Optional[bool] = False
@@ -164,7 +164,7 @@ class InventoryProductSync(BaseModel):
     tax_rate: Optional[float] = 16.0
     zra_tax_code: Optional[str] = "A"
     item_cls_cd: Optional[str] = "10101501"
-    package_unit_code: Optional[str] = "CT"
+    package_unit_code: Optional[str] = "NT"
     unit_of_measure: Optional[str] = "kg"
     is_digitax_sync_enabled: Optional[bool] = True
     is_synced_with_digitax: Optional[bool] = False

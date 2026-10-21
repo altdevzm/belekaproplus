@@ -21,14 +21,19 @@ class DigiTaxZraService:
     def _resolve_package_unit(uom: Optional[str]) -> str:
         u = (uom or "").strip().lower()
         if any(x in u for x in ["box", "bx", "tab", "stp"]):
-            return "BX"
+            return "BX"  # Box
         elif any(x in u for x in ["btl", "bottle"]):
-            return "BT"
+            return "BT"  # Bottle
         elif any(x in u for x in ["pkt", "pack"]):
-            return "PK"
+            return "PK"  # Package
         elif "can" in u:
-            return "CN"
-        return "CT"
+            return "CN"  # Can
+        elif "carton" in u or u == "ctn":
+            return "CT"  # Carton (explicit only)
+        elif "bag" in u or u == "ba":
+            return "BA"  # Bag/Barrel
+        # Default: NT (Net/None) - standard for pcs, piece, unit, each, item, etc.
+        return "NT"
 
     @staticmethod
     def _resolve_quantity_unit(uom: Optional[str]) -> str:
@@ -354,7 +359,14 @@ class DigiTaxZraService:
         if standard_tax == "TOT":
             standard_tax = "D"
 
-        effective_cls = cls_code if (cls_code and len(cls_code) >= 8 and not cls_code.startswith("item_")) else "56101530"
+        effective_cls = cls_code if (cls_code and len(cls_code) >= 8 and not cls_code.startswith("item_") and cls_code != "10101501" and cls_code != "56101530") else None
+        if not effective_cls:
+            if standard_tax == "B":
+                effective_cls = "50000000"  # Food & Beverage / Agricultural supplies (Zero-Rated B)
+            elif standard_tax == "C":
+                effective_cls = "51000000"  # Pharmaceuticals & Health (Exempt C)
+            else:
+                effective_cls = "52000000"  # General Consumer Goods & Retail (Standard A)
 
         payload = {
             "item_class_code": effective_cls,
@@ -370,6 +382,8 @@ class DigiTaxZraService:
             "is_stock_item": True,
             "bar_code": sku.strip(),
         }
+        if standard_tax == "D" or tax_code == "TOT":
+            payload["tot_category_code"] = "TOT"
 
         live_sent = False
         remote_response = None

@@ -58,10 +58,56 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
   bool _isDigitaxSyncEnabled = true;
   String _unitOfMeasure = 'pcs';
   String _selectedZraTaxCode = 'A';
+  String _selectedItemClsCode = '52000000';
+  late TextEditingController _customClsCodeController;
+  bool _isCustomClsCode = false;
   late TextEditingController _customUnitController;
   bool _isCustomUnit = false;
   int? _selectedCategoryId;
   String? _imagePath;
+
+  static const List<Map<String, String>> commonZraClassifications = [
+    {
+      'code': '50000000',
+      'name': 'Food, Beverage & Groceries',
+      'desc': 'Flour, mealie meal, bread, drinks, snacks & packaged food (Zero-Rated B & Standard A)',
+    },
+    {
+      'code': '52000000',
+      'name': 'General Consumer & Retail Goods',
+      'desc': 'Household goods, domestic essentials, stationery & general retail (Standard A)',
+    },
+    {
+      'code': '53131600',
+      'name': 'Cosmetics, Toiletries & Personal Care',
+      'desc': 'Soaps, lotions, hair care, detergents, beauty & personal hygiene (Standard A)',
+    },
+    {
+      'code': '53100000',
+      'name': 'Clothing, Footwear & Apparel',
+      'desc': 'Shirts, dresses, trousers, shoes, garments & textiles (Standard A)',
+    },
+    {
+      'code': '51000000',
+      'name': 'Pharmaceuticals & Health (Medicines)',
+      'desc': 'Medicines, pharmaceuticals & medical supplies (Exempt C & Zero-Rated B)',
+    },
+    {
+      'code': '43211500',
+      'name': 'Computers, Phones & Electronics',
+      'desc': 'Laptops, mobile devices, accessories, cables & audio gadgets (Standard A)',
+    },
+    {
+      'code': '30000000',
+      'name': 'Hardware & Building Materials',
+      'desc': 'Tools, paint, cement, electricals, plumbing & construction items (Standard A)',
+    },
+    {
+      'code': '56101530',
+      'name': 'Furniture & Office Supplies',
+      'desc': 'Chairs, desks, filing cabinets & commercial fixtures (Standard A)',
+    },
+  ];
 
   static const List<Map<String, String>> commonPackagingUnits = [
     // General Retail & Wholesale
@@ -156,14 +202,26 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
     // ZRA Tax Classification
     _selectedZraTaxCode = widget.product?.zraTaxCode ?? '';
     if (_selectedZraTaxCode.isEmpty) {
-      _selectedZraTaxCode = (widget.product?.taxRate == 0) ? 'E' : 'A';
+      _selectedZraTaxCode = (widget.product?.taxRate == 0) ? 'B' : 'A';
     }
-    if (_selectedZraTaxCode == 'C') _selectedZraTaxCode = 'E';
     if (_selectedZraTaxCode == 'TOT') _selectedZraTaxCode = 'D';
 
     _taxRateController = TextEditingController(
-      text: (widget.product?.taxRate ?? (_selectedZraTaxCode == 'A' ? 16.0 : 0.0)).toStringAsFixed(1).replaceAll('.0', ''),
+      text: (widget.product?.taxRate ?? (_selectedZraTaxCode == 'A' ? 16.0 : (_selectedZraTaxCode == 'D' ? 4.0 : 0.0))).toStringAsFixed(1).replaceAll('.0', ''),
     );
+
+    // ZRA UNSPSC Item Classification
+    final rawCls = widget.product?.itemClsCd.trim() ?? '';
+    if (RegExp(r'^\d{8}$').hasMatch(rawCls) && rawCls != '10101501') {
+      _selectedItemClsCode = rawCls;
+    } else {
+      _selectedItemClsCode = _selectedZraTaxCode == 'B'
+          ? '50000000'
+          : (_selectedZraTaxCode == 'C' ? '51000000' : '52000000');
+    }
+    final isPredefinedCls = commonZraClassifications.any((c) => c['code'] == _selectedItemClsCode);
+    _isCustomClsCode = !isPredefinedCls && _selectedItemClsCode.isNotEmpty;
+    _customClsCodeController = TextEditingController(text: _selectedItemClsCode);
     
     _selectedCategoryId = widget.product?.categoryId;
     _imagePath = widget.product?.imagePath;
@@ -182,6 +240,7 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
     _scalePluController.dispose();
     _taxRateController.dispose();
     _customUnitController.dispose();
+    _customClsCodeController.dispose();
     _commissionRateController.dispose();
     _supplierPayoutPriceController.dispose();
     super.dispose();
@@ -1261,7 +1320,7 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
   }
 
   Widget _buildTaxSection(Color accentColor) {
-    final isExempt = _selectedZraTaxCode == 'E' || _selectedZraTaxCode == 'C';
+    final isExempt = _selectedZraTaxCode == 'C';
     final isZeroRated = _selectedZraTaxCode == 'B';
     final isStandard = _selectedZraTaxCode == 'A';
     final isTot = _selectedZraTaxCode == 'D' || _selectedZraTaxCode == 'TOT';
@@ -1310,9 +1369,9 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                       const SizedBox(height: 2),
                       Text(
                         isExempt
-                            ? 'Code E • 0% VAT Exempt (Medicines, Medical Supplies & Books)'
+                            ? 'Code C • 0% VAT Exempt (Medicines, Medical Supplies & Books)'
                             : (isZeroRated
-                                ? 'Code B • 0% Zero-Rated (Mealie Meal, Bread, Milk, Exports)'
+                                ? 'Code B • 0% Zero-Rated (Mealie Meal, Bread, Milk, Produce)'
                                 : (isTot
                                     ? 'Code D • Turnover Tax (TOT Presumptive 4%)'
                                     : 'Code A • 16% Standard VAT (General Goods)')),
@@ -1388,7 +1447,7 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
               const SizedBox(width: 10),
               Expanded(
                 child: _buildTaxOptionCard(
-                  code: 'E',
+                  code: 'C',
                   title: 'VAT Exempt',
                   badge: '0%',
                   subtitle: 'Medicines, pharmaceuticals, medical supplies & books',
@@ -1396,8 +1455,11 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                   activeColor: const Color(0xFF10B981),
                   onTap: () {
                     setState(() {
-                      _selectedZraTaxCode = 'E';
+                      _selectedZraTaxCode = 'C';
                       _taxRateController.text = '0';
+                      if (_selectedItemClsCode == '56101530' || _selectedItemClsCode == '50000000') {
+                        _selectedItemClsCode = '51000000';
+                      }
                     });
                   },
                 ),
@@ -1419,6 +1481,9 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                     setState(() {
                       _selectedZraTaxCode = 'B';
                       _taxRateController.text = '0';
+                      if (_selectedItemClsCode == '56101530' || _selectedItemClsCode == '51000000') {
+                        _selectedItemClsCode = '50000000';
+                      }
                     });
                   },
                 ),
@@ -1442,6 +1507,120 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
               ),
             ],
           ),
+          const SizedBox(height: 18),
+          const Divider(color: Colors.white12, height: 1),
+          const SizedBox(height: 16),
+          // ZRA Item Classification Section
+          Row(
+            children: [
+              const Icon(Icons.category_rounded, size: 16, color: Colors.white70),
+              const SizedBox(width: 8),
+              Text(
+                'ZRA ITEM CLASSIFICATION (UNSPSC)',
+                style: GoogleFonts.manrope(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.5,
+                  color: Colors.white70,
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: accentColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  _selectedItemClsCode,
+                  style: GoogleFonts.robotoMono(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: accentColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.white12),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                isExpanded: true,
+                dropdownColor: const Color(0xFF1E293B),
+                value: commonZraClassifications.any((c) => c['code'] == _selectedItemClsCode)
+                    ? _selectedItemClsCode
+                    : 'CUSTOM',
+                items: [
+                  ...commonZraClassifications.map((item) {
+                    return DropdownMenuItem<String>(
+                      value: item['code'],
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '${item['name']} (${item['code']})',
+                              style: GoogleFonts.inter(fontSize: 12.5, color: Colors.white),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                  DropdownMenuItem<String>(
+                    value: 'CUSTOM',
+                    child: Text(
+                      'Custom 8-digit UNSPSC Code...',
+                      style: GoogleFonts.inter(fontSize: 12.5, color: Colors.amberAccent),
+                    ),
+                  ),
+                ],
+                onChanged: (val) {
+                  if (val != null) {
+                    setState(() {
+                      if (val == 'CUSTOM') {
+                        _isCustomClsCode = true;
+                      } else {
+                        _isCustomClsCode = false;
+                        _selectedItemClsCode = val;
+                        _customClsCodeController.text = val;
+                      }
+                    });
+                  }
+                },
+              ),
+            ),
+          ),
+          if (_isCustomClsCode) ...[
+            const SizedBox(height: 10),
+            TextFormField(
+              controller: _customClsCodeController,
+              keyboardType: TextInputType.number,
+              maxLength: 8,
+              style: GoogleFonts.robotoMono(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+              decoration: InputDecoration(
+                labelText: 'Enter 8-digit ZRA UNSPSC code',
+                labelStyle: const TextStyle(color: Colors.white60, fontSize: 12),
+                counterText: '',
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                filled: true,
+                fillColor: Colors.white.withValues(alpha: 0.05),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.amberAccent)),
+              ),
+              onChanged: (v) {
+                if (v.trim().length == 8) {
+                  setState(() => _selectedItemClsCode = v.trim());
+                }
+              },
+            ),
+          ],
           const SizedBox(height: 18),
           const Divider(color: Colors.white12, height: 1),
           const SizedBox(height: 16),
@@ -2003,6 +2182,12 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
         }
       }
 
+      final effectiveCls = _isCustomClsCode
+          ? (_customClsCodeController.text.trim().isNotEmpty
+              ? _customClsCodeController.text.trim()
+              : _selectedItemClsCode)
+          : _selectedItemClsCode;
+
       final product = targetProduct ?? Product(
         name: _nameController.text.trim(),
         sku: _skuController.text.trim(),
@@ -2017,6 +2202,7 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
         isTaxInclusive: _isTaxInclusive,
         taxRate: parsedTaxRate,
         zraTaxCode: zraTaxCode,
+        itemClsCd: effectiveCls,
         branchCode: branchBhfId,
         branchName: branchName,
         isSyncedWithDigitax: false,
@@ -2046,6 +2232,9 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
         product.isTaxInclusive = _isTaxInclusive;
         product.taxRate = parsedTaxRate;
         product.zraTaxCode = zraTaxCode;
+        if (!targetProduct.itemClsCd.startsWith('item_') || _selectedItemClsCode != targetProduct.itemClsCd) {
+          product.itemClsCd = effectiveCls;
+        }
         product.isDigitaxSyncEnabled = _isDigitaxSyncEnabled;
         product.branchCode = branchBhfId;
         product.branchName = branchName;

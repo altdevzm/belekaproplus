@@ -516,7 +516,7 @@ class CloudDatabaseService {
                             ? 'PK'
                             : (product.unitOfMeasure.toLowerCase().contains('can'))
                                 ? 'CN'
-                                : 'CT',
+                                : 'NT',
                 'unit_of_measure': product.unitOfMeasure,
                 'is_digitax_sync_enabled': product.isDigitaxSyncEnabled,
                 'is_synced_with_digitax': product.isSyncedWithDigitax,

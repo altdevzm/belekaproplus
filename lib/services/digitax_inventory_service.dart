@@ -121,21 +121,29 @@ class DigiTaxInventoryService {
     return <dynamic>[];
   }
 
+  /// Returns the ZRA/DigiTax package unit code for a given unit-of-measure string.
+  /// Default is 'NT' (Net/None) — the standard code DigiTax uses for individual
+  /// piece/unit retail items (per DigiTax Zambia OpenAPI spec example).
   String _resolvePackageUnitCode(String? unitOfMeasure) {
     final uom = (unitOfMeasure ?? '').trim().toLowerCase();
     if (uom.contains('box') ||
         uom.contains('bx') ||
         uom.contains('tab') ||
         uom.contains('stp')) {
-      return 'BX';
+      return 'BX'; // Box
     } else if (uom.contains('btl') || uom.contains('bottle')) {
-      return 'BT';
+      return 'BT'; // Bottle
     } else if (uom.contains('pkt') || uom.contains('pack')) {
-      return 'PK';
+      return 'PK'; // Package
     } else if (uom.contains('can')) {
-      return 'CN';
+      return 'CN'; // Can
+    } else if (uom.contains('carton') || uom == 'ctn') {
+      return 'CT'; // Carton (explicit only)
+    } else if (uom.contains('bag') || uom == 'ba') {
+      return 'BA'; // Barrel/Bag
     }
-    return 'CT';
+    // Default: NT (Net/None) — standard for pcs, piece, unit, each, item, kg, ltr, etc.
+    return 'NT';
   }
 
   String _resolveQuantityUnitCode(String? unitOfMeasure) {
@@ -150,6 +158,70 @@ class DigiTaxInventoryService {
       return 'M';
     }
     return 'U';
+  }
+
+  /// Resolves the compliant ZRA VAT Category Code (A, B, C, D, E)
+  static String resolveCompliantVatCategoryCode({
+    required String? zraTaxCode,
+    required double taxRate,
+    bool isTotBusiness = false,
+  }) {
+    if (isTotBusiness) return 'D';
+    final code = (zraTaxCode ?? '').trim().toUpperCase();
+    if (code == 'TOT' || code == 'D') return 'D';
+    if (code == 'B') return 'B'; // 0% Zero-Rated (Basic food, grain, bread)
+    if (code == 'C') return 'C'; // 0% VAT Exempt (Medicines, education, health)
+    if (code == 'E') return 'E'; // 0% Export
+    if (taxRate == 0) return 'B'; // Default 0% to Zero-Rated
+    return 'A'; // 16% Standard VAT
+  }
+
+  /// Resolves an appropriate ZRA UNSPSC classification code
+  static String resolveCompliantItemClassCode({
+    required String? explicitClsCode,
+    required String? zraTaxCode,
+    String? productName,
+  }) {
+    final explicit = (explicitClsCode ?? '').trim();
+    // Use valid 8-digit code if provided and not an internal DigiTax item ID or old placeholder
+    if (RegExp(r'^\d{8}$').hasMatch(explicit) &&
+        explicit != '10101501' &&
+        explicit != '56101530') {
+      return explicit;
+    }
+
+    final code = (zraTaxCode ?? '').trim().toUpperCase();
+    // ZRA Rule: Zero-Rated items must belong to appropriate food/agric classifications
+    if (code == 'B') {
+      return '50000000'; // Food, Beverage and Tobacco (ZRA Zero-Rated compliant)
+    }
+    // ZRA Rule: Exempt items typically healthcare/pharmaceutical/educational
+    if (code == 'C') {
+      return '51000000'; // Pharmaceuticals and Medical Products (ZRA Exempt compliant)
+    }
+
+    final text = (productName ?? '').toLowerCase();
+    if (text.contains('food') || text.contains('bread') || text.contains('meal') || text.contains('drink') || text.contains('beverage') || text.contains('water') || text.contains('snack') || text.contains('sugar')) {
+      return '50000000'; // Food, Beverage & Tobacco
+    }
+    if (text.contains('cloth') || text.contains('shirt') || text.contains('shoe') || text.contains('wear') || text.contains('apparel')) {
+      return '53100000'; // Clothing & Apparel
+    }
+    if (text.contains('drug') || text.contains('med') || text.contains('pharm') || text.contains('health')) {
+      return '51000000'; // Pharmaceuticals & Medical
+    }
+    if (text.contains('phone') || text.contains('comput') || text.contains('electr') || text.contains('cable')) {
+      return '43211500'; // Electronics & ICT
+    }
+    if (text.contains('hardware') || text.contains('cement') || text.contains('paint') || text.contains('tool')) {
+      return '30000000'; // Hardware & Building Materials
+    }
+    if (text.contains('furnit') || text.contains('desk') || text.contains('chair') || text.contains('table')) {
+      return '56101530'; // Commercial & Industrial Furniture
+    }
+
+    // Default to General Domestic Consumer Goods & Retail Merchandise (Broadly compliant)
+    return '52000000';
   }
 
   Future<List<Map<String, dynamic>>> _fetchAllRemoteItems(
@@ -831,19 +903,17 @@ class DigiTaxInventoryService {
             pushedCount++;
           } else {
             // Strictly valid payload per company tax system
-            final isTot =
-                config?.businessTaxType == 'TURNOVER_TAX' ||
-                p.zraTaxCode == 'TOT';
-            final isExempt =
-                config?.businessTaxType == 'EXEMPT' || p.zraTaxCode == 'C';
-
-            String classCode =
-                '56101530'; // Valid standard code in DigiTax Zambia classification table
-            if (p.itemClsCd.isNotEmpty &&
-                p.itemClsCd.length >= 8 &&
-                !p.itemClsCd.startsWith('item_')) {
-              classCode = p.itemClsCd;
-            }
+            final isTot = config?.businessTaxType == 'TURNOVER_TAX';
+            final vatCategoryCode = resolveCompliantVatCategoryCode(
+              zraTaxCode: p.zraTaxCode,
+              taxRate: p.taxRate,
+              isTotBusiness: isTot,
+            );
+            final classCode = resolveCompliantItemClassCode(
+              explicitClsCode: p.itemClsCd,
+              zraTaxCode: p.zraTaxCode,
+              productName: p.name,
+            );
 
             final payload = {
               "item_class_code": classCode,
@@ -852,12 +922,8 @@ class DigiTaxInventoryService {
               "origin_nation_code": "ZM",
               "package_unit_code": _resolvePackageUnitCode(p.unitOfMeasure),
               "quantity_unit_code": _resolveQuantityUnitCode(p.unitOfMeasure),
-              "vat_category_code": (isTot || p.zraTaxCode == 'TOT' || p.zraTaxCode == 'D' || p.zraTaxCode == 'E' || p.zraTaxCode == 'C' || isExempt || p.taxRate == 0)
-                  ? "D"
-                  : (p.zraTaxCode == 'B'
-                      ? "B"
-                      : "A"),
-              if (isTot || p.zraTaxCode == 'TOT' || p.zraTaxCode == 'D' || p.zraTaxCode == 'E' || isExempt) "tot_category_code": "TOT",
+              "vat_category_code": vatCategoryCode,
+              if (isTot || vatCategoryCode == 'D') "tot_category_code": "TOT",
               "default_unit_price": p.price > 0 ? p.price : 1.0,
               "recommended_retail_price": p.price > 0 ? p.price : 1.0,
               "stock_quantity": p.stockLevel > 0 ? p.stockLevel : 0,
@@ -1099,18 +1165,17 @@ class DigiTaxInventoryService {
         return true;
       } else {
         // 3. Register as completely new product on DigiTax per Company Tax System
-        final isTot =
-            config?.businessTaxType == 'TURNOVER_TAX' ||
-            product.zraTaxCode == 'TOT';
-        final isExempt =
-            config?.businessTaxType == 'EXEMPT' || product.zraTaxCode == 'C';
-
-        String classCode = '56101530';
-        if (product.itemClsCd.isNotEmpty &&
-            product.itemClsCd.length >= 8 &&
-            !product.itemClsCd.startsWith('item_')) {
-          classCode = product.itemClsCd;
-        }
+        final isTot = config?.businessTaxType == 'TURNOVER_TAX';
+        final vatCategoryCode = resolveCompliantVatCategoryCode(
+          zraTaxCode: product.zraTaxCode,
+          taxRate: product.taxRate,
+          isTotBusiness: isTot,
+        );
+        final classCode = resolveCompliantItemClassCode(
+          explicitClsCode: product.itemClsCd,
+          zraTaxCode: product.zraTaxCode,
+          productName: product.name,
+        );
 
         final payload = {
           "item_class_code": classCode,
@@ -1119,12 +1184,8 @@ class DigiTaxInventoryService {
           "origin_nation_code": "ZM",
           "package_unit_code": _resolvePackageUnitCode(product.unitOfMeasure),
           "quantity_unit_code": _resolveQuantityUnitCode(product.unitOfMeasure),
-          "vat_category_code": (isTot || product.zraTaxCode == 'TOT' || product.zraTaxCode == 'D' || product.zraTaxCode == 'E' || product.zraTaxCode == 'C' || isExempt || product.taxRate == 0)
-              ? "D"
-              : (product.zraTaxCode == 'B'
-                  ? "B"
-                  : "A"),
-          if (isTot || product.zraTaxCode == 'TOT' || product.zraTaxCode == 'D' || product.zraTaxCode == 'E' || isExempt) "tot_category_code": "TOT",
+          "vat_category_code": vatCategoryCode,
+          if (isTot || vatCategoryCode == 'D') "tot_category_code": "TOT",
           "default_unit_price": product.price > 0 ? product.price : 1.0,
           "recommended_retail_price": product.price > 0 ? product.price : 1.0,
           "stock_quantity": product.stockLevel > 0 ? product.stockLevel : 0,
@@ -1442,21 +1503,25 @@ class DigiTaxInventoryService {
       // If still not found, register on DigiTax
       if (digitaxItemId == null || digitaxItemId.isEmpty) {
         try {
+          final vatCategoryCode = resolveCompliantVatCategoryCode(
+            zraTaxCode: localProd?.zraTaxCode,
+            taxRate: item.taxRateAtSale,
+            isTotBusiness: isTot,
+          );
+          final classCode = resolveCompliantItemClassCode(
+            explicitClsCode: localProd?.itemClsCd,
+            zraTaxCode: localProd?.zraTaxCode,
+            productName: item.productName,
+          );
           final registerPayload = {
-            "item_class_code": "56101530",
+            "item_class_code": classCode,
             "item_type_code": "2",
             "item_name": item.productName.trim(),
             "origin_nation_code": "ZM",
             "package_unit_code": _resolvePackageUnitCode(localProd?.unitOfMeasure),
             "quantity_unit_code": _resolveQuantityUnitCode(localProd?.unitOfMeasure),
-            "vat_category_code": isTot || (localProd?.zraTaxCode == 'TOT') || (localProd?.zraTaxCode == 'D')
-                ? "D"
-                : (((localProd?.zraTaxCode == 'E' || localProd?.zraTaxCode == 'C') || item.taxRateAtSale == 0)
-                    ? "E"
-                    : ((localProd?.zraTaxCode == 'B')
-                        ? "B"
-                        : "A")),
-            if (isTot || (localProd?.zraTaxCode == 'TOT') || (localProd?.zraTaxCode == 'D')) "tot_category_code": "TOT",
+            "vat_category_code": vatCategoryCode,
+            if (isTot || vatCategoryCode == 'D') "tot_category_code": "TOT",
             "default_unit_price": item.priceAtSale > 0 ? item.priceAtSale : 1.0,
             "recommended_retail_price": item.priceAtSale > 0 ? item.priceAtSale : 1.0,
             "stock_quantity": localProd?.stockLevel != null && localProd!.stockLevel > 0 ? localProd.stockLevel : 0,
@@ -1487,27 +1552,11 @@ class DigiTaxInventoryService {
       final effectiveQty = (item.isWeighted && item.weight > 0)
           ? item.weight
           : item.quantity.toDouble();
-      String vatCategoryCode;
-      if (isTot) {
-        vatCategoryCode = "D";
-      } else {
-        final prodCode = (localProd?.zraTaxCode ?? '').trim().toUpperCase();
-        if (prodCode == 'TOT' || prodCode == 'D') {
-          vatCategoryCode = "D";
-        } else if (prodCode == 'E' || prodCode == 'C') {
-          vatCategoryCode = "E"; // Official ZRA & DigiTax VAT Exempt code
-        } else if (prodCode == 'B') {
-          vatCategoryCode = "B"; // 0% Zero-rated
-        } else if (prodCode == 'A') {
-          vatCategoryCode = "A"; // 16% Standard VAT
-        } else if (item.taxRateAtSale == 0) {
-          vatCategoryCode = "E"; // 0% Exempt
-        } else if (item.taxRateAtSale > 0 && item.taxRateAtSale < 16.0) {
-          vatCategoryCode = "B"; // 0% Zero-rated / reduced
-        } else {
-          vatCategoryCode = "A"; // 16% Standard VAT
-        }
-      }
+      final vatCategoryCode = resolveCompliantVatCategoryCode(
+        zraTaxCode: localProd?.zraTaxCode,
+        taxRate: item.taxRateAtSale,
+        isTotBusiness: isTot,
+      );
 
       digitaxItemsPayload.add({
         if (digitaxItemId != null && digitaxItemId.isNotEmpty)
