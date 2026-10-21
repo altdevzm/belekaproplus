@@ -511,12 +511,16 @@ class CloudDatabaseService {
                 'package_unit_code': (product.unitOfMeasure.toLowerCase().contains('box') || product.unitOfMeasure.toLowerCase().contains('bx') || product.unitOfMeasure.toLowerCase().contains('tab') || product.unitOfMeasure.toLowerCase().contains('stp'))
                     ? 'BX'
                     : (product.unitOfMeasure.toLowerCase().contains('btl') || product.unitOfMeasure.toLowerCase().contains('bottle'))
-                        ? 'BT'
+                        ? 'BO'
                         : (product.unitOfMeasure.toLowerCase().contains('pkt') || product.unitOfMeasure.toLowerCase().contains('pack'))
-                            ? 'PK'
+                            ? 'PA'
                             : (product.unitOfMeasure.toLowerCase().contains('can'))
-                                ? 'CN'
-                                : 'NT',
+                                ? 'CA'
+                                : (product.unitOfMeasure.toLowerCase().contains('carton') || product.unitOfMeasure.toLowerCase() == 'ctn' || product.unitOfMeasure.toLowerCase() == 'crt')
+                                    ? 'CT'
+                                    : (product.unitOfMeasure.toLowerCase().contains('bag') || product.unitOfMeasure.toLowerCase() == 'bg')
+                                        ? 'BG'
+                                        : 'NT',
                 'unit_of_measure': product.unitOfMeasure,
                 'is_digitax_sync_enabled': product.isDigitaxSyncEnabled,
                 'is_synced_with_digitax': product.isSyncedWithDigitax,

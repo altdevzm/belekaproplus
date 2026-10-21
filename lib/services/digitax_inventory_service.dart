@@ -122,8 +122,10 @@ class DigiTaxInventoryService {
   }
 
   /// Returns the ZRA/DigiTax package unit code for a given unit-of-measure string.
-  /// Default is 'NT' (Net/None) — the standard code DigiTax uses for individual
-  /// piece/unit retail items (per DigiTax Zambia OpenAPI spec example).
+  /// Returns the official ZRA/DigiTax package unit code (UNECE Rec 21).
+  /// Validated against live DigiTax Zambia / ZRA VSDC API:
+  /// BX (Box), BO (Bottle - NOT BT), PA (Packet/Pack - NOT PK), CA (Can - NOT CN),
+  /// CT (Carton), BG (Bag), RO (Roll), BE (Bundle), TB (Tub), AM (Ampoule), NT (Net/Unit).
   String _resolvePackageUnitCode(String? unitOfMeasure) {
     final uom = (unitOfMeasure ?? '').trim().toLowerCase();
     if (uom.contains('box') ||
@@ -132,15 +134,25 @@ class DigiTaxInventoryService {
         uom.contains('stp')) {
       return 'BX'; // Box
     } else if (uom.contains('btl') || uom.contains('bottle')) {
-      return 'BT'; // Bottle
-    } else if (uom.contains('pkt') || uom.contains('pack')) {
-      return 'PK'; // Package
+      return 'BO'; // Bottle (ZRA code BO; DigiTax rejects BT as invalid)
+    } else if (uom.contains('pkt') || uom.contains('pack') || uom == 'pk') {
+      return 'PA'; // Packet/Package (ZRA code PA; DigiTax rejects PK as invalid)
     } else if (uom.contains('can')) {
-      return 'CN'; // Can
-    } else if (uom.contains('carton') || uom == 'ctn') {
-      return 'CT'; // Carton (explicit only)
-    } else if (uom.contains('bag') || uom == 'ba') {
-      return 'BA'; // Barrel/Bag
+      return 'CA'; // Can (ZRA code CA; DigiTax rejects CN as invalid)
+    } else if (uom.contains('carton') || uom == 'ctn' || uom == 'crt') {
+      return 'CT'; // Carton
+    } else if (uom.contains('bag') || uom == 'bg') {
+      return 'BG'; // Bag
+    } else if (uom == 'ba') {
+      return 'BA'; // Barrel
+    } else if (uom.contains('roll') || uom == 'rol') {
+      return 'RO'; // Roll
+    } else if (uom.contains('bundle') || uom == 'bdl') {
+      return 'BE'; // Bundle
+    } else if (uom.contains('tub')) {
+      return 'TB'; // Tub
+    } else if (uom.contains('amp')) {
+      return 'AM'; // Ampoule
     }
     // Default: NT (Net/None) — standard for pcs, piece, unit, each, item, kg, ltr, etc.
     return 'NT';
@@ -150,12 +162,14 @@ class DigiTaxInventoryService {
     final uom = (unitOfMeasure ?? '').trim().toLowerCase();
     if (uom == 'kg') {
       return 'KG';
-    } else if (uom == 'g') {
-      return 'G';
+    } else if (uom == 'g' || uom == 'grm') {
+      return 'GRM'; // ZRA code GRM; DigiTax rejects 'G' as invalid
     } else if (uom == 'ltr' || uom == 'l') {
       return 'L';
     } else if (uom == 'm') {
       return 'M';
+    } else if (uom.contains('btl') || uom.contains('bottle')) {
+      return 'BOT';
     }
     return 'U';
   }

@@ -1623,95 +1623,112 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
             // Actions
             Expanded(
               flex: 2,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  IconButton(
-                    onPressed: () async {
-                      final result = await showDialog<bool>(
-                        context: context,
-                        builder: (context) => StockAdjustmentModal(
-                          product: product,
-                        ),
-                      );
-                      if (result == true) {
-                        ref.invalidate(inventoryProductsProvider);
-                      }
-                    },
-                    icon: Icon(Icons.tune_rounded, color: primaryColor, size: 18),
-                    tooltip: 'Adjust Stock & Record Reason',
-                  ),
-                  IconButton(
-                    onPressed: () => showDialog(
-                      context: context,
-                      builder: (context) => StockMovementHistoryModal(
-                        productId: product.id,
-                        productName: product.name,
-                      ),
-                    ),
-                    icon: Icon(Icons.history_rounded, color: theme.colorScheme.onSurfaceVariant, size: 18),
-                    tooltip: 'View Stock Movement Audit Log',
-                  ),
-                  IconButton(
-                    onPressed: () async {
-                      final result = await showDialog<bool>(
-                        context: context,
-                        builder: (context) => ProductEditorModal(
-                          product: product,
-                        ),
-                      );
-                      if (result == true) {
-                        ref.invalidate(inventoryProductsProvider);
-                      }
-                    },
-                    icon: Icon(Icons.edit_outlined, color: theme.colorScheme.onSurfaceVariant, size: 18),
-                    tooltip: 'Edit Product Details',
-                  ),
-                  IconButton(
-                    onPressed: () async {
-                      final bool isArchiving = !product.isArchived;
-                      final confirm = await showDialog<bool>(
-                        context: context,
-                        builder: (context) => AlertDialog(
-                          title: Text(isArchiving ? 'Archive Product' : 'Restore Product', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 16)),
-                          content: Text(
-                            isArchiving
-                                ? 'Are you sure you want to archive ${product.name}? This SKU will be hidden from the active catalog.'
-                                : 'Do you want to restore ${product.name} to the active catalog?',
-                            style: GoogleFonts.inter(fontSize: 13),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerRight,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.all(4),
+                      constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                      onPressed: () async {
+                        final result = await showDialog<bool>(
+                          context: context,
+                          builder: (context) => StockAdjustmentModal(
+                            product: product,
                           ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context, false),
-                              child: const Text('CANCEL'),
-                            ),
-                            ElevatedButton(
-                              onPressed: () => Navigator.pop(context, true),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: isArchiving ? const Color(0xFFDC2626) : primaryColor,
-                              ),
-                              child: Text(isArchiving ? 'ARCHIVE' : 'RESTORE'),
-                            ),
-                          ],
-                        ),
-                      );
-                      if (confirm == true) {
-                        if (isArchiving) {
-                          await ref.read(databaseServiceProvider).archiveProduct(product.id);
-                        } else {
-                          await ref.read(databaseServiceProvider).unarchiveProduct(product.id);
+                        );
+                        if (result == true) {
+                          ref.invalidate(inventoryProductsProvider);
                         }
-                        ref.invalidate(inventoryProductsProvider);
-                      }
-                    },
-                    icon: Icon(
-                      product.isArchived ? Icons.settings_backup_restore_rounded : Icons.archive_outlined,
-                      color: product.isArchived ? primaryColor : theme.colorScheme.onSurfaceVariant,
-                      size: 18,
+                      },
+                      icon: Icon(Icons.tune_rounded, color: primaryColor, size: 18),
+                      tooltip: 'Adjust Stock & Record Reason',
                     ),
-                    tooltip: product.isArchived ? 'Restore Product' : 'Archive Product',
-                  ),
-                ],
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.all(4),
+                      constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                      onPressed: () => showDialog(
+                        context: context,
+                        builder: (context) => StockMovementHistoryModal(
+                          productId: product.id,
+                          productName: product.name,
+                        ),
+                      ),
+                      icon: Icon(Icons.history_rounded, color: theme.colorScheme.onSurfaceVariant, size: 18),
+                      tooltip: 'View Stock Movement Audit Log',
+                    ),
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.all(4),
+                      constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                      onPressed: () async {
+                        final result = await showDialog<bool>(
+                          context: context,
+                          builder: (context) => ProductEditorModal(
+                            product: product,
+                          ),
+                        );
+                        if (result == true) {
+                          ref.invalidate(inventoryProductsProvider);
+                        }
+                      },
+                      icon: Icon(Icons.edit_outlined, color: theme.colorScheme.onSurfaceVariant, size: 18),
+                      tooltip: 'Edit Product Details',
+                    ),
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.all(4),
+                      constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                      onPressed: () async {
+                        final bool isArchiving = !product.isArchived;
+                        final confirm = await showDialog<bool>(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: Text(isArchiving ? 'Archive Product' : 'Restore Product', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 16)),
+                            content: Text(
+                              isArchiving
+                                  ? 'Are you sure you want to archive ${product.name}? This SKU will be hidden from the active catalog.'
+                                  : 'Do you want to restore ${product.name} to the active catalog?',
+                              style: GoogleFonts.inter(fontSize: 13),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, false),
+                                child: const Text('CANCEL'),
+                              ),
+                              ElevatedButton(
+                                onPressed: () => Navigator.pop(context, true),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: isArchiving ? const Color(0xFFDC2626) : primaryColor,
+                                ),
+                                child: Text(isArchiving ? 'ARCHIVE' : 'RESTORE'),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (confirm == true) {
+                          if (isArchiving) {
+                            await ref.read(databaseServiceProvider).archiveProduct(product.id);
+                          } else {
+                            await ref.read(databaseServiceProvider).unarchiveProduct(product.id);
+                          }
+                          ref.invalidate(inventoryProductsProvider);
+                        }
+                      },
+                      icon: Icon(
+                        product.isArchived ? Icons.settings_backup_restore_rounded : Icons.archive_outlined,
+                        color: product.isArchived ? primaryColor : theme.colorScheme.onSurfaceVariant,
+                        size: 18,
+                      ),
+                      tooltip: product.isArchived ? 'Restore Product' : 'Archive Product',
+                    ),
+                  ],
+                ),
               ),
             ),
           ],

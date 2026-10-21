@@ -23,15 +23,25 @@ class DigiTaxZraService:
         if any(x in u for x in ["box", "bx", "tab", "stp"]):
             return "BX"  # Box
         elif any(x in u for x in ["btl", "bottle"]):
-            return "BT"  # Bottle
-        elif any(x in u for x in ["pkt", "pack"]):
-            return "PK"  # Package
+            return "BO"  # Bottle (ZRA code BO, NOT BT)
+        elif any(x in u for x in ["pkt", "pack"]) or u == "pk":
+            return "PA"  # Package/Packet (ZRA code PA, NOT PK)
         elif "can" in u:
-            return "CN"  # Can
-        elif "carton" in u or u == "ctn":
-            return "CT"  # Carton (explicit only)
-        elif "bag" in u or u == "ba":
-            return "BA"  # Bag/Barrel
+            return "CA"  # Can (ZRA code CA, NOT CN)
+        elif "carton" in u or u in ["ctn", "crt"]:
+            return "CT"  # Carton
+        elif "bag" in u or u == "bg":
+            return "BG"  # Bag
+        elif u == "ba":
+            return "BA"  # Barrel
+        elif "roll" in u or u == "rol":
+            return "RO"  # Roll
+        elif "bundle" in u or u == "bdl":
+            return "BE"  # Bundle
+        elif "tub" in u:
+            return "TB"  # Tub
+        elif "amp" in u:
+            return "AM"  # Ampoule
         # Default: NT (Net/None) - standard for pcs, piece, unit, each, item, etc.
         return "NT"
 
@@ -40,12 +50,14 @@ class DigiTaxZraService:
         u = (uom or "").strip().lower()
         if u == "kg":
             return "KG"
-        elif u == "g":
-            return "G"
+        elif u in ["g", "grm"]:
+            return "GRM"  # ZRA code GRM, NOT G
         elif u in ["ltr", "l"]:
             return "L"
         elif u == "m":
             return "M"
+        elif any(x in u for x in ["btl", "bottle"]):
+            return "BOT"
         return "U"
 
     @classmethod
