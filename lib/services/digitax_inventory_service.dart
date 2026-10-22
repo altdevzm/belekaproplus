@@ -3138,16 +3138,15 @@ class DigiTaxInventoryService {
         final effectiveQty = (item.isWeighted && item.weight > 0)
             ? item.weight
             : item.quantity.toDouble();
-        final itemTotal = double.parse((effectiveQty * item.priceAtSale).toStringAsFixed(2));
+        final itemTotal = (effectiveQty * item.priceAtSale);
         if (item.taxRateAtSale == 16.0 ||
             (item.taxRateAtSale == 0 && tx.taxAmount > 0)) {
-          // Align with standard 2-decimal currency rounding used at cart checkout
-          final taxable = item.isTaxInclusiveAtSale
-              ? double.parse((itemTotal / 1.16).toStringAsFixed(2))
-              : itemTotal;
           final vat = item.isTaxInclusiveAtSale
-              ? double.parse((itemTotal - taxable).toStringAsFixed(2))
-              : double.parse((itemTotal * 0.16).toStringAsFixed(2));
+              ? (itemTotal * 16 / 116)
+              : (itemTotal * 0.16);
+          final taxable = item.isTaxInclusiveAtSale
+              ? (itemTotal - vat)
+              : itemTotal;
           taxA16Taxable += tx.isCreditNote ? -taxable : taxable;
           taxA16Vat += tx.isCreditNote ? -vat : vat;
         } else if (item.taxRateAtSale == 0) {
@@ -3156,20 +3155,18 @@ class DigiTaxInventoryService {
       }
     }
 
+    grossSales = double.parse(grossSales.toStringAsFixed(2));
     taxA16Taxable = double.parse(taxA16Taxable.toStringAsFixed(2));
-    taxA16Vat = double.parse(taxA16Vat.toStringAsFixed(2));
     taxB0Taxable = double.parse(taxB0Taxable.toStringAsFixed(2));
     taxCExportTaxable = double.parse(taxCExportTaxable.toStringAsFixed(2));
     taxDExemptTaxable = double.parse(taxDExemptTaxable.toStringAsFixed(2));
     taxEZeroTaxable = double.parse(taxEZeroTaxable.toStringAsFixed(2));
-    grossSales = double.parse(grossSales.toStringAsFixed(2));
-    totalTax = double.parse(totalTax.toStringAsFixed(2));
 
-    // Reconcile totalTax with the categorized VAT sum so table and summary are identical
-    final categorizedVatSum = double.parse(taxA16Vat.toStringAsFixed(2));
-    if (totalTax == 0.0 || (totalTax - categorizedVatSum).abs() < 0.05) {
-      totalTax = categorizedVatSum;
-    }
+    // Preserve 4-decimal fiscal precision (e.g. 1.3793 per K10 sale -> 2.7586 for two sales)
+    taxA16Vat = double.parse(taxA16Vat.toStringAsFixed(4));
+
+    // Total tax strictly matches the fiscal VAT collected (2.7586)
+    totalTax = taxA16Vat;
     final netSales = double.parse((grossSales - totalTax).toStringAsFixed(2));
 
     return {
