@@ -7,7 +7,6 @@ list(APPEND FLUTTER_PLUGIN_LIST
   flutter_pos_printer_platform
   isar_flutter_libs
   printing
-  sqlite3_flutter_libs
   url_launcher_windows
 )
 

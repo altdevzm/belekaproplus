@@ -6,7 +6,6 @@ list(APPEND FLUTTER_PLUGIN_LIST
   audioplayers_linux
   isar_flutter_libs
   printing
-  sqlite3_flutter_libs
   url_launcher_linux
 )
 
