@@ -377,8 +377,8 @@ class DigiTaxZraService:
 
         pkg_unit = item_data.get("package_unit_code") or DigiTaxZraService._resolve_package_unit(item_data.get("unit_of_measure"))
         qty_unit = item_data.get("quantity_unit_code") or DigiTaxZraService._resolve_quantity_unit(item_data.get("unit_of_measure"))
-        standard_tax = tax_code if tax_code in ["A", "B", "C", "D", "E"] else "A"
-        if standard_tax == "TOT":
+        standard_tax = tax_code if tax_code in ["A", "B", "D", "E"] else "A"
+        if tax_code in ["C", "EXEMPT", "TOT", "D"]:
             standard_tax = "D"
 
         invalid_segments = {"50000000", "52000000", "53100000", "51000000", "30000000", "43211500"}
@@ -386,8 +386,8 @@ class DigiTaxZraService:
         if not effective_cls:
             if standard_tax == "B":
                 effective_cls = "50202301"  # Food & Beverage / Agricultural supplies (Zero-Rated B)
-            elif standard_tax == "C":
-                effective_cls = "42141501"  # Medical Supplies & Health (Exempt C)
+            elif standard_tax == "D":
+                effective_cls = "42141501"  # Medical Supplies & Health (Exempt D)
             else:
                 effective_cls = "52151501"  # General Consumer Goods & Retail (Standard A)
 
@@ -405,7 +405,7 @@ class DigiTaxZraService:
             "is_stock_item": True,
             "bar_code": sku.strip(),
         }
-        if standard_tax == "D" or tax_code == "TOT":
+        if tax_code == "TOT":
             payload["tot_category_code"] = "TOT"
 
         live_sent = False

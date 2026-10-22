@@ -53,12 +53,13 @@ class _StockAdjustmentModalState extends ConsumerState<StockAdjustmentModal> {
 
   // Exact DigiTax Movement Types for "Add stock"
   static const List<DigiTaxMovementType> _addMovementTypes = [
+    DigiTaxMovementType(name: 'Initial / Opening Stock', zraCode: '01', description: 'Opening inventory balance or initial store intake'),
     DigiTaxMovementType(name: 'Purchase', zraCode: '02', description: 'Incoming stock from vendor / supplier GRN'),
     DigiTaxMovementType(name: 'Import', zraCode: '03', description: 'Stock received from international import shipments'),
-    DigiTaxMovementType(name: 'Stock Movement', zraCode: '03', description: 'Stock received from branch or store transfer'),
+    DigiTaxMovementType(name: 'Return', zraCode: '04', description: 'Customer returned items restocked to active inventory'),
     DigiTaxMovementType(name: 'Processing', zraCode: '05', description: 'Finished goods produced / manufactured in-house'),
     DigiTaxMovementType(name: 'Adjustment', zraCode: '06', description: 'Physical audit count surplus / found stock reconciliation'),
-    DigiTaxMovementType(name: 'Return', zraCode: '04', description: 'Customer returned items restocked to active inventory'),
+    DigiTaxMovementType(name: 'Stock Movement', zraCode: '07', description: 'Stock received from branch or store transfer'),
   ];
 
   // Exact DigiTax Movement Types for "Reduce stock"
@@ -69,7 +70,7 @@ class _StockAdjustmentModalState extends ConsumerState<StockAdjustmentModal> {
     DigiTaxMovementType(name: 'Processing', zraCode: '14', description: 'Raw materials or items consumed for internal store use / production'),
     DigiTaxMovementType(name: 'Return', zraCode: '15', description: 'Defective or unwanted goods returned to supplier'),
     DigiTaxMovementType(name: 'Adjustment', zraCode: '16', description: 'Physical count discrepancy shortage / stock shrinkage'),
-    DigiTaxMovementType(name: 'Stock Movement', zraCode: '04', description: 'Stock dispatched / transferred out to another branch'),
+    DigiTaxMovementType(name: 'Stock Movement', zraCode: '17', description: 'Stock dispatched / transferred out to another branch'),
   ];
 
   int? _digitaxCloudStock;
@@ -92,12 +93,15 @@ class _StockAdjustmentModalState extends ConsumerState<StockAdjustmentModal> {
       if (remoteMap.isNotEmpty) {
         final p = widget.product;
         Map<String, dynamic>? remoteItem;
-        if (p.itemClsCd.isNotEmpty && remoteMap.containsKey(p.itemClsCd)) {
+        final normName = p.name.trim().toLowerCase();
+        final normSku = p.sku.trim().toLowerCase();
+
+        if (normName.isNotEmpty && remoteMap.containsKey(normName)) {
+          remoteItem = remoteMap[normName];
+        } else if (normSku.isNotEmpty && remoteMap.containsKey(normSku)) {
+          remoteItem = remoteMap[normSku];
+        } else if (p.itemClsCd.isNotEmpty && remoteMap.containsKey(p.itemClsCd)) {
           remoteItem = remoteMap[p.itemClsCd];
-        } else if (remoteMap.containsKey(p.name.trim().toLowerCase())) {
-          remoteItem = remoteMap[p.name.trim().toLowerCase()];
-        } else if (p.sku.isNotEmpty && remoteMap.containsKey(p.sku.trim())) {
-          remoteItem = remoteMap[p.sku.trim()];
         }
 
         if (remoteItem != null && mounted) {
@@ -694,16 +698,22 @@ class _StockAdjustmentModalState extends ConsumerState<StockAdjustmentModal> {
 
       if (mounted) {
         final actionText = isAdd ? 'added (+$quantityChanged)' : 'deducted (-$quantityChanged)';
+        final syncMsg = digitaxSynced
+            ? 'Stock $actionText • New: $newStockLevel • $reasonCategory (ZRA $movementType) • Synced with DigiTax / ZRA!'
+            : 'Stock $actionText locally ($newStockLevel). DigiTax cloud sync could not be completed (check connection).';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
               children: [
-                Icon(digitaxSynced ? Icons.cloud_done_rounded : Icons.check_circle_outline_rounded,
-                    color: digitaxSynced ? const Color(0xFF4ADE80) : Colors.amber, size: 20),
+                Icon(
+                  digitaxSynced ? Icons.cloud_done_rounded : Icons.warning_amber_rounded,
+                  color: digitaxSynced ? const Color(0xFF4ADE80) : Colors.amber,
+                  size: 20,
+                ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    'Stock $actionText • New: $newStockLevel • $reasonCategory (ZRA $movementType)${digitaxSynced ? " • Synced with DigiTax!" : ""}',
+                    syncMsg,
                     style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
                   ),
                 ),

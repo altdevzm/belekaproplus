@@ -781,7 +781,7 @@ class PrinterService {
       }
 
       final isFiscalApproved = (transaction.zraStatus.toUpperCase() == 'APPROVED' || transaction.zraStatus.toUpperCase() == 'FISCALIZED') &&
-                               ((transaction.zraReceiptNumber != null && transaction.zraReceiptNumber!.isNotEmpty) ||
+                               ((transaction.zraReceiptNumber != null && transaction.zraReceiptNumber!.isNotEmpty && transaction.zraReceiptNumber != 'PENDING') ||
                                 (transaction.zraMarkId != null && transaction.zraMarkId!.isNotEmpty && transaction.zraMarkId != 'PENDING'));
 
       final receiptTitle = transaction.isCreditNote
@@ -935,10 +935,14 @@ class PrinterService {
       }
       if (sdcIdStr.isEmpty) sdcIdStr = 'PENDING';
       final sdcInvNoStr = _formatZraSdcInvoiceNo(transaction.zraReceiptNumber, sdcId: sdcIdStr);
-      final signatureStr = (transaction.zraMarkId != null && transaction.zraMarkId!.isNotEmpty)
+      final signatureStr = (transaction.zraMarkId != null &&
+              transaction.zraMarkId!.isNotEmpty &&
+              !transaction.zraMarkId!.startsWith('sale_'))
           ? transaction.zraMarkId!
           : 'PENDING';
-      final internalDataStr = (transaction.zraInternalData != null && transaction.zraInternalData!.isNotEmpty)
+      final internalDataStr = (transaction.zraInternalData != null &&
+              transaction.zraInternalData!.isNotEmpty &&
+              transaction.zraInternalData != 'PENDING')
           ? transaction.zraInternalData!
           : (config?.mrcNo?.isNotEmpty == true ? config!.mrcNo! : 'PENDING');
 
@@ -1600,7 +1604,7 @@ class PrinterService {
     if (config?.address != null && config!.address!.isNotEmpty) commands.append('${config.address!}\n');
     if (config?.contactNumber != null && config!.contactNumber!.isNotEmpty) commands.append('Tel: ${config.contactNumber!}\n');
     final isFiscalApproved = (transaction.zraStatus.toUpperCase() == 'APPROVED' || transaction.zraStatus.toUpperCase() == 'FISCALIZED') &&
-                             ((transaction.zraReceiptNumber != null && transaction.zraReceiptNumber!.isNotEmpty) ||
+                             ((transaction.zraReceiptNumber != null && transaction.zraReceiptNumber!.isNotEmpty && transaction.zraReceiptNumber != 'PENDING') ||
                               (transaction.zraMarkId != null && transaction.zraMarkId!.isNotEmpty && transaction.zraMarkId != 'PENDING'));
 
     final receiptTitle = transaction.isCreditNote
@@ -1687,10 +1691,14 @@ class PrinterService {
     }
     if (sdcIdStr.isEmpty) sdcIdStr = 'PENDING';
     final sdcInvNoStr = _formatZraSdcInvoiceNo(transaction.zraReceiptNumber, sdcId: sdcIdStr);
-    final signatureStr = (transaction.zraMarkId != null && transaction.zraMarkId!.isNotEmpty)
+    final signatureStr = (transaction.zraMarkId != null &&
+            transaction.zraMarkId!.isNotEmpty &&
+            !transaction.zraMarkId!.startsWith('sale_'))
         ? transaction.zraMarkId!
         : 'PENDING';
-    final internalDataStr = (transaction.zraInternalData != null && transaction.zraInternalData!.isNotEmpty)
+    final internalDataStr = (transaction.zraInternalData != null &&
+            transaction.zraInternalData!.isNotEmpty &&
+            transaction.zraInternalData != 'PENDING')
         ? transaction.zraInternalData!
         : (config?.mrcNo?.isNotEmpty == true ? config!.mrcNo! : 'PENDING');
 
@@ -1797,7 +1805,9 @@ class PrinterService {
           ? transaction.zraSdcId!
           : (config?.sdcId?.isNotEmpty == true ? config!.sdcId! : 'PENDING');
       final sdcInvNoStr = _formatZraSdcInvoiceNo(transaction.zraReceiptNumber);
-      final signatureStr = (transaction.zraMarkId != null && transaction.zraMarkId!.isNotEmpty)
+      final signatureStr = (transaction.zraMarkId != null &&
+              transaction.zraMarkId!.isNotEmpty &&
+              !transaction.zraMarkId!.startsWith('sale_'))
           ? transaction.zraMarkId!
           : 'PENDING';
       final internalDataStr = (transaction.zraInternalData != null && transaction.zraInternalData!.isNotEmpty)
@@ -1808,7 +1818,7 @@ class PrinterService {
           : 'https://smartinvoice.zra.org.zm/verify?tpin=${config?.tpin ?? "1000000000"}&sdc=$sdcIdStr&rcpt=$sdcInvNoStr';
 
       final isFiscalApproved = (transaction.zraStatus.toUpperCase() == 'APPROVED' || transaction.zraStatus.toUpperCase() == 'FISCALIZED') &&
-                               ((transaction.zraReceiptNumber != null && transaction.zraReceiptNumber!.isNotEmpty) ||
+                               ((transaction.zraReceiptNumber != null && transaction.zraReceiptNumber!.isNotEmpty && transaction.zraReceiptNumber != 'PENDING') ||
                                 (transaction.zraMarkId != null && transaction.zraMarkId!.isNotEmpty && transaction.zraMarkId != 'PENDING'));
       final receiptTitle = transaction.isCreditNote
           ? 'ZRA FISCAL CREDIT NOTE'
@@ -2410,6 +2420,9 @@ class PrinterService {
       return 'PENDING';
     }
     final trimmed = raw.trim();
+    if (trimmed.contains('/') && (trimmed.toUpperCase().startsWith('INV') || trimmed.toUpperCase().startsWith('CN'))) {
+      return trimmed;
+    }
     if (trimmed.toUpperCase().startsWith('INV0') || trimmed.toUpperCase().startsWith('INV1/') || trimmed.toUpperCase().startsWith('INV/') || trimmed.toUpperCase().startsWith('CN')) {
       return trimmed;
     }

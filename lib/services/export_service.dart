@@ -443,32 +443,48 @@ class ExportService {
     final dateOnlyStr = DateFormat('dd/MM/yyyy').format(transaction.timestamp);
     final timeOnlyStr = DateFormat('HH:mm:ss').format(transaction.timestamp);
 
-    String formatZraInvoiceNo(String? raw) {
+    String formatZraInvoiceNo(String? raw, {String? sdcId}) {
       if (raw == null || raw.trim().isEmpty || raw.trim() == 'PENDING' || raw.trim() == 'null') return 'PENDING';
       final trimmed = raw.trim();
-      if (trimmed.toUpperCase().startsWith('INV1/') || trimmed.toUpperCase().startsWith('INV/') || trimmed.toUpperCase().startsWith('CN')) return trimmed;
+      if (trimmed.contains('/') && (trimmed.toUpperCase().startsWith('INV') || trimmed.toUpperCase().startsWith('CN'))) return trimmed;
+      if (trimmed.toUpperCase().startsWith('INV0') || trimmed.toUpperCase().startsWith('INV1/') || trimmed.toUpperCase().startsWith('INV/') || trimmed.toUpperCase().startsWith('CN')) return trimmed;
       final clean = trimmed.replaceFirst(RegExp(r'^(INV|CN)-0*'), '').replaceFirst(RegExp(r'^(INV|CN)-'), '');
+      final sdcClean = (sdcId ?? '').replaceAll(RegExp(r'^SDC', caseSensitive: false), '');
+      if (sdcClean.isNotEmpty) {
+        return 'INV$sdcClean/$clean';
+      }
       return 'INV1/$clean';
     }
 
     final sdcIdStr = (transaction.zraSdcId != null && transaction.zraSdcId!.isNotEmpty)
         ? transaction.zraSdcId!
         : (config?.sdcId?.isNotEmpty == true ? config!.sdcId! : 'PENDING');
-    final sdcInvNoStr = formatZraInvoiceNo(transaction.zraReceiptNumber);
-    final signatureStr = (transaction.zraMarkId != null && transaction.zraMarkId!.isNotEmpty)
+    final sdcInvNoStr = formatZraInvoiceNo(transaction.zraReceiptNumber, sdcId: sdcIdStr);
+    final signatureStr = (transaction.zraMarkId != null &&
+            transaction.zraMarkId!.isNotEmpty &&
+            transaction.zraMarkId != 'PENDING' &&
+            !transaction.zraMarkId!.startsWith('sale_') &&
+            !transaction.zraMarkId!.startsWith('SALE_'))
         ? transaction.zraMarkId!
         : 'PENDING';
-    final internalDataStr = (transaction.zraInternalData != null && transaction.zraInternalData!.isNotEmpty)
+    final internalDataStr = (transaction.zraInternalData != null &&
+            transaction.zraInternalData!.isNotEmpty &&
+            transaction.zraInternalData != 'PENDING')
         ? transaction.zraInternalData!
         : (config?.mrcNo?.isNotEmpty == true ? config!.mrcNo! : 'PENDING');
     final zraQrData = (transaction.zraQrCode != null && transaction.zraQrCode!.isNotEmpty)
         ? transaction.zraQrCode!
         : 'https://smartinvoice.zra.org.zm/verify?tpin=${config?.tpin ?? "1000000000"}&sdc=$sdcIdStr&rcpt=$sdcInvNoStr';
 
-    final isFiscalApproved = transaction.zraStatus == 'APPROVED' &&
-                             transaction.zraMarkId != null &&
-                             transaction.zraMarkId!.isNotEmpty &&
-                             transaction.zraMarkId != 'PENDING';
+    final isFiscalApproved = (transaction.zraStatus.toUpperCase() == 'APPROVED' || transaction.zraStatus.toUpperCase() == 'FISCALIZED') &&
+                             ((transaction.zraReceiptNumber != null &&
+                               transaction.zraReceiptNumber!.isNotEmpty &&
+                               transaction.zraReceiptNumber != 'PENDING') ||
+                              (transaction.zraMarkId != null &&
+                               transaction.zraMarkId!.isNotEmpty &&
+                               transaction.zraMarkId != 'PENDING' &&
+                               !transaction.zraMarkId!.startsWith('sale_') &&
+                               !transaction.zraMarkId!.startsWith('SALE_')));
     final receiptTitle = transaction.isCreditNote
         ? 'ZRA FISCAL CREDIT NOTE'
         : (isFiscalApproved ? 'TAX INVOICE / OFFICIAL RECEIPT' : 'CUSTOMER SALES SLIP');

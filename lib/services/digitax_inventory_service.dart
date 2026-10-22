@@ -128,11 +128,14 @@ class DigiTaxInventoryService {
   /// CT (Carton), BG (Bag), RO (Roll), BE (Bundle), TB (Tub), AM (Ampoule), NT (Net/Unit).
   String _resolvePackageUnitCode(String? unitOfMeasure) {
     final upper = (unitOfMeasure ?? '').trim().toUpperCase();
+    // Pre-empt common aliases to valid UNECE Rec 21 packaging code (NT = Net / Unit / Each)
+    if (upper == 'EACH' || upper == 'PCS' || upper == 'PIECE' || upper == 'UNIT' || upper == 'ITEM') {
+      return 'NT';
+    }
     // Direct match with official DigiTax/ZRA packaging codes
     if (upper == 'BO' || upper == 'PA' || upper == 'BX' || upper == 'CT' ||
         upper == 'CA' || upper == 'BG' || upper == 'BA' || upper == 'RO' ||
-        upper == 'BE' || upper == 'TB' || upper == 'AM' || upper == 'NT' ||
-        upper == 'EACH') {
+        upper == 'BE' || upper == 'TB' || upper == 'AM' || upper == 'NT') {
       return upper;
     }
 
@@ -191,7 +194,12 @@ class DigiTaxInventoryService {
     return 'U';
   }
 
-  /// Resolves the compliant ZRA VAT Category Code (A, B, C, D, E)
+  /// Resolves the compliant ZRA VAT Category Code (A, B, D, E)
+  /// Under ZRA Smart Invoice (VSDC):
+  /// - 'A': Standard Rated (16%)
+  /// - 'B': Minimum Taxable Value (MTV) / Zero-Rated (0%)
+  /// - 'D': Exempt (0%) [Official ZRA Smart Invoice code for exempt supplies; 'C' does not exist in ZRA]
+  /// - 'E': Disbursement (0%)
   static String resolveCompliantVatCategoryCode({
     required String? zraTaxCode,
     required double taxRate,
@@ -199,11 +207,18 @@ class DigiTaxInventoryService {
   }) {
     if (isTotBusiness) return 'D';
     final code = (zraTaxCode ?? '').trim().toUpperCase();
-    if (code == 'TOT' || code == 'D') return 'D';
-    if (code == 'B') return 'B'; // 0% Zero-Rated (Basic food, grain, bread)
-    if (code == 'C') return 'C'; // 0% VAT Exempt (Medicines, education, health)
-    if (code == 'E') return 'E'; // 0% Export
-    if (taxRate == 0) return 'B'; // Default 0% to Zero-Rated
+    if (code == 'TOT' || code == 'D' || code == 'C' || code == 'EXEMPT') {
+      return 'D';
+    }
+    if (code == 'B' || code == 'ZERO') {
+      return 'B'; // 0% Zero-Rated (MTV)
+    }
+    if (code == 'E') {
+      return 'E'; // 0% Disbursement
+    }
+    if (taxRate == 0) {
+      return 'D'; // Default 0% to Exempt ('D')
+    }
     return 'A'; // 16% Standard VAT
   }
 
@@ -231,8 +246,8 @@ class DigiTaxInventoryService {
       return '50202301'; // Food & Groceries (Zero-Rated B compliant - verified COMPLETED)
     }
     // ZRA Rule: Exempt items typically healthcare/pharmaceutical/educational
-    if (code == 'C') {
-      return '42141501'; // Medical supplies & Healthcare (Exempt C compliant - verified COMPLETED)
+    if (code == 'C' || code == 'D' || code == 'EXEMPT') {
+      return '42141501'; // Medical supplies & Healthcare (Exempt D compliant - verified COMPLETED)
     }
 
     final text = (productName ?? '').toLowerCase();
@@ -961,7 +976,7 @@ class DigiTaxInventoryService {
               "package_unit_code": _resolvePackageUnitCode(p.unitOfMeasure),
               "quantity_unit_code": _resolveQuantityUnitCode(p.unitOfMeasure),
               "vat_category_code": vatCategoryCode,
-              if (isTot || vatCategoryCode == 'D') "tot_category_code": "TOT",
+              if (isTot) "tot_category_code": "TOT",
               "default_unit_price": p.price > 0 ? p.price : 1.0,
               "recommended_retail_price": p.price > 0 ? p.price : 1.0,
               "stock_quantity": p.stockLevel > 0 ? p.stockLevel : 0,
@@ -1172,22 +1187,36 @@ class DigiTaxInventoryService {
           try {
             final effectiveMovementType =
                 movementType ?? (stockDiff > 0 ? "06" : "16");
-            await _dio.put(
-              '$digitaxZambiaApiBaseUrl/stock/adjust',
-              data: {
-                "item_id": digitaxItemId,
-                "quantity": stockDiff.abs(),
-                "action": stockDiff > 0 ? "ADD" : "DEDUCT",
-                "movement_type": effectiveMovementType,
-                "bhf_id": effectiveBranchCode,
-                "branch_code": effectiveBranchCode,
-                if (reasonNotes != null && reasonNotes.isNotEmpty)
-                  "remarks": reasonNotes,
-              },
-              options: Options(headers: headers),
-            );
+            final adjustPayload = <String, dynamic>{
+              "item_id": digitaxItemId,
+              "quantity": stockDiff.abs(),
+              "action": stockDiff > 0 ? "ADD" : "DEDUCT",
+              "movement_type": effectiveMovementType,
+            };
+            if (reasonNotes != null && reasonNotes.isNotEmpty) {
+              adjustPayload["remarks"] = reasonNotes;
+            }
+            try {
+              await _dio.put(
+                '$digitaxZambiaApiBaseUrl/stock/adjust',
+                data: adjustPayload,
+                options: Options(headers: headers),
+              );
+            } on DioException catch (dioErr) {
+              if (dioErr.response?.statusCode == 400 &&
+                  adjustPayload.containsKey("remarks")) {
+                adjustPayload.remove("remarks");
+                await _dio.put(
+                  '$digitaxZambiaApiBaseUrl/stock/adjust',
+                  data: adjustPayload,
+                  options: Options(headers: headers),
+                );
+              } else {
+                rethrow;
+              }
+            }
             debugPrint(
-              'DIGITAX_STOCK_ADJUST_SUCCESS: Adjusted item $digitaxItemId on DigiTax by $stockDiff [Type: $effectiveMovementType, Branch: $effectiveBranchCode] (New Stock: ${product.stockLevel})',
+              'DIGITAX_STOCK_ADJUST_SUCCESS: Adjusted item $digitaxItemId on DigiTax by $stockDiff [Type: $effectiveMovementType] (New Stock: ${product.stockLevel})',
             );
           } catch (stockErr) {
             debugPrint('DIGITAX_STOCK_ADJUST_ERROR: $stockErr');
@@ -1223,7 +1252,7 @@ class DigiTaxInventoryService {
           "package_unit_code": _resolvePackageUnitCode(product.unitOfMeasure),
           "quantity_unit_code": _resolveQuantityUnitCode(product.unitOfMeasure),
           "vat_category_code": vatCategoryCode,
-          if (isTot || vatCategoryCode == 'D') "tot_category_code": "TOT",
+          if (isTot) "tot_category_code": "TOT",
           "default_unit_price": product.price > 0 ? product.price : 1.0,
           "recommended_retail_price": product.price > 0 ? product.price : 1.0,
           "stock_quantity": product.stockLevel > 0 ? product.stockLevel : 0,
@@ -1267,8 +1296,6 @@ class DigiTaxInventoryService {
                   "quantity": product.stockLevel.abs(),
                   "action": "ADD",
                   "movement_type": movementType ?? "01",
-                  "bhf_id": effectiveBranchCode,
-                  "branch_code": effectiveBranchCode,
                 },
                 options: Options(headers: headers),
               );
@@ -1326,9 +1353,9 @@ class DigiTaxInventoryService {
     String? remarks,
     String? branchCode,
   }) async {
-    if (!product.isDigitaxSyncEnabled || !product.isTaxInclusive) {
+    if (!product.isDigitaxSyncEnabled) {
       debugPrint(
-        'DIGITAX_STOCK_ADJUST_SKIP: Product ${product.name} is offline/tax-exclusive local stock only.',
+        'DIGITAX_STOCK_ADJUST_SKIP: Product ${product.name} is marked offline/local only.',
       );
       return true;
     }
@@ -1356,89 +1383,114 @@ class DigiTaxInventoryService {
     };
 
     try {
-      String? digitaxItemId = product.hasUsableDigitaxItemId
-          ? product.itemClsCd
-          : null;
-      if (digitaxItemId == null) {
-        // Query remote items to find ID
-        try {
-          final remoteResp = await _dio.get(
-            '$digitaxZambiaApiBaseUrl/items',
-            options: Options(headers: headers),
-          );
-          if (remoteResp.statusCode == 200 && remoteResp.data != null) {
-            List list = [];
-            if (remoteResp.data is List) {
-              list = remoteResp.data;
-            } else if (remoteResp.data is Map &&
-                remoteResp.data['data'] is List) {
-              list = remoteResp.data['data'];
-            } else if (remoteResp.data is Map &&
-                remoteResp.data['items'] is List) {
-              list = remoteResp.data['items'];
-            }
+      String? digitaxItemId;
 
-            for (final item in list) {
-              if (item is Map) {
-                final rName = (item['item_name'] ?? item['name'] ?? '')
-                    .toString()
-                    .trim()
-                    .toLowerCase();
-                final rCode =
-                    (item['bar_code'] ?? item['item_code'] ?? item['sku'] ?? '')
-                        .toString()
-                        .trim();
-                if (rName == product.name.trim().toLowerCase() ||
-                    (product.sku.isNotEmpty && rCode == product.sku.trim())) {
-                  digitaxItemId = item['id']?.toString();
-                  break;
-                }
-              }
+      // 1. Check if product itself has an item_ ID stored
+      if (product.hasUsableDigitaxItemId) {
+        digitaxItemId = product.itemClsCd;
+      }
+
+      // 2. Fetch full remote catalog with pagination to find this item by name or barcode/sku
+      if (digitaxItemId == null || digitaxItemId.isEmpty) {
+        try {
+          final remoteItems = await _fetchAllRemoteItems(headers);
+          final normName = product.name.trim().toLowerCase();
+          final normSku = product.sku.trim().toLowerCase();
+
+          for (final item in remoteItems) {
+            final rName = (item['item_name'] ?? item['name'] ?? '')
+                .toString()
+                .trim()
+                .toLowerCase();
+            final rBarcode = (item['bar_code'] ?? item['barcode'] ?? '')
+                .toString()
+                .trim()
+                .toLowerCase();
+            final rCode = (item['item_code'] ?? item['sku'] ?? '')
+                .toString()
+                .trim()
+                .toLowerCase();
+
+            if ((normName.isNotEmpty && rName == normName) ||
+                (normSku.isNotEmpty && (rBarcode == normSku || rCode == normSku))) {
+              digitaxItemId = (item['id'] ?? item['item_id'] ?? '').toString();
+              break;
             }
           }
         } catch (fetchErr) {
           debugPrint('DIGITAX_STOCK_ADJUST_FETCH_NOTE: $fetchErr');
         }
+      }
 
-        // If still not found on DigiTax, register it now so it obtains an item_id
-        if (digitaxItemId == null) {
-          try {
-            await syncSingleProductToDigitax(product);
-            final refreshed = await ref
-                .read(databaseServiceProvider)
-                .isar
-                .products
-                .get(product.id);
-            if (refreshed != null && refreshed.hasUsableDigitaxItemId) {
-              digitaxItemId = refreshed.itemClsCd;
+      // 3. If still not registered on DigiTax, register it now so it exists in DigiTax!
+      if (digitaxItemId == null || digitaxItemId.isEmpty) {
+        try {
+          await syncSingleProductToDigitax(product);
+          final remoteItems = await _fetchAllRemoteItems(headers);
+          final normName = product.name.trim().toLowerCase();
+          final normSku = product.sku.trim().toLowerCase();
+          for (final item in remoteItems) {
+            final rName = (item['item_name'] ?? item['name'] ?? '')
+                .toString()
+                .trim()
+                .toLowerCase();
+            final rBarcode = (item['bar_code'] ?? item['barcode'] ?? '')
+                .toString()
+                .trim()
+                .toLowerCase();
+            if ((normName.isNotEmpty && rName == normName) ||
+                (normSku.isNotEmpty && rBarcode == normSku)) {
+              digitaxItemId = (item['id'] ?? item['item_id'] ?? '').toString();
+              break;
             }
-          } catch (_) {}
+          }
+        } catch (regErr) {
+          debugPrint('DIGITAX_STOCK_ADJUST_REG_NOTE: $regErr');
         }
       }
 
-      if (digitaxItemId != null && digitaxItemId.isNotEmpty) {
-        final payload = {
-          "item_id": digitaxItemId,
-          "quantity": quantity.abs(),
-          "action": action,
-          "movement_type": movementType,
-          "bhf_id": resolvedBranchCode,
-          "branch_code": resolvedBranchCode,
-          if (remarks != null && remarks.isNotEmpty) "remarks": remarks,
-        };
+      if (digitaxItemId == null || digitaxItemId.isEmpty) {
+        debugPrint(
+          'DIGITAX_STOCK_ADJUST_ERROR: Could not find or register item ID on DigiTax for "${product.name}"',
+        );
+        return false;
+      }
 
-        final resp = await _dio.put(
+      final payload = <String, dynamic>{
+        "item_id": digitaxItemId,
+        "quantity": quantity.abs(),
+        "action": action, // "ADD" or "DEDUCT"
+        "movement_type": movementType,
+      };
+      if (remarks != null && remarks.trim().isNotEmpty) {
+        payload["remarks"] = remarks.trim();
+      }
+
+      Response resp;
+      try {
+        resp = await _dio.put(
           '$digitaxZambiaApiBaseUrl/stock/adjust',
           data: payload,
           options: Options(headers: headers),
         );
-
-        if (resp.statusCode == 200 || resp.statusCode == 201) {
-          debugPrint(
-            'DIGITAX_STOCK_ADJUST_SUCCESS: Adjusted item $digitaxItemId on DigiTax: $action $quantity (Type: $movementType, Notes: $remarks)',
+      } on DioException catch (dioErr) {
+        if (dioErr.response?.statusCode == 400 && payload.containsKey('remarks')) {
+          payload.remove('remarks');
+          resp = await _dio.put(
+            '$digitaxZambiaApiBaseUrl/stock/adjust',
+            data: payload,
+            options: Options(headers: headers),
           );
-          return true;
+        } else {
+          rethrow;
         }
+      }
+
+      if (resp.statusCode == 200 || resp.statusCode == 201) {
+        debugPrint(
+          'DIGITAX_STOCK_ADJUST_SUCCESS: Adjusted item $digitaxItemId on DigiTax: $action $quantity (Type: $movementType, Notes: $remarks)',
+        );
+        return true;
       }
     } on DioException catch (dioErr) {
       debugPrint(
@@ -1516,15 +1568,27 @@ class DigiTaxInventoryService {
         digitaxItemId = localProd.itemClsCd;
       }
 
-      // If not stored, query DigiTax items catalog first to find existing ID
+      // If not stored, query DigiTax items catalog first to find existing ID across multiple attributes
       if (digitaxItemId == null || digitaxItemId.isEmpty) {
         try {
           final remoteItems = await _fetchAllRemoteItems(headers);
           final normName = item.productName.trim().toLowerCase();
+          final localSku = localProd?.sku.trim().toLowerCase() ?? '';
+          final localCls = localProd?.itemClsCd.trim().toLowerCase() ?? '';
+
           for (final rem in remoteItems) {
+            final rId = (rem['id'] ?? rem['item_id'] ?? '').toString().trim();
             final rName = (rem['item_name'] ?? rem['name'] ?? '').toString().trim().toLowerCase();
-            if (rName == normName) {
-              digitaxItemId = (rem['id'] ?? rem['item_id'] ?? '').toString();
+            final rCode = (rem['item_code'] ?? rem['code'] ?? '').toString().trim().toLowerCase();
+            final rBarcode = (rem['bar_code'] ?? rem['barcode'] ?? '').toString().trim().toLowerCase();
+
+            final isIdMatch = rId.isNotEmpty && (rId == localCls || (localProd != null && localProd.hasUsableDigitaxItemId && rId == localProd.itemClsCd));
+            final isNameMatch = rName.isNotEmpty && (rName == normName || rName.replaceAll(RegExp(r'\s+'), '') == normName.replaceAll(RegExp(r'\s+'), ''));
+            final isCodeMatch = (localSku.isNotEmpty && (rCode == localSku || rBarcode == localSku)) ||
+                (rBarcode == 'sku-${item.productId}' || rCode == 'sku-${item.productId}');
+
+            if (isIdMatch || isNameMatch || isCodeMatch) {
+              digitaxItemId = rId;
               if (localProd != null && digitaxItemId.isNotEmpty) {
                 localProd.itemClsCd = digitaxItemId;
                 localProd.isSyncedWithDigitax = true;
@@ -1535,10 +1599,12 @@ class DigiTaxInventoryService {
               break;
             }
           }
-        } catch (_) {}
+        } catch (e) {
+          debugPrint('DIGITAX_SALES: Remote item lookup notice: $e');
+        }
       }
 
-      // If still not found, register on DigiTax
+      // If still not found, auto-register on DigiTax
       if (digitaxItemId == null || digitaxItemId.isEmpty) {
         try {
           final vatCategoryCode = resolveCompliantVatCategoryCode(
@@ -1551,22 +1617,28 @@ class DigiTaxInventoryService {
             zraTaxCode: localProd?.zraTaxCode,
             productName: item.productName,
           );
+          final pkgUnit = _resolvePackageUnitCode(localProd?.unitOfMeasure);
+          final qtyUnit = _resolveQuantityUnitCode(localProd?.unitOfMeasure);
+
           final registerPayload = {
             "item_class_code": classCode,
             "item_type_code": "2",
             "item_name": item.productName.trim(),
             "origin_nation_code": "ZM",
-            "package_unit_code": _resolvePackageUnitCode(localProd?.unitOfMeasure),
-            "quantity_unit_code": _resolveQuantityUnitCode(localProd?.unitOfMeasure),
+            "package_unit_code": pkgUnit,
+            "quantity_unit_code": qtyUnit,
             "vat_category_code": vatCategoryCode,
-            if (isTot || vatCategoryCode == 'D') "tot_category_code": "TOT",
+            if (isTot) "tot_category_code": "TOT",
             "default_unit_price": item.priceAtSale > 0 ? item.priceAtSale : 1.0,
             "recommended_retail_price": item.priceAtSale > 0 ? item.priceAtSale : 1.0,
             "stock_quantity": localProd?.stockLevel != null && localProd!.stockLevel > 0 ? localProd.stockLevel : 0,
             "is_stock_item": true,
-            "bar_code": "SKU-${item.productId}",
+            "bar_code": (localProd?.sku != null && localProd!.sku.trim().isNotEmpty)
+                ? localProd.sku.trim()
+                : "SKU-${item.productId}",
           };
 
+          debugPrint('DIGITAX_SALES: Auto-registering "${item.productName}" on DigiTax (pkg: $pkgUnit, qty: $qtyUnit)...');
           final regResp = await _dio.post(
             '$digitaxZambiaApiBaseUrl/items',
             data: registerPayload,
@@ -1584,7 +1656,40 @@ class DigiTaxInventoryService {
               });
             }
           }
-        } catch (_) {}
+        } on DioException catch (dioErr) {
+          debugPrint(
+            'DIGITAX_SALES: Item registration DioException [HTTP ${dioErr.response?.statusCode}]: ${dioErr.response?.data}',
+          );
+          // If item already registered remotely (e.g. 409 or name already taken), re-query remote items
+          try {
+            final remoteItems = await _fetchAllRemoteItems(headers);
+            final normName = item.productName.trim().toLowerCase();
+            for (final rem in remoteItems) {
+              final rId = (rem['id'] ?? rem['item_id'] ?? '').toString().trim();
+              final rName = (rem['item_name'] ?? rem['name'] ?? '').toString().trim().toLowerCase();
+              if (rName == normName || rName.contains(normName) || normName.contains(rName)) {
+                digitaxItemId = rId;
+                if (localProd != null && digitaxItemId.isNotEmpty) {
+                  localProd.itemClsCd = digitaxItemId;
+                  localProd.isSyncedWithDigitax = true;
+                  await db.isar.writeTxn(() async {
+                    await db.isar.products.put(localProd);
+                  });
+                }
+                break;
+              }
+            }
+          } catch (_) {}
+        } catch (e) {
+          debugPrint('DIGITAX_SALES: Item registration unexpected error: $e');
+        }
+      }
+
+      if (digitaxItemId == null || digitaxItemId.isEmpty) {
+        debugPrint(
+          'DIGITAX_SALES_CRITICAL: Unable to obtain DigiTax item_id for "${item.productName}". Aborting sale submission to avoid 400 rejection.',
+        );
+        return false;
       }
 
       final effectiveQty = (item.isWeighted && item.weight > 0)
@@ -1597,8 +1702,7 @@ class DigiTaxInventoryService {
       );
 
       digitaxItemsPayload.add({
-        if (digitaxItemId != null && digitaxItemId.isNotEmpty)
-          "item_id": digitaxItemId,
+        "item_id": digitaxItemId,
         "item_name": item.productName,
         "item_code": "SKU-${item.productId}",
         "quantity": effectiveQty,
@@ -1610,7 +1714,7 @@ class DigiTaxInventoryService {
           (effectiveQty * item.priceAtSale).toStringAsFixed(4),
         ),
         "vat_category_code": vatCategoryCode,
-        if (isTot || vatCategoryCode == "D") "tot_category_code": "TOT",
+        if (isTot) "tot_category_code": "TOT",
       });
     }
 
@@ -1663,7 +1767,6 @@ class DigiTaxInventoryService {
       if (transaction.customerAddress != null &&
           transaction.customerAddress!.isNotEmpty)
         "customer_address": transaction.customerAddress,
-      "bhf_id": resolvedBhfId,
       "items": digitaxItemsPayload,
     };
 
@@ -1718,11 +1821,13 @@ class DigiTaxInventoryService {
 
         String? liveSignature = extractSig(saleData);
 
-        // If not immediately signed (DigiTax queue processing), fast-poll for live ZRA signature
+        // If not immediately signed (DigiTax async ZRA VSDC sync), poll for up to 15 seconds
+        // DigiTax POSTs the sale to ZRA VSDC asynchronously — typical completion is 1–4 seconds.
         if (liveSignature == null || liveSignature.isEmpty) {
-          for (int attempt = 1; attempt <= 10; attempt++) {
-            await Future.delayed(const Duration(milliseconds: 400));
+          for (int attempt = 1; attempt <= 15; attempt++) {
+            await Future.delayed(const Duration(milliseconds: 1000));
             try {
+              // Always prefer GET /sales/{id} when we have the DigiTax sale ID
               final pollResp = (saleId != null && saleId.isNotEmpty)
                   ? await _dio.get(
                       '$digitaxZambiaApiBaseUrl/sales/$saleId',
@@ -1745,7 +1850,9 @@ class DigiTaxInventoryService {
                   if (list is List && list.isNotEmpty) pData = list.first;
                   if (pData is Map) {
                     final mapData = Map<String, dynamic>.from(pData);
+                    final pollStatus = mapData['status']?.toString().toUpperCase();
                     final sig = extractSig(mapData);
+                    // Update saleData from the nested object if present
                     if (mapData['sale'] is Map) {
                       saleData = Map<String, dynamic>.from(mapData['sale']);
                     } else if (mapData['data'] is Map) {
@@ -1756,10 +1863,20 @@ class DigiTaxInventoryService {
                     if (sig != null && sig.isNotEmpty) {
                       liveSignature = sig;
                       debugPrint(
-                        'DIGITAX_POLL_SUCCESS: Sale #$invoiceNo signed after $attempt attempt(s)!',
+                        'DIGITAX_POLL_SUCCESS: Sale #$invoiceNo signed after $attempt attempt(s) (status=$pollStatus)',
                       );
                       break;
                     }
+                    if (pollStatus == 'FAILED') {
+                      debugPrint(
+                        'DIGITAX_POLL_FAILED: Sale #$invoiceNo was marked FAILED by ZRA VSDC',
+                      );
+                      break;
+                    }
+                    // If status is COMPLETED but signature still missing, keep polling
+                    debugPrint(
+                      'DIGITAX_POLL_WAIT: Attempt $attempt — status=$pollStatus, sig=$sig',
+                    );
                   }
                 }
               }
@@ -1771,11 +1888,29 @@ class DigiTaxInventoryService {
           }
         }
 
-        liveSignature ??= (saleId != null && saleId.isNotEmpty)
-            ? saleId
-            : (saleData['id']?.toString() ?? 'APPROVED');
+        final saleStatusUpper = saleData['status']?.toString().toUpperCase();
+        if (saleStatusUpper == 'FAILED') {
+          debugPrint(
+            'DIGITAX_SALE_FAILED: Sale #$invoiceNo (id=$saleId) was rejected by ZRA VSDC',
+          );
+          transaction.zraStatus = 'FAILED';
+          if (saleId != null && saleId.isNotEmpty) {
+            transaction.zraMarkId = saleId;
+          }
+          await db.isar.writeTxn(() async {
+            await db.isar.saleTransactions.put(transaction);
+          });
+          return false;
+        }
+
+        // IMPORTANT: Do NOT fall back to the DigiTax sale ID as the signature!
+        // If polling exhausted without a ZRA signature, set PENDING so the
+        // cashier can refresh from transaction history once ZRA completes.
+        // The refreshTransactionFiscalData() method will fill it in later.
+        liveSignature ??= 'PENDING';
 
         // Virtual SDC Device ID (from DigiTax registration)
+        // DigiTax returns sdc_id = "" (empty) — derive from TPIN+branch when missing
         final rawSdc =
             saleData['sdc_id'] ??
             saleData['sdcId'] ??
@@ -1785,7 +1920,11 @@ class DigiTaxInventoryService {
                 rawSdc.toString().trim().isNotEmpty &&
                 rawSdc.toString() != 'null')
             ? rawSdc.toString().trim()
-            : (config?.sdcId?.isNotEmpty == true ? config!.sdcId! : '');
+            : (config?.sdcId?.isNotEmpty == true
+                ? config!.sdcId!
+                : ((config?.tpin?.isNotEmpty == true)
+                    ? '${config!.tpin!}001'
+                    : ''));
 
         // SDC Invoice Number (ZRA Smart Invoice format: INV{SDC_ID}/{number})
         final rawRcpt =
@@ -1829,8 +1968,12 @@ class DigiTaxInventoryService {
         }
 
         // ZRA VSDC Internal Data
-        final internalData =
-            saleData['internal_data']?.toString() ?? (config?.mrcNo ?? '');
+        final rawInternalData = saleData['internal_data']?.toString();
+        final internalData = (rawInternalData != null &&
+                rawInternalData.trim().isNotEmpty &&
+                rawInternalData != 'null')
+            ? rawInternalData.trim()
+            : (config?.mrcNo?.isNotEmpty == true ? config!.mrcNo! : 'PENDING');
 
         // ZRA Verification QR URL: prioritize official receipt_url returned by DigiTax
         final qrData = (saleData['receipt_url']?.toString().isNotEmpty == true)
@@ -2038,7 +2181,7 @@ class DigiTaxInventoryService {
           : item.quantity.toDouble();
       final lineTotal = (effectiveQty * item.priceAtSale).abs();
       final taxRate = item.taxRateAtSale;
-      final vatCode = item.taxRateAtSale == 0 ? 'E' : 'A'; // A=16%, E=0% Exempt
+      final vatCode = item.taxRateAtSale == 0 ? 'D' : 'A'; // A=16%, D=0% Exempt
 
       digitaxItemsPayload.add({
         'item_name': item.productName,
@@ -2728,26 +2871,8 @@ class DigiTaxInventoryService {
           if (product != null) localProducts.add(product);
         }
 
-        final hasOnlyUnregisteredItems =
-            items.isNotEmpty &&
-            localProducts.length == items.length &&
-            localProducts.every((product) => !product.hasUsableDigitaxItemId);
-        if (hasOnlyUnregisteredItems) {
-          tx.zraSdcId = null;
-          tx.zraReceiptNumber = null;
-          tx.zraMarkId = null;
-          tx.zraInternalData = null;
-          tx.zraQrCode = null;
-          tx.zraInvoiceType = 'Internal / Non-Fiscal';
-          tx.zraStatus = 'OFFLINE_EXEMPT';
-          await db.isar.writeTxn(() async {
-            await db.isar.saleTransactions.put(tx);
-          });
-          debugPrint(
-            'DIGITAX_QUEUE_SKIP: Transaction ${tx.id} contains no registered DigiTax item IDs; marked OFFLINE_EXEMPT.',
-          );
-          continue;
-        }
+        // Note: fiscalizeSaleTransaction will auto-register unregistered items on DigiTax
+        // and return false if registration fails, so we no longer short-circuit here.
 
         final success = await fiscalizeSaleTransaction(tx, items);
         if (success) {
@@ -3052,7 +3177,13 @@ class DigiTaxInventoryService {
   /// Query DigiTax for the live fiscal control data of a specific transaction
   Future<bool> refreshTransactionFiscalData(SaleTransaction transaction) async {
     final config = ref.read(storeConfigProvider).value;
-    final apiKey = config?.digitaxApiKey?.trim();
+    final currentUser = ref.read(authProvider);
+    final resolvedBhfId = (currentUser?.branchCode != null && currentUser!.branchCode!.trim().isNotEmpty)
+        ? currentUser.branchCode!.trim().padLeft(2, '0')
+        : (config?.bhfId.trim().isNotEmpty == true
+            ? config!.bhfId.trim().padLeft(2, '0')
+            : '00');
+    final apiKey = await resolveBranchApiKey(resolvedBhfId) ?? config?.digitaxApiKey?.trim();
     if (apiKey == null || apiKey.isEmpty) return false;
 
     final db = ref.read(databaseServiceProvider);
@@ -3064,12 +3195,24 @@ class DigiTaxInventoryService {
 
     final traderInvoice = transaction.transactionId ?? 'INV-${transaction.id}';
 
+    // If the stored signature looks like a DigiTax sale ID (sale_...), use it
+    // to do a direct GET /sales/{id} lookup — much more reliable than trader_invoice_number
+    final storedMark = transaction.zraMarkId;
+    final directSaleId = (storedMark != null && storedMark.startsWith('sale_'))
+        ? storedMark
+        : null;
+
     try {
-      final resp = await _dio.get(
-        '$digitaxZambiaApiBaseUrl/sales',
-        queryParameters: {'trader_invoice_number': traderInvoice},
-        options: Options(headers: headers),
-      );
+      final resp = (directSaleId != null)
+          ? await _dio.get(
+              '$digitaxZambiaApiBaseUrl/sales/$directSaleId',
+              options: Options(headers: headers),
+            )
+          : await _dio.get(
+              '$digitaxZambiaApiBaseUrl/sales',
+              queryParameters: {'trader_invoice_number': traderInvoice},
+              options: Options(headers: headers),
+            );
 
       if (resp.statusCode == 200 && resp.data != null) {
         dynamic matchData = resp.data;
@@ -3096,7 +3239,8 @@ class DigiTaxInventoryService {
             rawRcpt.toString().trim().isNotEmpty &&
             rawRcpt.toString() != 'null') {
           final rcptStr = rawRcpt.toString().trim();
-          if (rcptStr.toUpperCase().startsWith('INV1/') ||
+          if (rcptStr.toUpperCase().startsWith('INV0') ||
+              rcptStr.toUpperCase().startsWith('INV1/') ||
               rcptStr.toUpperCase().startsWith('INV/') ||
               rcptStr.toUpperCase().startsWith('CN')) {
             parsedSdcRcptNo = rcptStr;
@@ -3107,10 +3251,34 @@ class DigiTaxInventoryService {
             parsedSdcRcptNo = 'INV1/$cleanNum';
           }
         }
-        final parsedSignature =
-            matchData['receipt_signature']?.toString().isNotEmpty == true
-            ? matchData['receipt_signature'].toString()
-            : null;
+
+        // Helper function to extract ZRA signature across top-level and nested maps
+        String? extractSig(Map<dynamic, dynamic> m) {
+          final s =
+              m['receipt_signature'] ??
+              m['signature'] ??
+              m['vsdc_signature'] ??
+              m['receipt_sign'] ??
+              m['qr_code'] ??
+              m['vsdc_sign'] ??
+              m['rcpt_sign'];
+          if (s != null &&
+              s.toString().trim().isNotEmpty &&
+              s.toString() != 'null') {
+            return s.toString().trim();
+          }
+          if (m['sale'] is Map) {
+            final inner = extractSig(Map<dynamic, dynamic>.from(m['sale']));
+            if (inner != null) return inner;
+          }
+          if (m['data'] is Map) {
+            final inner = extractSig(Map<dynamic, dynamic>.from(m['data']));
+            if (inner != null) return inner;
+          }
+          return null;
+        }
+
+        final parsedSignature = extractSig(matchData);
         final parsedInternalData =
             matchData['internal_data']?.toString().isNotEmpty == true
             ? matchData['internal_data'].toString()
@@ -3132,17 +3300,29 @@ class DigiTaxInventoryService {
           _ => matchData['kind']?.toString().replaceAll('_', ' ').toUpperCase(),
         };
 
-        if (parsedSignature != null && parsedSignature.isNotEmpty) {
-          transaction.zraMarkId = parsedSignature;
-          if (parsedSdcRcptNo != null) {
+        final isCompletedOrApproved =
+            matchData['status']?.toString().toUpperCase() == 'COMPLETED' ||
+            matchData['status']?.toString().toUpperCase() == 'APPROVED' ||
+            parsedSignature != null ||
+            (parsedSdcRcptNo != null && parsedSdcRcptNo.isNotEmpty && parsedSdcRcptNo != 'PENDING');
+
+        if (isCompletedOrApproved) {
+          if (parsedSignature != null && parsedSignature.isNotEmpty && !parsedSignature.startsWith('sale_')) {
+            transaction.zraMarkId = parsedSignature;
+          }
+          if (parsedSdcRcptNo != null && parsedSdcRcptNo.isNotEmpty && parsedSdcRcptNo != 'PENDING') {
             transaction.zraReceiptNumber = parsedSdcRcptNo;
           }
-          if (parsedInternalData != null) {
+          if (parsedInternalData != null && parsedInternalData.isNotEmpty && parsedInternalData != 'PENDING') {
             transaction.zraInternalData = parsedInternalData;
           }
-          if (parsedSdcId != null) transaction.zraSdcId = parsedSdcId;
-          if (parsedQrUrl != null) transaction.zraQrCode = parsedQrUrl;
-          if (parsedInvoiceType != null) {
+          if (parsedSdcId != null && parsedSdcId.isNotEmpty && parsedSdcId != 'PENDING') {
+            transaction.zraSdcId = parsedSdcId;
+          }
+          if (parsedQrUrl != null && parsedQrUrl.isNotEmpty) {
+            transaction.zraQrCode = parsedQrUrl;
+          }
+          if (parsedInvoiceType != null && parsedInvoiceType.isNotEmpty) {
             transaction.zraInvoiceType = parsedInvoiceType;
           }
 
@@ -3433,76 +3613,66 @@ class DigiTaxInventoryService {
     };
 
     try {
-      final resp = await _dio.get(
-        '$digitaxZambiaApiBaseUrl/items',
-        options: Options(headers: headers),
-      );
-
-      List<dynamic> remoteList = [];
-      if (resp.statusCode == 200 && resp.data != null) {
-        if (resp.data is List) {
-          remoteList = resp.data;
-        } else if (resp.data is Map && resp.data['data'] is List) {
-          remoteList = resp.data['data'];
-        } else if (resp.data is Map && resp.data['items'] is List) {
-          remoteList = resp.data['items'];
-        }
-      }
+      final remoteList = await _fetchAllRemoteItems(headers);
 
       final Map<String, Map<String, dynamic>> map = {};
       for (final item in remoteList) {
-        if (item is Map) {
-          final id = (item['id'] ?? '').toString();
-          final name =
-              (item['item_name'] ?? item['itemNm'] ?? item['name'] ?? '')
-                  .toString()
-                  .trim()
-                  .toLowerCase();
-          final code =
-              (item['item_code'] ??
-                      item['itemCd'] ??
-                      item['bar_code'] ??
-                      item['barcode'] ??
-                      item['sku'] ??
-                      '')
-                  .toString()
-                  .trim();
-          final rawStock =
-              item['stock_quantity'] ??
-              item['quantity'] ??
-              item['stock_level'] ??
-              0;
-          final int stock = (rawStock is num)
-              ? rawStock.toInt()
-              : (int.tryParse(rawStock.toString()) ?? 0);
-          final rawPrice =
-              item['default_unit_price'] ??
-              item['dftPrc'] ??
-              item['price'] ??
-              0;
-          final double price = (rawPrice is num)
-              ? rawPrice.toDouble()
-              : (double.tryParse(rawPrice.toString()) ?? 0.0);
-
-          final itemData = <String, dynamic>{
-            'id': id,
-            'name': (item['item_name'] ?? item['itemNm'] ?? item['name'] ?? '')
+        final id = (item['id'] ?? '').toString();
+        final name =
+            (item['item_name'] ?? item['itemNm'] ?? item['name'] ?? '')
                 .toString()
-                .trim(),
-            'stock': stock,
-            'price': price,
-            'tax_code':
-                (item['vat_category_code'] ??
-                        item['taxTyCd'] ??
-                        item['tax_code'] ??
-                        'A')
-                    .toString(),
-          };
+                .trim()
+                .toLowerCase();
+        final code =
+            (item['item_code'] ??
+                    item['itemCd'] ??
+                    item['bar_code'] ??
+                    item['barcode'] ??
+                    item['sku'] ??
+                    '')
+                .toString()
+                .trim()
+                .toLowerCase();
+        final barcode = (item['bar_code'] ?? item['barcode'] ?? '')
+            .toString()
+            .trim()
+            .toLowerCase();
+        final rawStock =
+            item['stock_quantity'] ??
+            item['quantity'] ??
+            item['stock_level'] ??
+            0;
+        final int stock = (rawStock is num)
+            ? rawStock.toInt()
+            : (int.tryParse(rawStock.toString()) ?? 0);
+        final rawPrice =
+            item['default_unit_price'] ??
+            item['dftPrc'] ??
+            item['price'] ??
+            0;
+        final double price = (rawPrice is num)
+            ? rawPrice.toDouble()
+            : (double.tryParse(rawPrice.toString()) ?? 0.0);
 
-          if (id.isNotEmpty) map[id] = itemData;
-          if (name.isNotEmpty) map[name] = itemData;
-          if (code.isNotEmpty) map[code] = itemData;
-        }
+        final itemData = <String, dynamic>{
+          'id': id,
+          'name': (item['item_name'] ?? item['itemNm'] ?? item['name'] ?? '')
+              .toString()
+              .trim(),
+          'stock': stock,
+          'price': price,
+          'tax_code':
+              (item['vat_category_code'] ??
+                      item['taxTyCd'] ??
+                      item['tax_code'] ??
+                      'A')
+                  .toString(),
+        };
+
+        if (id.isNotEmpty) map[id] = itemData;
+        if (name.isNotEmpty) map[name] = itemData;
+        if (code.isNotEmpty) map[code] = itemData;
+        if (barcode.isNotEmpty) map[barcode] = itemData;
       }
       return map;
     } catch (e) {

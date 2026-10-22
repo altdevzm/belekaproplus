@@ -545,6 +545,7 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
     String formatZraInvoiceNo(String? raw, {String? sdcId}) {
       if (raw == null || raw.trim().isEmpty || raw.trim() == 'PENDING' || raw.trim() == 'null') return 'PENDING';
       final trimmed = raw.trim();
+      if (trimmed.contains('/') && (trimmed.toUpperCase().startsWith('INV') || trimmed.toUpperCase().startsWith('CN'))) return trimmed;
       if (trimmed.toUpperCase().startsWith('INV0') || trimmed.toUpperCase().startsWith('INV1/') || trimmed.toUpperCase().startsWith('INV/') || trimmed.toUpperCase().startsWith('CN')) return trimmed;
       final clean = trimmed.replaceFirst(RegExp(r'^(INV|CN)-0*'), '').replaceFirst(RegExp(r'^(INV|CN)-'), '');
       final sdcClean = (sdcId ?? '').replaceAll(RegExp(r'^SDC', caseSensitive: false), '');
@@ -565,15 +566,25 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
     }
     if (sdcIdStr.isEmpty) sdcIdStr = 'PENDING';
     final sdcInvNoStr = formatZraInvoiceNo(widget.transaction.zraReceiptNumber, sdcId: sdcIdStr);
-    final signatureStr = (widget.transaction.zraMarkId != null && widget.transaction.zraMarkId!.isNotEmpty)
-        ? widget.transaction.zraMarkId!
-        : 'PENDING';
-    final internalDataStr = (widget.transaction.zraInternalData != null && widget.transaction.zraInternalData!.isNotEmpty)
+    // A real ZRA signature is a short uppercase code (e.g. Z7DSL7MVVUKAESRV)
+    // A DigiTax internal sale ID starts with 'sale_' and must NOT be shown as the signature
+    bool isRealZraSig(String? s) {
+      if (s == null || s.isEmpty || s == 'PENDING' || s == 'APPROVED') return false;
+      if (s.startsWith('sale_') || s.startsWith('SALE_')) return false;
+      return true;
+    }
+
+    final signatureRaw = widget.transaction.zraMarkId;
+    final signatureStr = isRealZraSig(signatureRaw) ? signatureRaw! : 'PENDING';
+    final internalDataStr = (widget.transaction.zraInternalData != null &&
+            widget.transaction.zraInternalData!.isNotEmpty &&
+            widget.transaction.zraInternalData != 'PENDING')
         ? widget.transaction.zraInternalData!
         : (config?.mrcNo?.isNotEmpty == true ? config!.mrcNo! : 'PENDING');
 
-    final isApproved = widget.transaction.zraStatus == 'APPROVED' || 
-        (widget.transaction.zraMarkId != null && widget.transaction.zraMarkId!.isNotEmpty);
+    final isApproved = widget.transaction.zraStatus == 'APPROVED' ||
+        widget.transaction.zraStatus == 'FISCALIZED' ||
+        isRealZraSig(signatureRaw);
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -1259,8 +1270,11 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
         return;
       }
 
-      if (config?.digitaxApiKey?.isNotEmpty == true &&
-          (widget.transaction.zraReceiptNumber == null || widget.transaction.zraReceiptNumber!.isEmpty)) {
+      if (widget.transaction.zraReceiptNumber == null ||
+          widget.transaction.zraReceiptNumber!.isEmpty ||
+          widget.transaction.zraReceiptNumber == 'PENDING' ||
+          widget.transaction.zraMarkId == null ||
+          widget.transaction.zraMarkId == 'PENDING') {
         await ref.read(digitaxInventoryServiceProvider).refreshTransactionFiscalData(widget.transaction);
       }
 

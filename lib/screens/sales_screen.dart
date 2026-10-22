@@ -5845,9 +5845,16 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       }
 
       // Fiscalize with DigiTax VSDC Cloud (Live ZRA Smart Invoice & Server-Side Tax Calculations)
-      final hasDigitax =
-          config?.digitaxApiKey != null &&
-          config!.digitaxApiKey!.trim().isNotEmpty;
+      final resolvedBhf = (currentUser?.branchCode != null && currentUser!.branchCode!.trim().isNotEmpty)
+          ? currentUser.branchCode!.trim().padLeft(2, '0')
+          : (config?.bhfId.trim().isNotEmpty == true
+              ? config!.bhfId.trim().padLeft(2, '0')
+              : '00');
+      final branchKey = await ref
+          .read(digitaxInventoryServiceProvider)
+          .resolveBranchApiKey(resolvedBhf);
+      final hasDigitax = (branchKey != null && branchKey.isNotEmpty) ||
+          (config?.digitaxApiKey != null && config!.digitaxApiKey!.trim().isNotEmpty);
       bool fiscalized = false;
 
       if (hasDigitax) {
