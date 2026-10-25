@@ -601,6 +601,10 @@ class CsvStockService {
               existing.zraTaxCode = item.taxCode;
               existing.taxRate = item.taxRate;
               existing.isArchived = false;
+              // CSV-updated products become Offline Exempt — the owner must
+              // verify & selectively sync them to DigiTax manually.
+              existing.isDigitaxSyncEnabled = false;
+              existing.isSyncedWithDigitax = false;
 
               await isar.products.put(existing);
               updatedCount++;
@@ -628,7 +632,9 @@ class CsvStockService {
                 ));
               }
             } else {
-              // Create brand new product
+              // Create brand new product — always Offline Exempt after CSV import.
+              // The owner must review, verify barcodes / ZRA classification,
+              // then selectively enable DigiTax sync per product.
               final newProduct = Product(
                 name: item.name,
                 sku: item.sku,
@@ -639,11 +645,11 @@ class CsvStockService {
                 zraTaxCode: item.taxCode,
                 taxRate: item.taxRate,
                 isTaxInclusive: true,
-                itemClsCd: '10101501',
+                itemClsCd: '10101501', // Default UNSPSC code — edit per product before DigiTax sync
                 branchCode: branchCode,
                 branchName: branchName,
                 isArchived: false,
-                isDigitaxSyncEnabled: true,
+                isDigitaxSyncEnabled: false, // ← Offline Exempt: do NOT auto-push to DigiTax
                 isSyncedWithDigitax: false,
               );
 

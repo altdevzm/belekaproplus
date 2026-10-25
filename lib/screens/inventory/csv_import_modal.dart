@@ -913,7 +913,54 @@ class _CsvImportModalState extends ConsumerState<CsvImportModal> {
           ),
         ),
 
-        // Table
+        // ── Offline Exempt notice ──────────────────────────────────────────
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: isDark
+                ? const Color(0xFF0284C7).withValues(alpha: 0.10)
+                : const Color(0xFFE0F2FE),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: const Color(0xFF0284C7).withValues(alpha: 0.35),
+            ),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.cloud_off_rounded, color: Color(0xFF0284C7), size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Imported as Offline Exempt — Not pushed to DigiTax',
+                      style: GoogleFonts.inter(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF0284C7),
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      'All products imported via CSV will be stored locally only. '
+                      'No data will be sent to DigiTax automatically. '
+                      'After import, go to Inventory → open each product → enable "DigiTax Sync" '
+                      'once you have verified the SKU, ZRA tax code, and item classification.',
+                      style: GoogleFonts.inter(
+                        fontSize: 11.5,
+                        color: isDark ? const Color(0xFF7DD3FC) : const Color(0xFF0369A1),
+                        height: 1.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
         Expanded(
           child: SingleChildScrollView(
             scrollDirection: Axis.vertical,
