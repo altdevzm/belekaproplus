@@ -17,6 +17,9 @@ on:
 permissions:
   contents: write
 
+env:
+  RELEASES_REPO: altdevzm/belekaproplus-releases
+
 jobs:
   # ─────────────────────────────────────────────────────────────────────────────
   # Job 1: Create a draft release
@@ -45,6 +48,8 @@ jobs:
       - name: Create draft GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          repository: ${{ env.RELEASES_REPO }}
+          token: ${{ secrets.RELEASES_TOKEN || secrets.GITHUB_TOKEN }}
           tag_name: ${{ steps.meta.outputs.tag }}
           name: "Beleka POS ${{ steps.meta.outputs.tag }}"
           draft: true
@@ -130,6 +135,8 @@ jobs:
       - name: Upload installer to release
         uses: softprops/action-gh-release@v2
         with:
+          repository: ${{ env.RELEASES_REPO }}
+          token: ${{ secrets.RELEASES_TOKEN || secrets.GITHUB_TOKEN }}
           tag_name: ${{ needs.create-release.outputs.tag }}
           files: build/windows/installer/Beleka_POS_Setup_v${{ needs.create-release.outputs.version }}.exe
 
@@ -181,6 +188,8 @@ jobs:
       - name: Upload APKs to release
         uses: softprops/action-gh-release@v2
         with:
+          repository: ${{ env.RELEASES_REPO }}
+          token: ${{ secrets.RELEASES_TOKEN || secrets.GITHUB_TOKEN }}
           tag_name: ${{ needs.create-release.outputs.tag }}
           files: |
             Beleka_POS_v${{ needs.create-release.outputs.version }}.apk
@@ -202,7 +211,7 @@ jobs:
         run: |
           VER="${{ needs.create-release.outputs.version }}"
           TAG="${{ needs.create-release.outputs.tag }}"
-          BASE="https://github.com/${{ github.repository }}/releases/download/${TAG}"
+          BASE="https://github.com/${{ env.RELEASES_REPO }}/releases/download/${TAG}"
 
           # Extract release notes from pubspec or CHANGELOG if present
           NOTES=$(git log --oneline -10 --pretty=format:"• %s" 2>/dev/null | head -5 || echo "Bug fixes and improvements.")
@@ -226,12 +235,16 @@ jobs:
       - name: Upload version.json to release
         uses: softprops/action-gh-release@v2
         with:
+          repository: ${{ env.RELEASES_REPO }}
+          token: ${{ secrets.RELEASES_TOKEN || secrets.GITHUB_TOKEN }}
           tag_name: ${{ needs.create-release.outputs.tag }}
           files: version.json
 
       - name: Publish (undraft) release
         uses: softprops/action-gh-release@v2
         with:
+          repository: ${{ env.RELEASES_REPO }}
+          token: ${{ secrets.RELEASES_TOKEN || secrets.GITHUB_TOKEN }}
           tag_name: ${{ needs.create-release.outputs.tag }}
           draft: false
 

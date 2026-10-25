@@ -30,9 +30,9 @@ class UpdateInfo {
 
 class UpdateService {
   static const String _githubApiUrl =
-      'https://api.github.com/repos/altdevzm/belekaproplus/releases/latest';
+      'https://api.github.com/repos/altdevzm/belekaproplus-releases/releases/latest';
   static const String _githubRepoBase =
-      'https://github.com/altdevzm/belekaproplus/releases';
+      'https://github.com/altdevzm/belekaproplus-releases/releases';
 
   final Dio _dio;
 

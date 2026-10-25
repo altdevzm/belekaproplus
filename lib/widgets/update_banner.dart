@@ -307,7 +307,7 @@ class _BannerContent extends ConsumerWidget {
       progressNotifier.state = null;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Download failed. Please visit github.com/altdevzm/belekaproplus to download manually.'),
+          content: Text('Download failed. Please visit github.com/altdevzm/belekaproplus-releases to download manually.'),
           backgroundColor: Colors.redAccent,
           duration: Duration(seconds: 6),
         ),
