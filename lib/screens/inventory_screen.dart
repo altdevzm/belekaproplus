@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:beleka_pos/utils/formatters.dart';
 import 'package:beleka_pos/models/models.dart';
+import 'package:isar/isar.dart';
 import 'package:beleka_pos/services/database_service.dart';
 import 'package:beleka_pos/services/export_service.dart';
 import 'package:beleka_pos/screens/inventory/product_editor_modal.dart';
@@ -717,6 +718,78 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                         case 'csv': ref.read(exportServiceProvider).exportInventoryToCsv(products, config: config); break;
                         case 'excel': ref.read(exportServiceProvider).exportInventoryToExcel(products, config: config); break;
                         case 'pdf': ref.read(exportServiceProvider).exportInventoryToPdf(products, config: config); break;
+                        case 'make_all_offline':
+                          final db = ref.read(databaseServiceProvider);
+                          final unSynced = await db.isar.products
+                              .filter()
+                              .isSyncedWithDigitaxEqualTo(false)
+                              .and()
+                              .isDigitaxSyncEnabledEqualTo(true)
+                              .findAll();
+                          if (unSynced.isEmpty) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('All unsynced products are already Offline Exempt.'),
+                                  backgroundColor: Color(0xFF0284C7),
+                                ),
+                              );
+                            }
+                            break;
+                          }
+                          if (!context.mounted) break;
+                          final confirm = await showDialog<bool>(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              title: Row(
+                                children: const [
+                                  Icon(Icons.cloud_off_rounded, color: Color(0xFF0284C7)),
+                                  SizedBox(width: 8),
+                                  Text('Set to Offline Exempt?'),
+                                ],
+                              ),
+                              content: Text(
+                                'This will set ${unSynced.length} un-synced product(s) to "Offline Exempt" so they will NOT sync to DigiTax automatically.\n\nYou can selectively enable DigiTax sync per product later.',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(ctx, false),
+                                  child: const Text('Cancel'),
+                                ),
+                                ElevatedButton(
+                                  onPressed: () => Navigator.pop(ctx, true),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF0284C7),
+                                  ),
+                                  child: const Text(
+                                    'Set Offline',
+                                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                          if (confirm == true) {
+                            await db.isar.writeTxn(() async {
+                              for (final p in unSynced) {
+                                p.isDigitaxSyncEnabled = false;
+                                await db.isar.products.put(p);
+                              }
+                            });
+                            ref.invalidate(inventoryProductsProvider);
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Set ${unSynced.length} product(s) to Offline Exempt (DigiTax Disabled).',
+                                    style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                                  ),
+                                  backgroundColor: const Color(0xFF0284C7),
+                                ),
+                              );
+                            }
+                          }
+                          break;
                         case 'reconcile': showDialog(context: context, builder: (context) => const DigiTaxStockReconcileModal()); break;
                         case 'movements': showDialog(context: context, builder: (context) => const StockMovementHistoryModal()); break;
                         case 'categories': showDialog(context: context, builder: (context) => const CategoryManagementModal()); break;
@@ -725,6 +798,16 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                     itemBuilder: (context) => [
                       const PopupMenuItem(value: 'import_csv', child: Row(children: [Icon(Icons.file_upload_outlined, size: 16, color: Color(0xFF10B981)), SizedBox(width: 8), Text('Import Stock (CSV)', style: TextStyle(fontWeight: FontWeight.bold))])),
                       const PopupMenuItem(value: 'export_csv', child: Row(children: [Icon(Icons.file_download_outlined, size: 16, color: Color(0xFF0284C7)), SizedBox(width: 8), Text('Export Stock (CSV)')])),
+                      const PopupMenuItem(
+                        value: 'make_all_offline',
+                        child: Row(
+                          children: [
+                            Icon(Icons.cloud_off_rounded, size: 16, color: Color(0xFF0284C7)),
+                            SizedBox(width: 8),
+                            Text('Set Unsynced to Offline (Exempt)'),
+                          ],
+                        ),
+                      ),
                       const PopupMenuDivider(),
                       const PopupMenuItem(value: 'excel', child: Row(children: [Icon(Icons.grid_on_outlined, size: 16), SizedBox(width: 8), Text('Export Excel')])),
                       const PopupMenuItem(value: 'pdf', child: Row(children: [Icon(Icons.picture_as_pdf_outlined, size: 16), SizedBox(width: 8), Text('Export PDF')])),
@@ -1391,9 +1474,50 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                                 }
                                 ref.invalidate(inventoryProductsProvider);
                               }
+                            } else if (value == 'toggle_digitax') {
+                              final db = ref.read(databaseServiceProvider);
+                              await db.isar.writeTxn(() async {
+                                product.isDigitaxSyncEnabled = !product.isDigitaxSyncEnabled;
+                                if (!product.isDigitaxSyncEnabled) {
+                                  product.isSyncedWithDigitax = false;
+                                }
+                                await db.isar.products.put(product);
+                              });
+                              ref.invalidate(inventoryProductsProvider);
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      product.isDigitaxSyncEnabled
+                                          ? '${product.name}: DigiTax sync enabled (Ready to sync).'
+                                          : '${product.name}: DigiTax sync turned OFF (Offline Exempt).',
+                                      style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                                    ),
+                                    backgroundColor: product.isDigitaxSyncEnabled
+                                        ? const Color(0xFF10B981)
+                                        : const Color(0xFF0284C7),
+                                  ),
+                                );
+                              }
                             }
                           },
                           itemBuilder: (context) => [
+                            PopupMenuItem(
+                              value: 'toggle_digitax',
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    product.isDigitaxSyncEnabled ? Icons.cloud_off_rounded : Icons.cloud_done_rounded,
+                                    size: 16,
+                                    color: product.isDigitaxSyncEnabled ? const Color(0xFF0284C7) : const Color(0xFF10B981),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    product.isDigitaxSyncEnabled ? 'Turn Off DigiTax (Make Offline)' : 'Enable DigiTax Sync',
+                                  ),
+                                ],
+                              ),
+                            ),
                             const PopupMenuItem(value: 'history', child: Row(children: [Icon(Icons.history_rounded, size: 16), SizedBox(width: 8), Text('Movement History')])),
                             PopupMenuItem(
                               value: 'archive',
@@ -1746,6 +1870,45 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                       ),
                       icon: Icon(Icons.history_rounded, color: theme.colorScheme.onSurfaceVariant, size: 18),
                       tooltip: 'View Stock Movement Audit Log',
+                    ),
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.all(4),
+                      constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                      onPressed: () async {
+                        final db = ref.read(databaseServiceProvider);
+                        await db.isar.writeTxn(() async {
+                          product.isDigitaxSyncEnabled = !product.isDigitaxSyncEnabled;
+                          if (!product.isDigitaxSyncEnabled) {
+                            product.isSyncedWithDigitax = false;
+                          }
+                          await db.isar.products.put(product);
+                        });
+                        ref.invalidate(inventoryProductsProvider);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                product.isDigitaxSyncEnabled
+                                    ? '${product.name}: DigiTax sync enabled (Ready to sync).'
+                                    : '${product.name}: DigiTax sync turned OFF (Offline Exempt).',
+                                style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                              ),
+                              backgroundColor: product.isDigitaxSyncEnabled
+                                  ? const Color(0xFF10B981)
+                                  : const Color(0xFF0284C7),
+                            ),
+                          );
+                        }
+                      },
+                      icon: Icon(
+                        product.isDigitaxSyncEnabled ? Icons.cloud_done_rounded : Icons.cloud_off_rounded,
+                        color: product.isDigitaxSyncEnabled ? const Color(0xFF10B981) : const Color(0xFF0284C7),
+                        size: 18,
+                      ),
+                      tooltip: product.isDigitaxSyncEnabled
+                          ? 'DigiTax Sync is ON (Tap to make Offline)'
+                          : 'Offline Exempt (Tap to enable DigiTax)',
                     ),
                     IconButton(
                       visualDensity: VisualDensity.compact,

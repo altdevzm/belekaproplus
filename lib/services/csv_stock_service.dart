@@ -36,6 +36,7 @@ class CsvColumnMapping {
   String defaultTaxCode;
   double defaultTaxRate;
   bool updateExisting; // true = update existing products by SKU, false = skip
+  bool keepOfflineExempt; // true = keep products offline exempt (isDigitaxSyncEnabled = false)
 
   CsvColumnMapping({
     this.nameIndex = -1,
@@ -54,6 +55,7 @@ class CsvColumnMapping {
     this.defaultTaxCode = 'A',
     this.defaultTaxRate = 16.0,
     this.updateExisting = true,
+    this.keepOfflineExempt = true,
   });
 }
 
@@ -524,6 +526,7 @@ class CsvStockService {
   Future<CsvImportResult> executeImport({
     required List<CsvPreviewItem> items,
     required bool updateExisting,
+    bool keepOfflineExempt = true,
     required String branchCode,
     String? branchName,
     String? currentUserId,
@@ -601,9 +604,8 @@ class CsvStockService {
               existing.zraTaxCode = item.taxCode;
               existing.taxRate = item.taxRate;
               existing.isArchived = false;
-              // CSV-updated products become Offline Exempt — the owner must
-              // verify & selectively sync them to DigiTax manually.
-              existing.isDigitaxSyncEnabled = false;
+              // CSV-updated products become Offline Exempt if keepOfflineExempt is true.
+              existing.isDigitaxSyncEnabled = !keepOfflineExempt;
               existing.isSyncedWithDigitax = false;
 
               await isar.products.put(existing);
@@ -632,9 +634,7 @@ class CsvStockService {
                 ));
               }
             } else {
-              // Create brand new product — always Offline Exempt after CSV import.
-              // The owner must review, verify barcodes / ZRA classification,
-              // then selectively enable DigiTax sync per product.
+              // Create brand new product — Offline Exempt by default after CSV import.
               final newProduct = Product(
                 name: item.name,
                 sku: item.sku,
@@ -649,7 +649,7 @@ class CsvStockService {
                 branchCode: branchCode,
                 branchName: branchName,
                 isArchived: false,
-                isDigitaxSyncEnabled: false, // ← Offline Exempt: do NOT auto-push to DigiTax
+                isDigitaxSyncEnabled: !keepOfflineExempt, // ← Offline Exempt if keepOfflineExempt is true
                 isSyncedWithDigitax: false,
               );
 

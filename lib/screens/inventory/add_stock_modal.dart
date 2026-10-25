@@ -86,6 +86,10 @@ class _StockAdjustmentModalState extends ConsumerState<StockAdjustmentModal> {
   }
 
   Future<void> _fetchCloudStock() async {
+    if (!widget.product.isDigitaxSyncEnabled) {
+      if (mounted) setState(() => _isLoadingCloudStock = false);
+      return;
+    }
     setState(() => _isLoadingCloudStock = true);
     try {
       final digitaxService = ref.read(digitaxInventoryServiceProvider);
@@ -393,7 +397,36 @@ class _StockAdjustmentModalState extends ConsumerState<StockAdjustmentModal> {
                         color: Colors.white70,
                       ),
                     ),
-                    if (_isLoadingCloudStock)
+                    if (!widget.product.isDigitaxSyncEnabled)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0284C7).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: const Color(0xFF0284C7).withValues(alpha: 0.4),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.cloud_off_rounded,
+                              size: 12,
+                              color: Color(0xFF38BDF8),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Offline / DigiTax Disabled',
+                              style: GoogleFonts.ibmPlexMono(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFF38BDF8),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    else if (_isLoadingCloudStock)
                       Row(
                         children: [
                           const SizedBox(
@@ -674,26 +707,28 @@ class _StockAdjustmentModalState extends ConsumerState<StockAdjustmentModal> {
         debugPrint('SQLite stock_movements insert notice: $sqlErr');
       }
 
-      // 3. Push real-time SAR adjustment directly to DigiTax Cloud API
+      // 3. Push real-time SAR adjustment directly to DigiTax Cloud API ONLY if product is enabled for DigiTax
       bool digitaxSynced = false;
-      try {
-        digitaxSynced = await digitaxService.pushStockMovementAdjustment(
-          product: widget.product,
-          action: actionType,
-          movementType: movementType,
-          quantity: quantityChanged,
-          remarks: '$reasonCategory${notes.isNotEmpty ? " • $notes" : ""}',
-          branchCode: branchCode,
-        );
+      if (widget.product.isDigitaxSyncEnabled) {
+        try {
+          digitaxSynced = await digitaxService.pushStockMovementAdjustment(
+            product: widget.product,
+            action: actionType,
+            movementType: movementType,
+            quantity: quantityChanged,
+            remarks: '$reasonCategory${notes.isNotEmpty ? " • $notes" : ""}',
+            branchCode: branchCode,
+          );
 
-        if (digitaxSynced) {
-          movement.isSyncedWithDigitax = true;
-          await db.isar.writeTxn(() async {
-            await db.isar.stockMovements.put(movement);
-          });
+          if (digitaxSynced) {
+            movement.isSyncedWithDigitax = true;
+            await db.isar.writeTxn(() async {
+              await db.isar.stockMovements.put(movement);
+            });
+          }
+        } catch (e) {
+          debugPrint('DigiTax stock adjustment push notice: $e');
         }
-      } catch (e) {
-        debugPrint('DigiTax stock adjustment push notice: $e');
       }
 
       if (mounted) {

@@ -150,6 +150,7 @@ class _CsvImportModalState extends ConsumerState<CsvImportModal> {
       final result = await csvService.executeImport(
         items: _previewItems,
         updateExisting: _mapping.updateExisting,
+        keepOfflineExempt: _mapping.keepOfflineExempt,
         branchCode: currentBranch,
         branchName: storeConfig?.branchName,
         currentUserId: currentUser?.numericId,
@@ -764,6 +765,47 @@ class _CsvImportModalState extends ConsumerState<CsvImportModal> {
                   value: _mapping.updateExisting,
                   activeThumbColor: primaryColor,
                   onChanged: (v) => setState(() => _mapping.updateExisting = v),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          // DigiTax Sync Offline Exempt Card
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF0C2A4A).withValues(alpha: 0.5) : const Color(0xFFE0F2FE),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFF0284C7).withValues(alpha: 0.4)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.cloud_off_rounded, color: Color(0xFF0284C7), size: 22),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Keep Products Offline (DigiTax Disabled)',
+                        style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13, color: isDark ? Colors.white : Colors.black87),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _mapping.keepOfflineExempt
+                            ? 'Products are stored locally and will NOT push to DigiTax automatically. You can review barcodes/ZRA codes and selectively enable sync later.'
+                            : 'Products will have DigiTax sync enabled immediately upon import.',
+                        style: GoogleFonts.inter(fontSize: 12, color: isDark ? Colors.white70 : Colors.black54),
+                      ),
+                    ],
+                  ),
+                ),
+                Switch(
+                  value: _mapping.keepOfflineExempt,
+                  activeThumbColor: const Color(0xFF0284C7),
+                  onChanged: (v) => setState(() => _mapping.keepOfflineExempt = v),
                 ),
               ],
             ),
