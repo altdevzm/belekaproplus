@@ -978,11 +978,37 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
           ],
         );
 
+        if (constraints.maxWidth < 1350) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              titleRow,
+              const SizedBox(height: 12),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                child: actionButtons,
+              ),
+            ],
+          );
+        }
+
         return Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             titleRow,
-            actionButtons,
+            const SizedBox(width: 12),
+            Expanded(
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
+                  child: actionButtons,
+                ),
+              ),
+            ),
           ],
         );
       },
