@@ -201,16 +201,10 @@ jobs:
           tag_name: ${{ needs.create-release.outputs.tag }}
           files: Beleka_POS_v${{ needs.create-release.outputs.version }}.apk
 
-      - name: Save License Generator to Private Workflow Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: Beleka_License_Generator_v${{ needs.create-release.outputs.version }}
-          path: Beleka_License_Generator_v${{ needs.create-release.outputs.version }}.apk
-          retention-days: 90
-
       - name: Upload License Generator to Private Repo Release
         uses: softprops/action-gh-release@v2
         with:
+          token: ${{ secrets.GITHUB_TOKEN }}
           tag_name: ${{ needs.create-release.outputs.tag }}
           name: "Beleka POS Private Release ${{ needs.create-release.outputs.tag }}"
           files: Beleka_License_Generator_v${{ needs.create-release.outputs.version }}.apk
