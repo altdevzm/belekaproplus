@@ -62,12 +62,10 @@ jobs:
             |----------|------|-------|
             | 🪟 Windows | `Beleka_POS_Setup_v${{ steps.meta.outputs.version }}.exe` | Standalone installer for Windows 8, 8.1, 10, and 11 |
             | 📱 Android | `Beleka_POS_v${{ steps.meta.outputs.version }}.apk` | Universal APK for Android phones, tablets, and POS devices |
-            | 🔑 Generator | `Beleka_License_Generator_v${{ steps.meta.outputs.version }}.apk` | Standalone License Generator Tool for Android |
 
             ### 🚀 Installation Guide
             - **Windows**: Download and run `Beleka_POS_Setup_v${{ steps.meta.outputs.version }}.exe` as Administrator.
             - **Android**: Download and install `Beleka_POS_v${{ steps.meta.outputs.version }}.apk` on your mobile/tablet POS.
-            - **License Tool**: Install `Beleka_License_Generator_v${{ steps.meta.outputs.version }}.apk` on your phone to issue customer licenses on the go.
 
             ---
             *Built automatically by GitHub Actions · `${{ github.sha }}`*
@@ -185,15 +183,28 @@ jobs:
         run: |
           cp build/app/outputs/flutter-apk/app-release.apk Beleka_License_Generator_v${{ needs.create-release.outputs.version }}.apk
 
-      - name: Upload APKs to release
+      - name: Upload Public POS APK to Releases
         uses: softprops/action-gh-release@v2
         with:
           repository: ${{ env.RELEASES_REPO }}
           token: ${{ secrets.RELEASES_TOKEN || secrets.GITHUB_TOKEN }}
           tag_name: ${{ needs.create-release.outputs.tag }}
-          files: |
-            Beleka_POS_v${{ needs.create-release.outputs.version }}.apk
-            Beleka_License_Generator_v${{ needs.create-release.outputs.version }}.apk
+          files: Beleka_POS_v${{ needs.create-release.outputs.version }}.apk
+
+      - name: Save License Generator to Private Workflow Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Beleka_License_Generator_v${{ needs.create-release.outputs.version }}
+          path: Beleka_License_Generator_v${{ needs.create-release.outputs.version }}.apk
+          retention-days: 90
+
+      - name: Upload License Generator to Private Repo Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.create-release.outputs.tag }}
+          name: "Beleka POS Private Release ${{ needs.create-release.outputs.tag }}"
+          files: Beleka_License_Generator_v${{ needs.create-release.outputs.version }}.apk
+        continue-on-error: true
 
   # ─────────────────────────────────────────────────────────────────────────────
   # Job 4: Publish the release + version.json (OTA update manifest)
