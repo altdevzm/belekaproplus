@@ -36,7 +36,9 @@ class CsvColumnMapping {
   String defaultTaxCode;
   double defaultTaxRate;
   bool updateExisting; // true = update existing products by SKU, false = skip
-  bool keepOfflineExempt; // true = keep products offline exempt (isDigitaxSyncEnabled = false)
+  bool? _keepOfflineExempt;
+  bool get keepOfflineExempt => _keepOfflineExempt ?? true;
+  set keepOfflineExempt(bool val) => _keepOfflineExempt = val;
 
   CsvColumnMapping({
     this.nameIndex = -1,
@@ -55,8 +57,8 @@ class CsvColumnMapping {
     this.defaultTaxCode = 'A',
     this.defaultTaxRate = 16.0,
     this.updateExisting = true,
-    this.keepOfflineExempt = true,
-  });
+    bool keepOfflineExempt = true,
+  }) : _keepOfflineExempt = keepOfflineExempt;
 }
 
 class CsvPreviewItem {

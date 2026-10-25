@@ -794,7 +794,7 @@ class _CsvImportModalState extends ConsumerState<CsvImportModal> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        _mapping.keepOfflineExempt
+                        (_mapping.keepOfflineExempt == true)
                             ? 'Products are stored locally and will NOT push to DigiTax automatically. You can review barcodes/ZRA codes and selectively enable sync later.'
                             : 'Products will have DigiTax sync enabled immediately upon import.',
                         style: GoogleFonts.inter(fontSize: 12, color: isDark ? Colors.white70 : Colors.black54),
@@ -803,7 +803,7 @@ class _CsvImportModalState extends ConsumerState<CsvImportModal> {
                   ),
                 ),
                 Switch(
-                  value: _mapping.keepOfflineExempt,
+                  value: _mapping.keepOfflineExempt == true,
                   activeThumbColor: const Color(0xFF0284C7),
                   onChanged: (v) => setState(() => _mapping.keepOfflineExempt = v),
                 ),
