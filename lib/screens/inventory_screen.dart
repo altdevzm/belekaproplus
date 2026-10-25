@@ -15,6 +15,8 @@ import 'package:beleka_pos/providers/store_provider.dart';
 import 'package:beleka_pos/services/barcode_service.dart';
 import 'package:beleka_pos/services/digitax_inventory_service.dart';
 import 'package:beleka_pos/services/postgres_sync_service.dart';
+import 'package:beleka_pos/services/csv_stock_service.dart';
+import 'package:beleka_pos/screens/inventory/csv_import_modal.dart';
 import 'package:beleka_pos/providers/auth_provider.dart';
 import 'package:beleka_pos/widgets/product_image_widget.dart';
 
@@ -687,6 +689,31 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                     onSelected: (value) async {
                       final config = ref.read(storeConfigProvider).value;
                       switch (value) {
+                        case 'import_csv':
+                          final res = await showDialog<bool>(context: context, builder: (context) => const CsvImportModal());
+                          if (res == true) {
+                            ref.invalidate(inventoryProductsProvider);
+                            ref.invalidate(categoriesProvider);
+                          }
+                          break;
+                        case 'export_csv':
+                          final categories = ref.read(categoriesProvider).value ?? [];
+                          final activeBranch = ref.read(inventoryBranchFilterProvider);
+                          final savedPath = await ref.read(csvStockServiceProvider).exportStockToCsv(
+                            products: products,
+                            categories: categories,
+                            branchCode: activeBranch,
+                          );
+                          if (savedPath != null && context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Stock exported to $savedPath', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+                                backgroundColor: const Color(0xFF10B981),
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                          }
+                          break;
                         case 'csv': ref.read(exportServiceProvider).exportInventoryToCsv(products, config: config); break;
                         case 'excel': ref.read(exportServiceProvider).exportInventoryToExcel(products, config: config); break;
                         case 'pdf': ref.read(exportServiceProvider).exportInventoryToPdf(products, config: config); break;
@@ -696,7 +723,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                       }
                     },
                     itemBuilder: (context) => [
-                      const PopupMenuItem(value: 'csv', child: Row(children: [Icon(Icons.table_chart_outlined, size: 16), SizedBox(width: 8), Text('Export CSV')])),
+                      const PopupMenuItem(value: 'import_csv', child: Row(children: [Icon(Icons.file_upload_outlined, size: 16, color: Color(0xFF10B981)), SizedBox(width: 8), Text('Import Stock (CSV)', style: TextStyle(fontWeight: FontWeight.bold))])),
+                      const PopupMenuItem(value: 'export_csv', child: Row(children: [Icon(Icons.file_download_outlined, size: 16, color: Color(0xFF0284C7)), SizedBox(width: 8), Text('Export Stock (CSV)')])),
+                      const PopupMenuDivider(),
                       const PopupMenuItem(value: 'excel', child: Row(children: [Icon(Icons.grid_on_outlined, size: 16), SizedBox(width: 8), Text('Export Excel')])),
                       const PopupMenuItem(value: 'pdf', child: Row(children: [Icon(Icons.picture_as_pdf_outlined, size: 16), SizedBox(width: 8), Text('Export PDF')])),
                       const PopupMenuDivider(),
@@ -731,24 +760,82 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
           runSpacing: 8,
           alignment: WrapAlignment.end,
           children: [
-            // Export Dropdown
+            // Dedicated Import Stock Catalog (CSV) Button
+            OutlinedButton.icon(
+              onPressed: () async {
+                final result = await showDialog<bool>(
+                  context: context,
+                  builder: (context) => const CsvImportModal(),
+                );
+                if (result == true) {
+                  ref.invalidate(inventoryProductsProvider);
+                  ref.invalidate(categoriesProvider);
+                }
+              },
+              icon: const Icon(Icons.file_upload_outlined, size: 16, color: Color(0xFF10B981)),
+              label: Text('Import CSV', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13, color: const Color(0xFF10B981))),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Color(0xFF10B981), width: 1),
+                backgroundColor: const Color(0xFFECFDF5),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+            ),
+
+            // Dedicated Export Stock Catalog (CSV) Button
+            OutlinedButton.icon(
+              onPressed: () async {
+                final categories = ref.read(categoriesProvider).value ?? [];
+                final activeBranch = ref.read(inventoryBranchFilterProvider);
+                final savedPath = await ref.read(csvStockServiceProvider).exportStockToCsv(
+                  products: products,
+                  categories: categories,
+                  branchCode: activeBranch,
+                );
+                if (savedPath != null && context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Row(
+                        children: [
+                          const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text('Stock catalog exported successfully to $savedPath', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+                          ),
+                        ],
+                      ),
+                      backgroundColor: const Color(0xFF10B981),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+              },
+              icon: Icon(Icons.file_download_outlined, size: 16, color: theme.colorScheme.onSurfaceVariant),
+              label: Text('Export CSV', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13, color: theme.colorScheme.onSurface)),
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0), width: 1),
+                backgroundColor: isDark ? const Color(0xFF151F32) : const Color(0xFFFFFFFF),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+            ),
+
+            // More Export Formats (Excel, PDF)
             PopupMenuButton<String>(
               onSelected: (value) {
                 final config = ref.read(storeConfigProvider).value;
                 switch (value) {
-                  case 'csv': ref.read(exportServiceProvider).exportInventoryToCsv(products, config: config); break;
                   case 'excel': ref.read(exportServiceProvider).exportInventoryToExcel(products, config: config); break;
                   case 'pdf': ref.read(exportServiceProvider).exportInventoryToPdf(products, config: config); break;
                 }
               },
               itemBuilder: (context) => [
-                const PopupMenuItem(value: 'csv', child: Text('Export CSV')),
-                const PopupMenuItem(value: 'excel', child: Text('Export Excel')),
-                const PopupMenuItem(value: 'pdf', child: Text('Export PDF')),
+                const PopupMenuItem(value: 'excel', child: Row(children: [Icon(Icons.grid_on_outlined, size: 16), SizedBox(width: 8), Text('Export Excel (.xlsx)')])),
+                const PopupMenuItem(value: 'pdf', child: Row(children: [Icon(Icons.picture_as_pdf_outlined, size: 16), SizedBox(width: 8), Text('Export PDF Report')])),
               ],
               child: Container(
                 height: 40,
-                padding: const EdgeInsets.symmetric(horizontal: 14),
+                padding: const EdgeInsets.symmetric(horizontal: 10),
                 decoration: BoxDecoration(
                   color: isDark ? const Color(0xFF151F32) : const Color(0xFFFFFFFF),
                   border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
@@ -757,9 +844,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.download_rounded, size: 16, color: theme.colorScheme.onSurfaceVariant),
-                    const SizedBox(width: 6),
-                    Text('Export', style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 13, color: theme.colorScheme.onSurface)),
+                    Icon(Icons.more_vert_rounded, size: 16, color: theme.colorScheme.onSurfaceVariant),
                   ],
                 ),
               ),
