@@ -124,7 +124,7 @@ class PostgresSyncService {
     final cloudUrl =
         (config?.cloudApiUrl != null && config!.cloudApiUrl!.trim().isNotEmpty)
         ? config.cloudApiUrl!.trim()
-        : 'http://23.139.36.20:8003';
+        : 'http://172.99.191.107:8003';
     final targetStoreId = storeId ?? config?.cloudStoreId ?? 0;
     if (targetStoreId <= 0) {
       debugPrint(
@@ -174,7 +174,7 @@ class PostgresSyncService {
     final config = await isar.storeConfigs.where().findFirst();
     final cloudUrl = (config?.cloudApiUrl?.trim().isNotEmpty == true)
         ? config!.cloudApiUrl!.trim()
-        : 'http://23.139.36.20:8003';
+        : 'http://172.99.191.107:8003';
     final targetStoreId = storeId ?? config?.cloudStoreId ?? 0;
     if (targetStoreId <= 0) return true;
     var token = config?.cloudAuthToken;
@@ -212,7 +212,7 @@ class PostgresSyncService {
     final cloudUrl =
         (config?.cloudApiUrl != null && config!.cloudApiUrl!.trim().isNotEmpty)
         ? config.cloudApiUrl!.trim()
-        : 'http://23.139.36.20:8003';
+        : 'http://172.99.191.107:8003';
     var token = config?.cloudAuthToken;
 
     Future<bool> doSync(String? tok) async {
@@ -310,7 +310,7 @@ class PostgresSyncService {
     final config = await isar.storeConfigs.where().findFirst();
     final cloudUrl = (config?.cloudApiUrl?.trim().isNotEmpty == true)
         ? config!.cloudApiUrl!.trim()
-        : 'http://23.139.36.20:8003';
+        : 'http://172.99.191.107:8003';
     var token = config?.cloudAuthToken;
 
     Future<bool> remove(String? authToken) => cloudDb.deleteBranch(
@@ -332,7 +332,7 @@ class PostgresSyncService {
     final cloudUrl =
         (config.cloudApiUrl != null && config.cloudApiUrl!.trim().isNotEmpty)
         ? config.cloudApiUrl!.trim()
-        : 'http://23.139.36.20:8003';
+        : 'http://172.99.191.107:8003';
     final storeId = config.cloudStoreId ?? 1;
     var token = config.cloudAuthToken;
 
@@ -398,7 +398,7 @@ class PostgresSyncService {
     final cloudUrl =
         (config?.cloudApiUrl != null && config!.cloudApiUrl!.trim().isNotEmpty)
         ? config.cloudApiUrl!.trim()
-        : 'http://23.139.36.20:8003';
+        : 'http://172.99.191.107:8003';
     final storeId = config?.cloudStoreId ?? 0;
 
     try {
@@ -495,7 +495,7 @@ class PostgresSyncService {
     final cloudUrl =
         (config?.cloudApiUrl != null && config!.cloudApiUrl!.trim().isNotEmpty)
         ? config.cloudApiUrl!.trim()
-        : 'http://23.139.36.20:8003';
+        : 'http://172.99.191.107:8003';
     final storeId = config?.cloudStoreId ?? 0;
     var authToken = config?.cloudAuthToken;
 
@@ -583,7 +583,7 @@ class PostgresSyncService {
     final config = await isar.storeConfigs.where().findFirst();
     final cloudUrl = (config?.cloudApiUrl?.trim().isNotEmpty == true)
         ? config!.cloudApiUrl!.trim()
-        : 'http://23.139.36.20:8003';
+        : 'http://172.99.191.107:8003';
     final storeId = config?.cloudStoreId ?? 0;
     if (storeId <= 0) return false;
 
@@ -639,7 +639,7 @@ class PostgresSyncService {
     final cloudUrl =
         (config?.cloudApiUrl != null && config!.cloudApiUrl!.trim().isNotEmpty)
         ? config.cloudApiUrl!.trim()
-        : 'http://23.139.36.20:8003';
+        : 'http://172.99.191.107:8003';
 
     final configuredStoreId = config?.cloudStoreId;
     var targetStoreId = storeId ?? configuredStoreId;

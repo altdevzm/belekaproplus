@@ -9,6 +9,11 @@ analyzer:
   exclude:
     - "**/*.g.dart"
     - "third_party/**"
+    - build/**
+    - android/**
+    - windows/**
+    - macos/**
+    - linux/**
   errors:
     experimental_member_use: ignore
 

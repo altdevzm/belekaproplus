@@ -24,7 +24,7 @@ class _BackupRestoreModalState extends ConsumerState<BackupRestoreModal> {
   Map<String, dynamic>? _previewData;
   String? _selectedFilePath;
   final TextEditingController _pasteController = TextEditingController();
-  final TextEditingController _cloudUrlController = TextEditingController(text: 'http://23.139.36.20:8003');
+  final TextEditingController _cloudUrlController = TextEditingController(text: 'http://172.99.191.107:8003');
   int _activeTab = 0; // 0: file, 1: paste, 2: cloud
 
   @override
@@ -121,7 +121,7 @@ class _BackupRestoreModalState extends ConsumerState<BackupRestoreModal> {
       final config = ref.read(storeConfigProvider).value;
       final url = _cloudUrlController.text.trim().isNotEmpty
           ? _cloudUrlController.text.trim()
-          : (config?.cloudApiUrl ?? 'http://23.139.36.20:8003');
+          : (config?.cloudApiUrl ?? 'http://172.99.191.107:8003');
       final storeId = config?.cloudStoreId ?? 1;
       final token = config?.cloudAuthToken;
 
@@ -438,7 +438,7 @@ class _BackupRestoreModalState extends ConsumerState<BackupRestoreModal> {
                       decoration: InputDecoration(
                         labelText: 'Cloud API Server URL',
                         labelStyle: GoogleFonts.inter(fontSize: 11, color: theme.colorScheme.onSurfaceVariant),
-                        hintText: 'http://23.139.36.20:8003',
+                        hintText: 'http://172.99.191.107:8003',
                         filled: true,
                         fillColor: isDark ? const Color(0xFF151F32) : Colors.white,
                         border: OutlineInputBorder(

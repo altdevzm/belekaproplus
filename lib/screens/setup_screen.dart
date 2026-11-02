@@ -28,7 +28,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
   // Tab 0: Owner Cloud Login (Restore / HQ Master Setup)
   final _ownerFormKey = GlobalKey<FormState>();
   final _ownerUrlController = TextEditingController(
-    text: 'http://23.139.36.20:8003',
+    text: 'http://172.99.191.107:8003',
   );
   final _ownerIdController = TextEditingController();
   final _ownerPinController = TextEditingController();
@@ -49,7 +49,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
   // Tab 2: Connect Existing Cloud Branch / Log in
   final _cloudFormKey = GlobalKey<FormState>();
   final _cloudUrlController = TextEditingController(
-    text: 'http://23.139.36.20:8003',
+    text: 'http://172.99.191.107:8003',
   );
   final _cloudStaffIdController = TextEditingController();
   final _cloudPinController = TextEditingController();
@@ -1677,7 +1677,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
             context: context,
             label: 'CLOUD API SERVER URL',
             controller: _ownerUrlController,
-            hint: 'http://23.139.36.20:8003',
+            hint: 'http://172.99.191.107:8003',
             validator: (v) => (v == null || v.isEmpty)
                 ? 'Cloud Server URL is required'
                 : null,
@@ -1788,7 +1788,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
             context: context,
             label: 'CLOUD API SERVER URL',
             controller: _ownerUrlController,
-            hint: 'http://23.139.36.20:8003',
+            hint: 'http://172.99.191.107:8003',
             validator: (v) => (v == null || v.trim().isEmpty)
                 ? 'Cloud Server URL is required'
                 : null,
@@ -1979,7 +1979,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
             context: context,
             label: 'CLOUD API SERVER URL',
             controller: _cloudUrlController,
-            hint: 'http://23.139.36.20:8003',
+            hint: 'http://172.99.191.107:8003',
             validator: (v) =>
                 v!.isEmpty ? 'Cloud Server URL is required' : null,
           ),

@@ -47,7 +47,7 @@ class _CloudDatabaseModalState extends ConsumerState<CloudDatabaseModal> {
       setState(() {
         _isCloudSyncEnabled = _config!.isCloudSyncEnabled;
         _apiUrlController.text =
-            _config!.cloudApiUrl ?? 'http://23.139.36.20:8003';
+            _config!.cloudApiUrl ?? 'http://172.99.191.107:8003';
         _storeIdController.text = (_config!.cloudStoreId ?? 1).toString();
         _storeCodeController.text = _config!.bhfId.trim().isEmpty
             ? '00'

@@ -175,7 +175,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           (config?.cloudApiUrl != null &&
               config!.cloudApiUrl!.trim().isNotEmpty)
           ? config.cloudApiUrl!.trim()
-          : 'http://23.139.36.20:8003';
+          : 'http://172.99.191.107:8003';
       String? enteredTpin =
           config?.businessName.trim().toLowerCase() == companyName.toLowerCase()
           ? config?.tpin?.trim()

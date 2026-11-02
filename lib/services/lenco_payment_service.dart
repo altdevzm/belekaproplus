@@ -26,7 +26,7 @@ class LencoPaymentService {
       final url = config!.cloudApiUrl!.trim();
       return url.endsWith('/') ? url.substring(0, url.length - 1) : url;
     }
-    return 'http://23.139.36.20:8003';
+    return 'http://172.99.191.107:8003';
   }
 
   int get _storeId => config?.cloudStoreId ?? 1;
