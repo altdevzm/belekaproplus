@@ -132,3 +132,99 @@ def test_branch_owner_export_contains_only_requested_branch(db):
     assert [store["id"] for store in backup["stores"]] == [branch.id]
     assert len(backup["sales"]) == 1
     assert backup["sales"][0]["store_id"] == branch.id
+
+
+def test_auto_fiscalization_preserves_recorded_sale_amounts(db, monkeypatch):
+    session, _, branch, _ = db
+    branch.digitax_api_key = "configured-test-key"
+    payload = schemas.SyncBatchRequest(
+        store_id=branch.id,
+        sales=[schemas.SaleTransactionCreate(
+            transaction_uuid="fiscal-total-mismatch",
+            store_id=branch.id,
+            total_amount=37,
+            subtotal=31.89,
+            tax_amount=5.11,
+            tendered_amount=100,
+            change_amount=63,
+            payment_method="Cash",
+            items=[schemas.SaleItemBase(
+                product_name="Test product",
+                price_at_sale=37,
+                quantity=1,
+                tax_rate_at_sale=16,
+                is_digitax_exempt=False,
+            )],
+        )],
+    )
+
+    monkeypatch.setattr(
+        "app.routers.sync.DigiTaxZraService.fiscalize_sale_invoice",
+        lambda *_args, **_kwargs: {
+            "status": "SUCCESS",
+            "zra_receipt_number": "INV1/6",
+            "zra_mark_id": "signed-mark",
+            "tax_amount": 2.76,
+            "subtotal": 17.24,
+        },
+    )
+
+    sync_batch_sales(payload, branch_user(), session)
+
+    transaction = session.query(models.SaleTransaction).filter_by(
+        transaction_uuid="fiscal-total-mismatch",
+    ).one()
+    assert float(transaction.total_amount) == 37
+    assert float(transaction.subtotal) == 31.89
+    assert float(transaction.tax_amount) == 5.11
+    assert float(transaction.tendered_amount) == 100
+    assert float(transaction.change_amount) == 63
+    assert transaction.zra_status == "APPROVED"
+
+
+def test_sale_sync_preserves_product_report_snapshot_and_weight(db, monkeypatch):
+    session, _, branch, _ = db
+    branch.digitax_api_key = "configured-test-key"
+    payload = schemas.SyncBatchRequest(
+        store_id=branch.id,
+        sales=[schemas.SaleTransactionCreate(
+            transaction_uuid="weighted-report-line",
+            store_id=branch.id,
+            total_amount=15,
+            subtotal=12.93,
+            tax_amount=2.07,
+            payment_method="Cash",
+            items=[schemas.SaleItemBase(
+                product_id=501,
+                product_name="Apples",
+                product_sku_at_sale="APPLE-KG",
+                price_at_sale=20,
+                discount_amount_at_sale=2,
+                quantity=1,
+                weight=0.75,
+                is_weighted=True,
+                unit_of_measure="kg",
+                tax_rate_at_sale=16,
+                is_digitax_exempt=False,
+            )],
+        )],
+    )
+    fiscal_items = {}
+
+    def fake_fiscalize(_config, _transaction, items):
+        fiscal_items["items"] = items
+        return {"zra_receipt_number": "INV1/7"}
+
+    monkeypatch.setattr(
+        "app.routers.sync.DigiTaxZraService.fiscalize_sale_invoice",
+        fake_fiscalize,
+    )
+    sync_batch_sales(payload, branch_user(), session)
+
+    item = session.query(models.SaleItem).one()
+    assert item.product_sku_at_sale == "APPLE-KG"
+    assert float(item.discount_amount_at_sale) == 2
+    assert float(item.weight) == 0.75
+    assert item.is_weighted is True
+    assert item.unit_of_measure == "kg"
+    assert fiscal_items["items"][0]["quantity"] == 0.75

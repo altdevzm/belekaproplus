@@ -94,7 +94,7 @@ CREATE TABLE IF NOT EXISTS products (
     item_cls_cd VARCHAR(50) DEFAULT '10101501',
     package_unit_code VARCHAR(20) DEFAULT 'CT',
     unit_of_measure VARCHAR(50) DEFAULT 'kg',
-    is_digitax_sync_enabled BOOLEAN DEFAULT TRUE,
+    is_digitax_sync_enabled BOOLEAN DEFAULT FALSE,
     is_synced_with_digitax BOOLEAN DEFAULT FALSE,
     branch_code VARCHAR(50) DEFAULT '00',
     is_archived BOOLEAN DEFAULT FALSE,
@@ -142,6 +142,10 @@ CREATE TABLE IF NOT EXISTS sale_transactions (
     cashier_id VARCHAR(50),
     cashier_name VARCHAR(255),
     terminal_name VARCHAR(100),
+    cash_shift_number VARCHAR(100),
+    external_payment_reference VARCHAR(100),
+    external_payment_confirmed_by VARCHAR(255),
+    external_payment_confirmed_at TIMESTAMP WITH TIME ZONE,
     customer_id INT REFERENCES customers(id) ON DELETE SET NULL,
     points_earned INT DEFAULT 0,
     points_redeemed INT DEFAULT 0,
@@ -151,6 +155,12 @@ CREATE TABLE IF NOT EXISTS sale_transactions (
     zra_mark_id VARCHAR(100),
     zra_qr_code TEXT,
     zra_status VARCHAR(50) DEFAULT 'pending',
+    is_credit_note BOOLEAN NOT NULL DEFAULT FALSE,
+    credit_note_reason TEXT,
+    credit_note_status VARCHAR(50) NOT NULL DEFAULT 'pending',
+    credit_note_receipt_number VARCHAR(100),
+    credit_note_mark_id VARCHAR(100),
+    credit_note_qr_code TEXT,
     -- Lenco Payment Gateway Metadata
     lenco_reference VARCHAR(100),
     lenco_status VARCHAR(50),
@@ -159,6 +169,11 @@ CREATE TABLE IF NOT EXISTS sale_transactions (
     is_synced BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+CREATE INDEX IF NOT EXISTS idx_sales_cash_shift_number
+    ON sale_transactions (cash_shift_number);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_sales_external_payment_reference
+    ON sale_transactions (store_id, external_payment_reference)
+    WHERE external_payment_reference IS NOT NULL;
 
 -- 7. PURCHASE ORDERS TABLE
 CREATE TABLE IF NOT EXISTS purchase_orders (
@@ -191,11 +206,17 @@ CREATE TABLE IF NOT EXISTS sale_items (
     sale_transaction_id INT REFERENCES sale_transactions(id) ON DELETE CASCADE,
     product_id INT REFERENCES products(id) ON DELETE SET NULL,
     product_name VARCHAR(255) NOT NULL,
+    product_sku_at_sale VARCHAR(100),
     price_at_sale NUMERIC(12,2) NOT NULL,
+    discount_amount_at_sale NUMERIC(12,2) DEFAULT 0.00,
     unit_cost_at_sale NUMERIC(12,2) DEFAULT 0.00,
     quantity INT NOT NULL DEFAULT 1,
+    weight NUMERIC(12,4) NOT NULL DEFAULT 0.00,
+    is_weighted BOOLEAN NOT NULL DEFAULT FALSE,
+    unit_of_measure VARCHAR(20) NOT NULL DEFAULT 'kg',
     tax_rate_at_sale NUMERIC(5,2) DEFAULT 0.00,
     is_tax_inclusive_at_sale BOOLEAN DEFAULT TRUE,
+    is_digitax_exempt BOOLEAN NOT NULL DEFAULT TRUE,
     is_refunded BOOLEAN DEFAULT FALSE,
     -- Consignment Tracking
     is_consignment BOOLEAN DEFAULT FALSE,
@@ -250,4 +271,3 @@ CREATE INDEX IF NOT EXISTS idx_expenses_number ON expenses(expense_number);
 INSERT INTO stores (store_code, name, address, currency_symbol, branch_name)
 VALUES ('STORE-001', 'Beleka Main Store', 'Main Mall, Lusaka', 'K', 'Main Branch')
 ON CONFLICT (store_code) DO NOTHING;
-

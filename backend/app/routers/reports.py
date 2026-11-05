@@ -4,14 +4,14 @@ from sqlalchemy import func
 from typing import Optional
 from app.database import get_db
 from app import models
-from app.auth_deps import get_current_user, verify_store_access
+from app.auth_deps import get_current_user, verify_store_access, require_roles
 
 router = APIRouter(prefix="/api/v1/reports", tags=["Reports"])
 
 @router.get("/summary")
 def get_sales_summary(
     store_id: Optional[int] = None,
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User = Depends(require_roles(["owner", "branch_manager"])),
     db: Session = Depends(get_db)
 ):
     """

@@ -96,7 +96,7 @@ class Product(Base):
     item_cls_cd = Column(String(50), default="10101501")
     package_unit_code = Column(String(20), default="NT")
     unit_of_measure = Column(String(50), default="kg")
-    is_digitax_sync_enabled = Column(Boolean, default=True)
+    is_digitax_sync_enabled = Column(Boolean, default=False)
     is_synced_with_digitax = Column(Boolean, default=False)
     branch_code = Column(String(50), default="00", index=True)
     is_archived = Column(Boolean, default=False, index=True)
@@ -169,6 +169,10 @@ class SaleTransaction(Base):
     cashier_id = Column(String(50), nullable=True)
     cashier_name = Column(String(255), nullable=True)
     terminal_name = Column(String(100), nullable=True)
+    cash_shift_number = Column(String(100), nullable=True, index=True)
+    external_payment_reference = Column(String(100), nullable=True)
+    external_payment_confirmed_by = Column(String(255), nullable=True)
+    external_payment_confirmed_at = Column(DateTime(timezone=True), nullable=True)
     customer_id = Column(Integer, ForeignKey("customers.id", ondelete="SET NULL"), nullable=True)
     points_earned = Column(Integer, default=0)
     points_redeemed = Column(Integer, default=0)
@@ -179,6 +183,12 @@ class SaleTransaction(Base):
     zra_mark_id = Column(String(100), nullable=True)
     zra_qr_code = Column(Text, nullable=True)
     zra_status = Column(String(50), default="pending")
+    is_credit_note = Column(Boolean, default=False, nullable=False)
+    credit_note_reason = Column(Text, nullable=True)
+    credit_note_status = Column(String(50), default="pending", nullable=False)
+    credit_note_receipt_number = Column(String(100), nullable=True)
+    credit_note_mark_id = Column(String(100), nullable=True)
+    credit_note_qr_code = Column(Text, nullable=True)
 
     # Lenco Payment Gateway Metadata
     lenco_reference = Column(String(100), nullable=True, index=True)
@@ -191,6 +201,13 @@ class SaleTransaction(Base):
     store = relationship("Store", back_populates="sales")
     customer = relationship("Customer", back_populates="sales")
     items = relationship("SaleItem", back_populates="sale", cascade="all, delete-orphan")
+    __table_args__ = (
+        UniqueConstraint(
+            "store_id",
+            "external_payment_reference",
+            name="uk_sale_external_payment_reference",
+        ),
+    )
 
 class SaleItem(Base):
     __tablename__ = "sale_items"
@@ -199,11 +216,17 @@ class SaleItem(Base):
     sale_transaction_id = Column(Integer, ForeignKey("sale_transactions.id", ondelete="CASCADE"), nullable=False)
     product_id = Column(Integer, ForeignKey("products.id", ondelete="SET NULL"), nullable=True)
     product_name = Column(String(255), nullable=False)
+    product_sku_at_sale = Column(String(100), nullable=True)
     price_at_sale = Column(Numeric(12, 2), nullable=False)
+    discount_amount_at_sale = Column(Numeric(12, 2), default=0.00)
     unit_cost_at_sale = Column(Numeric(12, 2), default=0.00)
     quantity = Column(Integer, nullable=False, default=1)
+    weight = Column(Numeric(12, 4), nullable=False, default=0.00)
+    is_weighted = Column(Boolean, nullable=False, default=False)
+    unit_of_measure = Column(String(20), nullable=False, default="kg")
     tax_rate_at_sale = Column(Numeric(5, 2), default=0.00)
     is_tax_inclusive_at_sale = Column(Boolean, default=True)
+    is_digitax_exempt = Column(Boolean, nullable=False, default=True)
     is_refunded = Column(Boolean, default=False)
     # Consignment Tracking
     is_consignment = Column(Boolean, default=False)
@@ -335,5 +358,3 @@ class Expense(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     store = relationship("Store", back_populates="expenses")
-
-

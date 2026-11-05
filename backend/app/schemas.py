@@ -94,7 +94,7 @@ class ProductBase(BaseModel):
     item_cls_cd: Optional[str] = "10101501"
     package_unit_code: Optional[str] = "NT"
     unit_of_measure: Optional[str] = "kg"
-    is_digitax_sync_enabled: Optional[bool] = True
+    is_digitax_sync_enabled: Optional[bool] = False
     is_synced_with_digitax: Optional[bool] = False
     branch_code: Optional[str] = "00"
     is_archived: Optional[bool] = False
@@ -118,11 +118,17 @@ class ProductResponse(ProductBase):
 class SaleItemBase(BaseModel):
     product_id: Optional[int] = None
     product_name: str
+    product_sku_at_sale: Optional[str] = None
     price_at_sale: float
+    discount_amount_at_sale: Optional[float] = 0.0
     unit_cost_at_sale: Optional[float] = 0.0
     quantity: int
+    weight: Optional[float] = 0.0
+    is_weighted: Optional[bool] = False
+    unit_of_measure: Optional[str] = "kg"
     tax_rate_at_sale: Optional[float] = 0.0
     is_tax_inclusive_at_sale: Optional[bool] = True
+    is_digitax_exempt: Optional[bool] = None
     zra_tax_code: Optional[str] = None
     # Consignment Tracking
     is_consignment: Optional[bool] = False
@@ -144,6 +150,10 @@ class SaleTransactionCreate(BaseModel):
     cashier_id: Optional[str] = None
     cashier_name: Optional[str] = None
     terminal_name: Optional[str] = None
+    cash_shift_number: Optional[str] = None
+    external_payment_reference: Optional[str] = None
+    external_payment_confirmed_by: Optional[str] = None
+    external_payment_confirmed_at: Optional[datetime] = None
     customer_id: Optional[int] = None
     points_earned: Optional[int] = 0
     points_redeemed: Optional[int] = 0
@@ -166,7 +176,7 @@ class InventoryProductSync(BaseModel):
     item_cls_cd: Optional[str] = "10101501"
     package_unit_code: Optional[str] = "NT"
     unit_of_measure: Optional[str] = "kg"
-    is_digitax_sync_enabled: Optional[bool] = True
+    is_digitax_sync_enabled: Optional[bool] = False
     is_synced_with_digitax: Optional[bool] = False
     branch_code: Optional[str] = "00"
     is_archived: Optional[bool] = False
@@ -364,4 +374,3 @@ class LencoResolveMoMoRequest(BaseModel):
 class LencoTestCredentialsRequest(BaseModel):
     api_key: str
     environment: Optional[str] = "sandbox"
-

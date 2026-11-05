@@ -37,10 +37,12 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
 
-  int? _selectedCategoryId; // null means "ALL", 0 means "GENERAL / UNCATEGORIZED"
+  int?
+  _selectedCategoryId; // null means "ALL", 0 means "GENERAL / UNCATEGORIZED"
   bool _isGridView = true; // true = Grid, false = List
 
   bool _isProcessingPayment = false;
+  int _lookupGeneration = 0;
   double _tenderedAmount = 0.0;
   String _selectedPaymentMethod = '';
 
@@ -50,6 +52,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
   bool _isRequestingMomo = false;
   String? _momoStatusMessage;
   bool _momoSuccess = false;
+  String? _externalPaymentReference;
+  String? _externalPaymentConfirmedBy;
+  DateTime? _externalPaymentConfirmedAt;
   int _momoCountdownSeconds = 60;
   Timer? _momoCountdownTimer;
   Timer? _momoPollingTimer;
@@ -59,7 +64,8 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
   List<Map<String, dynamic>> _banksList = [];
   String? _selectedBankId;
   String? _selectedBankName;
-  final TextEditingController _bankAccountNumberController = TextEditingController();
+  final TextEditingController _bankAccountNumberController =
+      TextEditingController();
   bool _isResolvingBank = false;
   String? _resolvedAccountName;
   String? _bankResolveError;
@@ -86,7 +92,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
 
   Future<void> _loadBanksList() async {
     try {
-      final banks = await ref.read(lencoPaymentServiceProvider).getBanks(country: 'zm');
+      final banks = await ref
+          .read(lencoPaymentServiceProvider)
+          .getBanks(country: 'zm');
       if (mounted && banks.isNotEmpty) {
         setState(() {
           _banksList = banks;
@@ -111,11 +119,13 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       _bankResolveError = null;
     });
 
-    final res = await ref.read(lencoPaymentServiceProvider).resolveBankAccount(
-      accountNumber: accountNum,
-      bankId: _selectedBankId!,
-      country: 'zm',
-    );
+    final res = await ref
+        .read(lencoPaymentServiceProvider)
+        .resolveBankAccount(
+          accountNumber: accountNum,
+          bankId: _selectedBankId!,
+          country: 'zm',
+        );
 
     if (!mounted) return;
     setState(() {
@@ -137,9 +147,11 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     setState(() {
       _isRequestingMomo = false;
       _momoSuccess = false;
-      _momoStatusMessage = reason ?? (manual
-          ? 'Payment cancelled by cashier.'
-          : 'Payment cancelled / declined by customer.');
+      _momoStatusMessage =
+          reason ??
+          (manual
+              ? 'Payment cancelled by cashier.'
+              : 'Payment cancelled / declined by customer.');
     });
 
     // Automatically return console to clean idle state after 4 seconds
@@ -186,7 +198,8 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
 
     if (res['status'] == true) {
       setState(() {
-        _momoStatusMessage = 'Prompt sent! Customer should enter PIN on phone...';
+        _momoStatusMessage =
+            'Prompt sent! Customer should enter PIN on phone...';
       });
 
       // 1-second countdown timer for active visibility and user cancellation/timeout
@@ -209,8 +222,12 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
 
       // Real-time 1.2-second status polling loop
       bool isChecking = false;
-      _momoPollingTimer = Timer.periodic(const Duration(milliseconds: 1200), (timer) async {
-        if (!mounted || _selectedPaymentMethod != 'MOBILE MONEY' || !_isRequestingMomo) {
+      _momoPollingTimer = Timer.periodic(const Duration(milliseconds: 1200), (
+        timer,
+      ) async {
+        if (!mounted ||
+            _selectedPaymentMethod != 'MOBILE MONEY' ||
+            !_isRequestingMomo) {
           timer.cancel();
           return;
         }
@@ -244,7 +261,8 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
             } else if (s == 'failed') {
               timer.cancel();
               _momoCountdownTimer?.cancel();
-              final reason = poll['data']['reasonForFailure'] ??
+              final reason =
+                  poll['data']['reasonForFailure'] ??
                   'Customer cancelled or declined the payment prompt on device.';
               _cancelMobileMoneyPrompt(reason: reason.toString());
               return;
@@ -259,7 +277,8 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     } else {
       setState(() {
         _isRequestingMomo = false;
-        _momoStatusMessage = res['message'] ?? 'Failed to initiate Mobile Money prompt';
+        _momoStatusMessage =
+            res['message'] ?? 'Failed to initiate Mobile Money prompt';
       });
       _momoResetTimer = Timer(const Duration(seconds: 5), () {
         if (mounted && !_isRequestingMomo && !_momoSuccess) {
@@ -269,6 +288,55 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         }
       });
     }
+  }
+
+  Future<void> _confirmExternalMobileMoneyPayment(double total) async {
+    final referenceController = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Confirm external mobile money'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Confirm only after verifying that ${CurrencyFormatter.format(total, ref.read(storeConfigProvider).value?.currencySymbol ?? 'K')} was received on the external device.',
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: referenceController,
+              decoration: const InputDecoration(
+                labelText: 'External transaction reference (optional)',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Payment received'),
+          ),
+        ],
+      ),
+    );
+    final reference = referenceController.text.trim();
+    referenceController.dispose();
+
+    if (confirmed != true || !mounted) return;
+    final cashier = ref.read(authProvider);
+    setState(() {
+      _externalPaymentReference = reference.isEmpty ? null : reference;
+      _externalPaymentConfirmedBy = cashier?.name ?? 'Cashier';
+      _externalPaymentConfirmedAt = DateTime.now();
+      _selectedPaymentMethod = 'EXTERNAL MOBILE MONEY';
+      _tenderedAmount = total;
+    });
+    await _finalizeSale(ref.read(cartProvider.notifier));
   }
 
   @override
@@ -290,12 +358,13 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
   }) {
     final query = _searchController.text.trim().toLowerCase();
     final branch = (activeBranch ?? '00').trim();
+    final normalizedRole = normalizeUserRole(userRole);
 
     return allProducts.where((p) {
       if (p.isArchived) return false;
 
       // Multi-Branch Inventory Isolation:
-      if (userRole == 'cashier' || userRole == 'branch_manager') {
+      if (normalizedRole == 'cashier' || normalizedRole == 'branch_manager') {
         if (branch.isNotEmpty && branch != '00' && branch != '000') {
           final pBranch = p.branchCode.trim();
           // In a sub-branch: can sell sub-branch stock, HQ master stock ('00' / '000'), or unassigned stock ('')
@@ -308,7 +377,8 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         }
       }
 
-      final matchesCategory = _selectedCategoryId == null ||
+      final matchesCategory =
+          _selectedCategoryId == null ||
           p.categoryId == _selectedCategoryId ||
           (_selectedCategoryId == 0 && p.categoryId == 0);
       if (!matchesCategory) return false;
@@ -366,6 +436,26 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
   Future<void> _lookupProduct(
     String barcode, {
     bool showNotFoundAlert = true,
+    bool clearInputAfterLookup = false,
+  }) async {
+    final generation = ++_lookupGeneration;
+    try {
+      await _lookupProductInternal(
+        barcode,
+        showNotFoundAlert: showNotFoundAlert,
+      );
+    } finally {
+      if (clearInputAfterLookup && mounted && generation == _lookupGeneration) {
+        _searchController.clear();
+        setState(() {});
+        _searchFocusNode.requestFocus();
+      }
+    }
+  }
+
+  Future<void> _lookupProductInternal(
+    String barcode, {
+    required bool showNotFoundAlert,
   }) async {
     final cleanBarcode = barcode.trim();
     if (cleanBarcode.isEmpty) return;
@@ -507,7 +597,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     final currency = config?.currencySymbol ?? 'ZK';
 
     ref.listen(barcodeStreamProvider, (previous, next) {
-      next.whenData((barcode) => _lookupProduct(barcode));
+      next.whenData(
+        (barcode) => _lookupProduct(barcode, clearInputAfterLookup: true),
+      );
     });
 
     final allProducts = productsAsync.value ?? [];
@@ -1000,7 +1092,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                                                     ? theme
                                                           .colorScheme
                                                           .onSurfaceVariant
-                                                          .withValues(alpha: 0.6)
+                                                          .withValues(
+                                                            alpha: 0.6,
+                                                          )
                                                     : primaryColor,
                                               ),
                                             ),
@@ -1082,7 +1176,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                           // Digital payment prompt for MOBILE MONEY, CARD, BANK TRANSFER
                           Padding(
                             padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-                            child: _buildDigitalPaymentPrompt(context, currency),
+                            child: _buildDigitalPaymentPrompt(
+                              context,
+                              currency,
+                            ),
                           ),
                       ],
 
@@ -2576,7 +2673,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                                         decoration: BoxDecoration(
                                           color: theme.colorScheme.primary
                                               .withValues(alpha: 0.12),
-                                          borderRadius: BorderRadius.circular(8),
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
                                         ),
                                         child: Text(
                                           'EXACT (${CurrencyFormatter.format(total, currency)})',
@@ -2867,7 +2966,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
   Future<void> _openCameraScanner() async {
     final scannedCode = await CameraBarcodeScannerModal.show(context);
     if (scannedCode != null && scannedCode.isNotEmpty) {
-      _lookupProduct(scannedCode);
+      _lookupProduct(scannedCode, clearInputAfterLookup: true);
     }
   }
 
@@ -3912,7 +4011,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     }
   }
 
-  Widget _buildMobileMoneyPaymentConsole(BuildContext context, String currency) {
+  Widget _buildMobileMoneyPaymentConsole(
+    BuildContext context,
+    String currency,
+  ) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final total = ref.read(cartProvider.notifier).total;
@@ -3941,7 +4043,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFFD97706).withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(20),
@@ -3969,6 +4074,15 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
           ),
           const SizedBox(height: 12),
 
+          OutlinedButton.icon(
+            onPressed: total <= 0 || _isRequestingMomo
+                ? null
+                : () => _confirmExternalMobileMoneyPayment(total),
+            icon: const Icon(Icons.devices_other_rounded, size: 18),
+            label: const Text('Use External Mobile Money Device'),
+          ),
+          const SizedBox(height: 8),
+
           // Network Operator Selector
           Text(
             'Select Network Operator',
@@ -3981,11 +4095,29 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
           const SizedBox(height: 6),
           Row(
             children: [
-              Expanded(child: _buildOperatorPill('airtel', 'Airtel Money', const Color(0xFFDC2626))),
+              Expanded(
+                child: _buildOperatorPill(
+                  'airtel',
+                  'Airtel Money',
+                  const Color(0xFFDC2626),
+                ),
+              ),
               const SizedBox(width: 6),
-              Expanded(child: _buildOperatorPill('mtn', 'MTN MoMo', const Color(0xFFD97706))),
+              Expanded(
+                child: _buildOperatorPill(
+                  'mtn',
+                  'MTN MoMo',
+                  const Color(0xFFD97706),
+                ),
+              ),
               const SizedBox(width: 6),
-              Expanded(child: _buildOperatorPill('zamtel', 'Zamtel', const Color(0xFF059669))),
+              Expanded(
+                child: _buildOperatorPill(
+                  'zamtel',
+                  'Zamtel',
+                  const Color(0xFF059669),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -4008,8 +4140,13 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
               hintStyle: GoogleFonts.inter(fontSize: 12),
               prefixIcon: const Icon(Icons.phone_android_rounded, size: 20),
               filled: true,
-              fillColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              fillColor: isDark
+                  ? const Color(0xFF0F172A)
+                  : const Color(0xFFF8FAFC),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 10,
+              ),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
               ),
@@ -4053,7 +4190,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                         ],
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
                         decoration: BoxDecoration(
                           color: const Color(0xFFD97706),
                           borderRadius: BorderRadius.circular(12),
@@ -4074,8 +4214,12 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                     borderRadius: BorderRadius.circular(4),
                     child: LinearProgressIndicator(
                       value: _momoCountdownSeconds / 60.0,
-                      backgroundColor: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
-                      valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFD97706)),
+                      backgroundColor: isDark
+                          ? const Color(0xFF334155)
+                          : const Color(0xFFE2E8F0),
+                      valueColor: const AlwaysStoppedAnimation<Color>(
+                        Color(0xFFD97706),
+                      ),
                       minHeight: 4,
                     ),
                   ),
@@ -4087,7 +4231,11 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
               height: 38,
               child: OutlinedButton.icon(
                 onPressed: () => _cancelMobileMoneyPrompt(manual: true),
-                icon: const Icon(Icons.close_rounded, size: 16, color: Color(0xFFDC2626)),
+                icon: const Icon(
+                  Icons.close_rounded,
+                  size: 16,
+                  color: Color(0xFFDC2626),
+                ),
                 label: Text(
                   'Cancel Payment Prompt',
                   style: GoogleFonts.inter(
@@ -4099,23 +4247,32 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                 style: OutlinedButton.styleFrom(
                   side: const BorderSide(color: Color(0xFFFECACA)),
                   backgroundColor: const Color(0xFFFEF2F2),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
               ),
             ),
           ] else ...[
             ElevatedButton.icon(
-              onPressed: total <= 0 ? null : () => _initiateMobileMoneyPrompt(total),
+              onPressed: total <= 0
+                  ? null
+                  : () => _initiateMobileMoneyPrompt(total),
               icon: const Icon(Icons.send_rounded, size: 18),
               label: Text(
                 'Send Payment Prompt to Phone',
-                style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13),
+                style: GoogleFonts.inter(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFD97706),
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
               ),
             ),
           ],
@@ -4129,21 +4286,23 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                 color: _momoSuccess
                     ? const Color(0xFFECFDF5)
                     : (_momoStatusMessage!.contains('cancelled') ||
-                            _momoStatusMessage!.contains('declined') ||
-                            _momoStatusMessage!.contains('timed out') ||
-                            _momoStatusMessage!.contains('Failed'))
-                        ? const Color(0xFFFEF2F2)
-                        : (isDark ? const Color(0xFF1E293B) : const Color(0xFFFFFBEB)),
+                          _momoStatusMessage!.contains('declined') ||
+                          _momoStatusMessage!.contains('timed out') ||
+                          _momoStatusMessage!.contains('Failed'))
+                    ? const Color(0xFFFEF2F2)
+                    : (isDark
+                          ? const Color(0xFF1E293B)
+                          : const Color(0xFFFFFBEB)),
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(
                   color: _momoSuccess
                       ? const Color(0xFFA7F3D0)
                       : (_momoStatusMessage!.contains('cancelled') ||
-                              _momoStatusMessage!.contains('declined') ||
-                              _momoStatusMessage!.contains('timed out') ||
-                              _momoStatusMessage!.contains('Failed'))
-                          ? const Color(0xFFFECACA)
-                          : const Color(0xFFFDE68A),
+                            _momoStatusMessage!.contains('declined') ||
+                            _momoStatusMessage!.contains('timed out') ||
+                            _momoStatusMessage!.contains('Failed'))
+                      ? const Color(0xFFFECACA)
+                      : const Color(0xFFFDE68A),
                 ),
               ),
               child: Row(
@@ -4152,19 +4311,19 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                     _momoSuccess
                         ? Icons.check_circle_rounded
                         : (_momoStatusMessage!.contains('cancelled') ||
-                                _momoStatusMessage!.contains('declined') ||
-                                _momoStatusMessage!.contains('timed out') ||
-                                _momoStatusMessage!.contains('Failed'))
-                            ? Icons.error_outline_rounded
-                            : Icons.info_outline_rounded,
+                              _momoStatusMessage!.contains('declined') ||
+                              _momoStatusMessage!.contains('timed out') ||
+                              _momoStatusMessage!.contains('Failed'))
+                        ? Icons.error_outline_rounded
+                        : Icons.info_outline_rounded,
                     color: _momoSuccess
                         ? const Color(0xFF059669)
                         : (_momoStatusMessage!.contains('cancelled') ||
-                                _momoStatusMessage!.contains('declined') ||
-                                _momoStatusMessage!.contains('timed out') ||
-                                _momoStatusMessage!.contains('Failed'))
-                            ? const Color(0xFFDC2626)
-                            : const Color(0xFFD97706),
+                              _momoStatusMessage!.contains('declined') ||
+                              _momoStatusMessage!.contains('timed out') ||
+                              _momoStatusMessage!.contains('Failed'))
+                        ? const Color(0xFFDC2626)
+                        : const Color(0xFFD97706),
                     size: 18,
                   ),
                   const SizedBox(width: 8),
@@ -4177,11 +4336,11 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                         color: _momoSuccess
                             ? const Color(0xFF059669)
                             : (_momoStatusMessage!.contains('cancelled') ||
-                                    _momoStatusMessage!.contains('declined') ||
-                                    _momoStatusMessage!.contains('timed out') ||
-                                    _momoStatusMessage!.contains('Failed'))
-                                ? const Color(0xFFB91C1C)
-                                : const Color(0xFFB45309),
+                                  _momoStatusMessage!.contains('declined') ||
+                                  _momoStatusMessage!.contains('timed out') ||
+                                  _momoStatusMessage!.contains('Failed'))
+                            ? const Color(0xFFB91C1C)
+                            : const Color(0xFFB45309),
                       ),
                     ),
                   ),
@@ -4193,7 +4352,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     );
   }
 
-  Widget _buildBankTransferPaymentConsole(BuildContext context, String currency) {
+  Widget _buildBankTransferPaymentConsole(
+    BuildContext context,
+    String currency,
+  ) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final total = ref.read(cartProvider.notifier).total;
@@ -4217,7 +4379,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFF059669).withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(20),
@@ -4261,7 +4426,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
               color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
-                color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                color: isDark
+                    ? const Color(0xFF334155)
+                    : const Color(0xFFCBD5E1),
               ),
             ),
             child: DropdownButtonHideUnderline(
@@ -4317,11 +4484,21 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                   decoration: InputDecoration(
                     hintText: 'Enter account number...',
                     hintStyle: GoogleFonts.inter(fontSize: 12),
-                    prefixIcon: const Icon(Icons.account_balance_rounded, size: 18),
+                    prefixIcon: const Icon(
+                      Icons.account_balance_rounded,
+                      size: 18,
+                    ),
                     filled: true,
-                    fillColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    fillColor: isDark
+                        ? const Color(0xFF0F172A)
+                        : const Color(0xFFF8FAFC),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                   ),
                 ),
               ),
@@ -4332,18 +4509,29 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                     ? const SizedBox(
                         width: 14,
                         height: 14,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
                       )
                     : const Icon(Icons.search_rounded, size: 16),
                 label: Text(
                   _isResolvingBank ? 'Looking up...' : 'Lookup Name',
-                  style: GoogleFonts.inter(fontSize: 11.5, fontWeight: FontWeight.w700),
+                  style: GoogleFonts.inter(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF059669),
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                 ),
               ),
             ],
@@ -4364,7 +4552,11 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.verified_rounded, color: Color(0xFF059669), size: 18),
+                      const Icon(
+                        Icons.verified_rounded,
+                        color: Color(0xFF059669),
+                        size: 18,
+                      ),
                       const SizedBox(width: 8),
                       Text(
                         'RESOLVED ACCOUNT HOLDER',
@@ -4407,7 +4599,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
               ),
               child: Text(
                 _bankResolveError!,
-                style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFFDC2626)),
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  color: const Color(0xFFDC2626),
+                ),
               ),
             ),
 
@@ -4425,16 +4620,25 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
               children: [
                 Text(
                   'Store Receiving Bank Account:',
-                  style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700),
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   '${config?.lencoBankName ?? 'Absa Bank Zambia'} | Acc: ${config?.lencoAccountNumber ?? '9130001234567'}',
-                  style: GoogleFonts.inter(fontSize: 11, color: theme.colorScheme.onSurfaceVariant),
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
                 ),
                 Text(
                   'Name: ${config?.lencoAccountName ?? config?.businessName ?? 'Beleka Store'}',
-                  style: GoogleFonts.inter(fontSize: 11, color: theme.colorScheme.onSurfaceVariant),
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ],
             ),
@@ -4453,13 +4657,18 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
             icon: const Icon(Icons.check_circle_rounded, size: 18),
             label: Text(
               'Confirm Transfer & Complete Sale',
-              style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13),
+              style: GoogleFonts.inter(
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+              ),
             ),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF059669),
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
           ),
         ],
@@ -4481,7 +4690,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF151F32) : const Color(0xFFF0F9FF),
+                color: isDark
+                    ? const Color(0xFF151F32)
+                    : const Color(0xFFF0F9FF),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
@@ -4535,13 +4746,21 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
               icon: const Icon(Icons.check_circle_rounded, size: 18),
               label: Text(
                 'Terminal Approved - Complete Sale',
-                style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13),
+                style: GoogleFonts.inter(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF0284C7),
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 12,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
               ),
             ),
           ],
@@ -4566,7 +4785,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
               : (isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9)),
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: isSelected ? color : (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
+            color: isSelected
+                ? color
+                : (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
             width: isSelected ? 1.5 : 1,
           ),
         ),
@@ -5763,6 +5984,17 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       }
       return;
     }
+    if (_selectedPaymentMethod == 'EXTERNAL MOBILE MONEY' &&
+        (_externalPaymentConfirmedBy == null ||
+            _externalPaymentConfirmedAt == null)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Confirm receipt on the external device first.'),
+          backgroundColor: Colors.orangeAccent,
+        ),
+      );
+      return;
+    }
     setState(() => _isProcessingPayment = true);
     final change = _selectedPaymentMethod == 'CASH'
         ? (_tenderedAmount - total)
@@ -5780,7 +6012,16 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
             (item) => SaleItem(
               productId: item.product.id,
               productName: item.product.name,
+              productSkuAtSale: item.product.sku,
               priceAtSale: item.unitPrice,
+              discountAmountAtSale: double.parse(
+                ((item.product.price - item.unitPrice).clamp(
+                          0.0,
+                          double.infinity,
+                        ) *
+                        item.effectiveQuantity)
+                    .toStringAsFixed(2),
+              ),
               unitCostAtSale: item.product.unitCost,
               quantity: item.isWeighted ? 1 : item.quantity,
               taxRateAtSale: item.product.taxRate,
@@ -5788,7 +6029,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
               weight: item.isWeighted ? item.weight : 0.0,
               isWeighted: item.isWeighted,
               unitOfMeasure: item.product.unitOfMeasure,
-              isDigitaxExempt: !item.product.isDigitaxSyncEnabled,
+              isDigitaxExempt: !item.product.isDigitaxSyncEligible,
             ),
           )
           .toList();
@@ -5797,10 +6038,24 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
 
       final transaction = SaleTransaction(
         totalAmount: total,
-        paymentMethod: _selectedPaymentMethod,
+        paymentMethod: _selectedPaymentMethod == 'MOBILE MONEY'
+            ? 'LENCO MOBILE MONEY'
+            : _selectedPaymentMethod,
         cashierName: currentUser?.name ?? 'Cashier',
-        cashierId: currentUser?.id.toString(),
+        cashierId: currentUser?.numericId,
         terminalName: config?.terminalName ?? 'TILL-01',
+        externalPaymentReference:
+            _selectedPaymentMethod == 'EXTERNAL MOBILE MONEY'
+            ? _externalPaymentReference
+            : null,
+        externalPaymentConfirmedBy:
+            _selectedPaymentMethod == 'EXTERNAL MOBILE MONEY'
+            ? _externalPaymentConfirmedBy
+            : null,
+        externalPaymentConfirmedAt:
+            _selectedPaymentMethod == 'EXTERNAL MOBILE MONEY'
+            ? _externalPaymentConfirmedAt
+            : null,
         subtotal: cartNotifier.subtotal,
         taxAmount: cartNotifier.tax,
         discountAmount: cartState.discountAmount,
@@ -5838,40 +6093,44 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       cartNotifier.clear();
       if (mounted) {
         setState(() {
+          _searchController.clear();
           _tenderedAmount = 0;
           _selectedPaymentMethod = '';
+          _externalPaymentReference = null;
+          _externalPaymentConfirmedBy = null;
+          _externalPaymentConfirmedAt = null;
           _isProcessingPayment = false;
         });
+        _searchFocusNode.requestFocus();
       }
 
-      // Fiscalize with DigiTax VSDC Cloud (Live ZRA Smart Invoice & Server-Side Tax Calculations)
-      final resolvedBhf = (currentUser?.branchCode != null && currentUser!.branchCode!.trim().isNotEmpty)
+      // Resolve local credentials before scheduling network work. Checkout must not
+      // wait for DigiTax or the manager server to respond.
+      final resolvedBhf =
+          (currentUser?.branchCode != null &&
+              currentUser!.branchCode!.trim().isNotEmpty)
           ? currentUser.branchCode!.trim().padLeft(2, '0')
           : (config?.bhfId.trim().isNotEmpty == true
-              ? config!.bhfId.trim().padLeft(2, '0')
-              : '00');
-      final branchKey = await ref
-          .read(digitaxInventoryServiceProvider)
-          .resolveBranchApiKey(resolvedBhf);
-      final hasDigitax = (branchKey != null && branchKey.isNotEmpty) ||
-          (config?.digitaxApiKey != null && config!.digitaxApiKey!.trim().isNotEmpty);
-      bool fiscalized = false;
-
-      if (hasDigitax) {
-        fiscalized = await ref
-            .read(digitaxInventoryServiceProvider)
-            .fiscalizeSaleTransaction(transaction, saleItems);
+                ? config!.bhfId.trim().padLeft(2, '0')
+                : '00');
+      final digitaxService = ref.read(digitaxInventoryServiceProvider);
+      String? branchKey;
+      try {
+        branchKey = await digitaxService.resolveBranchApiKey(resolvedBhf);
+      } catch (e) {
+        debugPrint('DIGITAX_BRANCH_KEY_LOOKUP_NOTICE: $e');
       }
-
-      // Attempt local real-time sync with Manager Server over LAN (if cashier terminal).
-      // Manager Server auto-fiscalizes the transaction with DigiTax and returns official ZRA receipt data.
-      final syncSuccess = await ref
-          .read(syncServiceProvider)
-          .trySyncTransaction(transaction, saleItems);
-      if (syncSuccess &&
-          (transaction.zraReceiptNumber?.isNotEmpty == true ||
-              transaction.zraStatus.toUpperCase() == 'APPROVED')) {
-        fiscalized = true;
+      final hasDigitax =
+          (branchKey != null && branchKey.isNotEmpty) ||
+          (config?.digitaxApiKey != null &&
+              config!.digitaxApiKey!.trim().isNotEmpty);
+      final syncService = ref.read(syncServiceProvider);
+      final fiscalStatus = ValueNotifier<String>(
+        'Sale saved. ZRA receipt is pending and will update automatically.',
+      );
+      var fiscalStatusDisposed = false;
+      void updateFiscalStatus(String message) {
+        if (!fiscalStatusDisposed) fiscalStatus.value = message;
       }
 
       // Auto-kick Cash Drawer Hardware Driver on payment completion
@@ -5896,9 +6155,6 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       if (config?.autoPrintReceipt != false) {
         try {
           await printer.printReceipt(transaction, saleItems, config: config);
-          if (!fiscalized && (hasDigitax || syncSuccess)) {
-            _scheduleDigitaxFiscalRefreshAndPrint(transaction, saleItems);
-          }
         } catch (e) {
           printSuccess = false;
           printErrorMessage = e.toString().replaceAll("Exception: ", "");
@@ -5917,6 +6173,17 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         }
       }
 
+      _scheduleSaleFiscalizationAndSync(
+        transaction,
+        saleItems,
+        digitaxService: digitaxService,
+        syncService: syncService,
+        printer: printer,
+        config: config,
+        hasDigitax: hasDigitax,
+        onFiscalStatusChanged: updateFiscalStatus,
+      );
+
       if (mounted) {
         final isDark = Theme.of(context).brightness == Brightness.dark;
         final dialogBg = isDark ? const Color(0xFF151F32) : Colors.white;
@@ -5925,170 +6192,201 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
             : const Color(0xFFE2E8F0);
         const primaryAccent = Color(0xFF1D4ED8);
 
-        showDialog(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            backgroundColor: dialogBg,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-              side: BorderSide(color: borderColor),
-            ),
-            title: Text(
-              'Sale Complete',
-              style: GoogleFonts.inter(
-                fontWeight: FontWeight.w800,
-                color: Theme.of(context).colorScheme.onSurface,
-                fontSize: 16,
+        unawaited(
+          showDialog<void>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              backgroundColor: dialogBg,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(color: borderColor),
               ),
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Change Due: ${CurrencyFormatter.format(change, config?.currencySymbol ?? "ZK")}',
-                  style: GoogleFonts.inter(
-                    color: const Color(0xFF059669),
-                    fontSize: 22,
-                    fontWeight: FontWeight.w900,
-                  ),
+              title: Text(
+                'Sale Complete',
+                style: GoogleFonts.inter(
+                  fontWeight: FontWeight.w800,
+                  color: Theme.of(context).colorScheme.onSurface,
+                  fontSize: 16,
                 ),
-                if (!printSuccess && printErrorMessage != null) ...[
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFDC2626).withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: const Color(0xFFDC2626).withValues(alpha: 0.25),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.print_disabled_rounded,
-                          color: Color(0xFFDC2626),
-                          size: 16,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Print Failed: $printErrorMessage',
-                            style: GoogleFonts.inter(
-                              color: const Color(0xFFDC2626),
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-                if (hasDigitax && !fiscalized) ...[
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFD97706).withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: const Color(0xFFD97706).withValues(alpha: 0.25),
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.hourglass_top_rounded,
-                          color: Color(0xFFD97706),
-                          size: 14,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          'DigiTax Fiscalizing... Receipt will print automatically',
-                          style: GoogleFonts.inter(
-                            color: const Color(0xFFD97706),
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ],
-            ),
-            actions: [
-              if (!printSuccess) ...[
-                OutlinedButton.icon(
-                  onPressed: () async {
-                    try {
-                      await printer.printReceipt(
-                        transaction,
-                        saleItems,
-                        config: config,
-                      );
-                      if (ctx.mounted) {
-                        ScaffoldMessenger.of(ctx).showSnackBar(
-                          const SnackBar(
-                            content: Text('Receipt printed successfully!'),
-                            backgroundColor: Color(0xFF059669),
-                          ),
-                        );
-                      }
-                    } catch (err) {
-                      if (ctx.mounted) {
-                        ScaffoldMessenger.of(ctx).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              'Print retry failed: ${err.toString().replaceAll("Exception: ", "")}',
-                            ),
-                            backgroundColor: const Color(0xFFDC2626),
-                          ),
-                        );
-                      }
-                    }
-                  },
-                  icon: const Icon(Icons.print_rounded, size: 16),
-                  label: Text(
-                    'RETRY PRINT',
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Change Due: ${CurrencyFormatter.format(change, config?.currencySymbol ?? "ZK")}',
                     style: GoogleFonts.inter(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 11,
+                      color: const Color(0xFF059669),
+                      fontSize: 22,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  if (!printSuccess && printErrorMessage != null) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFDC2626).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: const Color(
+                            0xFFDC2626,
+                          ).withValues(alpha: 0.25),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.print_disabled_rounded,
+                            color: Color(0xFFDC2626),
+                            size: 16,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Print Failed: $printErrorMessage',
+                              style: GoogleFonts.inter(
+                                color: const Color(0xFFDC2626),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  if (hasDigitax) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFD97706).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: const Color(
+                            0xFFD97706,
+                          ).withValues(alpha: 0.25),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          ValueListenableBuilder<String>(
+                            valueListenable: fiscalStatus,
+                            builder: (context, message, _) {
+                              final confirmed = message.startsWith(
+                                'ZRA receipt confirmed',
+                              );
+                              return Icon(
+                                confirmed
+                                    ? Icons.check_circle_rounded
+                                    : Icons.hourglass_top_rounded,
+                                color: confirmed
+                                    ? const Color(0xFF059669)
+                                    : const Color(0xFFD97706),
+                                size: 14,
+                              );
+                            },
+                          ),
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: ValueListenableBuilder<String>(
+                              valueListenable: fiscalStatus,
+                              builder: (context, message, _) => Text(
+                                message,
+                                style: GoogleFonts.inter(
+                                  color:
+                                      message.startsWith(
+                                        'ZRA receipt confirmed',
+                                      )
+                                      ? const Color(0xFF059669)
+                                      : const Color(0xFFD97706),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              actions: [
+                if (!printSuccess) ...[
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      try {
+                        await printer.printReceipt(
+                          transaction,
+                          saleItems,
+                          config: config,
+                        );
+                        if (ctx.mounted) {
+                          ScaffoldMessenger.of(ctx).showSnackBar(
+                            const SnackBar(
+                              content: Text('Receipt printed successfully!'),
+                              backgroundColor: Color(0xFF059669),
+                            ),
+                          );
+                        }
+                      } catch (err) {
+                        if (ctx.mounted) {
+                          ScaffoldMessenger.of(ctx).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'Print retry failed: ${err.toString().replaceAll("Exception: ", "")}',
+                              ),
+                              backgroundColor: const Color(0xFFDC2626),
+                            ),
+                          );
+                        }
+                      }
+                    },
+                    icon: const Icon(Icons.print_rounded, size: 16),
+                    label: Text(
+                      'RETRY PRINT',
+                      style: GoogleFonts.inter(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                ],
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    _searchFocusNode.requestFocus();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primaryAccent,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: Text(
+                    'NEW SALE',
+                    style: GoogleFonts.inter(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12,
                     ),
                   ),
                 ),
               ],
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  _searchFocusNode.requestFocus();
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: primaryAccent,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  elevation: 0,
-                ),
-                child: Text(
-                  'NEW SALE',
-                  style: GoogleFonts.inter(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 12,
-                  ),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ).whenComplete(() {
+            fiscalStatusDisposed = true;
+            fiscalStatus.dispose();
+          }),
         );
       }
     } catch (e) {
@@ -6105,22 +6403,99 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     }
   }
 
+  void _scheduleSaleFiscalizationAndSync(
+    SaleTransaction tx,
+    List<SaleItem> items, {
+    required DigiTaxInventoryService digitaxService,
+    required SyncService syncService,
+    required PrinterService printer,
+    required StoreConfig? config,
+    required bool hasDigitax,
+    required ValueChanged<String> onFiscalStatusChanged,
+  }) {
+    Future<void>(() async {
+      var fiscalized = false;
+      var syncSuccess = false;
+
+      if (hasDigitax) {
+        try {
+          fiscalized = await digitaxService.fiscalizeSaleTransaction(tx, items);
+        } catch (e, stackTrace) {
+          debugPrint('DIGITAX_BACKGROUND_FISCALIZE_ERROR: $e\n$stackTrace');
+        }
+      }
+
+      try {
+        syncSuccess = await syncService.trySyncTransaction(tx, items);
+      } catch (e, stackTrace) {
+        debugPrint('SALE_BACKGROUND_SYNC_ERROR: $e\n$stackTrace');
+      }
+
+      if (syncSuccess &&
+          (tx.zraReceiptNumber?.isNotEmpty == true ||
+              tx.zraStatus.toUpperCase() == 'APPROVED')) {
+        fiscalized = true;
+      }
+
+      final status = tx.zraStatus.toUpperCase();
+      if (fiscalized) {
+        onFiscalStatusChanged(
+          'ZRA receipt confirmed. The official receipt is ready.',
+        );
+      } else if (status == 'FAILED') {
+        onFiscalStatusChanged(
+          'ZRA rejected this sale. Check the transaction details.',
+        );
+      } else if (status == 'RECONCILIATION_REQUIRED') {
+        onFiscalStatusChanged(
+          'DigiTax needs to confirm this sale. Check its status before retrying.',
+        );
+      } else {
+        onFiscalStatusChanged(
+          'Sale saved. ZRA is still processing the receipt.',
+        );
+      }
+
+      if (!fiscalized && (hasDigitax || syncSuccess)) {
+        _scheduleDigitaxFiscalRefreshAndPrint(
+          tx,
+          items,
+          digitaxService: digitaxService,
+          printer: printer,
+          config: config,
+          onFiscalStatusChanged: onFiscalStatusChanged,
+        );
+      } else if (fiscalized && config?.autoPrintReceipt != false) {
+        try {
+          await printer.printReceipt(tx, items, config: config);
+        } catch (e) {
+          debugPrint('DIGITAX_CONFIRMED_RECEIPT_PRINT_NOTICE: $e');
+        }
+      }
+    });
+  }
+
   void _scheduleDigitaxFiscalRefreshAndPrint(
     SaleTransaction tx,
-    List<SaleItem> items,
-  ) {
+    List<SaleItem> items, {
+    required DigiTaxInventoryService digitaxService,
+    required PrinterService printer,
+    required StoreConfig? config,
+    required ValueChanged<String> onFiscalStatusChanged,
+  }) {
     Future(() async {
-      final dtService = ref.read(digitaxInventoryServiceProvider);
       for (int attempt = 1; attempt <= 6; attempt++) {
         await Future.delayed(Duration(seconds: attempt == 1 ? 2 : 3));
         try {
-          final refreshed = await dtService.refreshTransactionFiscalData(tx);
+          final refreshed = await digitaxService.refreshTransactionFiscalData(
+            tx,
+          );
           if (refreshed) {
-            final config = ref.read(storeConfigProvider).value;
+            onFiscalStatusChanged(
+              'ZRA receipt confirmed. The official receipt is ready.',
+            );
             if (config?.autoPrintReceipt != false) {
-              await ref
-                  .read(printerServiceProvider)
-                  .printReceipt(tx, items, config: config);
+              await printer.printReceipt(tx, items, config: config);
               debugPrint(
                 'DIGITAX_ASYNC_PRINT: Live receipt printed after background confirmation for Tx #${tx.id}',
               );
@@ -6130,6 +6505,11 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         } catch (e) {
           debugPrint('Delayed fiscal refresh attempt $attempt notice: $e');
         }
+      }
+      if (tx.zraStatus.toUpperCase() == 'PENDING') {
+        onFiscalStatusChanged(
+          'ZRA confirmation is still pending. Check the sale before retrying.',
+        );
       }
     });
   }

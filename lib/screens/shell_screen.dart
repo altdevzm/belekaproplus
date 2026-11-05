@@ -23,13 +23,40 @@ import 'package:beleka_pos/widgets/license_expiry_banner.dart';
 import 'package:beleka_pos/widgets/camera_barcode_scanner_modal.dart';
 import 'package:beleka_pos/providers/cart_provider.dart';
 import 'package:beleka_pos/services/database_service.dart';
+import 'package:beleka_pos/services/digitax_inventory_service.dart';
 
-enum ScreenType { dashboard, sales, inventory, purchases, expenses, branches, terminals, settings, reports }
+enum ScreenType {
+  dashboard,
+  sales,
+  inventory,
+  purchases,
+  expenses,
+  branches,
+  terminals,
+  settings,
+  reports,
+}
+
+ScreenType screenAllowedForRole(ScreenType requestedScreen, String? role) {
+  final normalizedRole = normalizeUserRole(role);
+  final canManage = {
+    'owner',
+    'admin',
+    'super_admin',
+    'branch_manager',
+    'manager',
+  }.contains(normalizedRole);
+
+  if (!canManage && requestedScreen != ScreenType.settings) {
+    return ScreenType.sales;
+  }
+  return requestedScreen;
+}
 
 final navigationProvider = StateProvider<ScreenType>((ref) {
   // Cashiers default to Sales screen
   final user = ref.watch(authProvider);
-  if (user?.role == 'cashier') return ScreenType.sales;
+  if (normalizeUserRole(user?.role) == 'cashier') return ScreenType.sales;
   return ScreenType.dashboard;
 });
 
@@ -38,18 +65,48 @@ class ShellScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final currentScreen = ref.watch(navigationProvider);
+    final requestedScreen = ref.watch(navigationProvider);
+    final currentScreen = screenAllowedForRole(
+      requestedScreen,
+      ref.watch(authProvider)?.role,
+    );
+    ref.watch(digitaxInventoryServiceProvider);
     final theme = Theme.of(context);
     final isManager = ref.watch(isManagerProvider);
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       body: AdaptiveLayout(
-        compact: (ctx) => _buildMobileLayout(context, ref, currentScreen, isManager, isCompact: true),
-        mobile: (ctx) => _buildMobileLayout(context, ref, currentScreen, isManager, isCompact: true),
-        tablet: (ctx) => _buildTabletLayout(context, ref, currentScreen, isManager),
-        desktop: (ctx) => _buildDesktopLayout(context, ref, currentScreen, isManager, isUltraWide: false),
-        ultraWide: (ctx) => _buildDesktopLayout(context, ref, currentScreen, isManager, isUltraWide: true),
+        compact: (ctx) => _buildMobileLayout(
+          context,
+          ref,
+          currentScreen,
+          isManager,
+          isCompact: true,
+        ),
+        mobile: (ctx) => _buildMobileLayout(
+          context,
+          ref,
+          currentScreen,
+          isManager,
+          isCompact: true,
+        ),
+        tablet: (ctx) =>
+            _buildTabletLayout(context, ref, currentScreen, isManager),
+        desktop: (ctx) => _buildDesktopLayout(
+          context,
+          ref,
+          currentScreen,
+          isManager,
+          isUltraWide: false,
+        ),
+        ultraWide: (ctx) => _buildDesktopLayout(
+          context,
+          ref,
+          currentScreen,
+          isManager,
+          isUltraWide: true,
+        ),
       ),
     );
   }
@@ -65,10 +122,12 @@ class ShellScreen extends ConsumerWidget {
     final isDark = theme.brightness == Brightness.dark;
     final user = ref.watch(authProvider);
     final accentColor = theme.colorScheme.primary;
-    final role = user?.role.toLowerCase().trim() ?? 'cashier';
+    final role = normalizeUserRole(user?.role);
     final isCashier = role == 'cashier';
     final navBg = isDark ? const Color(0xFF1E293B) : const Color(0xFFFFFFFF);
-    final borderColor = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+    final borderColor = isDark
+        ? const Color(0xFF334155)
+        : const Color(0xFFE2E8F0);
 
     return Column(
       children: [
@@ -76,16 +135,14 @@ class ShellScreen extends ConsumerWidget {
         const UpdateBanner(),
         const LicenseExpiryBanner(),
         Expanded(child: _buildMainContent(current)),
-        
+
         // Ergonomic Mobile Lower Navigation Bar
         Container(
           height: 64,
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           decoration: BoxDecoration(
             color: navBg,
-            border: Border(
-              top: BorderSide(color: borderColor, width: 1),
-            ),
+            border: Border(top: BorderSide(color: borderColor, width: 1)),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -100,7 +157,8 @@ class ShellScreen extends ConsumerWidget {
                       accentColor: accentColor,
                       onTap: () {
                         HapticFeedback.lightImpact();
-                        ref.read(navigationProvider.notifier).state = ScreenType.sales;
+                        ref.read(navigationProvider.notifier).state =
+                            ScreenType.sales;
                       },
                     ),
 
@@ -116,7 +174,8 @@ class ShellScreen extends ConsumerWidget {
                       accentColor: accentColor,
                       onTap: () {
                         HapticFeedback.lightImpact();
-                        ref.read(navigationProvider.notifier).state = ScreenType.settings;
+                        ref.read(navigationProvider.notifier).state =
+                            ScreenType.settings;
                       },
                     ),
 
@@ -141,7 +200,8 @@ class ShellScreen extends ConsumerWidget {
                       accentColor: accentColor,
                       onTap: () {
                         HapticFeedback.lightImpact();
-                        ref.read(navigationProvider.notifier).state = ScreenType.dashboard;
+                        ref.read(navigationProvider.notifier).state =
+                            ScreenType.dashboard;
                       },
                     ),
 
@@ -154,7 +214,8 @@ class ShellScreen extends ConsumerWidget {
                       accentColor: accentColor,
                       onTap: () {
                         HapticFeedback.lightImpact();
-                        ref.read(navigationProvider.notifier).state = ScreenType.inventory;
+                        ref.read(navigationProvider.notifier).state =
+                            ScreenType.inventory;
                       },
                     ),
 
@@ -170,7 +231,8 @@ class ShellScreen extends ConsumerWidget {
                       accentColor: accentColor,
                       onTap: () {
                         HapticFeedback.lightImpact();
-                        ref.read(navigationProvider.notifier).state = ScreenType.reports;
+                        ref.read(navigationProvider.notifier).state =
+                            ScreenType.reports;
                       },
                     ),
 
@@ -179,7 +241,10 @@ class ShellScreen extends ConsumerWidget {
                       context,
                       icon: Icons.grid_view_rounded,
                       label: 'More',
-                      isSelected: current != ScreenType.dashboard && current != ScreenType.inventory && current != ScreenType.reports,
+                      isSelected:
+                          current != ScreenType.dashboard &&
+                          current != ScreenType.inventory &&
+                          current != ScreenType.reports,
                       accentColor: accentColor,
                       onTap: () {
                         HapticFeedback.mediumImpact();
@@ -193,7 +258,12 @@ class ShellScreen extends ConsumerWidget {
     );
   }
 
-  void _showMoreNavSheet(BuildContext context, WidgetRef ref, ScreenType current, User? user) {
+  void _showMoreNavSheet(
+    BuildContext context,
+    WidgetRef ref,
+    ScreenType current,
+    User? user,
+  ) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final primaryColor = theme.colorScheme.primary;
@@ -218,7 +288,9 @@ class ShellScreen extends ConsumerWidget {
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                      color: isDark
+                          ? const Color(0xFF334155)
+                          : const Color(0xFFCBD5E1),
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -261,19 +333,24 @@ class ShellScreen extends ConsumerWidget {
                         onTap: () {
                           Navigator.pop(ctx);
                           HapticFeedback.lightImpact();
-                          ref.read(navigationProvider.notifier).state = dest.type;
+                          ref.read(navigationProvider.notifier).state =
+                              dest.type;
                         },
                         borderRadius: BorderRadius.circular(12),
                         child: Container(
                           decoration: BoxDecoration(
                             color: isSelected
                                 ? primaryColor.withValues(alpha: 0.15)
-                                : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9)),
+                                : (isDark
+                                      ? const Color(0xFF1E293B)
+                                      : const Color(0xFFF1F5F9)),
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
                               color: isSelected
                                   ? primaryColor
-                                  : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+                                  : (isDark
+                                        ? const Color(0xFF334155)
+                                        : const Color(0xFFE2E8F0)),
                             ),
                           ),
                           child: Column(
@@ -282,15 +359,21 @@ class ShellScreen extends ConsumerWidget {
                               Icon(
                                 dest.icon,
                                 size: 24,
-                                color: isSelected ? primaryColor : theme.colorScheme.onSurface,
+                                color: isSelected
+                                    ? primaryColor
+                                    : theme.colorScheme.onSurface,
                               ),
                               const SizedBox(height: 6),
                               Text(
                                 dest.label,
                                 style: GoogleFonts.inter(
                                   fontSize: 12,
-                                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                                  color: isSelected ? primaryColor : theme.colorScheme.onSurface,
+                                  fontWeight: isSelected
+                                      ? FontWeight.w800
+                                      : FontWeight.w600,
+                                  color: isSelected
+                                      ? primaryColor
+                                      : theme.colorScheme.onSurface,
                                 ),
                               ),
                             ],
@@ -309,16 +392,28 @@ class ShellScreen extends ConsumerWidget {
                         decoration: BoxDecoration(
                           color: const Color(0xFFEF4444).withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.3)),
+                          border: Border.all(
+                            color: const Color(
+                              0xFFEF4444,
+                            ).withValues(alpha: 0.3),
+                          ),
                         ),
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(Icons.logout_rounded, size: 24, color: Color(0xFFEF4444)),
+                            const Icon(
+                              Icons.logout_rounded,
+                              size: 24,
+                              color: Color(0xFFEF4444),
+                            ),
                             const SizedBox(height: 6),
                             Text(
                               'Sign Out',
-                              style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFFEF4444)),
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: const Color(0xFFEF4444),
+                              ),
                             ),
                           ],
                         ),
@@ -375,7 +470,11 @@ class ShellScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildCenterScanButton(BuildContext context, WidgetRef ref, Color accentColor) {
+  Widget _buildCenterScanButton(
+    BuildContext context,
+    WidgetRef ref,
+    Color accentColor,
+  ) {
     return GestureDetector(
       onTap: () {
         HapticFeedback.heavyImpact();
@@ -390,7 +489,11 @@ class ShellScreen extends ConsumerWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.qr_code_scanner_rounded, color: Colors.white, size: 18),
+            const Icon(
+              Icons.qr_code_scanner_rounded,
+              color: Colors.white,
+              size: 18,
+            ),
             const SizedBox(width: 6),
             Text(
               'SCAN',
@@ -411,7 +514,8 @@ class ShellScreen extends ConsumerWidget {
     final scannedCode = await CameraBarcodeScannerModal.show(context);
     if (scannedCode != null && scannedCode.isNotEmpty) {
       final user = ref.read(authProvider);
-      final isCashier = (user?.role.toLowerCase().trim() ?? 'cashier') == 'cashier';
+      final isCashier =
+          (user?.role.toLowerCase().trim() ?? 'cashier') == 'cashier';
       final db = ref.read(databaseServiceProvider);
       final product = await db.getProductBySku(scannedCode);
 
@@ -424,10 +528,16 @@ class ShellScreen extends ConsumerWidget {
               SnackBar(
                 content: Row(
                   children: [
-                    const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 18),
+                    const Icon(
+                      Icons.check_circle_rounded,
+                      color: Color(0xFF10B981),
+                      size: 18,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: Text('Added "${product.name}" to cart (K${product.price.toStringAsFixed(2)})'),
+                      child: Text(
+                        'Added "${product.name}" to cart (K${product.price.toStringAsFixed(2)})',
+                      ),
                     ),
                   ],
                 ),
@@ -442,10 +552,16 @@ class ShellScreen extends ConsumerWidget {
               SnackBar(
                 content: Row(
                   children: [
-                    const Icon(Icons.warning_amber_rounded, color: Colors.amber, size: 18),
+                    const Icon(
+                      Icons.warning_amber_rounded,
+                      color: Colors.amber,
+                      size: 18,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: Text('No product found matching code "$scannedCode"'),
+                      child: Text(
+                        'No product found matching code "$scannedCode"',
+                      ),
                     ),
                   ],
                 ),
@@ -464,10 +580,16 @@ class ShellScreen extends ConsumerWidget {
               SnackBar(
                 content: Row(
                   children: [
-                    const Icon(Icons.inventory_2_rounded, color: Color(0xFF3B82F6), size: 18),
+                    const Icon(
+                      Icons.inventory_2_rounded,
+                      color: Color(0xFF3B82F6),
+                      size: 18,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: Text('${product.name} (SKU: ${product.sku}) • Stock: ${product.stockLevel}'),
+                      child: Text(
+                        '${product.name} (SKU: ${product.sku}) • Stock: ${product.stockLevel}',
+                      ),
                     ),
                   ],
                 ),
@@ -480,10 +602,16 @@ class ShellScreen extends ConsumerWidget {
               SnackBar(
                 content: Row(
                   children: [
-                    const Icon(Icons.warning_amber_rounded, color: Colors.amber, size: 18),
+                    const Icon(
+                      Icons.warning_amber_rounded,
+                      color: Colors.amber,
+                      size: 18,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: Text('No product found matching code "$scannedCode"'),
+                      child: Text(
+                        'No product found matching code "$scannedCode"',
+                      ),
                     ),
                   ],
                 ),
@@ -504,23 +632,37 @@ class ShellScreen extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFFFFFFF),
+        backgroundColor: isDark
+            ? const Color(0xFF1E293B)
+            : const Color(0xFFFFFFFF),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+          side: BorderSide(
+            color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+          ),
         ),
         title: Text(
           'Sign Out Cashier?',
-          style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurface),
+          style: GoogleFonts.inter(
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            color: theme.colorScheme.onSurface,
+          ),
         ),
         content: Text(
           'Are you sure you want to end your session and log out?',
-          style: GoogleFonts.inter(fontSize: 13, color: theme.colorScheme.onSurfaceVariant),
+          style: GoogleFonts.inter(
+            fontSize: 13,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel', style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+            ),
           ),
           ElevatedButton(
             onPressed: () {
@@ -532,9 +674,14 @@ class ShellScreen extends ConsumerWidget {
               backgroundColor: const Color(0xFFEF4444),
               foregroundColor: Colors.white,
               elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
-            child: const Text('Sign Out', style: TextStyle(fontWeight: FontWeight.w700)),
+            child: const Text(
+              'Sign Out',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
           ),
         ],
       ),
@@ -572,7 +719,8 @@ class ShellScreen extends ConsumerWidget {
     required bool isUltraWide,
   }) {
     final size = MediaQuery.of(context).size;
-    final isSquare = AppBreakpoints.isSquare(size.width, size.height) || size.width < 1200;
+    final isSquare =
+        AppBreakpoints.isSquare(size.width, size.height) || size.width < 1200;
 
     return Row(
       children: [
@@ -580,7 +728,11 @@ class ShellScreen extends ConsumerWidget {
         Expanded(
           child: Column(
             children: [
-              _buildStatusBar(context, ref, isCompact: isSquare || size.width < 1100),
+              _buildStatusBar(
+                context,
+                ref,
+                isCompact: isSquare || size.width < 1100,
+              ),
               const UpdateBanner(),
               const LicenseExpiryBanner(),
               Expanded(
@@ -597,38 +749,98 @@ class ShellScreen extends ConsumerWidget {
 
   List<_NavDestination> _getNavigationDestinations(User? user) {
     if (user == null) return const [];
-    
-    final role = user.role.toLowerCase().trim();
+
+    final role = normalizeUserRole(user.role);
     final isOwner = role == 'owner' || role == 'admin' || role == 'super_admin';
 
     if (isOwner) {
       // Headquarters / Corporate Owner (Can manage branches & multi-stores)
       return const [
-        _NavDestination(ScreenType.dashboard, Icons.dashboard_rounded, 'Overview'),
-        _NavDestination(ScreenType.inventory, Icons.inventory_2_rounded, 'Stock'),
-        _NavDestination(ScreenType.purchases, Icons.shopping_bag_rounded, 'Purchases'),
-        _NavDestination(ScreenType.expenses, Icons.receipt_long_rounded, 'Expenses'),
+        _NavDestination(
+          ScreenType.dashboard,
+          Icons.dashboard_rounded,
+          'Overview',
+        ),
+        _NavDestination(
+          ScreenType.inventory,
+          Icons.inventory_2_rounded,
+          'Stock',
+        ),
+        _NavDestination(
+          ScreenType.purchases,
+          Icons.shopping_bag_rounded,
+          'Purchases',
+        ),
+        _NavDestination(
+          ScreenType.expenses,
+          Icons.receipt_long_rounded,
+          'Expenses',
+        ),
         _NavDestination(ScreenType.branches, Icons.store_rounded, 'Branches'),
-        _NavDestination(ScreenType.terminals, Icons.monitor_rounded, 'Terminals'),
-        _NavDestination(ScreenType.reports, Icons.assessment_rounded, 'Reports'),
-        _NavDestination(ScreenType.settings, Icons.settings_rounded, 'Settings'),
+        _NavDestination(
+          ScreenType.terminals,
+          Icons.monitor_rounded,
+          'Terminals',
+        ),
+        _NavDestination(
+          ScreenType.reports,
+          Icons.assessment_rounded,
+          'Reports',
+        ),
+        _NavDestination(
+          ScreenType.settings,
+          Icons.settings_rounded,
+          'Settings',
+        ),
       ];
     } else if (role == 'branch_manager' || role == 'manager') {
       // Branch Manager (STRICTLY NO access to branches tab)
       return const [
-        _NavDestination(ScreenType.dashboard, Icons.dashboard_rounded, 'Overview'),
-        _NavDestination(ScreenType.inventory, Icons.inventory_2_rounded, 'Stock'),
-        _NavDestination(ScreenType.purchases, Icons.shopping_bag_rounded, 'Purchases'),
-        _NavDestination(ScreenType.expenses, Icons.receipt_long_rounded, 'Expenses'),
-        _NavDestination(ScreenType.terminals, Icons.monitor_rounded, 'Terminals'),
-        _NavDestination(ScreenType.reports, Icons.assessment_rounded, 'Reports'),
-        _NavDestination(ScreenType.settings, Icons.settings_rounded, 'Settings'),
+        _NavDestination(
+          ScreenType.dashboard,
+          Icons.dashboard_rounded,
+          'Overview',
+        ),
+        _NavDestination(
+          ScreenType.inventory,
+          Icons.inventory_2_rounded,
+          'Stock',
+        ),
+        _NavDestination(
+          ScreenType.purchases,
+          Icons.shopping_bag_rounded,
+          'Purchases',
+        ),
+        _NavDestination(
+          ScreenType.expenses,
+          Icons.receipt_long_rounded,
+          'Expenses',
+        ),
+        _NavDestination(
+          ScreenType.terminals,
+          Icons.monitor_rounded,
+          'Terminals',
+        ),
+        _NavDestination(
+          ScreenType.reports,
+          Icons.assessment_rounded,
+          'Reports',
+        ),
+        _NavDestination(
+          ScreenType.settings,
+          Icons.settings_rounded,
+          'Settings',
+        ),
       ];
     } else {
       // Cashier role (Sales + Hardware/Printer Settings)
       return const [
         _NavDestination(ScreenType.sales, Icons.point_of_sale_rounded, 'Sales'),
-        _NavDestination(ScreenType.settings, Icons.settings_rounded, 'Settings'),
+        _NavDestination(
+          ScreenType.settings,
+          Icons.settings_rounded,
+          'Settings',
+        ),
       ];
     }
   }
@@ -643,16 +855,18 @@ class ShellScreen extends ConsumerWidget {
     final isDark = theme.brightness == Brightness.dark;
     final user = ref.watch(authProvider);
     final width = isCompactRail ? 72.0 : 160.0;
-    final sidebarBg = isDark ? const Color(0xFF1E293B) : const Color(0xFFFFFFFF);
-    final borderColor = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+    final sidebarBg = isDark
+        ? const Color(0xFF1E293B)
+        : const Color(0xFFFFFFFF);
+    final borderColor = isDark
+        ? const Color(0xFF334155)
+        : const Color(0xFFE2E8F0);
 
     return Container(
       width: width,
       decoration: BoxDecoration(
         color: sidebarBg,
-        border: Border(
-          right: BorderSide(color: borderColor, width: 1),
-        ),
+        border: Border(right: BorderSide(color: borderColor, width: 1)),
       ),
       child: Column(
         children: [
@@ -687,7 +901,7 @@ class ShellScreen extends ConsumerWidget {
                 builder: (context, ref, child) {
                   final config = ref.watch(storeConfigProvider).value;
                   final logoPath = config?.logoPath;
-                  
+
                   if (logoPath != null && File(logoPath).existsSync()) {
                     return Image.file(
                       File(logoPath),
@@ -696,25 +910,38 @@ class ShellScreen extends ConsumerWidget {
                       fit: BoxFit.contain,
                     );
                   }
-                  
-                  for (final p in ['assets/images/logo.png', 'beleka logo icon.png', '${Directory.current.path}/assets/images/logo.png', '/home/mrm/Documents/programs/beleka-pos-main/beleka logo icon.png']) {
+
+                  for (final p in [
+                    'assets/images/logo.png',
+                    'beleka logo icon.png',
+                    '${Directory.current.path}/assets/images/logo.png',
+                    '/home/mrm/Documents/programs/beleka-pos-main/beleka logo icon.png',
+                  ]) {
                     if (File(p).existsSync()) {
                       return Image.file(
                         File(p),
                         width: 80,
                         height: 80,
                         fit: BoxFit.contain,
-                        errorBuilder: (context, error, stackTrace) => Icon(Icons.bolt_rounded, color: theme.colorScheme.primary, size: 32),
+                        errorBuilder: (context, error, stackTrace) => Icon(
+                          Icons.bolt_rounded,
+                          color: theme.colorScheme.primary,
+                          size: 32,
+                        ),
                       );
                     }
                   }
-                  
+
                   return Opacity(
                     opacity: 0.6,
                     child: Image.asset(
                       'assets/images/logo.png',
                       width: 80,
-                      errorBuilder: (context, error, stackTrace) => Icon(Icons.bolt_rounded, color: theme.colorScheme.primary, size: 32),
+                      errorBuilder: (context, error, stackTrace) => Icon(
+                        Icons.bolt_rounded,
+                        color: theme.colorScheme.primary,
+                        size: 32,
+                      ),
                     ),
                   );
                 },
@@ -738,7 +965,9 @@ class ShellScreen extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: isDark ? color.withValues(alpha: 0.15) : color.withValues(alpha: 0.1),
+        color: isDark
+            ? color.withValues(alpha: 0.15)
+            : color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Row(
@@ -746,7 +975,8 @@ class ShellScreen extends ConsumerWidget {
         children: [
           if (showLoading)
             SizedBox(
-              width: 10, height: 10,
+              width: 10,
+              height: 10,
               child: CircularProgressIndicator(strokeWidth: 1.5, color: color),
             )
           else
@@ -781,8 +1011,12 @@ class ShellScreen extends ConsumerWidget {
     final itemWidth = isCompactRail ? 56.0 : 140.0;
     final itemHeight = isCompactRail ? 56.0 : 72.0;
 
-    final activeBg = isDark ? accentColor.withValues(alpha: 0.18) : accentColor.withValues(alpha: 0.1);
-    final textColor = isActive ? accentColor : theme.colorScheme.onSurfaceVariant;
+    final activeBg = isDark
+        ? accentColor.withValues(alpha: 0.18)
+        : accentColor.withValues(alpha: 0.1);
+    final textColor = isActive
+        ? accentColor
+        : theme.colorScheme.onSurfaceVariant;
 
     return Material(
       color: Colors.transparent,
@@ -811,7 +1045,9 @@ class ShellScreen extends ConsumerWidget {
                         label,
                         style: GoogleFonts.inter(
                           fontSize: 13,
-                          fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                          fontWeight: isActive
+                              ? FontWeight.w700
+                              : FontWeight.w500,
                           color: textColor,
                         ),
                         maxLines: 1,
@@ -825,22 +1061,26 @@ class ShellScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildStatusBar(BuildContext context, WidgetRef ref, {required bool isCompact}) {
+  Widget _buildStatusBar(
+    BuildContext context,
+    WidgetRef ref, {
+    required bool isCompact,
+  }) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final user = ref.watch(authProvider);
     final accentColor = theme.colorScheme.primary;
     final barBg = isDark ? const Color(0xFF0F172A) : const Color(0xFFFFFFFF);
-    final borderColor = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+    final borderColor = isDark
+        ? const Color(0xFF334155)
+        : const Color(0xFFE2E8F0);
 
     return Container(
       height: isCompact ? 48 : 52,
       padding: EdgeInsets.symmetric(horizontal: isCompact ? 12 : 20),
       decoration: BoxDecoration(
         color: barBg,
-        border: Border(
-          bottom: BorderSide(color: borderColor, width: 1),
-        ),
+        border: Border(bottom: BorderSide(color: borderColor, width: 1)),
       ),
       child: Row(
         children: [
@@ -861,9 +1101,14 @@ class ShellScreen extends ConsumerWidget {
               builder: (context, snapshot) {
                 final now = DateTime.now();
                 return Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                    color: isDark
+                        ? const Color(0xFF1E293B)
+                        : const Color(0xFFF1F5F9),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
@@ -898,9 +1143,13 @@ class ShellScreen extends ConsumerWidget {
               return isOnlineAsync.when(
                 data: (online) => _buildStatusChip(
                   context,
-                  icon: online ? Icons.cloud_done_rounded : Icons.cloud_off_rounded,
+                  icon: online
+                      ? Icons.cloud_done_rounded
+                      : Icons.cloud_off_rounded,
                   label: online ? 'ONLINE' : 'OFFLINE',
-                  color: online ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                  color: online
+                      ? const Color(0xFF10B981)
+                      : const Color(0xFFEF4444),
                 ),
                 loading: () => _buildStatusChip(
                   context,
@@ -921,15 +1170,24 @@ class ShellScreen extends ConsumerWidget {
           // Staff
           Flexible(
             child: Container(
-              padding: EdgeInsets.symmetric(horizontal: isCompact ? 8 : 12, vertical: 5),
+              padding: EdgeInsets.symmetric(
+                horizontal: isCompact ? 8 : 12,
+                vertical: 5,
+              ),
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                color: isDark
+                    ? const Color(0xFF1E293B)
+                    : const Color(0xFFF1F5F9),
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.person_outline_rounded, size: 14, color: theme.colorScheme.onSurface),
+                  Icon(
+                    Icons.person_outline_rounded,
+                    size: 14,
+                    color: theme.colorScheme.onSurface,
+                  ),
                   const SizedBox(width: 6),
                   Flexible(
                     child: Text(
@@ -950,7 +1208,11 @@ class ShellScreen extends ConsumerWidget {
           const SizedBox(width: 6),
           // Logout — always visible on all screen sizes
           IconButton(
-            icon: const Icon(Icons.logout_rounded, color: Color(0xFFEF4444), size: 18),
+            icon: const Icon(
+              Icons.logout_rounded,
+              color: Color(0xFFEF4444),
+              size: 18,
+            ),
             onPressed: () => _confirmLogout(context, ref),
             tooltip: 'Sign Out',
             padding: EdgeInsets.zero,

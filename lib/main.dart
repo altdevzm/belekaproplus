@@ -24,7 +24,7 @@ import 'package:beleka_pos/services/local_sql_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   GoogleFonts.config.allowRuntimeFetching = true;
-  
+
   try {
     // 1. Resolve Safe App Support Directory (Immune to OneDrive locks & Windows folder restrictions)
     Directory dbDir;
@@ -47,59 +47,64 @@ void main() async {
         final newIsar = File('${dbDir.path}/default.isar');
         if (oldIsar.existsSync() && !newIsar.existsSync()) {
           await oldIsar.copy(newIsar.path);
-          debugPrint('DB Migration: Migrated default.isar from Documents to AppSupport.');
+          debugPrint(
+            'DB Migration: Migrated default.isar from Documents to AppSupport.',
+          );
         }
 
         final oldSql = File('${docsDir.path}/beleka_pos_local.db');
         final newSql = File('${dbDir.path}/beleka_pos_local.db');
         if (oldSql.existsSync() && !newSql.existsSync()) {
           await oldSql.copy(newSql.path);
-          debugPrint('DB Migration: Migrated beleka_pos_local.db from Documents to AppSupport.');
+          debugPrint(
+            'DB Migration: Migrated beleka_pos_local.db from Documents to AppSupport.',
+          );
         }
       }
     } catch (e) {
       debugPrint('DB Migration notice: $e');
     }
 
-    LocalSqlService? localSqlService;
-    try {
-      // Initialize Local SQLite SQL Database
-      localSqlService = await LocalSqlService.init(customDirectory: dbDir);
-    } catch (e) {
-      debugPrint('LocalSqlService init notice: $e');
-    }
+    // Initialize local SQLite before starting screens that depend on it.
+    final localSqlService = await LocalSqlService.init(customDirectory: dbDir);
 
-    final isar = Isar.getInstance() ?? await Isar.open(
-      [
-        UserSchema,
-        CategorySchema,
-        ProductSchema,
-        SaleTransactionSchema,
-        SaleItemSchema,
-        AttendanceLogSchema,
-        StoreConfigSchema,
-        CustomerSchema,
-        SupplierSchema,
-        PurchaseOrderSchema,
-        PurchaseOrderItemSchema,
-        GoodsReceivedNoteSchema,
-        PurchaseInvoiceSchema,
-        PurchaseReturnSchema,
-        PaymentAccountSchema,
-        ExpenseSchema,
-        AccountTransferSchema,
-        CashShiftSchema,
-        RefundTransactionSchema,
-        StoreBranchSchema,
-        PosTerminalSchema,
-        StockMovementSchema,
-      ],
-      directory: dbDir.path,
-    );
+    final isar =
+        Isar.getInstance() ??
+        await Isar.open([
+          UserSchema,
+          CategorySchema,
+          ProductSchema,
+          SaleTransactionSchema,
+          SaleItemSchema,
+          AttendanceLogSchema,
+          StoreConfigSchema,
+          CustomerSchema,
+          SupplierSchema,
+          PurchaseOrderSchema,
+          PurchaseOrderItemSchema,
+          GoodsReceivedNoteSchema,
+          PurchaseInvoiceSchema,
+          PurchaseReturnSchema,
+          PaymentAccountSchema,
+          ExpenseSchema,
+          AccountTransferSchema,
+          CashShiftSchema,
+          RefundTransactionSchema,
+          StoreBranchSchema,
+          PosTerminalSchema,
+          StockMovementSchema,
+        ], directory: dbDir.path);
 
     // Purge any legacy dummy mock seed branches from earlier development versions
     try {
-      final legacyMockBranches = await isar.storeBranchs.filter().codeEqualTo('KT-002').or().codeEqualTo('ND-003').or().codeEqualTo('HQ-001').findAll();
+      final legacyMockBranches = await isar.storeBranchs
+          .filter()
+          .codeEqualTo('KT-002')
+          .or()
+          .codeEqualTo('ND-003')
+          .or()
+          .codeEqualTo('HQ-001')
+          .findAll();
       if (legacyMockBranches.isNotEmpty) {
         await isar.writeTxn(() async {
           for (final b in legacyMockBranches) {
@@ -116,7 +121,11 @@ void main() async {
 
       for (final p in allProducts) {
         final rawBranch = p.branchCode.trim();
-        final normBranch = (rawBranch.isEmpty || rawBranch == '000' || rawBranch == '00' || rawBranch == '0')
+        final normBranch =
+            (rawBranch.isEmpty ||
+                rawBranch == '000' ||
+                rawBranch == '00' ||
+                rawBranch == '0')
             ? '00'
             : (rawBranch.length == 1 ? '0$rawBranch' : rawBranch);
 
@@ -127,22 +136,11 @@ void main() async {
           }
         }
 
-        final normName = p.name.trim().toLowerCase();
-        final normSku = p.sku.trim().toLowerCase();
         final dtItemId = p.itemClsCd.trim();
 
-        if (normName.isEmpty && normSku.isEmpty) continue;
+        if (!dtItemId.startsWith('item_')) continue;
 
-        Product? existingMatch;
-        if (dtItemId.isNotEmpty && dtItemId.startsWith('item_')) {
-          existingMatch = canonicalMap['${normBranch}_dt_$dtItemId'];
-        }
-        if (existingMatch == null && normName.isNotEmpty) {
-          existingMatch = canonicalMap['${normBranch}_name_$normName'];
-        }
-        if (existingMatch == null && normSku.isNotEmpty && !normSku.startsWith('sku-')) {
-          existingMatch = canonicalMap['${normBranch}_sku_$normSku'];
-        }
+        final existingMatch = canonicalMap['${normBranch}_dt_$dtItemId'];
 
         if (existingMatch != null && existingMatch.id != p.id) {
           if (p.stockLevel > existingMatch.stockLevel) {
@@ -159,9 +157,11 @@ void main() async {
           }
           if (p.isSyncedWithDigitax && !existingMatch.isSyncedWithDigitax) {
             existingMatch.isSyncedWithDigitax = true;
-            existingMatch.lastDigitaxSyncDate = p.lastDigitaxSyncDate ?? DateTime.now();
+            existingMatch.lastDigitaxSyncDate =
+                p.lastDigitaxSyncDate ?? DateTime.now();
           }
-          if (p.itemClsCd.isNotEmpty && !existingMatch.itemClsCd.startsWith('item_')) {
+          if (p.itemClsCd.isNotEmpty &&
+              !existingMatch.itemClsCd.startsWith('item_')) {
             existingMatch.itemClsCd = p.itemClsCd;
           }
           if (!productsToUpdate.contains(existingMatch)) {
@@ -169,15 +169,7 @@ void main() async {
           }
           duplicateProductIds.add(p.id);
         } else {
-          if (dtItemId.isNotEmpty && dtItemId.startsWith('item_')) {
-            canonicalMap['${normBranch}_dt_$dtItemId'] = p;
-          }
-          if (normName.isNotEmpty) {
-            canonicalMap['${normBranch}_name_$normName'] = p;
-          }
-          if (normSku.isNotEmpty && !normSku.startsWith('sku-')) {
-            canonicalMap['${normBranch}_sku_$normSku'] = p;
-          }
+          canonicalMap['${normBranch}_dt_$dtItemId'] = p;
         }
       }
 
@@ -199,8 +191,7 @@ void main() async {
       ProviderScope(
         overrides: [
           isarProvider.overrideWithValue(isar),
-          if (localSqlService != null)
-            localSqlServiceProvider.overrideWithValue(localSqlService),
+          localSqlServiceProvider.overrideWithValue(localSqlService),
         ],
         child: const AppExitBackupHandler(child: BelekaApp()),
       ),
@@ -220,12 +211,18 @@ void main() async {
               decoration: BoxDecoration(
                 color: const Color(0xFF1A1A1E),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.redAccent.withValues(alpha: 0.3)),
+                border: Border.all(
+                  color: Colors.redAccent.withValues(alpha: 0.3),
+                ),
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 48),
+                  const Icon(
+                    Icons.error_outline_rounded,
+                    color: Colors.redAccent,
+                    size: 48,
+                  ),
                   const SizedBox(height: 16),
                   Text(
                     'SYSTEM INITIALIZATION ERROR',
@@ -239,7 +236,10 @@ void main() async {
                   const SizedBox(height: 12),
                   Text(
                     e.toString(),
-                    style: GoogleFonts.inter(color: Colors.white70, fontSize: 13),
+                    style: GoogleFonts.inter(
+                      color: Colors.white70,
+                      fontSize: 13,
+                    ),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 24),
@@ -248,9 +248,14 @@ void main() async {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFFC1F11D),
                       foregroundColor: Colors.black,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
-                    child: Text('RETRY STARTUP', style: GoogleFonts.manrope(fontWeight: FontWeight.w900)),
+                    child: Text(
+                      'RETRY STARTUP',
+                      style: GoogleFonts.manrope(fontWeight: FontWeight.w900),
+                    ),
                   ),
                 ],
               ),
@@ -289,17 +294,19 @@ final appStartupProvider = FutureProvider<Map<String, dynamic>>((ref) async {
   } catch (e) {
     debugPrint('Database hasUsers startup check error: $e');
   }
-  
+
   // Auto-initialize Hardware Drivers & Multi-Terminal Network Sync in background without blocking UI startup
   Future.microtask(() async {
     try {
       ref.read(barcodeServiceProvider).init();
       ref.read(networkManagerProvider).initialize();
       final config = await db.getStoreConfig();
-      ref.read(printerServiceProvider).autoConnect(
-        config: config,
-        stateNotifier: ref.read(selectedPrinterProvider.notifier),
-      );
+      ref
+          .read(printerServiceProvider)
+          .autoConnect(
+            config: config,
+            stateNotifier: ref.read(selectedPrinterProvider.notifier),
+          );
     } catch (e) {
       debugPrint('Background hardware/network init notice: $e');
     }
@@ -327,7 +334,7 @@ class BelekaApp extends ConsumerWidget {
       home: startupAsync.when(
         data: (startup) {
           final isActivated = startup['isActivated'] as bool;
-          
+
           // If machine is not activated or HWID mismatch, lock to Activation Screen
           if (!isActivated) {
             return ActivationScreen(
@@ -353,7 +360,10 @@ class BelekaApp extends ConsumerWidget {
                 const SizedBox(
                   width: 30,
                   height: 30,
-                  child: CircularProgressIndicator(color: Color(0xFFC1F11D), strokeWidth: 3),
+                  child: CircularProgressIndicator(
+                    color: Color(0xFFC1F11D),
+                    strokeWidth: 3,
+                  ),
                 ),
                 const SizedBox(height: 24),
                 Text(
@@ -378,21 +388,34 @@ class BelekaApp extends ConsumerWidget {
               decoration: BoxDecoration(
                 color: const Color(0xFF1A1A1E),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.redAccent.withValues(alpha: 0.3)),
+                border: Border.all(
+                  color: Colors.redAccent.withValues(alpha: 0.3),
+                ),
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.warning_amber_rounded, color: Colors.orangeAccent, size: 48),
+                  const Icon(
+                    Icons.warning_amber_rounded,
+                    color: Colors.orangeAccent,
+                    size: 48,
+                  ),
                   const SizedBox(height: 16),
                   Text(
                     'STARTUP WARNING',
-                    style: GoogleFonts.manrope(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                    style: GoogleFonts.manrope(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   Text(
                     e.toString(),
-                    style: GoogleFonts.inter(color: Colors.white70, fontSize: 13),
+                    style: GoogleFonts.inter(
+                      color: Colors.white70,
+                      fontSize: 13,
+                    ),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 24),
@@ -403,7 +426,9 @@ class BelekaApp extends ConsumerWidget {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFFC1F11D),
                       foregroundColor: Colors.black,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
                   ),
                 ],
@@ -440,8 +465,8 @@ class BelekaApp extends ConsumerWidget {
             height: 140,
             fit: BoxFit.contain,
             errorBuilder: (context, error, stackTrace) => const Icon(
-              Icons.bolt_rounded, 
-              color: Color(0xFFC1F11D), 
+              Icons.bolt_rounded,
+              color: Color(0xFFC1F11D),
               size: 64,
             ),
           );
@@ -453,11 +478,8 @@ class BelekaApp extends ConsumerWidget {
       'assets/images/logo.png',
       height: 140,
       fit: BoxFit.contain,
-      errorBuilder: (context, error, stackTrace) => const Icon(
-        Icons.bolt_rounded, 
-        color: Color(0xFFC1F11D), 
-        size: 64,
-      ),
+      errorBuilder: (context, error, stackTrace) =>
+          const Icon(Icons.bolt_rounded, color: Color(0xFFC1F11D), size: 64),
     );
   }
 }
@@ -470,7 +492,8 @@ class AppExitBackupHandler extends StatefulWidget {
   State<AppExitBackupHandler> createState() => _AppExitBackupHandlerState();
 }
 
-class _AppExitBackupHandlerState extends State<AppExitBackupHandler> with WidgetsBindingObserver {
+class _AppExitBackupHandlerState extends State<AppExitBackupHandler>
+    with WidgetsBindingObserver {
   bool _isPerformingExitBackup = false;
 
   @override
@@ -495,10 +518,16 @@ class _AppExitBackupHandlerState extends State<AppExitBackupHandler> with Widget
     try {
       final isar = Isar.getInstance();
       if (isar != null) {
-        debugPrint('App closing detected: Initiating automatic local & VPS cloud backup sequence...');
+        debugPrint(
+          'App closing detected: Initiating automatic local & VPS cloud backup sequence...',
+        );
         final storeConfig = await isar.storeConfigs.where().findFirst();
-        final cloudUrl = (storeConfig?.isCloudSyncEnabled == true) ? storeConfig?.cloudApiUrl : null;
-        final storeId = (storeConfig?.isCloudSyncEnabled == true) ? storeConfig?.cloudStoreId : null;
+        final cloudUrl = (storeConfig?.isCloudSyncEnabled == true)
+            ? storeConfig?.cloudApiUrl
+            : null;
+        final storeId = (storeConfig?.isCloudSyncEnabled == true)
+            ? storeConfig?.cloudStoreId
+            : null;
 
         final backupService = BackupService();
         final results = await backupService.performFullExitBackup(
@@ -521,4 +550,3 @@ class _AppExitBackupHandlerState extends State<AppExitBackupHandler> with Widget
     return widget.child;
   }
 }
-

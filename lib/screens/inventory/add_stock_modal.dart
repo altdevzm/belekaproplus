@@ -639,7 +639,6 @@ class _StockAdjustmentModalState extends ConsumerState<StockAdjustmentModal> {
 
     try {
       final db = ref.read(databaseServiceProvider);
-      final localSql = ref.read(localSqlServiceProvider);
       final digitaxService = ref.read(digitaxInventoryServiceProvider);
       final currentUser = ref.read(authProvider);
       final isOwner = ref.read(isOwnerProvider);
@@ -682,6 +681,7 @@ class _StockAdjustmentModalState extends ConsumerState<StockAdjustmentModal> {
 
       // 2. Cache in local SQLite table for offline durability
       try {
+        final localSql = ref.read(localSqlServiceProvider);
         await localSql.insert('stock_movements', {
           'product_id': widget.product.id,
           'product_name': widget.product.name,

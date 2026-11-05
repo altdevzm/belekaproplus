@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
 from app.database import get_db
@@ -46,6 +47,15 @@ def fiscalize_transaction(
     if not tx:
         raise HTTPException(status_code=404, detail="Sale transaction not found")
 
+    if tx.zra_receipt_number and tx.zra_status in ["APPROVED", "FISCALIZED"]:
+        return {
+            "status": "SUCCESS",
+            "zra_status": tx.zra_status,
+            "zra_receipt_number": tx.zra_receipt_number,
+            "zra_mark_id": tx.zra_mark_id,
+            "zra_qr_code": tx.zra_qr_code,
+        }
+
     # Fetch items for transaction
     items = db.query(models.SaleItem).filter(models.SaleItem.sale_transaction_id == tx.id).all()
     items_list = []
@@ -54,6 +64,17 @@ def fiscalize_transaction(
             models.Product.id == item.product_id,
             models.Product.store_id == store_id
         ).first()
+        if (
+            item.is_digitax_exempt
+            or (
+                prod is not None
+                and (
+                    prod.is_digitax_sync_enabled is not True
+                    or prod.is_tax_inclusive is not True
+                )
+            )
+        ):
+            continue
         items_list.append({
             "product_id": item.product_id,
             "product_name": item.product_name,
@@ -63,6 +84,15 @@ def fiscalize_transaction(
             "item_cls_cd": prod.item_cls_cd if prod else "10101501",
             "tax_rate_at_sale": float(item.tax_rate_at_sale),
         })
+
+    if not items_list:
+        tx.zra_status = "OFFLINE_EXEMPT"
+        db.commit()
+        return {
+            "status": "SKIPPED",
+            "zra_status": tx.zra_status,
+            "message": "Sale contains no products explicitly enabled for DigiTax.",
+        }
 
     store_config = {
         "digitax_api_key": store.digitax_api_key,
@@ -80,15 +110,23 @@ def fiscalize_transaction(
 
     result = DigiTaxZraService.fiscalize_sale_invoice(store_config, tx_dict, items_list)
 
-    # Save ZRA fiscal metadata and server-calculated tax to PostgreSQL
-    tx.zra_receipt_number = result["zra_receipt_number"]
-    tx.zra_mark_id = result["zra_mark_id"]
-    tx.zra_qr_code = result["zra_qr_code"]
-    tx.zra_status = "APPROVED"
-    if result.get("tax_amount") is not None:
-        tx.tax_amount = result["tax_amount"]
-    if result.get("subtotal") is not None and result["subtotal"] > 0:
-        tx.subtotal = result["subtotal"]
+    # Keep the amount actually charged; DigiTax summary amounts are not sale edits.
+    if (
+        result.get("status") == "SUCCESS"
+        and result.get("zra_receipt_number")
+        and result.get("zra_mark_id")
+    ):
+        tx.zra_receipt_number = result["zra_receipt_number"]
+        tx.zra_mark_id = result.get("zra_mark_id")
+        tx.zra_qr_code = result.get("zra_qr_code")
+        tx.zra_status = "APPROVED"
+    else:
+        response_status = result.get("zra_status")
+        tx.zra_status = (
+            response_status
+            if response_status in ["PENDING", "RECONCILIATION_REQUIRED"]
+            else "RECONCILIATION_REQUIRED"
+        )
     db.commit()
 
     return result
@@ -119,6 +157,15 @@ def fiscalize_refund_credit_note(
     if not tx:
         raise HTTPException(status_code=404, detail="Sale transaction not found")
 
+    if tx.credit_note_receipt_number and tx.credit_note_status == "APPROVED":
+        return {
+            "status": "SUCCESS",
+            "zra_status": tx.credit_note_status,
+            "zra_receipt_number": tx.credit_note_receipt_number,
+            "zra_mark_id": tx.credit_note_mark_id,
+            "zra_qr_code": tx.credit_note_qr_code,
+        }
+
     items = db.query(models.SaleItem).filter(models.SaleItem.sale_transaction_id == tx.id).all()
     items_list = []
     for item in items:
@@ -126,6 +173,17 @@ def fiscalize_refund_credit_note(
             models.Product.id == item.product_id,
             models.Product.store_id == store_id
         ).first()
+        if (
+            item.is_digitax_exempt
+            or (
+                prod is not None
+                and (
+                    prod.is_digitax_sync_enabled is not True
+                    or prod.is_tax_inclusive is not True
+                )
+            )
+        ):
+            continue
         items_list.append({
             "product_id": item.product_id,
             "product_name": item.product_name,
@@ -135,6 +193,17 @@ def fiscalize_refund_credit_note(
             "item_cls_cd": prod.item_cls_cd if prod else "10101501",
             "tax_rate_at_sale": float(item.tax_rate_at_sale),
         })
+
+    if not items_list:
+        tx.is_credit_note = True
+        tx.credit_note_reason = reason
+        tx.credit_note_status = "OFFLINE_EXEMPT"
+        db.commit()
+        return {
+            "status": "SKIPPED",
+            "zra_status": tx.credit_note_status,
+            "message": "Credit note contains no products enabled for DigiTax.",
+        }
 
     store_config = {
         "digitax_api_key": store.digitax_api_key,
@@ -153,7 +222,22 @@ def fiscalize_refund_credit_note(
     result = DigiTaxZraService.fiscalize_refund_credit_note(store_config, refund_dict, items_list)
     tx.is_credit_note = True
     tx.credit_note_reason = reason
-    tx.zra_status = "APPROVED"
+    if (
+        result.get("status") == "SUCCESS"
+        and result.get("zra_receipt_number")
+        and result.get("zra_mark_id")
+    ):
+        tx.credit_note_status = "APPROVED"
+        tx.credit_note_receipt_number = result["zra_receipt_number"]
+        tx.credit_note_mark_id = result.get("zra_mark_id")
+        tx.credit_note_qr_code = result.get("zra_qr_code")
+    else:
+        response_status = result.get("zra_status")
+        tx.credit_note_status = (
+            response_status
+            if response_status in ["PENDING", "RECONCILIATION_REQUIRED"]
+            else "RECONCILIATION_REQUIRED"
+        )
     db.commit()
 
     return result
@@ -177,6 +261,23 @@ def sync_stock_movement(
     Requires Manager or Owner authorization.
     """
     verify_store_access(store_id, current_user, db)
+
+    product = db.query(models.Product).filter(
+        models.Product.store_id == store_id,
+        or_(
+            models.Product.sku == item_code,
+            models.Product.item_cls_cd == item_code,
+        ),
+    ).first()
+    if (
+        product is None
+        or product.is_digitax_sync_enabled is not True
+        or product.is_tax_inclusive is not True
+    ):
+        return {
+            "status": "SKIPPED",
+            "message": "Stock movement is local-only; DigiTax sync is not explicitly enabled.",
+        }
 
     store = db.query(models.Store).filter(models.Store.id == store_id).first()
     store_config = {

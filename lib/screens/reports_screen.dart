@@ -12,10 +12,13 @@ import 'package:beleka_pos/services/digitax_inventory_service.dart';
 import 'package:beleka_pos/services/printer_service.dart';
 import 'package:beleka_pos/services/postgres_sync_service.dart';
 import 'package:beleka_pos/screens/reports/tot_report_screen.dart';
+import 'package:beleka_pos/utils/product_sales_report.dart';
 
 enum ReportPeriod { daily, weekly, monthly, yearly, custom }
 
-final reportPeriodProvider = StateProvider<ReportPeriod>((ref) => ReportPeriod.daily);
+final reportPeriodProvider = StateProvider<ReportPeriod>(
+  (ref) => ReportPeriod.daily,
+);
 
 final reportDateRangeProvider = StateProvider<DateTimeRange>((ref) {
   final now = DateTime.now();
@@ -28,7 +31,7 @@ final reportDateRangeProvider = StateProvider<DateTimeRange>((ref) {
 final reportTransactionsProvider = StreamProvider<List<SaleTransaction>>((ref) {
   final range = ref.watch(reportDateRangeProvider);
   final db = ref.watch(databaseServiceProvider);
-  
+
   // Automatically pull sales from VPS Cloud DB when viewing reports
   ref.read(postgresSyncServiceProvider).pullSalesFromCloud();
 
@@ -39,6 +42,19 @@ final reportExpensesProvider = StreamProvider<List<Expense>>((ref) {
   final range = ref.watch(reportDateRangeProvider);
   final db = ref.watch(databaseServiceProvider);
   return db.watchExpensesInRange(range.start, range.end);
+});
+
+final reportProductSalesFiltersProvider =
+    StateProvider<ProductSalesReportFilters>(
+      (ref) => const ProductSalesReportFilters(),
+    );
+
+final reportProductSalesRowsProvider = Provider<List<ProductSalesReportRow>>((
+  ref,
+) {
+  final transactions = ref.watch(reportTransactionsProvider).value ?? [];
+  final filters = ref.watch(reportProductSalesFiltersProvider);
+  return buildProductSalesReport(transactions, filters: filters);
 });
 
 final reportStatsProvider = Provider<Map<String, double>>((ref) {
@@ -53,7 +69,9 @@ final reportStatsProvider = Provider<Map<String, double>>((ref) {
   });
   double profit = transactions.fold(0.0, (sum, t) {
     if (t.grossProfit.isNaN) return sum;
-    if (t.isCreditNote) return sum - (t.grossProfit < 0 ? -t.grossProfit : t.grossProfit);
+    if (t.isCreditNote) {
+      return sum - (t.grossProfit < 0 ? -t.grossProfit : t.grossProfit);
+    }
     if (t.status == 'refunded') return sum;
     return sum + t.grossProfit;
   });
@@ -76,7 +94,9 @@ final reportStatsProvider = Provider<Map<String, double>>((ref) {
     paymentBreakdown[method] = (paymentBreakdown[method] ?? 0) + amount;
   }
 
-  final completedCount = transactions.where((t) => t.status != 'refunded' && !t.isCreditNote).length;
+  final completedCount = transactions
+      .where((t) => t.status != 'refunded' && !t.isCreditNote)
+      .length;
   final refundedCount = transactions.where((t) => t.isCreditNote).length;
   final activeCount = (completedCount - refundedCount).clamp(0, 999999);
 
@@ -90,6 +110,10 @@ final reportStatsProvider = Provider<Map<String, double>>((ref) {
     'cash': paymentBreakdown['cash'] ?? 0.0,
     'card': paymentBreakdown['card'] ?? 0.0,
     'mobile_money': paymentBreakdown['mobile_money'] ?? 0.0,
+    'lenco_mobile_money':
+        (paymentBreakdown['lenco_mobile_money'] ?? 0.0) +
+        (paymentBreakdown['mobile_money'] ?? 0.0),
+    'external_mobile_money': paymentBreakdown['external_mobile_money'] ?? 0.0,
   };
 });
 
@@ -103,9 +127,12 @@ final reportTopProductsProvider = Provider<List<Map<String, dynamic>>>((ref) {
     if (t.status == 'refunded' && !t.isCreditNote) continue;
     for (var item in t.items) {
       if (item.isRefunded && !t.isCreditNote) continue;
-      final qty = (item.isWeighted && item.weight > 0) ? item.weight.ceil() : item.quantity;
+      final qty = (item.isWeighted && item.weight > 0)
+          ? item.weight.ceil()
+          : item.quantity;
       final factor = t.isCreditNote ? -1 : 1;
-      productQuantities[item.productId] = (productQuantities[item.productId] ?? 0) + (qty * factor);
+      productQuantities[item.productId] =
+          (productQuantities[item.productId] ?? 0) + (qty * factor);
       productNames[item.productId] = item.productName;
     }
   }
@@ -113,11 +140,16 @@ final reportTopProductsProvider = Provider<List<Map<String, dynamic>>>((ref) {
   final sortedProducts = productQuantities.entries.toList()
     ..sort((a, b) => b.value.compareTo(a.value));
 
-  return sortedProducts.take(10).map((e) => {
-    'productId': e.key,
-    'name': productNames[e.key] ?? 'Product #${e.key}',
-    'quantity': e.value,
-  }).toList();
+  return sortedProducts
+      .take(10)
+      .map(
+        (e) => {
+          'productId': e.key,
+          'name': productNames[e.key] ?? 'Product #${e.key}',
+          'quantity': e.value,
+        },
+      )
+      .toList();
 });
 
 class ReportsScreen extends ConsumerWidget {
@@ -137,7 +169,15 @@ class ReportsScreen extends ConsumerWidget {
       case ReportPeriod.weekly:
         final daysToMonday = (now.weekday - DateTime.monday) % 7;
         final startOfWeek = now.subtract(Duration(days: daysToMonday));
-        start = DateTime(startOfWeek.year, startOfWeek.month, startOfWeek.day, 0, 0, 0, 0);
+        start = DateTime(
+          startOfWeek.year,
+          startOfWeek.month,
+          startOfWeek.day,
+          0,
+          0,
+          0,
+          0,
+        );
         break;
       case ReportPeriod.monthly:
         start = DateTime(now.year, now.month, 1, 0, 0, 0, 0);
@@ -149,7 +189,10 @@ class ReportsScreen extends ConsumerWidget {
         return; // Custom range handled by DatePicker
     }
 
-    ref.read(reportDateRangeProvider.notifier).state = DateTimeRange(start: start, end: end);
+    ref.read(reportDateRangeProvider.notifier).state = DateTimeRange(
+      start: start,
+      end: end,
+    );
   }
 
   String _getPeriodTitle(ReportPeriod period, DateTimeRange range) {
@@ -177,7 +220,8 @@ class ReportsScreen extends ConsumerWidget {
     final transactionsAsync = ref.watch(reportTransactionsProvider);
     final stats = ref.watch(reportStatsProvider);
     final topProducts = ref.watch(reportTopProductsProvider);
-    final currency = ref.watch(storeConfigProvider).value?.currencySymbol ?? '\$';
+    final currency =
+        ref.watch(storeConfigProvider).value?.currencySymbol ?? '\$';
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -188,7 +232,14 @@ class ReportsScreen extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildHeader(context, ref, range, activePeriod, stats, topProducts),
+              _buildHeader(
+                context,
+                ref,
+                range,
+                activePeriod,
+                stats,
+                topProducts,
+              ),
               const SizedBox(height: 16),
               _buildPeriodSelector(context, ref, activePeriod, range),
               const SizedBox(height: 20),
@@ -197,7 +248,27 @@ class ReportsScreen extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildSummaryCards(context, ref, stats, currency, activePeriod, range),
+                      _buildSummaryCards(
+                        context,
+                        ref,
+                        stats,
+                        currency,
+                        activePeriod,
+                        range,
+                      ),
+                      const SizedBox(height: 24),
+                      transactionsAsync.when(
+                        data: (transactions) => _buildProductSalesReport(
+                          context,
+                          ref,
+                          transactions,
+                          currency,
+                          range,
+                        ),
+                        loading: () =>
+                            const Center(child: CircularProgressIndicator()),
+                        error: (e, _) => Text('Product report unavailable: $e'),
+                      ),
                       const SizedBox(height: 24),
                       if (topProducts.isNotEmpty) ...[
                         _buildTopProductsSection(context, topProducts),
@@ -206,10 +277,22 @@ class ReportsScreen extends ConsumerWidget {
                       transactionsAsync.when(
                         data: (transactions) => SizedBox(
                           height: 500,
-                          child: _buildTransactionList(context, ref, transactions, currency),
+                          child: _buildTransactionList(
+                            context,
+                            ref,
+                            transactions,
+                            currency,
+                          ),
                         ),
-                        loading: () => Center(child: CircularProgressIndicator(color: primaryColor)),
-                        error: (e, _) => Center(child: Text('Error: $e', style: const TextStyle(color: Color(0xFFDC2626)))),
+                        loading: () => Center(
+                          child: CircularProgressIndicator(color: primaryColor),
+                        ),
+                        error: (e, _) => Center(
+                          child: Text(
+                            'Error: $e',
+                            style: const TextStyle(color: Color(0xFFDC2626)),
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -222,7 +305,12 @@ class ReportsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildPeriodSelector(BuildContext context, WidgetRef ref, ReportPeriod activePeriod, DateTimeRange range) {
+  Widget _buildPeriodSelector(
+    BuildContext context,
+    WidgetRef ref,
+    ReportPeriod activePeriod,
+    DateTimeRange range,
+  ) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final primaryColor = theme.colorScheme.primary;
@@ -240,7 +328,9 @@ class ReportsScreen extends ConsumerWidget {
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF151F32) : const Color(0xFFFFFFFF),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+        border: Border.all(
+          color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0),
+        ),
       ),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
@@ -261,7 +351,10 @@ class ReportsScreen extends ConsumerWidget {
                 borderRadius: BorderRadius.circular(8),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 150),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: isSelected ? primaryColor : Colors.transparent,
                     borderRadius: BorderRadius.circular(8),
@@ -270,8 +363,12 @@ class ReportsScreen extends ConsumerWidget {
                     opt['label'] as String,
                     style: GoogleFonts.inter(
                       fontSize: 12,
-                      fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                      color: isSelected ? Colors.white : theme.colorScheme.onSurface,
+                      fontWeight: isSelected
+                          ? FontWeight.w700
+                          : FontWeight.w600,
+                      color: isSelected
+                          ? Colors.white
+                          : theme.colorScheme.onSurface,
                     ),
                   ),
                 ),
@@ -283,7 +380,11 @@ class ReportsScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _openCustomDatePicker(BuildContext context, WidgetRef ref, DateTimeRange range) async {
+  Future<void> _openCustomDatePicker(
+    BuildContext context,
+    WidgetRef ref,
+    DateTimeRange range,
+  ) async {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
@@ -309,8 +410,24 @@ class ReportsScreen extends ConsumerWidget {
     if (picked != null) {
       ref.read(reportPeriodProvider.notifier).state = ReportPeriod.custom;
       ref.read(reportDateRangeProvider.notifier).state = DateTimeRange(
-        start: DateTime(picked.start.year, picked.start.month, picked.start.day, 0, 0, 0, 0),
-        end: DateTime(picked.end.year, picked.end.month, picked.end.day, 23, 59, 59, 999),
+        start: DateTime(
+          picked.start.year,
+          picked.start.month,
+          picked.start.day,
+          0,
+          0,
+          0,
+          0,
+        ),
+        end: DateTime(
+          picked.end.year,
+          picked.end.month,
+          picked.end.day,
+          23,
+          59,
+          59,
+          999,
+        ),
       );
     }
   }
@@ -332,152 +449,242 @@ class ReportsScreen extends ConsumerWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isPhone = constraints.maxWidth < 700;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Top Enterprise Breadcrumb Bar
-        if (isPhone)
-          Wrap(
-            spacing: 4,
-            runSpacing: 4,
-            children: [
-              Text('Workspace', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w500, color: theme.colorScheme.onSurfaceVariant)),
-              Icon(Icons.chevron_right_rounded, size: 14, color: theme.colorScheme.onSurfaceVariant),
-              Text('Financial Reports & ZRA Compliance', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: primaryColor)),
-            ],
-          )
-        else
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Top Enterprise Breadcrumb Bar
+            if (isPhone)
+              Wrap(
+                spacing: 4,
+                runSpacing: 4,
                 children: [
-                  Text('Workspace', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w500, color: theme.colorScheme.onSurfaceVariant)),
-                  Icon(Icons.chevron_right_rounded, size: 14, color: theme.colorScheme.onSurfaceVariant),
-                  Text('Financial Reports & ZRA Compliance', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: primaryColor)),
-                ],
-              ),
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFECFDF5),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: const Color(0xFFA7F3D0)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(width: 6, height: 6, decoration: const BoxDecoration(color: Color(0xFF059669), shape: BoxShape.circle)),
-                        const SizedBox(width: 6),
-                        Text('ZRA DigiTax Audit & Fiscal Reporting Active', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: const Color(0xFF059669))),
-                      ],
+                  Text(
+                    'Workspace',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF151F32) : Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    size: 14,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  Text(
+                    'Financial Reports & ZRA Compliance',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: primaryColor,
                     ),
-                    child: Text(todayStr, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurfaceVariant)),
                   ),
                 ],
-              ),
-            ],
-          ),
-        const SizedBox(height: 14),
-
-        // Main Header Title and Action Menus Row
-        if (isPhone) ...
-          [
-            Text(
-              'FINANCIAL & FISCAL REPORTS',
-              style: GoogleFonts.inter(
-                fontSize: 17,
-                fontWeight: FontWeight.w900,
-                letterSpacing: -0.2,
-                color: theme.colorScheme.onSurface,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              'Audit: ${dateFormat.format(range.start)} - ${dateFormat.format(range.end)}',
-              style: GoogleFonts.inter(fontSize: 11.5, color: theme.colorScheme.onSurfaceVariant),
-            ),
-            const SizedBox(height: 10),
-            Consumer(
-              builder: (context, ref, child) {
-                final config = ref.watch(storeConfigProvider).value;
-                final isTot = config?.businessTaxType == 'TURNOVER_TAX' || config?.businessTaxType == 'COMPOSITE';
-                return Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    _buildFinancialSummaryMenu(context, ref, range, activePeriod, stats, topProducts),
-                    _buildStockAdjustmentReportMenu(context, ref, range),
-                    _buildZraZReportMenu(context, ref, range),
-                    if (isTot) _buildTotReturnButton(context),
-                    _buildExportMenu(context, ref),
-                  ],
-                );
-              },
-            ),
-          ]
-        else ...
-          [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+              )
+            else
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
                     children: [
                       Text(
-                        'FINANCIAL & FISCAL REPORTS MANAGEMENT',
+                        'Workspace',
                         style: GoogleFonts.inter(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: -0.3,
-                          color: theme.colorScheme.onSurface,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
-                      const SizedBox(height: 2),
+                      Icon(
+                        Icons.chevron_right_rounded,
+                        size: 14,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
                       Text(
-                        'Audit range: ${dateFormat.format(range.start)} - ${dateFormat.format(range.end)}',
-                        style: GoogleFonts.inter(fontSize: 12.5, color: theme.colorScheme.onSurfaceVariant),
+                        'Financial Reports & ZRA Compliance',
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: primaryColor,
+                        ),
                       ),
                     ],
                   ),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFECFDF5),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: const Color(0xFFA7F3D0)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 6,
+                              height: 6,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFF059669),
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'ZRA DigiTax Audit & Fiscal Reporting Active',
+                              style: GoogleFonts.inter(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: const Color(0xFF059669),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? const Color(0xFF151F32)
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: isDark
+                                ? const Color(0xFF293548)
+                                : const Color(0xFFE2E8F0),
+                          ),
+                        ),
+                        child: Text(
+                          todayStr,
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            const SizedBox(height: 14),
+
+            // Main Header Title and Action Menus Row
+            if (isPhone) ...[
+              Text(
+                'FINANCIAL & FISCAL REPORTS',
+                style: GoogleFonts.inter(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -0.2,
+                  color: theme.colorScheme.onSurface,
                 ),
-                Consumer(
-                  builder: (context, ref, child) {
-                    final config = ref.watch(storeConfigProvider).value;
-                    final isTot = config?.businessTaxType == 'TURNOVER_TAX' || config?.businessTaxType == 'COMPOSITE';
-                    return Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      alignment: WrapAlignment.end,
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'Audit: ${dateFormat.format(range.start)} - ${dateFormat.format(range.end)}',
+                style: GoogleFonts.inter(
+                  fontSize: 11.5,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Consumer(
+                builder: (context, ref, child) {
+                  final config = ref.watch(storeConfigProvider).value;
+                  final isTot =
+                      config?.businessTaxType == 'TURNOVER_TAX' ||
+                      config?.businessTaxType == 'COMPOSITE';
+                  return Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _buildFinancialSummaryMenu(
+                        context,
+                        ref,
+                        range,
+                        activePeriod,
+                        stats,
+                        topProducts,
+                      ),
+                      _buildStockAdjustmentReportMenu(context, ref, range),
+                      _buildZraZReportMenu(context, ref, range),
+                      if (isTot) _buildTotReturnButton(context),
+                      _buildExportMenu(context, ref),
+                    ],
+                  );
+                },
+              ),
+            ] else ...[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _buildFinancialSummaryMenu(context, ref, range, activePeriod, stats, topProducts),
-                        _buildStockAdjustmentReportMenu(context, ref, range),
-                        _buildZraZReportMenu(context, ref, range),
-                        if (isTot) _buildTotReturnButton(context),
-                        _buildExportMenu(context, ref),
+                        Text(
+                          'FINANCIAL & FISCAL REPORTS MANAGEMENT',
+                          style: GoogleFonts.inter(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -0.3,
+                            color: theme.colorScheme.onSurface,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Audit range: ${dateFormat.format(range.start)} - ${dateFormat.format(range.end)}',
+                          style: GoogleFonts.inter(
+                            fontSize: 12.5,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
                       ],
-                    );
-                  },
-                ),
-              ],
-            ),
+                    ),
+                  ),
+                  Consumer(
+                    builder: (context, ref, child) {
+                      final config = ref.watch(storeConfigProvider).value;
+                      final isTot =
+                          config?.businessTaxType == 'TURNOVER_TAX' ||
+                          config?.businessTaxType == 'COMPOSITE';
+                      return Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        alignment: WrapAlignment.end,
+                        children: [
+                          _buildFinancialSummaryMenu(
+                            context,
+                            ref,
+                            range,
+                            activePeriod,
+                            stats,
+                            topProducts,
+                          ),
+                          _buildStockAdjustmentReportMenu(context, ref, range),
+                          _buildZraZReportMenu(context, ref, range),
+                          if (isTot) _buildTotReturnButton(context),
+                          _buildExportMenu(context, ref),
+                        ],
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ],
           ],
-      ],
+        );
+      },
     );
-    },
-  );
   }
 
   Widget _buildFinancialSummaryMenu(
@@ -493,7 +700,10 @@ class ReportsScreen extends ConsumerWidget {
     final primaryColor = theme.colorScheme.primary;
 
     final df = DateFormat('dd MMM yyyy');
-    final dateSubtitle = (range.start.year == range.end.year && range.start.month == range.end.month && range.start.day == range.end.day)
+    final dateSubtitle =
+        (range.start.year == range.end.year &&
+            range.start.month == range.end.month &&
+            range.start.day == range.end.day)
         ? df.format(range.start)
         : '${df.format(range.start)} - ${df.format(range.end)}';
     final title = _getPeriodTitle(activePeriod, range);
@@ -504,7 +714,9 @@ class ReportsScreen extends ConsumerWidget {
       color: isDark ? const Color(0xFF151F32) : Colors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+        side: BorderSide(
+          color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0),
+        ),
       ),
       onSelected: (value) async {
         final printer = ref.read(printerServiceProvider);
@@ -522,10 +734,14 @@ class ReportsScreen extends ConsumerWidget {
             if (context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text(printed
-                      ? '$title printed successfully!'
-                      : 'Print command sent (check printer connection).'),
-                  backgroundColor: printed ? const Color(0xFF059669) : Colors.orangeAccent,
+                  content: Text(
+                    printed
+                        ? '$title printed successfully!'
+                        : 'Print command sent (check printer connection).',
+                  ),
+                  backgroundColor: printed
+                      ? const Color(0xFF059669)
+                      : Colors.orangeAccent,
                 ),
               );
             }
@@ -574,7 +790,14 @@ class ReportsScreen extends ConsumerWidget {
             children: [
               Icon(Icons.print_rounded, size: 18, color: primaryColor),
               const SizedBox(width: 10),
-              Text('Print Financial Slip', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface)),
+              Text(
+                'Print Financial Slip',
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
             ],
           ),
         ),
@@ -582,9 +805,20 @@ class ReportsScreen extends ConsumerWidget {
           value: 'pdf_slip',
           child: Row(
             children: [
-              const Icon(Icons.receipt_rounded, size: 18, color: Color(0xFF0284C7)),
+              const Icon(
+                Icons.receipt_rounded,
+                size: 18,
+                color: Color(0xFF0284C7),
+              ),
               const SizedBox(width: 10),
-              Text('Save as PDF Slip (80mm)', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface)),
+              Text(
+                'Save as PDF Slip (80mm)',
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
             ],
           ),
         ),
@@ -592,9 +826,20 @@ class ReportsScreen extends ConsumerWidget {
           value: 'pdf_report',
           child: Row(
             children: [
-              const Icon(Icons.picture_as_pdf_rounded, size: 18, color: Color(0xFFDC2626)),
+              const Icon(
+                Icons.picture_as_pdf_rounded,
+                size: 18,
+                color: Color(0xFFDC2626),
+              ),
               const SizedBox(width: 10),
-              Text('Save as PDF Report (A4)', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface)),
+              Text(
+                'Save as PDF Report (A4)',
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
             ],
           ),
         ),
@@ -607,7 +852,11 @@ class ReportsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildZraZReportMenu(BuildContext context, WidgetRef ref, DateTimeRange range) {
+  Widget _buildZraZReportMenu(
+    BuildContext context,
+    WidgetRef ref,
+    DateTimeRange range,
+  ) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final primaryColor = theme.colorScheme.primary;
@@ -618,7 +867,9 @@ class ReportsScreen extends ConsumerWidget {
       color: isDark ? const Color(0xFF151F32) : Colors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+        side: BorderSide(
+          color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0),
+        ),
       ),
       onSelected: (value) async {
         final digitaxService = ref.read(digitaxInventoryServiceProvider);
@@ -626,7 +877,9 @@ class ReportsScreen extends ConsumerWidget {
         final exportService = ref.read(exportServiceProvider);
         final config = ref.read(storeConfigProvider).value;
 
-        final reportData = await digitaxService.compileZraFiscalZReport(date: range.start);
+        final reportData = await digitaxService.compileZraFiscalZReport(
+          date: range.start,
+        );
 
         switch (value) {
           case 'print':
@@ -637,10 +890,14 @@ class ReportsScreen extends ConsumerWidget {
             if (context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text(printed
-                      ? 'ZRA Fiscal Z-Report printed successfully!'
-                      : 'ZRA Fiscal Z-Report generated (Check printer connection).'),
-                  backgroundColor: printed ? const Color(0xFF059669) : Colors.orangeAccent,
+                  content: Text(
+                    printed
+                        ? 'ZRA Fiscal Z-Report printed successfully!'
+                        : 'ZRA Fiscal Z-Report generated (Check printer connection).',
+                  ),
+                  backgroundColor: printed
+                      ? const Color(0xFF059669)
+                      : Colors.orangeAccent,
                 ),
               );
             }
@@ -654,7 +911,9 @@ class ReportsScreen extends ConsumerWidget {
             if (context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text('ZRA Fiscal Z-Report Slip (80mm) saved as PDF!'),
+                  content: Text(
+                    'ZRA Fiscal Z-Report Slip (80mm) saved as PDF!',
+                  ),
                   backgroundColor: Color(0xFF059669),
                 ),
               );
@@ -669,7 +928,9 @@ class ReportsScreen extends ConsumerWidget {
             if (context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text('Official ZRA Fiscal Z-Report (A4) saved as PDF!'),
+                  content: Text(
+                    'Official ZRA Fiscal Z-Report (A4) saved as PDF!',
+                  ),
                   backgroundColor: Color(0xFF059669),
                 ),
               );
@@ -684,7 +945,14 @@ class ReportsScreen extends ConsumerWidget {
             children: [
               Icon(Icons.print_rounded, size: 18, color: primaryColor),
               const SizedBox(width: 10),
-              Text('Print Z-Report (Thermal)', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface)),
+              Text(
+                'Print Z-Report (Thermal)',
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
             ],
           ),
         ),
@@ -692,9 +960,20 @@ class ReportsScreen extends ConsumerWidget {
           value: 'pdf_slip',
           child: Row(
             children: [
-              const Icon(Icons.receipt_rounded, size: 18, color: Color(0xFF0284C7)),
+              const Icon(
+                Icons.receipt_rounded,
+                size: 18,
+                color: Color(0xFF0284C7),
+              ),
               const SizedBox(width: 10),
-              Text('Save as PDF Slip (80mm)', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface)),
+              Text(
+                'Save as PDF Slip (80mm)',
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
             ],
           ),
         ),
@@ -702,9 +981,20 @@ class ReportsScreen extends ConsumerWidget {
           value: 'pdf_report',
           child: Row(
             children: [
-              const Icon(Icons.picture_as_pdf_rounded, size: 18, color: Color(0xFFDC2626)),
+              const Icon(
+                Icons.picture_as_pdf_rounded,
+                size: 18,
+                color: Color(0xFFDC2626),
+              ),
               const SizedBox(width: 10),
-              Text('Save Official ZRA PDF (A4)', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface)),
+              Text(
+                'Save Official ZRA PDF (A4)',
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
             ],
           ),
         ),
@@ -716,7 +1006,11 @@ class ReportsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildStockAdjustmentReportMenu(BuildContext context, WidgetRef ref, DateTimeRange range) {
+  Widget _buildStockAdjustmentReportMenu(
+    BuildContext context,
+    WidgetRef ref,
+    DateTimeRange range,
+  ) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
@@ -726,7 +1020,9 @@ class ReportsScreen extends ConsumerWidget {
       color: isDark ? const Color(0xFF151F32) : Colors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+        side: BorderSide(
+          color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0),
+        ),
       ),
       onSelected: (value) async {
         final db = ref.read(databaseServiceProvider);
@@ -736,12 +1032,17 @@ class ReportsScreen extends ConsumerWidget {
         final allMovements = await db.getStockMovements();
         // Filter by selected report date range
         final inRange = allMovements.where((m) {
-          return m.timestamp.isAfter(range.start) && m.timestamp.isBefore(range.end);
+          return m.timestamp.isAfter(range.start) &&
+              m.timestamp.isBefore(range.end);
         }).toList();
 
         if (inRange.isEmpty && context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('No stock adjustment records found in the selected date range.')),
+            const SnackBar(
+              content: Text(
+                'No stock adjustment records found in the selected date range.',
+              ),
+            ),
           );
           return;
         }
@@ -764,10 +1065,16 @@ class ReportsScreen extends ConsumerWidget {
             );
             break;
           case 'excel':
-            await exportService.exportStockMovementsToExcel(inRange, config: config);
+            await exportService.exportStockMovementsToExcel(
+              inRange,
+              config: config,
+            );
             break;
           case 'csv':
-            await exportService.exportStockMovementsToCsv(inRange, config: config);
+            await exportService.exportStockMovementsToCsv(
+              inRange,
+              config: config,
+            );
             break;
         }
       },
@@ -776,9 +1083,20 @@ class ReportsScreen extends ConsumerWidget {
           value: 'print',
           child: Row(
             children: [
-              const Icon(Icons.print_rounded, size: 18, color: Color(0xFF059669)),
+              const Icon(
+                Icons.print_rounded,
+                size: 18,
+                color: Color(0xFF059669),
+              ),
               const SizedBox(width: 10),
-              Text('Print SAR Audit Report', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface)),
+              Text(
+                'Print SAR Audit Report',
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
             ],
           ),
         ),
@@ -786,9 +1104,20 @@ class ReportsScreen extends ConsumerWidget {
           value: 'pdf',
           child: Row(
             children: [
-              const Icon(Icons.picture_as_pdf_rounded, size: 18, color: Color(0xFFDC2626)),
+              const Icon(
+                Icons.picture_as_pdf_rounded,
+                size: 18,
+                color: Color(0xFFDC2626),
+              ),
               const SizedBox(width: 10),
-              Text('Save as PDF Document (A4)', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface)),
+              Text(
+                'Save as PDF Document (A4)',
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
             ],
           ),
         ),
@@ -796,9 +1125,20 @@ class ReportsScreen extends ConsumerWidget {
           value: 'excel',
           child: Row(
             children: [
-              const Icon(Icons.table_chart_rounded, size: 18, color: Color(0xFF059669)),
+              const Icon(
+                Icons.table_chart_rounded,
+                size: 18,
+                color: Color(0xFF059669),
+              ),
               const SizedBox(width: 10),
-              Text('Export to Excel (.xlsx)', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface)),
+              Text(
+                'Export to Excel (.xlsx)',
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
             ],
           ),
         ),
@@ -806,9 +1146,20 @@ class ReportsScreen extends ConsumerWidget {
           value: 'csv',
           child: Row(
             children: [
-              const Icon(Icons.text_snippet_rounded, size: 18, color: Color(0xFFD97706)),
+              const Icon(
+                Icons.text_snippet_rounded,
+                size: 18,
+                color: Color(0xFFD97706),
+              ),
               const SizedBox(width: 10),
-              Text('Export to CSV (.csv)', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface)),
+              Text(
+                'Export to CSV (.csv)',
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
             ],
           ),
         ),
@@ -825,9 +1176,9 @@ class ReportsScreen extends ConsumerWidget {
       height: 44,
       child: ElevatedButton.icon(
         onPressed: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const TotReportScreen()),
-          );
+          Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => const TotReportScreen()));
         },
         icon: const Icon(Icons.receipt_long_rounded, size: 16),
         label: Text(
@@ -857,7 +1208,9 @@ class ReportsScreen extends ConsumerWidget {
       color: isDark ? const Color(0xFF151F32) : Colors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+        side: BorderSide(
+          color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0),
+        ),
       ),
       onSelected: (value) async {
         final transactions = ref.read(reportTransactionsProvider).value;
@@ -872,13 +1225,22 @@ class ReportsScreen extends ConsumerWidget {
         final config = ref.read(storeConfigProvider).value;
         switch (value) {
           case 'pdf':
-            await exportService.exportTransactionsToPdf(transactions, config: config);
+            await exportService.exportTransactionsToPdf(
+              transactions,
+              config: config,
+            );
             break;
           case 'excel':
-            await exportService.exportTransactionsToExcel(transactions, config: config);
+            await exportService.exportTransactionsToExcel(
+              transactions,
+              config: config,
+            );
             break;
           case 'csv':
-            await exportService.exportTransactionsToCsv(transactions, config: config);
+            await exportService.exportTransactionsToCsv(
+              transactions,
+              config: config,
+            );
             break;
         }
       },
@@ -887,9 +1249,20 @@ class ReportsScreen extends ConsumerWidget {
           value: 'pdf',
           child: Row(
             children: [
-              const Icon(Icons.picture_as_pdf_rounded, size: 18, color: Color(0xFFDC2626)),
+              const Icon(
+                Icons.picture_as_pdf_rounded,
+                size: 18,
+                color: Color(0xFFDC2626),
+              ),
               const SizedBox(width: 10),
-              Text('Export PDF Report', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface)),
+              Text(
+                'Export PDF Report',
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
             ],
           ),
         ),
@@ -897,9 +1270,20 @@ class ReportsScreen extends ConsumerWidget {
           value: 'excel',
           child: Row(
             children: [
-              const Icon(Icons.table_chart_rounded, size: 18, color: Color(0xFF059669)),
+              const Icon(
+                Icons.table_chart_rounded,
+                size: 18,
+                color: Color(0xFF059669),
+              ),
               const SizedBox(width: 10),
-              Text('Export Excel (.xlsx)', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface)),
+              Text(
+                'Export Excel (.xlsx)',
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
             ],
           ),
         ),
@@ -907,9 +1291,20 @@ class ReportsScreen extends ConsumerWidget {
           value: 'csv',
           child: Row(
             children: [
-              const Icon(Icons.description_rounded, size: 18, color: Color(0xFF0284C7)),
+              const Icon(
+                Icons.description_rounded,
+                size: 18,
+                color: Color(0xFF0284C7),
+              ),
               const SizedBox(width: 10),
-              Text('Export CSV (.csv)', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface)),
+              Text(
+                'Export CSV (.csv)',
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
             ],
           ),
         ),
@@ -917,6 +1312,340 @@ class ReportsScreen extends ConsumerWidget {
       child: const ActionButton(
         icon: Icons.download_rounded,
         label: 'Export Data ▾',
+      ),
+    );
+  }
+
+  Widget _buildProductSalesReport(
+    BuildContext context,
+    WidgetRef ref,
+    List<SaleTransaction> transactions,
+    String currency,
+    DateTimeRange range,
+  ) {
+    final theme = Theme.of(context);
+    final filters = ref.watch(reportProductSalesFiltersProvider);
+    final rows = ref.watch(reportProductSalesRowsProvider);
+    final cashierOptions = <String, String>{};
+    final shiftOptions = <String, String>{};
+    final tillOptions = <String, String>{};
+    final paymentOptions = <String, String>{};
+    final productOptions = <String, String>{};
+
+    for (final transaction in transactions) {
+      final cashierValue = transaction.cashierId ?? transaction.cashierName;
+      if (cashierValue.isNotEmpty) {
+        cashierOptions.putIfAbsent(
+          cashierValue,
+          () => transaction.cashierId == null
+              ? transaction.cashierName
+              : '${transaction.cashierName} (${transaction.cashierId})',
+        );
+      }
+      final shift = transaction.cashShiftNumber;
+      if (shift != null && shift.isNotEmpty) shiftOptions[shift] = shift;
+      final till = transaction.terminalName;
+      if (till != null && till.isNotEmpty) tillOptions[till] = till;
+      if (transaction.paymentMethod.isNotEmpty) {
+        paymentOptions[transaction.paymentMethod] = transaction.paymentMethod
+            .toUpperCase();
+      }
+      for (final item in transaction.items) {
+        productOptions.putIfAbsent(
+          item.productId.toString(),
+          () => item.productSkuAtSale?.isNotEmpty == true
+              ? '${item.productName} (${item.productSkuAtSale})'
+              : item.productName,
+        );
+      }
+    }
+
+    Map<String, String> sortedOptions(Map<String, String> options) {
+      final entries = options.entries.toList()
+        ..sort(
+          (a, b) => a.value.toLowerCase().compareTo(b.value.toLowerCase()),
+        );
+      return Map.fromEntries(entries);
+    }
+
+    final filtersNotifier = ref.read(
+      reportProductSalesFiltersProvider.notifier,
+    );
+    Widget filterDropdown(
+      String label,
+      String? selected,
+      Map<String, String> options,
+      ValueChanged<String?> onChanged,
+    ) {
+      final sorted = sortedOptions(options);
+      return SizedBox(
+        width: 190,
+        child: DropdownButtonFormField<String>(
+          initialValue: selected ?? '',
+          isExpanded: true,
+          decoration: InputDecoration(
+            labelText: label,
+            isDense: true,
+            border: const OutlineInputBorder(),
+          ),
+          items: [
+            DropdownMenuItem(value: '', child: Text('All $label')),
+            if (selected != null &&
+                selected.isNotEmpty &&
+                !sorted.containsKey(selected))
+              DropdownMenuItem(
+                value: selected,
+                child: Text('$selected (outside current range)'),
+              ),
+            ...sorted.entries.map(
+              (entry) => DropdownMenuItem(
+                value: entry.key,
+                child: Text(entry.value, overflow: TextOverflow.ellipsis),
+              ),
+            ),
+          ],
+          onChanged: onChanged,
+        ),
+      );
+    }
+
+    String quantityLabel(double quantity) =>
+        quantity == quantity.roundToDouble()
+        ? quantity.toInt().toString()
+        : quantity.toStringAsFixed(3);
+
+    final totalNetSales = rows.fold<double>(
+      0,
+      (sum, row) => sum + row.netSales,
+    );
+    final hasFilters = !filters.isEmpty;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.6)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 12,
+            runSpacing: 8,
+            children: [
+              Text(
+                'PRODUCT SALES DETAIL',
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
+              Text(
+                '${rows.length} item/price rows · Net ${CurrencyFormatter.format(totalNetSales, currency)}',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              OutlinedButton.icon(
+                onPressed: rows.isEmpty
+                    ? null
+                    : () async {
+                        await ref
+                            .read(exportServiceProvider)
+                            .exportProductSalesToCsv(
+                              rows,
+                              range: range,
+                              currency: currency,
+                              filters: filters,
+                            );
+                      },
+                icon: const Icon(Icons.download_rounded, size: 16),
+                label: const Text('Export CSV'),
+              ),
+              if (hasFilters)
+                TextButton(
+                  onPressed: () {
+                    filtersNotifier.state = const ProductSalesReportFilters();
+                  },
+                  child: const Text('Clear filters'),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              filterDropdown(
+                'Cashier',
+                filters.cashierId,
+                cashierOptions,
+                (value) => filtersNotifier.state = ProductSalesReportFilters(
+                  cashierId: value == null || value.isEmpty ? null : value,
+                  shiftNumber: filters.shiftNumber,
+                  terminalName: filters.terminalName,
+                  productId: filters.productId,
+                  paymentMethod: filters.paymentMethod,
+                ),
+              ),
+              filterDropdown(
+                'Shift',
+                filters.shiftNumber,
+                shiftOptions,
+                (value) => filtersNotifier.state = ProductSalesReportFilters(
+                  cashierId: filters.cashierId,
+                  shiftNumber: value == null || value.isEmpty ? null : value,
+                  terminalName: filters.terminalName,
+                  productId: filters.productId,
+                  paymentMethod: filters.paymentMethod,
+                ),
+              ),
+              filterDropdown(
+                'Till',
+                filters.terminalName,
+                tillOptions,
+                (value) => filtersNotifier.state = ProductSalesReportFilters(
+                  cashierId: filters.cashierId,
+                  shiftNumber: filters.shiftNumber,
+                  terminalName: value == null || value.isEmpty ? null : value,
+                  productId: filters.productId,
+                  paymentMethod: filters.paymentMethod,
+                ),
+              ),
+              filterDropdown(
+                'Product',
+                filters.productId?.toString(),
+                productOptions,
+                (value) => filtersNotifier.state = ProductSalesReportFilters(
+                  cashierId: filters.cashierId,
+                  shiftNumber: filters.shiftNumber,
+                  terminalName: filters.terminalName,
+                  productId: value == null || value.isEmpty
+                      ? null
+                      : int.tryParse(value),
+                  paymentMethod: filters.paymentMethod,
+                ),
+              ),
+              filterDropdown(
+                'Payment',
+                filters.paymentMethod,
+                paymentOptions,
+                (value) => filtersNotifier.state = ProductSalesReportFilters(
+                  cashierId: filters.cashierId,
+                  shiftNumber: filters.shiftNumber,
+                  terminalName: filters.terminalName,
+                  productId: filters.productId,
+                  paymentMethod: value == null || value.isEmpty ? null : value,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Cart-level discounts are allocated across sale lines by line value. '
+            'Product promotion discounts are recorded at checkout.',
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 10),
+          if (rows.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 22),
+              child: Center(
+                child: Text(
+                  'No product sales match the selected date range and filters.',
+                  style: GoogleFonts.inter(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            )
+          else
+            SizedBox(
+              height: 360,
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: SingleChildScrollView(
+                  child: DataTable(
+                    columns: const [
+                      DataColumn(label: Text('Product / Unit Price')),
+                      DataColumn(label: Text('SKU')),
+                      DataColumn(numeric: true, label: Text('Qty Sold')),
+                      DataColumn(numeric: true, label: Text('Net Qty')),
+                      DataColumn(numeric: true, label: Text('Gross')),
+                      DataColumn(numeric: true, label: Text('Discount')),
+                      DataColumn(numeric: true, label: Text('Tax')),
+                      DataColumn(numeric: true, label: Text('Returned')),
+                      DataColumn(numeric: true, label: Text('Refund')),
+                      DataColumn(numeric: true, label: Text('Net Sales')),
+                    ],
+                    rows: rows.map((row) {
+                      return DataRow(
+                        cells: [
+                          DataCell(
+                            Text(
+                              '${row.productName} · ${CurrencyFormatter.format(row.unitPrice, currency)}',
+                            ),
+                          ),
+                          DataCell(
+                            Text(row.sku?.isNotEmpty == true ? row.sku! : '—'),
+                          ),
+                          DataCell(
+                            Text(
+                              '${quantityLabel(row.quantitySold)} sold'
+                              '${row.quantityReturned > 0 ? ' / ${quantityLabel(row.quantityReturned)} returned' : ''}',
+                            ),
+                          ),
+                          DataCell(Text(quantityLabel(row.netQuantity))),
+                          DataCell(
+                            Text(
+                              CurrencyFormatter.format(
+                                row.grossSales,
+                                currency,
+                              ),
+                            ),
+                          ),
+                          DataCell(
+                            Text(
+                              CurrencyFormatter.format(
+                                row.discountAmount,
+                                currency,
+                              ),
+                            ),
+                          ),
+                          DataCell(
+                            Text(
+                              CurrencyFormatter.format(row.netTax, currency),
+                            ),
+                          ),
+                          DataCell(Text(quantityLabel(row.quantityReturned))),
+                          DataCell(
+                            Text(
+                              CurrencyFormatter.format(
+                                row.refundAmount,
+                                currency,
+                              ),
+                            ),
+                          ),
+                          DataCell(
+                            Text(
+                              CurrencyFormatter.format(row.netSales, currency),
+                            ),
+                          ),
+                        ],
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -956,8 +1685,12 @@ class ReportsScreen extends ConsumerWidget {
                     context,
                     'Gross Profit',
                     CurrencyFormatter.format(stats['profit'] ?? 0.0, currency),
-                    (stats['profit'] ?? 0) >= 0 ? Icons.trending_up_rounded : Icons.trending_down_rounded,
-                    (stats['profit'] ?? 0) >= 0 ? const Color(0xFF059669) : const Color(0xFFDC2626),
+                    (stats['profit'] ?? 0) >= 0
+                        ? Icons.trending_up_rounded
+                        : Icons.trending_down_rounded,
+                    (stats['profit'] ?? 0) >= 0
+                        ? const Color(0xFF059669)
+                        : const Color(0xFFDC2626),
                     subtitle: 'Rev minus COGS',
                     isPhone: true,
                   ),
@@ -969,7 +1702,10 @@ class ReportsScreen extends ConsumerWidget {
                   _buildStatCard(
                     context,
                     'Expenses (OPEX)',
-                    CurrencyFormatter.format(stats['expenses'] ?? 0.0, currency),
+                    CurrencyFormatter.format(
+                      stats['expenses'] ?? 0.0,
+                      currency,
+                    ),
                     Icons.receipt_long_rounded,
                     const Color(0xFFDC2626),
                     subtitle: 'Branch expenses',
@@ -979,9 +1715,16 @@ class ReportsScreen extends ConsumerWidget {
                   _buildStatCard(
                     context,
                     'Net Profit',
-                    CurrencyFormatter.format(stats['net_profit'] ?? (stats['profit'] ?? 0.0), currency),
-                    (stats['net_profit'] ?? 0) >= 0 ? Icons.account_balance_rounded : Icons.warning_amber_rounded,
-                    (stats['net_profit'] ?? 0) >= 0 ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                    CurrencyFormatter.format(
+                      stats['net_profit'] ?? (stats['profit'] ?? 0.0),
+                      currency,
+                    ),
+                    (stats['net_profit'] ?? 0) >= 0
+                        ? Icons.account_balance_rounded
+                        : Icons.warning_amber_rounded,
+                    (stats['net_profit'] ?? 0) >= 0
+                        ? const Color(0xFF10B981)
+                        : const Color(0xFFEF4444),
                     subtitle: 'Profit minus OPEX',
                     isPhone: true,
                   ),
@@ -1027,8 +1770,12 @@ class ReportsScreen extends ConsumerWidget {
                     context,
                     'Gross Profit',
                     CurrencyFormatter.format(stats['profit'] ?? 0.0, currency),
-                    (stats['profit'] ?? 0) >= 0 ? Icons.trending_up_rounded : Icons.trending_down_rounded,
-                    (stats['profit'] ?? 0) >= 0 ? const Color(0xFF059669) : const Color(0xFFDC2626),
+                    (stats['profit'] ?? 0) >= 0
+                        ? Icons.trending_up_rounded
+                        : Icons.trending_down_rounded,
+                    (stats['profit'] ?? 0) >= 0
+                        ? const Color(0xFF059669)
+                        : const Color(0xFFDC2626),
                     subtitle: 'Revenue minus COGS',
                   ),
                 ],
@@ -1039,7 +1786,10 @@ class ReportsScreen extends ConsumerWidget {
                   _buildStatCard(
                     context,
                     'Operating Expenses (OPEX)',
-                    CurrencyFormatter.format(stats['expenses'] ?? 0.0, currency),
+                    CurrencyFormatter.format(
+                      stats['expenses'] ?? 0.0,
+                      currency,
+                    ),
                     Icons.receipt_long_rounded,
                     const Color(0xFFDC2626),
                     subtitle: 'Vouchers & branch expenses',
@@ -1048,9 +1798,16 @@ class ReportsScreen extends ConsumerWidget {
                   _buildStatCard(
                     context,
                     'Net Operating Profit',
-                    CurrencyFormatter.format(stats['net_profit'] ?? (stats['profit'] ?? 0.0), currency),
-                    (stats['net_profit'] ?? 0) >= 0 ? Icons.account_balance_rounded : Icons.warning_amber_rounded,
-                    (stats['net_profit'] ?? 0) >= 0 ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                    CurrencyFormatter.format(
+                      stats['net_profit'] ?? (stats['profit'] ?? 0.0),
+                      currency,
+                    ),
+                    (stats['net_profit'] ?? 0) >= 0
+                        ? Icons.account_balance_rounded
+                        : Icons.warning_amber_rounded,
+                    (stats['net_profit'] ?? 0) >= 0
+                        ? const Color(0xFF10B981)
+                        : const Color(0xFFEF4444),
                     subtitle: 'Gross profit minus expenses',
                   ),
                 ],
@@ -1086,7 +1843,12 @@ class ReportsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildPaymentBreakdown(BuildContext context, Map<String, double> stats, String currency, {bool isPhone = false}) {
+  Widget _buildPaymentBreakdown(
+    BuildContext context,
+    Map<String, double> stats,
+    String currency, {
+    bool isPhone = false,
+  }) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
@@ -1095,14 +1857,20 @@ class ReportsScreen extends ConsumerWidget {
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF151F32) : Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+        border: Border.all(
+          color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.pie_chart_outline_rounded, size: 18, color: theme.colorScheme.onSurfaceVariant),
+              Icon(
+                Icons.pie_chart_outline_rounded,
+                size: 18,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
               const SizedBox(width: 8),
               Text(
                 'PAYMENT METHOD DISTRIBUTION',
@@ -1119,21 +1887,78 @@ class ReportsScreen extends ConsumerWidget {
           if (isPhone) ...[
             Row(
               children: [
-                _buildPaymentMethodItem(context, 'Cash', stats['cash'] ?? 0.0, currency, const Color(0xFF059669)),
+                _buildPaymentMethodItem(
+                  context,
+                  'Cash',
+                  stats['cash'] ?? 0.0,
+                  currency,
+                  const Color(0xFF059669),
+                ),
                 const SizedBox(width: 12),
-                _buildPaymentMethodItem(context, 'Card', stats['card'] ?? 0.0, currency, const Color(0xFF0284C7)),
+                _buildPaymentMethodItem(
+                  context,
+                  'Card',
+                  stats['card'] ?? 0.0,
+                  currency,
+                  const Color(0xFF0284C7),
+                ),
                 const SizedBox(width: 12),
-                _buildPaymentMethodItem(context, 'MoMo', stats['mobile_money'] ?? 0.0, currency, const Color(0xFFD97706)),
+                _buildPaymentMethodItem(
+                  context,
+                  'Lenco',
+                  stats['lenco_mobile_money'] ?? 0.0,
+                  currency,
+                  const Color(0xFFD97706),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                _buildPaymentMethodItem(
+                  context,
+                  'External MoMo',
+                  stats['external_mobile_money'] ?? 0.0,
+                  currency,
+                  const Color(0xFF7C3AED),
+                ),
+                const Spacer(),
               ],
             ),
           ] else ...[
             Row(
               children: [
-                _buildPaymentMethodItem(context, 'Cash Sales', stats['cash'] ?? 0.0, currency, const Color(0xFF059669)),
+                _buildPaymentMethodItem(
+                  context,
+                  'Cash Sales',
+                  stats['cash'] ?? 0.0,
+                  currency,
+                  const Color(0xFF059669),
+                ),
                 _buildVerticalDivider(context),
-                _buildPaymentMethodItem(context, 'Card Payments', stats['card'] ?? 0.0, currency, const Color(0xFF0284C7)),
+                _buildPaymentMethodItem(
+                  context,
+                  'Card Payments',
+                  stats['card'] ?? 0.0,
+                  currency,
+                  const Color(0xFF0284C7),
+                ),
                 _buildVerticalDivider(context),
-                _buildPaymentMethodItem(context, 'Mobile Money', stats['mobile_money'] ?? 0.0, currency, const Color(0xFFD97706)),
+                _buildPaymentMethodItem(
+                  context,
+                  'Lenco MoMo',
+                  stats['lenco_mobile_money'] ?? 0.0,
+                  currency,
+                  const Color(0xFFD97706),
+                ),
+                _buildVerticalDivider(context),
+                _buildPaymentMethodItem(
+                  context,
+                  'External MoMo',
+                  stats['external_mobile_money'] ?? 0.0,
+                  currency,
+                  const Color(0xFF7C3AED),
+                ),
               ],
             ),
           ],
@@ -1154,7 +1979,13 @@ class ReportsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildPaymentMethodItem(BuildContext context, String label, double amount, String currency, Color color) {
+  Widget _buildPaymentMethodItem(
+    BuildContext context,
+    String label,
+    double amount,
+    String currency,
+    Color color,
+  ) {
     final theme = Theme.of(context);
 
     return Expanded(
@@ -1188,7 +2019,15 @@ class ReportsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildStatCard(BuildContext context, String label, String value, IconData icon, Color color, {String? subtitle, bool isPhone = false}) {
+  Widget _buildStatCard(
+    BuildContext context,
+    String label,
+    String value,
+    IconData icon,
+    Color color, {
+    String? subtitle,
+    bool isPhone = false,
+  }) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
@@ -1198,7 +2037,9 @@ class ReportsScreen extends ConsumerWidget {
         decoration: BoxDecoration(
           color: isDark ? const Color(0xFF151F32) : Colors.white,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+          border: Border.all(
+            color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0),
+          ),
         ),
         child: Row(
           children: [
@@ -1206,7 +2047,9 @@ class ReportsScreen extends ConsumerWidget {
               width: isPhone ? 36 : 44,
               height: isPhone ? 36 : 44,
               decoration: BoxDecoration(
-                color: isDark ? color.withValues(alpha: 0.15) : color.withValues(alpha: 0.08),
+                color: isDark
+                    ? color.withValues(alpha: 0.15)
+                    : color.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(icon, color: color, size: isPhone ? 18 : 22),
@@ -1263,7 +2106,12 @@ class ReportsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildTransactionList(BuildContext context, WidgetRef ref, List<SaleTransaction> transactions, String currency) {
+  Widget _buildTransactionList(
+    BuildContext context,
+    WidgetRef ref,
+    List<SaleTransaction> transactions,
+    String currency,
+  ) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
@@ -1274,12 +2122,20 @@ class ReportsScreen extends ConsumerWidget {
           decoration: BoxDecoration(
             color: isDark ? const Color(0xFF151F32) : Colors.white,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+            border: Border.all(
+              color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0),
+            ),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.receipt_long_rounded, size: 48, color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.3)),
+              Icon(
+                Icons.receipt_long_rounded,
+                size: 48,
+                color: theme.colorScheme.onSurfaceVariant.withValues(
+                  alpha: 0.3,
+                ),
+              ),
               const SizedBox(height: 12),
               Text(
                 'No Transaction Records Found',
@@ -1292,7 +2148,10 @@ class ReportsScreen extends ConsumerWidget {
               const SizedBox(height: 4),
               Text(
                 'No sale transactions recorded in the selected period range.',
-                style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
               ),
             ],
           ),
@@ -1305,7 +2164,11 @@ class ReportsScreen extends ConsumerWidget {
       children: [
         Row(
           children: [
-            Icon(Icons.history_rounded, size: 18, color: theme.colorScheme.onSurfaceVariant),
+            Icon(
+              Icons.history_rounded,
+              size: 18,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
             const SizedBox(width: 8),
             Text(
               'DETAILED TRANSACTION HISTORY',
@@ -1318,7 +2181,11 @@ class ReportsScreen extends ConsumerWidget {
             const Spacer(),
             Text(
               '${transactions.length} Total Records',
-              style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurfaceVariant),
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
           ],
         ),
@@ -1337,17 +2204,26 @@ class ReportsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildTransactionCard(BuildContext context, WidgetRef ref, SaleTransaction tx, String currency) {
+  Widget _buildTransactionCard(
+    BuildContext context,
+    WidgetRef ref,
+    SaleTransaction tx,
+    String currency,
+  ) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final primaryColor = theme.colorScheme.primary;
-    final itemNames = tx.items.map((i) => '${i.quantity}x ${i.productName}').join(', ');
+    final itemNames = tx.items
+        .map((i) => '${i.quantity}x ${i.productName}')
+        .join(', ');
 
     return Container(
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF151F32) : Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+        border: Border.all(
+          color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0),
+        ),
       ),
       child: Material(
         color: Colors.transparent,
@@ -1370,8 +2246,12 @@ class ReportsScreen extends ConsumerWidget {
                   height: 40,
                   decoration: BoxDecoration(
                     color: isDark
-                        ? _getPaymentColor(tx.paymentMethod).withValues(alpha: 0.15)
-                        : _getPaymentColor(tx.paymentMethod).withValues(alpha: 0.08),
+                        ? _getPaymentColor(
+                            tx.paymentMethod,
+                          ).withValues(alpha: 0.15)
+                        : _getPaymentColor(
+                            tx.paymentMethod,
+                          ).withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(
@@ -1392,13 +2272,18 @@ class ReportsScreen extends ConsumerWidget {
                             style: GoogleFonts.inter(
                               fontSize: 13,
                               fontWeight: FontWeight.w700,
-                              color: tx.status == 'refunded' ? const Color(0xFFDC2626) : theme.colorScheme.onSurface,
+                              color: tx.status == 'refunded'
+                                  ? const Color(0xFFDC2626)
+                                  : theme.colorScheme.onSurface,
                             ),
                           ),
                           if (tx.status == 'refunded') ...[
                             const SizedBox(width: 8),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
                               decoration: BoxDecoration(
                                 color: const Color(0xFFFEF2F2),
                                 borderRadius: BorderRadius.circular(4),
@@ -1445,7 +2330,9 @@ class ReportsScreen extends ConsumerWidget {
                       style: GoogleFonts.inter(
                         fontSize: 15,
                         fontWeight: FontWeight.bold,
-                        color: tx.status == 'refunded' ? const Color(0xFFDC2626) : primaryColor,
+                        color: tx.status == 'refunded'
+                            ? const Color(0xFFDC2626)
+                            : primaryColor,
                       ),
                     ),
                     if (tx.taxAmount > 0)
@@ -1473,20 +2360,46 @@ class ReportsScreen extends ConsumerWidget {
                   children: [
                     IconButton(
                       onPressed: () async {
-                        final items = await ref.read(transactionItemsProvider(tx.id).future);
+                        final items = await ref.read(
+                          transactionItemsProvider(tx.id).future,
+                        );
                         final config = ref.read(storeConfigProvider).value;
-                        ref.read(exportServiceProvider).exportReceiptToPdf(tx, items, config: config, printDirectly: true);
+                        ref
+                            .read(exportServiceProvider)
+                            .exportReceiptToPdf(
+                              tx,
+                              items,
+                              config: config,
+                              printDirectly: true,
+                            );
                       },
-                      icon: Icon(Icons.print_rounded, size: 18, color: theme.colorScheme.onSurfaceVariant),
+                      icon: Icon(
+                        Icons.print_rounded,
+                        size: 18,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
                       tooltip: 'Print Tax Receipt',
                     ),
                     IconButton(
                       onPressed: () async {
-                        final items = await ref.read(transactionItemsProvider(tx.id).future);
+                        final items = await ref.read(
+                          transactionItemsProvider(tx.id).future,
+                        );
                         final config = ref.read(storeConfigProvider).value;
-                        ref.read(exportServiceProvider).exportReceiptToPdf(tx, items, config: config, printDirectly: false);
+                        ref
+                            .read(exportServiceProvider)
+                            .exportReceiptToPdf(
+                              tx,
+                              items,
+                              config: config,
+                              printDirectly: false,
+                            );
                       },
-                      icon: const Icon(Icons.picture_as_pdf_rounded, size: 18, color: Color(0xFFDC2626)),
+                      icon: const Icon(
+                        Icons.picture_as_pdf_rounded,
+                        size: 18,
+                        color: Color(0xFFDC2626),
+                      ),
                       tooltip: 'Export Receipt PDF',
                     ),
                   ],
@@ -1525,7 +2438,10 @@ class ReportsScreen extends ConsumerWidget {
     }
   }
 
-  Widget _buildTopProductsSection(BuildContext context, List<Map<String, dynamic>> products) {
+  Widget _buildTopProductsSection(
+    BuildContext context,
+    List<Map<String, dynamic>> products,
+  ) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
@@ -1554,17 +2470,24 @@ class ReportsScreen extends ConsumerWidget {
           decoration: BoxDecoration(
             color: isDark ? const Color(0xFF151F32) : Colors.white,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+            border: Border.all(
+              color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0),
+            ),
           ),
           child: Column(
-            children: products.map((p) => _buildTopProductItem(context, p)).toList(),
+            children: products
+                .map((p) => _buildTopProductItem(context, p))
+                .toList(),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildTopProductItem(BuildContext context, Map<String, dynamic> product) {
+  Widget _buildTopProductItem(
+    BuildContext context,
+    Map<String, dynamic> product,
+  ) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final primaryColor = theme.colorScheme.primary;
@@ -1599,7 +2522,11 @@ class ReportsScreen extends ConsumerWidget {
               ),
             ),
           ),
-          Icon(Icons.arrow_forward_ios_rounded, size: 12, color: theme.colorScheme.onSurfaceVariant),
+          Icon(
+            Icons.arrow_forward_ios_rounded,
+            size: 12,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
         ],
       ),
     );
@@ -1631,13 +2558,26 @@ class ActionButton extends StatelessWidget {
       child: ElevatedButton.icon(
         onPressed: onPressed,
         icon: Icon(icon, size: 16),
-        label: Text(label, style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13)),
+        label: Text(
+          label,
+          style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13),
+        ),
         style: ElevatedButton.styleFrom(
-          backgroundColor: isPrimary ? primaryColor : (isDark ? const Color(0xFF151F32) : Colors.white),
-          foregroundColor: isPrimary ? Colors.white : theme.colorScheme.onSurface,
+          backgroundColor: isPrimary
+              ? primaryColor
+              : (isDark ? const Color(0xFF151F32) : Colors.white),
+          foregroundColor: isPrimary
+              ? Colors.white
+              : theme.colorScheme.onSurface,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(8),
-            side: isPrimary ? BorderSide.none : BorderSide(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+            side: isPrimary
+                ? BorderSide.none
+                : BorderSide(
+                    color: isDark
+                        ? const Color(0xFF293548)
+                        : const Color(0xFFE2E8F0),
+                  ),
           ),
           elevation: 0,
         ),

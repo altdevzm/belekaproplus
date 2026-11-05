@@ -60,8 +60,8 @@ class PostgresSyncService {
     var numericId = userIdOverride?.trim().isNotEmpty == true
         ? userIdOverride!.trim()
         : (config?.cloudAuthUserId?.trim().isNotEmpty == true
-            ? config!.cloudAuthUserId!.trim()
-            : '1001');
+              ? config!.cloudAuthUserId!.trim()
+              : '1001');
     var pin = pinOverride?.trim().isNotEmpty == true
         ? pinOverride!.trim()
         : (config?.cloudAuthPin?.trim() ?? '');
@@ -439,7 +439,8 @@ class PostgresSyncService {
         if (remoteTaxType?.isNotEmpty == true) {
           config?.businessTaxType = remoteTaxType!;
         }
-        if ((config?.bhfId.isEmpty ?? true) && remoteBhfId?.isNotEmpty == true) {
+        if ((config?.bhfId.isEmpty ?? true) &&
+            remoteBhfId?.isNotEmpty == true) {
           config?.bhfId = remoteBhfId!;
         }
         if (targetStore['sdc_id'] != null) {
@@ -459,7 +460,8 @@ class PostgresSyncService {
           config?.lencoApiKey = targetStore['lenco_api_key']?.toString();
         }
         if (targetStore['lenco_environment'] != null) {
-          config?.lencoEnvironment = targetStore['lenco_environment']?.toString() ?? 'sandbox';
+          config?.lencoEnvironment =
+              targetStore['lenco_environment']?.toString() ?? 'sandbox';
         }
         if (targetStore['lenco_account_id'] != null) {
           config?.lencoAccountId = targetStore['lenco_account_id']?.toString();
@@ -772,6 +774,17 @@ class PostgresSyncService {
           cloudStoreId: numericValue(raw['store_id'])?.toInt() ?? 0,
           cashierId: raw['cashier_id']?.toString(),
           terminalName: raw['terminal_name'] as String? ?? 'Terminal-1',
+          cashShiftNumber: raw['cash_shift_number']?.toString(),
+          externalPaymentReference: raw['external_payment_reference']
+              ?.toString(),
+          externalPaymentConfirmedBy: raw['external_payment_confirmed_by']
+              ?.toString(),
+          externalPaymentConfirmedAt:
+              raw['external_payment_confirmed_at'] == null
+              ? null
+              : DateTime.tryParse(
+                  raw['external_payment_confirmed_at'].toString(),
+                ),
           transactionId: uuid,
           zraReceiptNumber: raw['zra_receipt_number'] as String?,
           zraMarkId: raw['zra_mark_id'] as String?,
@@ -794,11 +807,25 @@ class PostgresSyncService {
               final item = SaleItem(
                 productId: numericValue(rItem['product_id'])?.toInt() ?? 0,
                 productName: rItem['product_name'] as String? ?? 'Product',
+                productSkuAtSale: rItem['product_sku_at_sale'] as String?,
                 priceAtSale:
                     numericValue(rItem['price_at_sale'])?.toDouble() ?? 0.0,
+                discountAmountAtSale:
+                    numericValue(
+                      rItem['discount_amount_at_sale'],
+                    )?.toDouble() ??
+                    0.0,
                 unitCostAtSale:
                     numericValue(rItem['unit_cost_at_sale'])?.toDouble() ?? 0.0,
                 quantity: numericValue(rItem['quantity'])?.toInt() ?? 1,
+                weight: numericValue(rItem['weight'])?.toDouble() ?? 0.0,
+                isWeighted: rItem['is_weighted'] as bool? ?? false,
+                unitOfMeasure: rItem['unit_of_measure'] as String? ?? 'kg',
+                taxRateAtSale:
+                    numericValue(rItem['tax_rate_at_sale'])?.toDouble() ?? 0.0,
+                isDigitaxExempt: rItem['is_digitax_exempt'] as bool? ?? true,
+                isTaxInclusiveAtSale:
+                    rItem['is_tax_inclusive_at_sale'] as bool? ?? true,
               );
               await isar.saleItems.put(item);
               tx.items.add(item);

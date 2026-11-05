@@ -80,7 +80,9 @@ final digiTaxAutoSyncProvider =
 final digitaxInventoryServiceProvider = Provider<DigiTaxInventoryService>((
   ref,
 ) {
-  return DigiTaxInventoryService(ref: ref);
+  final service = DigiTaxInventoryService(ref: ref);
+  ref.onDispose(service.dispose);
+  return service;
 });
 
 class DigiTaxInventoryService {
@@ -94,6 +96,7 @@ class DigiTaxInventoryService {
   );
 
   bool _isSyncRunning = false;
+  bool _isProcessingFiscalQueue = false;
   Timer? _fiscalQueueTimer;
 
   // Official DigiTax Zambia API Base URL from zm.docs.digitax.tech OpenAPI spec
@@ -102,6 +105,68 @@ class DigiTaxInventoryService {
 
   DigiTaxInventoryService({required this.ref}) {
     _startPeriodicFiscalWorker();
+  }
+
+  void _logFiscalSummaryMismatch(SaleTransaction transaction, dynamic summary) {
+    if (summary is! Map) return;
+
+    double? amount(String key) {
+      final value = summary[key];
+      if (value is num) return value.toDouble();
+      return double.tryParse(value?.toString() ?? '');
+    }
+
+    var summaryTotal = 0.0;
+    var hasSummaryAmounts = false;
+    for (final category in const ['vat', 'tot', 'ipl', 'tl', 'excise']) {
+      final taxable = amount('taxable_amount_$category');
+      final tax = amount('tax_amount_$category');
+      if (taxable != null || tax != null) hasSummaryAmounts = true;
+      summaryTotal += (taxable ?? 0) + (tax ?? 0);
+    }
+
+    if (hasSummaryAmounts &&
+        (summaryTotal - transaction.totalAmount).abs() > 0.01) {
+      debugPrint(
+        'DIGITAX_SALES_TOTAL_MISMATCH: Fiscal summary total '
+        '${summaryTotal.toStringAsFixed(2)} differs from recorded paid total '
+        '${transaction.totalAmount.toStringAsFixed(2)} for transaction '
+        '${transaction.transactionId}; preserving the sale amounts.',
+      );
+    }
+  }
+
+  double? _fiscalResponseTotal(Map<String, dynamic> saleData) {
+    double? amount(dynamic value) {
+      if (value is num) return value.toDouble();
+      return double.tryParse(value?.toString() ?? '');
+    }
+
+    for (final key in const [
+      'total_amount',
+      'totalAmount',
+      'totAmt',
+      'amount_due',
+    ]) {
+      final total = amount(saleData[key]);
+      if (total != null) return total;
+    }
+
+    final subtotal = amount(saleData['subtotal'] ?? saleData['sub_total']);
+    final tax = amount(saleData['tax_amount'] ?? saleData['taxAmount']);
+    if (subtotal != null && tax != null) return subtotal + tax;
+
+    final summary = saleData['sales_tax_summary'];
+    if (summary is! Map) return null;
+    var total = 0.0;
+    var hasAmounts = false;
+    for (final category in const ['vat', 'tot', 'ipl', 'tl', 'excise']) {
+      final taxable = amount(summary['taxable_amount_$category']);
+      final categoryTax = amount(summary['tax_amount_$category']);
+      if (taxable != null || categoryTax != null) hasAmounts = true;
+      total += (taxable ?? 0) + (categoryTax ?? 0);
+    }
+    return hasAmounts ? total : null;
   }
 
   List<dynamic> _extractItemList(dynamic payload) {
@@ -121,6 +186,16 @@ class DigiTaxInventoryService {
     return <dynamic>[];
   }
 
+  bool _hasItemListPayload(dynamic payload) {
+    if (payload is List) return true;
+    if (payload is Map) {
+      return const ['items', 'data', 'results', 'records', 'content'].any(
+        (key) => payload.containsKey(key) && _hasItemListPayload(payload[key]),
+      );
+    }
+    return false;
+  }
+
   /// Returns the ZRA/DigiTax package unit code for a given unit-of-measure string.
   /// Returns the official ZRA/DigiTax package unit code (UNECE Rec 21).
   /// Validated against live DigiTax Zambia / ZRA VSDC API:
@@ -129,13 +204,26 @@ class DigiTaxInventoryService {
   String _resolvePackageUnitCode(String? unitOfMeasure) {
     final upper = (unitOfMeasure ?? '').trim().toUpperCase();
     // Pre-empt common aliases to valid UNECE Rec 21 packaging code (NT = Net / Unit / Each)
-    if (upper == 'EACH' || upper == 'PCS' || upper == 'PIECE' || upper == 'UNIT' || upper == 'ITEM') {
+    if (upper == 'EACH' ||
+        upper == 'PCS' ||
+        upper == 'PIECE' ||
+        upper == 'UNIT' ||
+        upper == 'ITEM') {
       return 'NT';
     }
     // Direct match with official DigiTax/ZRA packaging codes
-    if (upper == 'BO' || upper == 'PA' || upper == 'BX' || upper == 'CT' ||
-        upper == 'CA' || upper == 'BG' || upper == 'BA' || upper == 'RO' ||
-        upper == 'BE' || upper == 'TB' || upper == 'AM' || upper == 'NT') {
+    if (upper == 'BO' ||
+        upper == 'PA' ||
+        upper == 'BX' ||
+        upper == 'CT' ||
+        upper == 'CA' ||
+        upper == 'BG' ||
+        upper == 'BA' ||
+        upper == 'RO' ||
+        upper == 'BE' ||
+        upper == 'TB' ||
+        upper == 'AM' ||
+        upper == 'NT') {
       return upper;
     }
 
@@ -251,25 +339,51 @@ class DigiTaxInventoryService {
     }
 
     final text = (productName ?? '').toLowerCase();
-    if (text.contains('soup') || text.contains('broth') || text.contains('sauce')) {
+    if (text.contains('soup') ||
+        text.contains('broth') ||
+        text.contains('sauce')) {
       return '50192701'; // Soups & Prepared Foods (verified COMPLETED on ZRA)
     }
-    if (text.contains('food') || text.contains('bread') || text.contains('meal') || text.contains('drink') || text.contains('beverage') || text.contains('water') || text.contains('snack') || text.contains('sugar')) {
+    if (text.contains('food') ||
+        text.contains('bread') ||
+        text.contains('meal') ||
+        text.contains('drink') ||
+        text.contains('beverage') ||
+        text.contains('water') ||
+        text.contains('snack') ||
+        text.contains('sugar')) {
       return '50202301'; // Food, Beverage & Groceries (verified COMPLETED on ZRA)
     }
-    if (text.contains('cloth') || text.contains('shirt') || text.contains('shoe') || text.contains('wear') || text.contains('apparel')) {
+    if (text.contains('cloth') ||
+        text.contains('shirt') ||
+        text.contains('shoe') ||
+        text.contains('wear') ||
+        text.contains('apparel')) {
       return '53101501'; // Clothing & Apparel (verified COMPLETED on ZRA)
     }
-    if (text.contains('drug') || text.contains('med') || text.contains('pharm') || text.contains('health')) {
+    if (text.contains('drug') ||
+        text.contains('med') ||
+        text.contains('pharm') ||
+        text.contains('health')) {
       return '42141501'; // Medical Supplies & Healthcare (verified COMPLETED on ZRA)
     }
-    if (text.contains('soap') || text.contains('lotion') || text.contains('cream') || text.contains('beauty') || text.contains('perfume')) {
+    if (text.contains('soap') ||
+        text.contains('lotion') ||
+        text.contains('cream') ||
+        text.contains('beauty') ||
+        text.contains('perfume')) {
       return '53131600'; // Cosmetics & Personal Care (verified COMPLETED on ZRA)
     }
-    if (text.contains('hardware') || text.contains('cement') || text.contains('paint') || text.contains('tool')) {
+    if (text.contains('hardware') ||
+        text.contains('cement') ||
+        text.contains('paint') ||
+        text.contains('tool')) {
       return '30111501'; // Hardware & Building Materials (verified COMPLETED on ZRA)
     }
-    if (text.contains('furnit') || text.contains('desk') || text.contains('chair') || text.contains('table')) {
+    if (text.contains('furnit') ||
+        text.contains('desk') ||
+        text.contains('chair') ||
+        text.contains('table')) {
       return '56101530'; // Commercial & Industrial Furniture (verified COMPLETED on ZRA)
     }
 
@@ -291,12 +405,19 @@ class DigiTaxInventoryService {
           '$digitaxZambiaApiBaseUrl/items',
           queryParameters: {
             'page_size': 20,
-            if (nextCursor != null && nextCursor.isNotEmpty) 'after': nextCursor,
+            if (nextCursor != null && nextCursor.isNotEmpty)
+              'after': nextCursor,
           },
           options: Options(headers: headers),
         );
 
-        if (resp.statusCode != 200 || resp.data == null) break;
+        if (resp.statusCode != 200 ||
+            resp.data == null ||
+            !_hasItemListPayload(resp.data)) {
+          throw StateError(
+            'Unexpected DigiTax item catalogue response on page $pageCount.',
+          );
+        }
 
         final list = _extractItemList(resp.data);
         for (final item in list) {
@@ -308,6 +429,11 @@ class DigiTaxInventoryService {
         if (resp.data is Map && resp.data['pagination'] is Map) {
           final next = resp.data['pagination']['next']?.toString();
           if (next != null && next.isNotEmpty && next != nextCursor) {
+            if (pageCount == 50) {
+              throw StateError(
+                'DigiTax item catalogue exceeded the 50-page safety limit.',
+              );
+            }
             nextCursor = next;
             continue;
           }
@@ -315,18 +441,34 @@ class DigiTaxInventoryService {
         break;
       } catch (e) {
         debugPrint('DIGITAX_PAGINATION_FETCH_NOTE: Page $pageCount: $e');
-        break;
+        rethrow;
       }
     }
     return allItems;
   }
 
+  String? _extractRemoteItemId(dynamic value) {
+    if (value is! Map) return null;
+
+    for (final key in const ['id', 'item_id']) {
+      final id = value[key]?.toString().trim();
+      if (id != null && id.isNotEmpty && id != 'null') return id;
+    }
+
+    for (final key in const ['item', 'data', 'product']) {
+      final id = _extractRemoteItemId(value[key]);
+      if (id != null) return id;
+    }
+    return null;
+  }
+
   void _startPeriodicFiscalWorker() {
     _fiscalQueueTimer?.cancel();
     _fiscalQueueTimer = Timer.periodic(const Duration(seconds: 45), (_) async {
-      final config = ref.read(storeConfigProvider).value;
-      if (config?.digitaxApiKey?.trim().isNotEmpty == true) {
+      try {
         await processPendingFiscalQueue();
+      } catch (e) {
+        debugPrint('DIGITAX_QUEUE_WORKER_ERROR: $e');
       }
     });
   }
@@ -344,7 +486,9 @@ class DigiTaxInventoryService {
   static String normalizeBranchCode(String? value, {String? defaultBhfId}) {
     final trimmed = value?.trim() ?? '';
     if (trimmed.isEmpty) {
-      return (defaultBhfId != null && defaultBhfId.trim().isNotEmpty) ? defaultBhfId.trim() : '00';
+      return (defaultBhfId != null && defaultBhfId.trim().isNotEmpty)
+          ? defaultBhfId.trim()
+          : '00';
     }
     return trimmed;
   }
@@ -353,7 +497,8 @@ class DigiTaxInventoryService {
   /// Each branch MUST have its own isolated API key and isolated catalog.
   Future<String?> resolveBranchApiKey(String? branchCode) async {
     final db = ref.read(databaseServiceProvider);
-    final config = ref.read(storeConfigProvider).value ??
+    final config =
+        ref.read(storeConfigProvider).value ??
         await db.isar.storeConfigs.where().findFirst();
 
     final normConfig = normalizeBranchCode(config?.bhfId);
@@ -378,7 +523,10 @@ class DigiTaxInventoryService {
     }
 
     // 3. Fallback to active config key ONLY if target is HQ / main store
-    if (targetBhf == '00' || targetBhf == '000' || targetBhf == '001' || targetBhf == normConfig) {
+    if (targetBhf == '00' ||
+        targetBhf == '000' ||
+        targetBhf == '001' ||
+        targetBhf == normConfig) {
       return config?.digitaxApiKey?.trim();
     }
 
@@ -392,10 +540,14 @@ class DigiTaxInventoryService {
     final db = ref.read(databaseServiceProvider);
     final localSql = ref.read(localSqlServiceProvider);
     final config = ref.read(storeConfigProvider).value;
-    final configuredBhfId = config?.bhfId.trim().isNotEmpty == true ? config!.bhfId.trim() : '00';
+    final configuredBhfId = config?.bhfId.trim().isNotEmpty == true
+        ? config!.bhfId.trim()
+        : '00';
     final isar = db.isar;
 
-    final targetBranch = branchCode != null ? normalizeBranchCode(branchCode, defaultBhfId: configuredBhfId) : null;
+    final targetBranch = branchCode != null
+        ? normalizeBranchCode(branchCode, defaultBhfId: configuredBhfId)
+        : null;
     final allProducts = await isar.products.where().findAll();
 
     final Map<String, Product> canonicalMap = {};
@@ -403,7 +555,10 @@ class DigiTaxInventoryService {
     final List<Product> productsToUpdate = [];
 
     for (final p in allProducts) {
-      final normBranch = normalizeBranchCode(p.branchCode, defaultBhfId: configuredBhfId);
+      final normBranch = normalizeBranchCode(
+        p.branchCode,
+        defaultBhfId: configuredBhfId,
+      );
       if (p.branchCode != normBranch) {
         p.branchCode = normBranch;
         if (!productsToUpdate.contains(p)) {
@@ -416,37 +571,12 @@ class DigiTaxInventoryService {
         continue;
       }
 
-      final normName = p.name.trim().toLowerCase();
-      final normSku = p.sku.trim().toLowerCase();
       final dtItemId = p.itemClsCd.trim();
 
-      if (normName.isEmpty && normSku.isEmpty) continue;
+      if (!dtItemId.startsWith('item_')) continue;
 
-      Product? existingMatch;
-
-      // 1. Match by DigiTax item ID if valid
-      if (dtItemId.isNotEmpty && dtItemId.startsWith('item_')) {
-        final dtKey = '${normBranch}_dt_$dtItemId';
-        if (canonicalMap.containsKey(dtKey)) {
-          existingMatch = canonicalMap[dtKey];
-        }
-      }
-
-      // 2. Match by exact Product Name within same branch
-      if (existingMatch == null && normName.isNotEmpty) {
-        final nameKey = '${normBranch}_name_$normName';
-        if (canonicalMap.containsKey(nameKey)) {
-          existingMatch = canonicalMap[nameKey];
-        }
-      }
-
-      // 3. Match by SKU within same branch (skip auto-generated placeholders)
-      if (existingMatch == null && normSku.isNotEmpty && !normSku.startsWith('sku-')) {
-        final skuKey = '${normBranch}_sku_$normSku';
-        if (canonicalMap.containsKey(skuKey)) {
-          existingMatch = canonicalMap[skuKey];
-        }
-      }
+      final dtKey = '${normBranch}_dt_$dtItemId';
+      final existingMatch = canonicalMap[dtKey];
 
       if (existingMatch != null && existingMatch.id != p.id) {
         bool modified = false;
@@ -476,18 +606,23 @@ class DigiTaxInventoryService {
         // Keep DigiTax sync status & date
         if (p.isSyncedWithDigitax && !existingMatch.isSyncedWithDigitax) {
           existingMatch.isSyncedWithDigitax = true;
-          existingMatch.lastDigitaxSyncDate = p.lastDigitaxSyncDate ?? DateTime.now();
+          existingMatch.lastDigitaxSyncDate =
+              p.lastDigitaxSyncDate ?? DateTime.now();
           modified = true;
         }
 
         // Keep DigiTax item ID
-        if (p.itemClsCd.isNotEmpty && !existingMatch.itemClsCd.startsWith('item_')) {
+        if (p.itemClsCd.isNotEmpty &&
+            !existingMatch.itemClsCd.startsWith('item_')) {
           existingMatch.itemClsCd = p.itemClsCd;
           modified = true;
         }
 
         // Keep image if present
-        if (p.imagePath != null && p.imagePath!.isNotEmpty && (existingMatch.imagePath == null || existingMatch.imagePath!.isEmpty)) {
+        if (p.imagePath != null &&
+            p.imagePath!.isNotEmpty &&
+            (existingMatch.imagePath == null ||
+                existingMatch.imagePath!.isEmpty)) {
           existingMatch.imagePath = p.imagePath;
           modified = true;
         }
@@ -498,15 +633,7 @@ class DigiTaxInventoryService {
 
         duplicateIdsToDelete.add(p.id);
       } else {
-        if (dtItemId.isNotEmpty && dtItemId.startsWith('item_')) {
-          canonicalMap['${normBranch}_dt_$dtItemId'] = p;
-        }
-        if (normName.isNotEmpty) {
-          canonicalMap['${normBranch}_name_$normName'] = p;
-        }
-        if (normSku.isNotEmpty && !normSku.startsWith('sku-')) {
-          canonicalMap['${normBranch}_sku_$normSku'] = p;
-        }
+        canonicalMap[dtKey] = p;
       }
     }
 
@@ -522,7 +649,11 @@ class DigiTaxInventoryService {
 
       try {
         for (final id in duplicateIdsToDelete) {
-          await localSql.db.delete('products', where: 'id = ?', whereArgs: [id]);
+          await localSql.db.delete(
+            'products',
+            where: 'id = ?',
+            whereArgs: [id],
+          );
         }
         for (final p in productsToUpdate) {
           await localSql.db.update(
@@ -687,14 +818,11 @@ class DigiTaxInventoryService {
       final localSql = ref.read(localSqlServiceProvider);
       final config = await db.isar.storeConfigs.where().findFirst();
 
-      // 1. Purge any duplicate records first within the target branch
-      final cleanedDups = await deduplicateLocalProducts(
-        branchCode: branchCode,
-      );
-
       final isOwner = ref.read(isOwnerProvider);
       final currentUser = ref.read(authProvider);
-      final configuredBhfId = config?.bhfId.trim().isNotEmpty == true ? config!.bhfId.trim() : '00';
+      final configuredBhfId = config?.bhfId.trim().isNotEmpty == true
+          ? config!.bhfId.trim()
+          : '00';
       final String bhfId;
       if (branchCode != null && branchCode.isNotEmpty) {
         bhfId = branchCode.trim();
@@ -729,50 +857,45 @@ class DigiTaxInventoryService {
       int pulledCount = 0;
       final List<String> errors = [];
 
-      // 2. Fetch all existing remote items from DigiTax
-      List<dynamic> remoteList = [];
+      // Do not continue to imports or uploads unless the remote catalogue was read.
+      List<Map<String, dynamic>> remoteList;
       try {
-        final remoteResp = await _dio.get(
-          '$digitaxZambiaApiBaseUrl/items',
-          options: Options(headers: headers),
-        );
-
-        if (remoteResp.statusCode == 200 && remoteResp.data != null) {
-          remoteList = _extractItemList(remoteResp.data);
-        }
-      } on DioException catch (dioErr) {
-        errors.add(
-          'Failed to fetch remote items: [HTTP ${dioErr.response?.statusCode}] ${dioErr.response?.data ?? dioErr.message}',
-        );
+        remoteList = await _fetchAllRemoteItems(headers);
       } catch (e) {
-        errors.add('Failed to fetch remote items: $e');
+        return DigiTaxSyncResult(
+          success: false,
+          message:
+              'DigiTax catalogue was not changed because its current items could not be read: $e',
+          errors: ['Failed to fetch remote items: $e'],
+        );
       }
 
-      // Map remote items by DigiTax ID, name, and barcode/code (used by push section)
+      // Keep ambiguous names and barcodes as candidate lists, never first-match maps.
       final Map<String, Map<String, dynamic>> remoteById = {};
-      final Map<String, Map<String, dynamic>> remoteByName = {};
-      final Map<String, Map<String, dynamic>> remoteByCode = {};
+      final Map<String, List<Map<String, dynamic>>> remoteByName = {};
+      final Map<String, List<Map<String, dynamic>>> remoteByCode = {};
 
       for (final item in remoteList) {
-        if (item is Map<String, dynamic>) {
-          final id = (item['id'] ?? '').toString();
-          final name =
-              (item['item_name'] ?? item['itemNm'] ?? item['name'] ?? '')
-                  .toString()
-                  .trim()
-                  .toLowerCase();
-          final code =
-              (item['item_code'] ??
-                      item['itemCd'] ??
-                      item['bar_code'] ??
-                      item['barcode'] ??
-                      item['sku'] ??
-                      '')
-                  .toString()
-                  .trim();
-          if (id.isNotEmpty) remoteById[id] = item;
-          if (name.isNotEmpty) remoteByName[name] = item;
-          if (code.isNotEmpty) remoteByCode[code] = item;
+        final id = (item['id'] ?? item['item_id'] ?? '').toString();
+        final name = (item['item_name'] ?? item['itemNm'] ?? item['name'] ?? '')
+            .toString()
+            .trim()
+            .toLowerCase();
+        final code =
+            (item['item_code'] ??
+                    item['itemCd'] ??
+                    item['bar_code'] ??
+                    item['barcode'] ??
+                    item['sku'] ??
+                    '')
+                .toString()
+                .trim();
+        if (id.isNotEmpty) remoteById[id] = item;
+        if (name.isNotEmpty) {
+          remoteByName.putIfAbsent(name, () => []).add(item);
+        }
+        if (code.isNotEmpty) {
+          remoteByCode.putIfAbsent(code.toLowerCase(), () => []).add(item);
         }
       }
 
@@ -780,8 +903,6 @@ class DigiTaxInventoryService {
       // 3. Pull — Branch-Isolated Sync
       // ──────────────────────────────────────────────────────────────────────────
       for (final r in remoteList) {
-        if (r is! Map) continue;
-
         final rId = (r['id'] ?? r['item_id'] ?? r['itemId'] ?? '').toString();
         final rItemCode = (r['item_code'] ?? r['itemCd'] ?? r['itemCode'] ?? '')
             .toString();
@@ -811,46 +932,37 @@ class DigiTaxInventoryService {
             : (int.tryParse(rawStock.toString()) ?? 0);
 
         if (rName.isEmpty) continue;
-
-        // 1. Match by DigiTax ID
-        Product? existing;
-        if (rId.isNotEmpty) {
-          existing = await db.isar.products
-              .filter()
-              .group((q) => isCurrentHq
-                  ? q.branchCodeEqualTo(bhfId).or().branchCodeEqualTo(configuredBhfId).or().branchCodeEqualTo('00').or().branchCodeEqualTo('000').or().branchCodeEqualTo('')
-                  : q.branchCodeEqualTo(bhfId))
-              .and()
-              .itemClsCdEqualTo(rId)
-              .findFirst();
+        if (rId.isEmpty) {
+          debugPrint(
+            'DIGITAX_PULL_SKIP: Remote item "$rName" has no stable DigiTax ID; refusing to match by name or SKU.',
+          );
+          continue;
         }
 
-        // 2. Match by Barcode / SKU
         final remoteSku = rBarcode.isNotEmpty
             ? rBarcode
             : (rItemCode.isNotEmpty ? rItemCode : rId);
-        if (existing == null && remoteSku.isNotEmpty) {
-          existing = await db.isar.products
-              .filter()
-              .group((q) => isCurrentHq
-                  ? q.branchCodeEqualTo(bhfId).or().branchCodeEqualTo(configuredBhfId).or().branchCodeEqualTo('00').or().branchCodeEqualTo('000').or().branchCodeEqualTo('')
-                  : q.branchCodeEqualTo(bhfId))
-              .and()
-              .skuEqualTo(remoteSku, caseSensitive: false)
-              .findFirst();
-        }
-
-        // 3. Match by Name
-        if (existing == null && rName.isNotEmpty) {
-          existing = await db.isar.products
-              .filter()
-              .group((q) => isCurrentHq
-                  ? q.branchCodeEqualTo(bhfId).or().branchCodeEqualTo(configuredBhfId).or().branchCodeEqualTo('00').or().branchCodeEqualTo('000').or().branchCodeEqualTo('')
-                  : q.branchCodeEqualTo(bhfId))
-              .and()
-              .nameEqualTo(rName, caseSensitive: false)
-              .findFirst();
-        }
+        final existing = await db.isar.products
+            .filter()
+            .group(
+              (q) => isCurrentHq
+                  ? q
+                        .branchCodeEqualTo(bhfId)
+                        .or()
+                        .branchCodeEqualTo(configuredBhfId)
+                        .or()
+                        .branchCodeEqualTo('00')
+                        .or()
+                        .branchCodeEqualTo('000')
+                        .or()
+                        .branchCodeEqualTo('')
+                  : q.branchCodeEqualTo(bhfId),
+            )
+            .and()
+            .isDigitaxSyncEnabledEqualTo(true)
+            .and()
+            .itemClsCdEqualTo(rId)
+            .findFirst();
 
         if (existing != null) {
           existing.branchCode = bhfId;
@@ -868,7 +980,7 @@ class DigiTaxInventoryService {
           }
           existing.lastDigitaxSyncDate = DateTime.now();
           await db.isar.writeTxn(() async {
-            await db.isar.products.put(existing!);
+            await db.isar.products.put(existing);
           });
           pulledCount++;
         } else {
@@ -882,6 +994,7 @@ class DigiTaxInventoryService {
             branchCode: bhfId,
             branchName: config?.branchName,
             isSyncedWithDigitax: true,
+            isDigitaxSyncEnabled: true,
             lastDigitaxSyncDate: DateTime.now(),
           );
           await db.isar.writeTxn(() async {
@@ -891,33 +1004,67 @@ class DigiTaxInventoryService {
         }
       }
 
-      // Final deduplication pass to ensure perfect database cleanliness
-      final postCleanDups = await deduplicateLocalProducts(branchCode: branchCode);
-      if (cleanedDups + postCleanDups > 0) {
-        debugPrint('DIGITAX_SYNC: Cleaned ${cleanedDups + postCleanDups} duplicate products.');
-      }
-
       // 4. Push local products & price updates UP to DigiTax (Only for products belonging to this branch!)
       final localProducts = await db.getAllProducts(branchCode: bhfId);
 
       for (final p in localProducts) {
         // Offline / Exempt items (isDigitaxSyncEnabled == false) or Tax Exclusive items are local-only stock: do not push to DigiTax
-        if (!p.isDigitaxSyncEnabled || !p.isTaxInclusive) {
+        if (!p.isDigitaxSyncEligible) {
           continue;
         }
 
         try {
           final pNameKey = p.name.trim().toLowerCase();
-          final pCodeKey = p.sku.trim();
+          final pCodeKey = p.sku.trim().toLowerCase();
+          final storedItemId = p.hasUsableDigitaxItemId
+              ? p.itemClsCd.trim()
+              : '';
+          final nameCandidates = remoteByName[pNameKey] ?? const [];
+          final codeCandidates = pCodeKey.isNotEmpty
+              ? remoteByCode[pCodeKey] ?? const []
+              : const <Map<String, dynamic>>[];
+          final candidatePool = codeCandidates.isNotEmpty
+              ? codeCandidates
+              : nameCandidates;
+          final localClass = p.itemClsCd.trim().toLowerCase();
+          final hasSpecificClass =
+              localClass.isNotEmpty &&
+              !p.hasUsableDigitaxItemId &&
+              localClass != '10101501' &&
+              localClass != '56101530';
+          final classCandidates = hasSpecificClass
+              ? candidatePool.where((candidate) {
+                  final code =
+                      (candidate['item_class_code'] ??
+                              candidate['itemClsCd'] ??
+                              candidate['item_cls_cd'] ??
+                              '')
+                          .toString()
+                          .trim()
+                          .toLowerCase();
+                  return code == localClass;
+                }).toList()
+              : candidatePool;
+          final existingRemote = storedItemId.isNotEmpty
+              ? remoteById[storedItemId]
+              : classCandidates.length == 1
+              ? classCandidates.single
+              : null;
 
-          // Priority 1: match by DigiTax item ID already stored locally (most reliable)
-          // Priority 2: fall back to name / barcode match (for newly-added products)
-          final existingRemote =
-              (p.itemClsCd.isNotEmpty && p.itemClsCd.startsWith('item_')
-                  ? remoteById[p.itemClsCd]
-                  : null) ??
-              remoteByName[pNameKey] ??
-              (pCodeKey.isNotEmpty ? remoteByCode[pCodeKey] : null);
+          if (storedItemId.isNotEmpty && existingRemote == null) {
+            errors.add(
+              'Skipped "${p.name}": DigiTax item ID "$storedItemId" is not present in the remote catalogue.',
+            );
+            continue;
+          }
+          if (storedItemId.isEmpty &&
+              (classCandidates.length > 1 ||
+                  (candidatePool.isNotEmpty && classCandidates.isEmpty))) {
+            errors.add(
+              'Skipped "${p.name}": DigiTax match is ambiguous or has a different item classification.',
+            );
+            continue;
+          }
 
           if (existingRemote != null) {
             final remoteId = (existingRemote['id'] ?? '').toString();
@@ -991,12 +1138,29 @@ class DigiTaxInventoryService {
             );
 
             if (resp.statusCode == 200 || resp.statusCode == 201) {
-              final respData = resp.data;
-              if (respData is Map && respData['id'] != null) {
-                p.itemClsCd = respData['id'].toString();
-              }
+              final itemId = _extractRemoteItemId(resp.data);
+              if (itemId != null) p.itemClsCd = itemId;
               p.isSyncedWithDigitax = true;
               p.lastDigitaxSyncDate = DateTime.now();
+
+              // The catalogue snapshot was fetched before this upload. Add this item
+              // to it so another local copy in the same sync run links to this record.
+              final createdRemoteItem = <String, dynamic>{
+                'id': ?itemId,
+                'item_name': p.name.trim(),
+                'item_code': p.sku.trim(),
+                'bar_code': p.sku.trim(),
+                'item_class_code': classCode,
+              };
+              if (itemId != null) remoteById[itemId] = createdRemoteItem;
+              remoteByName
+                  .putIfAbsent(p.name.trim().toLowerCase(), () => [])
+                  .add(createdRemoteItem);
+              if (p.sku.trim().isNotEmpty) {
+                remoteByCode
+                    .putIfAbsent(p.sku.trim().toLowerCase(), () => [])
+                    .add(createdRemoteItem);
+              }
 
               if (p.stockLevel > 0 && p.itemClsCd.isNotEmpty) {
                 try {
@@ -1040,12 +1204,9 @@ class DigiTaxInventoryService {
               (dioErr.response?.statusCode == 400 &&
                   dioErr.response?.data.toString().contains('already exists') ==
                       true)) {
-            p.isSyncedWithDigitax = true;
-            p.lastDigitaxSyncDate = DateTime.now();
-            await db.isar.writeTxn(() async {
-              await db.isar.products.put(p);
-            });
-            pushedCount++;
+            errors.add(
+              'DigiTax reports "${p.name}" already exists, but its item ID could not be matched. Sync again after refreshing the catalogue; no duplicate was created.',
+            );
           } else {
             errors.add(
               'Failed to push "${p.name}" to DigiTax [HTTP ${dioErr.response?.statusCode}]: ${dioErr.response?.data ?? dioErr.message}',
@@ -1091,7 +1252,7 @@ class DigiTaxInventoryService {
     String? reasonNotes,
     bool throwOnError = false,
   }) async {
-    if (!product.isDigitaxSyncEnabled) {
+    if (!product.isDigitaxSyncEligible) {
       debugPrint(
         'DIGITAX_SINGLE_PUSH_SKIP: Product ${product.name} is marked offline/local only.',
       );
@@ -1113,7 +1274,9 @@ class DigiTaxInventoryService {
 
     final apiKey = await resolveBranchApiKey(effectiveBranchCode);
     if (apiKey == null || apiKey.isEmpty) {
-      debugPrint('DIGITAX_SINGLE_PUSH: DigiTax API Key is missing for branch $effectiveBranchCode');
+      debugPrint(
+        'DIGITAX_SINGLE_PUSH: DigiTax API Key is missing for branch $effectiveBranchCode',
+      );
       if (throwOnError) {
         throw 'Branch $effectiveBranchCode does not have its own DigiTax API Key configured.';
       }
@@ -1133,36 +1296,102 @@ class DigiTaxInventoryService {
       if (product.hasUsableDigitaxItemId) {
         digitaxItemId = product.itemClsCd;
       } else {
-        // Query remote items to find match before creating duplicate
         try {
           final remoteItems = await _fetchAllRemoteItems(headers);
           final normName = product.name.trim().toLowerCase();
           final normSku = product.sku.trim().toLowerCase();
+          final localClass = product.itemClsCd.trim().toLowerCase();
+          final hasSpecificClass =
+              localClass.isNotEmpty &&
+              localClass != '10101501' &&
+              localClass != '56101530';
+          final codeMatches = <Map<String, dynamic>>[];
+          final nameMatches = <Map<String, dynamic>>[];
+          final classMatches = <Map<String, dynamic>>[];
 
           for (final item in remoteItems) {
+            final rId = (item['id'] ?? item['item_id'] ?? '').toString().trim();
             final rName = (item['item_name'] ?? item['name'] ?? '')
                 .toString()
                 .trim()
                 .toLowerCase();
-            final rCode = (item['bar_code'] ??
-                    item['barcode'] ??
-                    item['item_code'] ??
-                    item['sku'] ??
-                    '')
-                .toString()
-                .trim()
-                .toLowerCase();
+            final rCode =
+                (item['bar_code'] ??
+                        item['barcode'] ??
+                        item['item_code'] ??
+                        item['sku'] ??
+                        '')
+                    .toString()
+                    .trim()
+                    .toLowerCase();
+            final rClass =
+                (item['item_class_code'] ??
+                        item['itemClsCd'] ??
+                        item['item_cls_cd'] ??
+                        '')
+                    .toString()
+                    .trim()
+                    .toLowerCase();
+            final codeMatchesProduct = normSku.isNotEmpty && rCode == normSku;
+            final nameMatchesProduct = normName.isNotEmpty && rName == normName;
 
-            if ((normName.isNotEmpty && rName == normName) ||
-                (normSku.isNotEmpty && rCode == normSku)) {
-              digitaxItemId = (item['id'] ?? item['item_id'] ?? '').toString();
-              final rawSt = item['stock_quantity'] ?? item['stock'] ?? item['quantity'] ?? 0;
-              remoteStock = rawSt is num ? rawSt.toInt() : (int.tryParse(rawSt.toString()) ?? 0);
-              break;
+            if (rId.isEmpty && (codeMatchesProduct || nameMatchesProduct)) {
+              debugPrint(
+                'DIGITAX_SINGLE_PUSH_ABORT: A matching remote item had no stable DigiTax ID.',
+              );
+              return false;
             }
+            if (codeMatchesProduct) codeMatches.add(item);
+            if (nameMatchesProduct) nameMatches.add(item);
+            if (hasSpecificClass && rClass == localClass) {
+              classMatches.add(item);
+            }
+          }
+
+          final baseMatches = codeMatches.isNotEmpty
+              ? codeMatches
+              : nameMatches;
+          final matches = hasSpecificClass
+              ? classMatches
+                    .where(
+                      (item) =>
+                          codeMatches.contains(item) ||
+                          nameMatches.contains(item),
+                    )
+                    .toList()
+              : baseMatches;
+
+          if (matches.length > 1 ||
+              (matches.isEmpty && baseMatches.isNotEmpty)) {
+            debugPrint(
+              'DIGITAX_SINGLE_PUSH_ABORT: Multiple DigiTax products match "${product.name}" / "${product.sku}", or their classification does not match "${product.itemClsCd}".',
+            );
+            return false;
+          }
+          if (matches.length == 1) {
+            final match = matches.single;
+            digitaxItemId = (match['id'] ?? match['item_id'] ?? '')
+                .toString()
+                .trim();
+            if (digitaxItemId.isEmpty) {
+              debugPrint(
+                'DIGITAX_SINGLE_PUSH_ABORT: A matching remote item had no stable DigiTax ID.',
+              );
+              return false;
+            }
+            final rawSt =
+                match['stock_quantity'] ??
+                match['stock'] ??
+                match['quantity'] ??
+                0;
+            remoteStock = rawSt is num
+                ? rawSt.toInt()
+                : (int.tryParse(rawSt.toString()) ?? 0);
           }
         } catch (e) {
           debugPrint('DIGITAX_FETCH_REMOTE_NOTE: $e');
+          if (throwOnError) rethrow;
+          return false;
         }
       }
 
@@ -1270,7 +1499,8 @@ class DigiTaxInventoryService {
           final data = resp.data;
           String? newId;
           if (data is Map) {
-            newId = data['id']?.toString() ??
+            newId =
+                data['id']?.toString() ??
                 data['item_id']?.toString() ??
                 (data['data'] is Map ? data['data']['id']?.toString() : null) ??
                 (data['item'] is Map ? data['item']['id']?.toString() : null);
@@ -1310,7 +1540,9 @@ class DigiTaxInventoryService {
           return true;
         } else {
           final serverMsg = resp.data is Map
-              ? (resp.data['message'] ?? resp.data['error'] ?? resp.data.toString())
+              ? (resp.data['message'] ??
+                    resp.data['error'] ??
+                    resp.data.toString())
               : resp.data.toString();
           if (throwOnError) {
             throw 'DigiTax HTTP ${resp.statusCode}: $serverMsg';
@@ -1332,7 +1564,9 @@ class DigiTaxInventoryService {
       debugPrint('DIGITAX_SINGLE_PUSH_DIO_ERROR: $dioErr');
       if (throwOnError) {
         final serverMsg = dioErr.response?.data is Map
-            ? (dioErr.response?.data['message'] ?? dioErr.response?.data['error'] ?? dioErr.response?.data.toString())
+            ? (dioErr.response?.data['message'] ??
+                  dioErr.response?.data['error'] ??
+                  dioErr.response?.data.toString())
             : (dioErr.response?.data?.toString() ?? dioErr.message);
         throw 'DigiTax HTTP ${dioErr.response?.statusCode ?? 'ERR'}: $serverMsg';
       }
@@ -1353,7 +1587,7 @@ class DigiTaxInventoryService {
     String? remarks,
     String? branchCode,
   }) async {
-    if (!product.isDigitaxSyncEnabled) {
+    if (!product.isDigitaxSyncEligible) {
       debugPrint(
         'DIGITAX_STOCK_ADJUST_SKIP: Product ${product.name} is marked offline/local only.',
       );
@@ -1372,7 +1606,9 @@ class DigiTaxInventoryService {
 
     final apiKey = await resolveBranchApiKey(resolvedBranchCode);
     if (apiKey == null || apiKey.isEmpty) {
-      debugPrint('DIGITAX_STOCK_ADJUST_SKIP: API Key is missing for branch $resolvedBranchCode');
+      debugPrint(
+        'DIGITAX_STOCK_ADJUST_SKIP: API Key is missing for branch $resolvedBranchCode',
+      );
       return false;
     }
 
@@ -1412,7 +1648,8 @@ class DigiTaxInventoryService {
                 .toLowerCase();
 
             if ((normName.isNotEmpty && rName == normName) ||
-                (normSku.isNotEmpty && (rBarcode == normSku || rCode == normSku))) {
+                (normSku.isNotEmpty &&
+                    (rBarcode == normSku || rCode == normSku))) {
               digitaxItemId = (item['id'] ?? item['item_id'] ?? '').toString();
               break;
             }
@@ -1474,7 +1711,8 @@ class DigiTaxInventoryService {
           options: Options(headers: headers),
         );
       } on DioException catch (dioErr) {
-        if (dioErr.response?.statusCode == 400 && payload.containsKey('remarks')) {
+        if (dioErr.response?.statusCode == 400 &&
+            payload.containsKey('remarks')) {
           payload.remove('remarks');
           resp = await _dio.put(
             '$digitaxZambiaApiBaseUrl/stock/adjust',
@@ -1515,16 +1753,27 @@ class DigiTaxInventoryService {
     final db = ref.read(databaseServiceProvider);
     final config = ref.read(storeConfigProvider).value;
 
+    Future<void> persistFiscalStatus(String status) async {
+      transaction.zraStatus = status;
+      await db.isar.writeTxn(() async {
+        await db.isar.saleTransactions.put(transaction);
+      });
+    }
+
     final currentUser = ref.read(authProvider);
-    final resolvedBhfId = (currentUser?.branchCode != null && currentUser!.branchCode!.trim().isNotEmpty)
+    final resolvedBhfId =
+        (currentUser?.branchCode != null &&
+            currentUser!.branchCode!.trim().isNotEmpty)
         ? currentUser.branchCode!.trim().padLeft(2, '0')
         : (config?.bhfId.trim().isNotEmpty == true
-            ? config!.bhfId.trim().padLeft(2, '0')
-            : '00');
+              ? config!.bhfId.trim().padLeft(2, '0')
+              : '00');
 
     final apiKey = await resolveBranchApiKey(resolvedBhfId);
     if (apiKey == null || apiKey.isEmpty) {
-      debugPrint('DIGITAX_SALES: Cannot fiscalize - API Key is missing for branch $resolvedBhfId.');
+      debugPrint(
+        'DIGITAX_SALES: Cannot fiscalize - API Key is missing for branch $resolvedBhfId.',
+      );
       return false;
     }
 
@@ -1575,32 +1824,101 @@ class DigiTaxInventoryService {
           final normName = item.productName.trim().toLowerCase();
           final localSku = localProd?.sku.trim().toLowerCase() ?? '';
           final localCls = localProd?.itemClsCd.trim().toLowerCase() ?? '';
+          final hasSpecificClass =
+              localCls.isNotEmpty &&
+              !localCls.startsWith('item_') &&
+              localCls != '10101501' &&
+              localCls != '56101530';
+          final codeMatches = <Map<String, dynamic>>[];
+          final nameMatches = <Map<String, dynamic>>[];
+          final classMatches = <Map<String, dynamic>>[];
 
           for (final rem in remoteItems) {
             final rId = (rem['id'] ?? rem['item_id'] ?? '').toString().trim();
-            final rName = (rem['item_name'] ?? rem['name'] ?? '').toString().trim().toLowerCase();
-            final rCode = (rem['item_code'] ?? rem['code'] ?? '').toString().trim().toLowerCase();
-            final rBarcode = (rem['bar_code'] ?? rem['barcode'] ?? '').toString().trim().toLowerCase();
+            final rName = (rem['item_name'] ?? rem['name'] ?? '')
+                .toString()
+                .trim()
+                .toLowerCase();
+            final rCode = (rem['item_code'] ?? rem['code'] ?? '')
+                .toString()
+                .trim()
+                .toLowerCase();
+            final rBarcode = (rem['bar_code'] ?? rem['barcode'] ?? '')
+                .toString()
+                .trim()
+                .toLowerCase();
+            final rClass =
+                (rem['item_class_code'] ??
+                        rem['itemClsCd'] ??
+                        rem['item_cls_cd'] ??
+                        '')
+                    .toString()
+                    .trim()
+                    .toLowerCase();
+            final isCodeMatch =
+                localSku.isNotEmpty &&
+                (rCode == localSku || rBarcode == localSku);
+            final isNameMatch =
+                rName.isNotEmpty &&
+                (rName == normName ||
+                    rName.replaceAll(RegExp(r'\s+'), '') ==
+                        normName.replaceAll(RegExp(r'\s+'), ''));
+            if (isCodeMatch) codeMatches.add(rem);
+            if (isNameMatch) nameMatches.add(rem);
+            if (hasSpecificClass && rClass == localCls) {
+              classMatches.add(rem);
+            }
+            if (rId.isEmpty && (isCodeMatch || isNameMatch)) {
+              debugPrint(
+                'DIGITAX_SALES_ABORT: A matching remote product has no stable DigiTax ID.',
+              );
+              return false;
+            }
+          }
 
-            final isIdMatch = rId.isNotEmpty && (rId == localCls || (localProd != null && localProd.hasUsableDigitaxItemId && rId == localProd.itemClsCd));
-            final isNameMatch = rName.isNotEmpty && (rName == normName || rName.replaceAll(RegExp(r'\s+'), '') == normName.replaceAll(RegExp(r'\s+'), ''));
-            final isCodeMatch = (localSku.isNotEmpty && (rCode == localSku || rBarcode == localSku)) ||
-                (rBarcode == 'sku-${item.productId}' || rCode == 'sku-${item.productId}');
+          final matchingItems = hasSpecificClass
+              ? classMatches
+                    .where(
+                      (candidate) =>
+                          codeMatches.contains(candidate) ||
+                          nameMatches.contains(candidate),
+                    )
+                    .toList()
+              : codeMatches.isNotEmpty
+              ? codeMatches
+              : nameMatches;
 
-            if (isIdMatch || isNameMatch || isCodeMatch) {
-              digitaxItemId = rId;
-              if (localProd != null && digitaxItemId.isNotEmpty) {
-                localProd.itemClsCd = digitaxItemId;
-                localProd.isSyncedWithDigitax = true;
-                await db.isar.writeTxn(() async {
-                  await db.isar.products.put(localProd);
-                });
-              }
-              break;
+          if (matchingItems.length > 1) {
+            debugPrint(
+              'DIGITAX_SALES_ABORT: Multiple DigiTax products match "${item.productName}" and SKU "${localProd?.sku ?? ''}"; refusing an ambiguous classification match.',
+            );
+            return false;
+          }
+          if (matchingItems.isEmpty &&
+              (codeMatches.isNotEmpty || nameMatches.isNotEmpty)) {
+            debugPrint(
+              'DIGITAX_SALES_ABORT: DigiTax has matching product names/SKUs, but none match the local classification "$localCls".',
+            );
+            return false;
+          }
+          if (matchingItems.length == 1) {
+            digitaxItemId =
+                (matchingItems.single['id'] ??
+                        matchingItems.single['item_id'] ??
+                        '')
+                    .toString()
+                    .trim();
+            if (localProd != null && digitaxItemId.isNotEmpty) {
+              localProd.itemClsCd = digitaxItemId;
+              localProd.isSyncedWithDigitax = true;
+              await db.isar.writeTxn(() async {
+                await db.isar.products.put(localProd);
+              });
             }
           }
         } catch (e) {
           debugPrint('DIGITAX_SALES: Remote item lookup notice: $e');
+          return false;
         }
       }
 
@@ -1630,15 +1948,23 @@ class DigiTaxInventoryService {
             "vat_category_code": vatCategoryCode,
             if (isTot) "tot_category_code": "TOT",
             "default_unit_price": item.priceAtSale > 0 ? item.priceAtSale : 1.0,
-            "recommended_retail_price": item.priceAtSale > 0 ? item.priceAtSale : 1.0,
-            "stock_quantity": localProd?.stockLevel != null && localProd!.stockLevel > 0 ? localProd.stockLevel : 0,
+            "recommended_retail_price": item.priceAtSale > 0
+                ? item.priceAtSale
+                : 1.0,
+            "stock_quantity":
+                localProd?.stockLevel != null && localProd!.stockLevel > 0
+                ? localProd.stockLevel
+                : 0,
             "is_stock_item": true,
-            "bar_code": (localProd?.sku != null && localProd!.sku.trim().isNotEmpty)
+            "bar_code":
+                (localProd?.sku != null && localProd!.sku.trim().isNotEmpty)
                 ? localProd.sku.trim()
                 : "SKU-${item.productId}",
           };
 
-          debugPrint('DIGITAX_SALES: Auto-registering "${item.productName}" on DigiTax (pkg: $pkgUnit, qty: $qtyUnit)...');
+          debugPrint(
+            'DIGITAX_SALES: Auto-registering "${item.productName}" on DigiTax (pkg: $pkgUnit, qty: $qtyUnit)...',
+          );
           final regResp = await _dio.post(
             '$digitaxZambiaApiBaseUrl/items',
             data: registerPayload,
@@ -1647,8 +1973,11 @@ class DigiTaxInventoryService {
 
           if ((regResp.statusCode == 200 || regResp.statusCode == 201) &&
               regResp.data is Map) {
-            digitaxItemId = (regResp.data['id'] ?? regResp.data['item_id'])?.toString();
-            if (localProd != null && digitaxItemId != null && digitaxItemId.isNotEmpty) {
+            digitaxItemId = (regResp.data['id'] ?? regResp.data['item_id'])
+                ?.toString();
+            if (localProd != null &&
+                digitaxItemId != null &&
+                digitaxItemId.isNotEmpty) {
               localProd.itemClsCd = digitaxItemId;
               localProd.isSyncedWithDigitax = true;
               await db.isar.writeTxn(() async {
@@ -1660,26 +1989,6 @@ class DigiTaxInventoryService {
           debugPrint(
             'DIGITAX_SALES: Item registration DioException [HTTP ${dioErr.response?.statusCode}]: ${dioErr.response?.data}',
           );
-          // If item already registered remotely (e.g. 409 or name already taken), re-query remote items
-          try {
-            final remoteItems = await _fetchAllRemoteItems(headers);
-            final normName = item.productName.trim().toLowerCase();
-            for (final rem in remoteItems) {
-              final rId = (rem['id'] ?? rem['item_id'] ?? '').toString().trim();
-              final rName = (rem['item_name'] ?? rem['name'] ?? '').toString().trim().toLowerCase();
-              if (rName == normName || rName.contains(normName) || normName.contains(rName)) {
-                digitaxItemId = rId;
-                if (localProd != null && digitaxItemId.isNotEmpty) {
-                  localProd.itemClsCd = digitaxItemId;
-                  localProd.isSyncedWithDigitax = true;
-                  await db.isar.writeTxn(() async {
-                    await db.isar.products.put(localProd);
-                  });
-                }
-                break;
-              }
-            }
-          } catch (_) {}
         } catch (e) {
           debugPrint('DIGITAX_SALES: Item registration unexpected error: $e');
         }
@@ -1783,7 +2092,10 @@ class DigiTaxInventoryService {
           'DIGITAX_SALES_QUEUED: Initial response from DigiTax: $data',
         );
 
-        if (data is! Map) return false;
+        if (data is! Map) {
+          await persistFiscalStatus('RECONCILIATION_REQUIRED');
+          return false;
+        }
 
         Map<String, dynamic> saleData = Map<String, dynamic>.from(data);
         if (saleData['sale'] is Map) {
@@ -1800,7 +2112,6 @@ class DigiTaxInventoryService {
               m['signature'] ??
               m['vsdc_signature'] ??
               m['receipt_sign'] ??
-              m['qr_code'] ??
               m['vsdc_sign'] ??
               m['rcpt_sign'];
           if (s != null &&
@@ -1850,7 +2161,9 @@ class DigiTaxInventoryService {
                   if (list is List && list.isNotEmpty) pData = list.first;
                   if (pData is Map) {
                     final mapData = Map<String, dynamic>.from(pData);
-                    final pollStatus = mapData['status']?.toString().toUpperCase();
+                    final pollStatus = mapData['status']
+                        ?.toString()
+                        .toUpperCase();
                     final sig = extractSig(mapData);
                     // Update saleData from the nested object if present
                     if (mapData['sale'] is Map) {
@@ -1921,10 +2234,10 @@ class DigiTaxInventoryService {
                 rawSdc.toString() != 'null')
             ? rawSdc.toString().trim()
             : (config?.sdcId?.isNotEmpty == true
-                ? config!.sdcId!
-                : ((config?.tpin?.isNotEmpty == true)
-                    ? '${config!.tpin!}001'
-                    : ''));
+                  ? config!.sdcId!
+                  : ((config?.tpin?.isNotEmpty == true)
+                        ? '${config!.tpin!}001'
+                        : ''));
 
         // SDC Invoice Number (ZRA Smart Invoice format: INV{SDC_ID}/{number})
         final rawRcpt =
@@ -1967,9 +2280,21 @@ class DigiTaxInventoryService {
           }
         }
 
+        if (sdcRcptNo == 'PENDING' ||
+            liveSignature.isEmpty ||
+            liveSignature == 'PENDING') {
+          transaction.zraSdcId = sdcId.isEmpty ? null : sdcId;
+          await persistFiscalStatus('RECONCILIATION_REQUIRED');
+          debugPrint(
+            'DIGITAX_SALES_RECONCILIATION_REQUIRED: DigiTax accepted the request without confirmed receipt metadata for transaction ${transaction.transactionId}.',
+          );
+          return false;
+        }
+
         // ZRA VSDC Internal Data
         final rawInternalData = saleData['internal_data']?.toString();
-        final internalData = (rawInternalData != null &&
+        final internalData =
+            (rawInternalData != null &&
                 rawInternalData.trim().isNotEmpty &&
                 rawInternalData != 'null')
             ? rawInternalData.trim()
@@ -1979,10 +2304,10 @@ class DigiTaxInventoryService {
         final qrData = (saleData['receipt_url']?.toString().isNotEmpty == true)
             ? saleData['receipt_url'].toString()
             : (saleData['qr_code']?.toString().isNotEmpty == true
-                ? saleData['qr_code'].toString()
-                : (sdcId.isNotEmpty
-                    ? 'https://smartinvoice.zra.org.zm/verify?tpin=${config?.tpin ?? "1000000000"}&sdc=$sdcId&rcpt=$sdcRcptNo'
-                    : ''));
+                  ? saleData['qr_code'].toString()
+                  : (sdcId.isNotEmpty
+                        ? 'https://smartinvoice.zra.org.zm/verify?tpin=${config?.tpin ?? "1000000000"}&sdc=$sdcId&rcpt=$sdcRcptNo'
+                        : ''));
 
         // Invoice type
         final invoiceType = switch (saleData['receipt_type_code']?.toString()) {
@@ -1995,76 +2320,7 @@ class DigiTaxInventoryService {
                 : 'Normal Sale',
         };
 
-        // Server-Side Tax Calculations from DigiTax (VAT, TOT, IPL, TL, Excise)
-        final taxSummary = saleData['sales_tax_summary'];
-        if (taxSummary is Map) {
-          final vatTaxable =
-              double.tryParse(
-                (taxSummary['taxable_amount_vat'] ?? '0').toString(),
-              ) ??
-              0.0;
-          final vatTax =
-              double.tryParse(
-                (taxSummary['tax_amount_vat'] ?? '0').toString(),
-              ) ??
-              0.0;
-          final totTaxable =
-              double.tryParse(
-                (taxSummary['taxable_amount_tot'] ?? '0').toString(),
-              ) ??
-              0.0;
-          final totTax =
-              double.tryParse(
-                (taxSummary['tax_amount_tot'] ?? '0').toString(),
-              ) ??
-              0.0;
-          final iplTaxable =
-              double.tryParse(
-                (taxSummary['taxable_amount_ipl'] ?? '0').toString(),
-              ) ??
-              0.0;
-          final iplTax =
-              double.tryParse(
-                (taxSummary['tax_amount_ipl'] ?? '0').toString(),
-              ) ??
-              0.0;
-          final tlTaxable =
-              double.tryParse(
-                (taxSummary['taxable_amount_tl'] ?? '0').toString(),
-              ) ??
-              0.0;
-          final tlTax =
-              double.tryParse(
-                (taxSummary['tax_amount_tl'] ?? '0').toString(),
-              ) ??
-              0.0;
-          final exciseTaxable =
-              double.tryParse(
-                (taxSummary['taxable_amount_excise'] ?? '0').toString(),
-              ) ??
-              0.0;
-          final exciseTax =
-              double.tryParse(
-                (taxSummary['tax_amount_excise'] ?? '0').toString(),
-              ) ??
-              0.0;
-
-          final serverTax = double.parse(
-            (vatTax + totTax + iplTax + tlTax + exciseTax).toStringAsFixed(2),
-          );
-          final serverSubtotal = double.parse(
-            (vatTaxable + totTaxable + iplTaxable + tlTaxable + exciseTaxable)
-                .toStringAsFixed(2),
-          );
-
-          if (serverSubtotal > 0 || serverTax > 0) {
-            transaction.subtotal = serverSubtotal;
-            transaction.taxAmount = serverTax;
-            transaction.totalAmount = double.parse(
-              (serverSubtotal + serverTax).toStringAsFixed(2),
-            );
-          }
-        }
+        _logFiscalSummaryMismatch(transaction, saleData['sales_tax_summary']);
 
         transaction.zraSdcId = sdcId;
         transaction.zraReceiptNumber = sdcRcptNo;
@@ -2072,6 +2328,18 @@ class DigiTaxInventoryService {
         transaction.zraInternalData = internalData;
         transaction.zraQrCode = qrData;
         transaction.zraInvoiceType = invoiceType;
+        final fiscalTotal = _fiscalResponseTotal(saleData);
+        if (fiscalTotal != null &&
+            (fiscalTotal - transaction.totalAmount).abs() > 0.01) {
+          transaction.zraStatus = 'RECONCILIATION_REQUIRED';
+          await db.isar.writeTxn(() async {
+            await db.isar.saleTransactions.put(transaction);
+          });
+          debugPrint(
+            'DIGITAX_SALES_TOTAL_MISMATCH: DigiTax receipt $sdcRcptNo totals ${fiscalTotal.toStringAsFixed(2)}, but local transaction ${transaction.transactionId} totals ${transaction.totalAmount.toStringAsFixed(2)}. Receipt metadata was preserved and the sale requires reconciliation.',
+          );
+          return false;
+        }
         transaction.zraStatus = 'APPROVED';
 
         await db.isar.writeTxn(() async {
@@ -2099,15 +2367,25 @@ class DigiTaxInventoryService {
         'DIGITAX_SALES_ERROR: [HTTP ${dioErr.response?.statusCode}] ${dioErr.response?.data ?? dioErr.message}',
       );
       if (dioErr.response?.statusCode == 409 ||
-          dioErr.response?.data?.toString().contains('trader_invoice_number has already been used') == true) {
-        transaction.zraStatus = 'FISCALIZED';
-        await db.isar.writeTxn(() async {
-          await db.isar.saleTransactions.put(transaction);
-        });
-        return true;
+          dioErr.response?.data?.toString().contains(
+                'trader_invoice_number has already been used',
+              ) ==
+              true) {
+        await persistFiscalStatus('RECONCILIATION_REQUIRED');
+        debugPrint(
+          'DIGITAX_SALES_RECONCILIATION_REQUIRED: transaction ${transaction.transactionId} conflicts with an existing trader invoice number; refusing to resubmit automatically.',
+        );
+        return false;
       }
+      final responseStatus = dioErr.response?.statusCode;
+      await persistFiscalStatus(
+        responseStatus == null || responseStatus >= 500
+            ? 'RECONCILIATION_REQUIRED'
+            : 'FAILED',
+      );
     } catch (e) {
-      debugPrint('DIGITAX_SALES_EXCEPTION: $e');
+      await persistFiscalStatus('RECONCILIATION_REQUIRED');
+      debugPrint('DIGITAX_SALES_RECONCILIATION_REQUIRED: $e');
     }
     return false;
   }
@@ -2122,6 +2400,18 @@ class DigiTaxInventoryService {
   }) async {
     final db = ref.read(databaseServiceProvider);
     final config = ref.read(storeConfigProvider).value;
+
+    Future<void> persistCreditNoteStatus(String status) async {
+      refundTx
+        ..isCreditNote = true
+        ..orgInvoiceNo = originalSdcInvoiceNo
+        ..creditNoteReason = reason
+        ..zraStatus = status;
+      await db.isar.writeTxn(() async {
+        await db.isar.saleTransactions.put(refundTx);
+      });
+    }
+
     final apiKey = config?.digitaxApiKey?.trim();
     if (apiKey == null || apiKey.isEmpty) {
       debugPrint('DIGITAX_CREDIT_NOTE: No API Key configured – skipped');
@@ -2155,6 +2445,11 @@ class DigiTaxInventoryService {
         'DIGITAX_CREDIT_NOTE_ERROR: No items provided for credit note.',
       );
       return false;
+    }
+    effectiveItems.removeWhere((item) => item.isDigitaxExempt);
+    if (effectiveItems.isEmpty) {
+      await persistCreditNoteStatus('OFFLINE_EXEMPT');
+      return true;
     }
 
     // Map payment method to DigiTax payment_type_code
@@ -2346,14 +2641,31 @@ class DigiTaxInventoryService {
             saleData = Map<String, dynamic>.from(dedicatedResp.data);
           }
 
-          final liveSignature = saleData['receipt_signature']
-              ?.toString()
-              .trim();
+          final liveSignature =
+              (saleData['receipt_signature'] ??
+                      saleData['vsdcMarkId'] ??
+                      saleData['zra_mark_id'])
+                  ?.toString()
+                  .trim();
           final rcptNumberRaw =
               saleData['receipt_number'] ?? saleData['zra_receipt_number'];
-          final sdcRcptNo = (rcptNumberRaw?.toString().isNotEmpty == true)
-              ? rcptNumberRaw.toString()
-              : traderInvNo;
+          final sdcRcptNo = rcptNumberRaw?.toString().trim() ?? '';
+          if (sdcRcptNo.isEmpty ||
+              liveSignature == null ||
+              liveSignature.isEmpty) {
+            refundTx
+              ..isCreditNote = true
+              ..orgInvoiceNo = origTraderInvNo
+              ..creditNoteReason = reason
+              ..zraStatus = 'RECONCILIATION_REQUIRED';
+            await db.isar.writeTxn(() async {
+              await db.isar.saleTransactions.put(refundTx);
+            });
+            debugPrint(
+              'DIGITAX_CREDIT_NOTE_RECONCILIATION_REQUIRED: DigiTax accepted the request without confirmed receipt metadata for $traderInvNo.',
+            );
+            return false;
+          }
           final internalData =
               saleData['internal_data']?.toString() ?? (config?.mrcNo ?? '');
           final sdcId =
@@ -2372,7 +2684,7 @@ class DigiTaxInventoryService {
             ..creditNoteReason = reason
             ..zraSdcId = sdcId
             ..zraReceiptNumber = sdcRcptNo
-            ..zraMarkId = liveSignature ?? 'APPROVED'
+            ..zraMarkId = liveSignature
             ..zraInternalData = internalData
             ..zraQrCode = qrUrl
             ..zraInvoiceType = 'Credit Note (R)'
@@ -2407,10 +2719,24 @@ class DigiTaxInventoryService {
             'DIGITAX_DEDICATED_CN_SUCCESS ✓ CN: ${refundTx.zraReceiptNumber}',
           );
           return true;
+        } else if (dedicatedResp.statusCode != 404 &&
+            dedicatedResp.statusCode != 405) {
+          final status =
+              dedicatedResp.statusCode == 409 ||
+                  dedicatedResp.statusCode! >= 500
+              ? 'RECONCILIATION_REQUIRED'
+              : 'FAILED';
+          await persistCreditNoteStatus(status);
+          debugPrint(
+            'DIGITAX_CREDIT_NOTE_REJECTED: HTTP ${dedicatedResp.statusCode}; not submitting a second credit note automatically.',
+          );
+          return false;
         }
       }
     } catch (strategy1Err) {
-      debugPrint('DIGITAX_STRATEGY1_NOTE: $strategy1Err');
+      await persistCreditNoteStatus('RECONCILIATION_REQUIRED');
+      debugPrint('DIGITAX_STRATEGY1_RECONCILIATION_REQUIRED: $strategy1Err');
+      return false;
     }
 
     // Strategy 2: Universal POST /sales endpoint with kind='CREDIT_NOTE' and receipt_type_code='R'
@@ -2484,7 +2810,11 @@ class DigiTaxInventoryService {
                       pData['results'];
                   if (list is List && list.isNotEmpty) pData = list.first;
                   if (pData is Map) {
-                    final sig = pData['receipt_signature']?.toString();
+                    final sig =
+                        (pData['receipt_signature'] ??
+                                pData['vsdcMarkId'] ??
+                                pData['zra_mark_id'])
+                            ?.toString();
                     if (sig != null && sig.trim().isNotEmpty) {
                       saleData = Map<String, dynamic>.from(pData);
                       break;
@@ -2496,12 +2826,28 @@ class DigiTaxInventoryService {
           }
         }
 
-        final liveSignature = saleData['receipt_signature']?.toString().trim();
+        final liveSignature =
+            (saleData['receipt_signature'] ??
+                    saleData['vsdcMarkId'] ??
+                    saleData['zra_mark_id'])
+                ?.toString()
+                .trim();
         final rcptNumberRaw =
             saleData['receipt_number'] ?? saleData['zra_receipt_number'];
-        final sdcRcptNo = (rcptNumberRaw?.toString().isNotEmpty == true)
-            ? rcptNumberRaw.toString()
-            : traderInvNo;
+        final sdcRcptNo = rcptNumberRaw?.toString().trim() ?? '';
+        if (sdcRcptNo.isEmpty ||
+            liveSignature == null ||
+            liveSignature.isEmpty) {
+          refundTx
+            ..zraReceiptNumber = null
+            ..zraMarkId = null
+            ..zraQrCode = null;
+          await persistCreditNoteStatus('RECONCILIATION_REQUIRED');
+          debugPrint(
+            'DIGITAX_CREDIT_NOTE_RECONCILIATION_REQUIRED: DigiTax accepted the request without confirmed receipt metadata for $traderInvNo.',
+          );
+          return false;
+        }
         final internalData =
             saleData['internal_data']?.toString() ?? (config?.mrcNo ?? '');
         final sdcId =
@@ -2520,13 +2866,11 @@ class DigiTaxInventoryService {
           ..creditNoteReason = reason
           ..zraSdcId = sdcId
           ..zraReceiptNumber = sdcRcptNo
-          ..zraMarkId = liveSignature ?? 'PENDING'
+          ..zraMarkId = liveSignature
           ..zraInternalData = internalData
           ..zraQrCode = qrUrl
           ..zraInvoiceType = 'Credit Note (R)'
-          ..zraStatus = (liveSignature?.isNotEmpty == true)
-              ? 'APPROVED'
-              : 'PENDING';
+          ..zraStatus = 'APPROVED';
 
         // Cache updated SDC ID
         if (sdcId.isNotEmpty && config != null && config.sdcId != sdcId) {
@@ -2568,17 +2912,22 @@ class DigiTaxInventoryService {
         );
         return true;
       } else {
-        // Non-2xx → log full error body so we know exactly what DigiTax rejected
+        final status = resp.statusCode == 409 || resp.statusCode! >= 500
+            ? 'RECONCILIATION_REQUIRED'
+            : 'FAILED';
+        await persistCreditNoteStatus(status);
         debugPrint(
           'DIGITAX_CREDIT_NOTE_REJECTED [HTTP ${resp.statusCode}]: ${resp.data}',
         );
       }
     } on DioException catch (dioErr) {
+      await persistCreditNoteStatus('RECONCILIATION_REQUIRED');
       debugPrint(
-        'DIGITAX_CN_DIO_ERROR: [HTTP ${dioErr.response?.statusCode}] ${dioErr.response?.data ?? dioErr.message}',
+        'DIGITAX_CN_RECONCILIATION_REQUIRED: [HTTP ${dioErr.response?.statusCode}] ${dioErr.response?.data ?? dioErr.message}',
       );
     } catch (e, st) {
-      debugPrint('DIGITAX_CREDIT_NOTE_ERROR: $e\n$st');
+      await persistCreditNoteStatus('RECONCILIATION_REQUIRED');
+      debugPrint('DIGITAX_CN_RECONCILIATION_REQUIRED: $e\n$st');
     }
     return false;
   }
@@ -2695,6 +3044,8 @@ class DigiTaxInventoryService {
       debugPrint('DIGITAX_DEBIT_NOTE_ERROR: No items provided for debit note.');
       return false;
     }
+    effectiveItems.removeWhere((item) => item.isDigitaxExempt);
+    if (effectiveItems.isEmpty) return true;
 
     String paymentTypeCode;
     switch (debitTx.paymentMethod.toUpperCase()) {
@@ -2835,8 +3186,24 @@ class DigiTaxInventoryService {
 
   /// Automatically process offline or pending transactions and submit them to DigiTax
   Future<int> processPendingFiscalQueue() async {
+    if (_isProcessingFiscalQueue) return 0;
+    _isProcessingFiscalQueue = true;
+    try {
+      return await _processPendingFiscalQueue();
+    } finally {
+      _isProcessingFiscalQueue = false;
+    }
+  }
+
+  Future<int> _processPendingFiscalQueue() async {
     final config = ref.read(storeConfigProvider).value;
-    final apiKey = config?.digitaxApiKey?.trim();
+    final currentUser = ref.read(authProvider);
+    final branchCode = currentUser?.branchCode?.trim().isNotEmpty == true
+        ? currentUser!.branchCode!.trim()
+        : (config?.bhfId.trim().isNotEmpty == true
+              ? config!.bhfId.trim()
+              : '00');
+    final apiKey = await resolveBranchApiKey(branchCode);
     if (apiKey == null || apiKey.isEmpty) return 0;
 
     final db = ref.read(databaseServiceProvider);
@@ -2848,7 +3215,9 @@ class DigiTaxInventoryService {
       final statusUpper = tx.zraStatus.toUpperCase();
       if (statusUpper == 'APPROVED' ||
           statusUpper == 'FISCALIZED' ||
-          statusUpper == 'OFFLINE_EXEMPT') {
+          statusUpper == 'OFFLINE_EXEMPT' ||
+          statusUpper == 'RECONCILIATION_REQUIRED' ||
+          statusUpper == 'FAILED') {
         return false;
       }
       return true;
@@ -3192,12 +3561,16 @@ class DigiTaxInventoryService {
   Future<bool> refreshTransactionFiscalData(SaleTransaction transaction) async {
     final config = ref.read(storeConfigProvider).value;
     final currentUser = ref.read(authProvider);
-    final resolvedBhfId = (currentUser?.branchCode != null && currentUser!.branchCode!.trim().isNotEmpty)
+    final resolvedBhfId =
+        (currentUser?.branchCode != null &&
+            currentUser!.branchCode!.trim().isNotEmpty)
         ? currentUser.branchCode!.trim().padLeft(2, '0')
         : (config?.bhfId.trim().isNotEmpty == true
-            ? config!.bhfId.trim().padLeft(2, '0')
-            : '00');
-    final apiKey = await resolveBranchApiKey(resolvedBhfId) ?? config?.digitaxApiKey?.trim();
+              ? config!.bhfId.trim().padLeft(2, '0')
+              : '00');
+    final apiKey =
+        await resolveBranchApiKey(resolvedBhfId) ??
+        config?.digitaxApiKey?.trim();
     if (apiKey == null || apiKey.isEmpty) return false;
 
     final db = ref.read(databaseServiceProvider);
@@ -3318,19 +3691,29 @@ class DigiTaxInventoryService {
             matchData['status']?.toString().toUpperCase() == 'COMPLETED' ||
             matchData['status']?.toString().toUpperCase() == 'APPROVED' ||
             parsedSignature != null ||
-            (parsedSdcRcptNo != null && parsedSdcRcptNo.isNotEmpty && parsedSdcRcptNo != 'PENDING');
+            (parsedSdcRcptNo != null &&
+                parsedSdcRcptNo.isNotEmpty &&
+                parsedSdcRcptNo != 'PENDING');
 
         if (isCompletedOrApproved) {
-          if (parsedSignature != null && parsedSignature.isNotEmpty && !parsedSignature.startsWith('sale_')) {
+          if (parsedSignature != null &&
+              parsedSignature.isNotEmpty &&
+              !parsedSignature.startsWith('sale_')) {
             transaction.zraMarkId = parsedSignature;
           }
-          if (parsedSdcRcptNo != null && parsedSdcRcptNo.isNotEmpty && parsedSdcRcptNo != 'PENDING') {
+          if (parsedSdcRcptNo != null &&
+              parsedSdcRcptNo.isNotEmpty &&
+              parsedSdcRcptNo != 'PENDING') {
             transaction.zraReceiptNumber = parsedSdcRcptNo;
           }
-          if (parsedInternalData != null && parsedInternalData.isNotEmpty && parsedInternalData != 'PENDING') {
+          if (parsedInternalData != null &&
+              parsedInternalData.isNotEmpty &&
+              parsedInternalData != 'PENDING') {
             transaction.zraInternalData = parsedInternalData;
           }
-          if (parsedSdcId != null && parsedSdcId.isNotEmpty && parsedSdcId != 'PENDING') {
+          if (parsedSdcId != null &&
+              parsedSdcId.isNotEmpty &&
+              parsedSdcId != 'PENDING') {
             transaction.zraSdcId = parsedSdcId;
           }
           if (parsedQrUrl != null && parsedQrUrl.isNotEmpty) {
@@ -3341,75 +3724,10 @@ class DigiTaxInventoryService {
           }
 
           // Pull server-calculated taxes from DigiTax
-          final taxSummary = matchData['sales_tax_summary'];
-          if (taxSummary is Map) {
-            final vatTaxable =
-                double.tryParse(
-                  (taxSummary['taxable_amount_vat'] ?? '0').toString(),
-                ) ??
-                0.0;
-            final vatTax =
-                double.tryParse(
-                  (taxSummary['tax_amount_vat'] ?? '0').toString(),
-                ) ??
-                0.0;
-            final totTaxable =
-                double.tryParse(
-                  (taxSummary['taxable_amount_tot'] ?? '0').toString(),
-                ) ??
-                0.0;
-            final totTax =
-                double.tryParse(
-                  (taxSummary['tax_amount_tot'] ?? '0').toString(),
-                ) ??
-                0.0;
-            final iplTaxable =
-                double.tryParse(
-                  (taxSummary['taxable_amount_ipl'] ?? '0').toString(),
-                ) ??
-                0.0;
-            final iplTax =
-                double.tryParse(
-                  (taxSummary['tax_amount_ipl'] ?? '0').toString(),
-                ) ??
-                0.0;
-            final tlTaxable =
-                double.tryParse(
-                  (taxSummary['taxable_amount_tl'] ?? '0').toString(),
-                ) ??
-                0.0;
-            final tlTax =
-                double.tryParse(
-                  (taxSummary['tax_amount_tl'] ?? '0').toString(),
-                ) ??
-                0.0;
-            final exciseTaxable =
-                double.tryParse(
-                  (taxSummary['taxable_amount_excise'] ?? '0').toString(),
-                ) ??
-                0.0;
-            final exciseTax =
-                double.tryParse(
-                  (taxSummary['tax_amount_excise'] ?? '0').toString(),
-                ) ??
-                0.0;
-
-            final serverTax = double.parse(
-              (vatTax + totTax + iplTax + tlTax + exciseTax).toStringAsFixed(2),
-            );
-            final serverSubtotal = double.parse(
-              (vatTaxable + totTaxable + iplTaxable + tlTaxable + exciseTaxable)
-                  .toStringAsFixed(2),
-            );
-
-            if (serverSubtotal > 0 || serverTax > 0) {
-              transaction.subtotal = serverSubtotal;
-              transaction.taxAmount = serverTax;
-              transaction.totalAmount = double.parse(
-                (serverSubtotal + serverTax).toStringAsFixed(2),
-              );
-            }
-          }
+          _logFiscalSummaryMismatch(
+            transaction,
+            matchData['sales_tax_summary'],
+          );
 
           transaction.zraStatus = 'APPROVED';
 
@@ -3487,7 +3805,9 @@ class DigiTaxInventoryService {
       }
 
       // If product does not yet have a DigiTax item_id, register it on DigiTax now
-      if (prod != null && (!prod.itemClsCd.startsWith('item_'))) {
+      if (prod != null &&
+          prod.isDigitaxSyncEligible &&
+          !prod.itemClsCd.startsWith('item_')) {
         try {
           await syncSingleProductToDigitax(prod);
           // Reload from DB to pick up the newly assigned itemClsCd
@@ -3499,7 +3819,9 @@ class DigiTaxInventoryService {
       }
 
       final String? digitaxItemId =
-          (prod != null && prod.itemClsCd.startsWith('item_'))
+          (prod != null &&
+              prod.isDigitaxSyncEligible &&
+              prod.itemClsCd.startsWith('item_'))
           ? prod.itemClsCd
           : null;
 
@@ -3632,11 +3954,10 @@ class DigiTaxInventoryService {
       final Map<String, Map<String, dynamic>> map = {};
       for (final item in remoteList) {
         final id = (item['id'] ?? '').toString();
-        final name =
-            (item['item_name'] ?? item['itemNm'] ?? item['name'] ?? '')
-                .toString()
-                .trim()
-                .toLowerCase();
+        final name = (item['item_name'] ?? item['itemNm'] ?? item['name'] ?? '')
+            .toString()
+            .trim()
+            .toLowerCase();
         final code =
             (item['item_code'] ??
                     item['itemCd'] ??
@@ -3660,10 +3981,7 @@ class DigiTaxInventoryService {
             ? rawStock.toInt()
             : (int.tryParse(rawStock.toString()) ?? 0);
         final rawPrice =
-            item['default_unit_price'] ??
-            item['dftPrc'] ??
-            item['price'] ??
-            0;
+            item['default_unit_price'] ?? item['dftPrc'] ?? item['price'] ?? 0;
         final double price = (rawPrice is num)
             ? rawPrice.toDouble()
             : (double.tryParse(rawPrice.toString()) ?? 0.0);

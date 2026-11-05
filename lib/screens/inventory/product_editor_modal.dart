@@ -15,7 +15,9 @@ import 'package:beleka_pos/screens/inventory/add_stock_modal.dart';
 import 'package:isar/isar.dart';
 import 'package:beleka_pos/widgets/product_image_widget.dart';
 
-final suppliersProvider = FutureProvider.autoDispose<List<Supplier>>((ref) async {
+final suppliersProvider = FutureProvider.autoDispose<List<Supplier>>((
+  ref,
+) async {
   final isar = ref.watch(isarProvider);
   return await isar.suppliers.where().sortByName().findAll();
 });
@@ -23,10 +25,7 @@ final suppliersProvider = FutureProvider.autoDispose<List<Supplier>>((ref) async
 class ProductEditorModal extends ConsumerStatefulWidget {
   final Product? product;
 
-  const ProductEditorModal({
-    super.key,
-    this.product,
-  });
+  const ProductEditorModal({super.key, this.product});
 
   @override
   ConsumerState<ProductEditorModal> createState() => _ProductEditorModalState();
@@ -44,7 +43,7 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
   late TextEditingController _tareWeightController;
   late TextEditingController _scalePluController;
   late TextEditingController _taxRateController;
-  
+
   // Consignment / Selling on Behalf
   bool _isConsignment = false;
   int? _selectedSupplierId;
@@ -55,7 +54,7 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
   bool _hasDiscount = false;
   bool _isTaxInclusive = true;
   bool _isWeighted = false;
-  bool _isDigitaxSyncEnabled = true;
+  bool _isDigitaxSyncEnabled = false;
   String _unitOfMeasure = 'NT';
   String _selectedZraTaxCode = 'A';
   String _selectedItemClsCode = '52151501';
@@ -70,42 +69,50 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
     {
       'code': '50202301',
       'name': 'Food, Beverage & Groceries',
-      'desc': 'Bread, flour, mealie meal, packaged food, drinks & snacks (Standard A & Zero-Rated B)',
+      'desc':
+          'Bread, flour, mealie meal, packaged food, drinks & snacks (Standard A & Zero-Rated B)',
     },
     {
       'code': '50192701',
       'name': 'Soups, Broths & Prepared Foods',
-      'desc': 'Canned soups, dried soups, ready meals, broth & sauces (Standard A & Zero-Rated B)',
+      'desc':
+          'Canned soups, dried soups, ready meals, broth & sauces (Standard A & Zero-Rated B)',
     },
     {
       'code': '52151501',
       'name': 'General Consumer & Retail Goods',
-      'desc': 'Household goods, domestic essentials, stationery & general retail (Standard A)',
+      'desc':
+          'Household goods, domestic essentials, stationery & general retail (Standard A)',
     },
     {
       'code': '53131600',
       'name': 'Cosmetics, Toiletries & Personal Care',
-      'desc': 'Soaps, lotions, hair care, detergents, beauty & personal hygiene (Standard A)',
+      'desc':
+          'Soaps, lotions, hair care, detergents, beauty & personal hygiene (Standard A)',
     },
     {
       'code': '53101501',
       'name': 'Clothing, Footwear & Apparel',
-      'desc': 'Shirts, dresses, trousers, shoes, garments & textiles (Standard A)',
+      'desc':
+          'Shirts, dresses, trousers, shoes, garments & textiles (Standard A)',
     },
     {
       'code': '42141501',
       'name': 'Medical Supplies & Healthcare',
-      'desc': 'Medicines, medical supplies, clinical & healthcare essentials (Exempt C & Zero-Rated B)',
+      'desc':
+          'Medicines, medical supplies, clinical & healthcare essentials (Exempt C & Zero-Rated B)',
     },
     {
       'code': '30111501',
       'name': 'Hardware & Building Materials',
-      'desc': 'Tools, paint, cement, electricals, plumbing & construction items (Standard A)',
+      'desc':
+          'Tools, paint, cement, electricals, plumbing & construction items (Standard A)',
     },
     {
       'code': '56101530',
       'name': 'Furniture & Office Supplies',
-      'desc': 'Chairs, desks, filing cabinets & commercial fixtures (Standard A)',
+      'desc':
+          'Chairs, desks, filing cabinets & commercial fixtures (Standard A)',
     },
   ];
 
@@ -211,19 +218,55 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
     },
   ];
 
-  static String normalizeToDigitaxUnit(String? unitOfMeasure, {bool isWeighted = false}) {
+  static String normalizeToDigitaxUnit(
+    String? unitOfMeasure, {
+    bool isWeighted = false,
+  }) {
     final raw = (unitOfMeasure ?? '').trim();
     if (raw.isEmpty) return isWeighted ? 'KG' : 'NT';
     final upper = raw.toUpperCase();
-    if (['NT', 'BO', 'PA', 'BX', 'CT', 'CA', 'BG', 'RO', 'BE', 'TB', 'AM', 'KG', 'GRM', 'L', 'M'].contains(upper)) {
+    if ([
+      'NT',
+      'BO',
+      'PA',
+      'BX',
+      'CT',
+      'CA',
+      'BG',
+      'RO',
+      'BE',
+      'TB',
+      'AM',
+      'KG',
+      'GRM',
+      'L',
+      'M',
+    ].contains(upper)) {
       return upper;
     }
     final lower = raw.toLowerCase();
-    if (lower == 'pcs' || lower == 'piece' || lower == 'unit' || lower == 'each' || lower == 'item') return 'NT';
-    if (lower.contains('btl') || lower.contains('bottle')) return 'BO';
-    if (lower.contains('pkt') || lower.contains('pack') || lower == 'pk') return 'PA';
-    if (lower.contains('box') || lower.contains('bx') || lower.contains('tab') || lower.contains('stp')) return 'BX';
-    if (lower.contains('carton') || lower == 'ctn' || lower == 'crt') return 'CT';
+    if (lower == 'pcs' ||
+        lower == 'piece' ||
+        lower == 'unit' ||
+        lower == 'each' ||
+        lower == 'item') {
+      return 'NT';
+    }
+    if (lower.contains('btl') || lower.contains('bottle')) {
+      return 'BO';
+    }
+    if (lower.contains('pkt') || lower.contains('pack') || lower == 'pk') {
+      return 'PA';
+    }
+    if (lower.contains('box') ||
+        lower.contains('bx') ||
+        lower.contains('tab') ||
+        lower.contains('stp')) {
+      return 'BX';
+    }
+    if (lower.contains('carton') || lower == 'ctn' || lower == 'crt') {
+      return 'CT';
+    }
     if (lower.contains('can') || lower == 'tin') return 'CA';
     if (lower.contains('bag') || lower == 'bg') return 'BG';
     if (lower == 'kg') return 'KG';
@@ -238,22 +281,41 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
     super.initState();
     _nameController = TextEditingController(text: widget.product?.name ?? '');
     _skuController = TextEditingController(text: widget.product?.sku ?? '');
-    _priceController = TextEditingController(text: widget.product?.price.toString() ?? '');
-    _unitCostController = TextEditingController(text: widget.product?.unitCost.toString() ?? '');
-    _stockController = TextEditingController(text: widget.product?.stockLevel.toString() ?? '');
-    _discountPriceController = TextEditingController(text: widget.product?.discountPrice?.toString() ?? '');
-    
+    _priceController = TextEditingController(
+      text: widget.product?.price.toString() ?? '',
+    );
+    _unitCostController = TextEditingController(
+      text: widget.product?.unitCost.toString() ?? '',
+    );
+    _stockController = TextEditingController(
+      text: widget.product?.stockLevel.toString() ?? '',
+    );
+    _discountPriceController = TextEditingController(
+      text: widget.product?.discountPrice?.toString() ?? '',
+    );
+
     // Scale & Unit properties
     _isWeighted = widget.product?.isWeighted ?? false;
-    _unitOfMeasure = normalizeToDigitaxUnit(widget.product?.unitOfMeasure, isWeighted: _isWeighted);
-    final isPredefined = commonPackagingUnits.any((u) => u['id']!.toUpperCase() == _unitOfMeasure.toUpperCase());
+    _unitOfMeasure = normalizeToDigitaxUnit(
+      widget.product?.unitOfMeasure,
+      isWeighted: _isWeighted,
+    );
+    final isPredefined = commonPackagingUnits.any(
+      (u) => u['id']!.toUpperCase() == _unitOfMeasure.toUpperCase(),
+    );
     _isCustomUnit = !isPredefined && _unitOfMeasure.isNotEmpty;
-    _customUnitController = TextEditingController(text: _isCustomUnit ? _unitOfMeasure : '');
+    _customUnitController = TextEditingController(
+      text: _isCustomUnit ? _unitOfMeasure : '',
+    );
 
     _tareWeightController = TextEditingController(
-      text: (widget.product?.tareWeight ?? 0.0) > 0 ? widget.product!.tareWeight.toString() : '',
+      text: (widget.product?.tareWeight ?? 0.0) > 0
+          ? widget.product!.tareWeight.toString()
+          : '',
     );
-    _scalePluController = TextEditingController(text: widget.product?.scalePlu ?? '');
+    _scalePluController = TextEditingController(
+      text: widget.product?.scalePlu ?? '',
+    );
 
     // Consignment properties
     _isConsignment = widget.product?.isConsignment ?? false;
@@ -261,7 +323,9 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
     _selectedSupplierName = widget.product?.consignmentSupplierName;
     _commissionRateController = TextEditingController(
       text: (widget.product?.consignmentCommissionRate ?? 0.0) > 0
-          ? widget.product!.consignmentCommissionRate.toStringAsFixed(1).replaceAll('.0', '')
+          ? widget.product!.consignmentCommissionRate
+                .toStringAsFixed(1)
+                .replaceAll('.0', '')
           : '15',
     );
     _supplierPayoutPriceController = TextEditingController(
@@ -273,14 +337,18 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
     // Calculate remaining days if editing
     int durationDays = 0;
     if (widget.product?.discountEndDate != null) {
-      durationDays = widget.product!.discountEndDate!.difference(DateTime.now()).inDays;
+      durationDays = widget.product!.discountEndDate!
+          .difference(DateTime.now())
+          .inDays;
       if (durationDays < 0) durationDays = 0;
     }
-    _discountDurationController = TextEditingController(text: durationDays > 0 ? durationDays.toString() : '');
+    _discountDurationController = TextEditingController(
+      text: durationDays > 0 ? durationDays.toString() : '',
+    );
     _hasDiscount = widget.product?.discountPrice != null;
-    
+
     _isTaxInclusive = widget.product?.isTaxInclusive ?? true;
-    _isDigitaxSyncEnabled = widget.product?.isDigitaxSyncEnabled ?? true;
+    _isDigitaxSyncEnabled = widget.product?.isDigitaxSyncEnabled ?? false;
 
     // ZRA Tax Classification
     _selectedZraTaxCode = widget.product?.zraTaxCode ?? '';
@@ -290,7 +358,13 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
     if (_selectedZraTaxCode == 'TOT') _selectedZraTaxCode = 'D';
 
     _taxRateController = TextEditingController(
-      text: (widget.product?.taxRate ?? (_selectedZraTaxCode == 'A' ? 16.0 : (_selectedZraTaxCode == 'D' ? 4.0 : 0.0))).toStringAsFixed(1).replaceAll('.0', ''),
+      text:
+          (widget.product?.taxRate ??
+                  (_selectedZraTaxCode == 'A'
+                      ? 16.0
+                      : (_selectedZraTaxCode == 'D' ? 4.0 : 0.0)))
+              .toStringAsFixed(1)
+              .replaceAll('.0', ''),
     );
 
     // ZRA UNSPSC Item Classification
@@ -308,10 +382,14 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
           ? '50202301'
           : (_selectedZraTaxCode == 'C' ? '42141501' : '52151501');
     }
-    final isPredefinedCls = commonZraClassifications.any((c) => c['code'] == _selectedItemClsCode);
+    final isPredefinedCls = commonZraClassifications.any(
+      (c) => c['code'] == _selectedItemClsCode,
+    );
     _isCustomClsCode = !isPredefinedCls && _selectedItemClsCode.isNotEmpty;
-    _customClsCodeController = TextEditingController(text: _selectedItemClsCode);
-    
+    _customClsCodeController = TextEditingController(
+      text: _selectedItemClsCode,
+    );
+
     _selectedCategoryId = widget.product?.categoryId;
     _imagePath = widget.product?.imagePath;
   }
@@ -341,7 +419,8 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
     final isDark = theme.brightness == Brightness.dark;
     final primaryColor = theme.colorScheme.primary;
     final accentColor = primaryColor;
-    final currencySymbol = ref.watch(storeConfigProvider).value?.currencySymbol ?? r'$';
+    final currencySymbol =
+        ref.watch(storeConfigProvider).value?.currencySymbol ?? r'$';
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -351,7 +430,9 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
         decoration: BoxDecoration(
           color: isDark ? const Color(0xFF151F32) : Colors.white,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0)),
+          border: Border.all(
+            color: isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0),
+          ),
         ),
         padding: const EdgeInsets.all(28),
         child: Form(
@@ -370,14 +451,22 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                           width: 32,
                           height: 32,
                           decoration: BoxDecoration(
-                            color: isDark ? primaryColor.withValues(alpha: 0.15) : const Color(0xFFEFF6FF),
+                            color: isDark
+                                ? primaryColor.withValues(alpha: 0.15)
+                                : const Color(0xFFEFF6FF),
                             shape: BoxShape.circle,
                           ),
-                          child: Icon(Icons.inventory_2_rounded, size: 16, color: primaryColor),
+                          child: Icon(
+                            Icons.inventory_2_rounded,
+                            size: 16,
+                            color: primaryColor,
+                          ),
                         ),
                         const SizedBox(width: 10),
                         Text(
-                          widget.product == null ? 'ADD NEW PRODUCT' : 'EDIT PRODUCT DETAILS',
+                          widget.product == null
+                              ? 'ADD NEW PRODUCT'
+                              : 'EDIT PRODUCT DETAILS',
                           style: GoogleFonts.inter(
                             fontSize: 15,
                             fontWeight: FontWeight.w800,
@@ -388,7 +477,11 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                     ),
                     IconButton(
                       onPressed: () => Navigator.pop(context),
-                      icon: Icon(Icons.close_rounded, size: 18, color: theme.colorScheme.onSurfaceVariant),
+                      icon: Icon(
+                        Icons.close_rounded,
+                        size: 18,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ],
                 ),
@@ -411,14 +504,13 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                         label: 'SKU / BARCODE',
                         hint: 'PRO-RUN-01',
                         autofocus: widget.product == null,
-                        validator: (v) => v?.isEmpty ?? true ? 'Required' : null,
+                        validator: (v) =>
+                            v?.isEmpty ?? true ? 'Required' : null,
                         accentColor: accentColor,
                       ),
                     ),
                     const SizedBox(width: 16),
-                    Expanded(
-                      child: _buildCategoryDropdown(accentColor),
-                    ),
+                    Expanded(child: _buildCategoryDropdown(accentColor)),
                   ],
                 ),
                 const SizedBox(height: 20),
@@ -432,7 +524,12 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                         keyboardType: TextInputType.number,
                         prefix: currencySymbol,
                         accentColor: accentColor,
-                        validator: (v) => (v != null && v.isNotEmpty && double.tryParse(v) == null) ? 'Invalid' : null,
+                        validator: (v) =>
+                            (v != null &&
+                                v.isNotEmpty &&
+                                double.tryParse(v) == null)
+                            ? 'Invalid'
+                            : null,
                       ),
                     ),
                     const SizedBox(width: 16),
@@ -444,7 +541,10 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                         keyboardType: TextInputType.number,
                         prefix: currencySymbol,
                         accentColor: accentColor,
-                        validator: (v) => (v != null && double.tryParse(v) == null) ? 'Invalid' : null,
+                        validator: (v) =>
+                            (v != null && double.tryParse(v) == null)
+                            ? 'Invalid'
+                            : null,
                       ),
                     ),
                   ],
@@ -471,11 +571,15 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: primaryColor,
                       foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                       elevation: 0,
                     ),
                     child: Text(
-                      widget.product == null ? 'CREATE PRODUCT' : 'SAVE CHANGES',
+                      widget.product == null
+                          ? 'CREATE PRODUCT'
+                          : 'SAVE CHANGES',
                       style: GoogleFonts.inter(
                         fontWeight: FontWeight.w700,
                         fontSize: 13,
@@ -519,39 +623,56 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                 border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
               ),
               child: (_imagePath == null || _imagePath!.trim().isEmpty)
-                ? Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.add_photo_alternate_outlined, color: Colors.white.withValues(alpha: 0.2), size: 32),
-                      const SizedBox(height: 8),
-                      Text('UPLOAD', 
-                          style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.white.withValues(alpha: 0.2))),
-                    ],
-                  )
-                : Stack(
-                    children: [
-                      Positioned.fill(
-                        child: ProductImageWidget(
-                          imagePath: _imagePath,
-                          width: 120,
-                          height: 120,
-                          borderRadius: BorderRadius.circular(16),
+                  ? Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.add_photo_alternate_outlined,
+                          color: Colors.white.withValues(alpha: 0.2),
+                          size: 32,
                         ),
-                      ),
-                      Positioned(
-                        right: 8,
-                        top: 8,
-                        child: GestureDetector(
-                          onTap: () => setState(() => _imagePath = null),
-                          child: Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
-                            child: const Icon(Icons.close, size: 12, color: Colors.white),
+                        const SizedBox(height: 8),
+                        Text(
+                          'UPLOAD',
+                          style: GoogleFonts.inter(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white.withValues(alpha: 0.2),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
+                      ],
+                    )
+                  : Stack(
+                      children: [
+                        Positioned.fill(
+                          child: ProductImageWidget(
+                            imagePath: _imagePath,
+                            width: 120,
+                            height: 120,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        Positioned(
+                          right: 8,
+                          top: 8,
+                          child: GestureDetector(
+                            onTap: () => setState(() => _imagePath = null),
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: const BoxDecoration(
+                                color: Colors.red,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.close,
+                                size: 12,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
             ),
           ),
         ),
@@ -567,17 +688,18 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
 
     if (result != null && result.files.single.path != null) {
       final String originalPath = result.files.single.path!;
-      
+
       final directory = await getApplicationDocumentsDirectory();
-      final String fileName = 'product_${DateTime.now().millisecondsSinceEpoch}${path.extension(originalPath)}';
+      final String fileName =
+          'product_${DateTime.now().millisecondsSinceEpoch}${path.extension(originalPath)}';
       final String imagesDirPath = path.join(directory.path, 'product_images');
       final String newPath = path.join(imagesDirPath, fileName);
-      
+
       final imagesDir = Directory(imagesDirPath);
       if (!await imagesDir.exists()) {
         await imagesDir.create(recursive: true);
       }
-      
+
       await File(originalPath).copy(newPath);
       setState(() => _imagePath = newPath);
     }
@@ -623,12 +745,21 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
             style: GoogleFonts.inter(color: Colors.white, fontSize: 14),
             decoration: InputDecoration(
               prefixText: prefix,
-              prefixStyle: GoogleFonts.inter(color: accentColor, fontWeight: FontWeight.bold),
+              prefixStyle: GoogleFonts.inter(
+                color: accentColor,
+                fontWeight: FontWeight.bold,
+              ),
               suffixText: suffix,
-              suffixStyle: GoogleFonts.inter(color: accentColor, fontWeight: FontWeight.bold),
+              suffixStyle: GoogleFonts.inter(
+                color: accentColor,
+                fontWeight: FontWeight.bold,
+              ),
               hintText: hint,
               hintStyle: GoogleFonts.inter(color: Colors.white10),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 16,
+              ),
               border: InputBorder.none,
               errorStyle: const TextStyle(height: 0),
             ),
@@ -663,14 +794,21 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
               children: [
                 GestureDetector(
                   onTap: () async {
-                    final created = await showQuickCreateCategoryDialog(context, ref);
+                    final created = await showQuickCreateCategoryDialog(
+                      context,
+                      ref,
+                    );
                     if (created != null && mounted) {
                       setState(() => _selectedCategoryId = created.id);
                     }
                   },
                   child: Row(
                     children: [
-                      Icon(Icons.add_circle_outline, size: 12, color: accentColor),
+                      Icon(
+                        Icons.add_circle_outline,
+                        size: 12,
+                        color: accentColor,
+                      ),
                       const SizedBox(width: 4),
                       Text(
                         'NEW',
@@ -718,7 +856,10 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
               if (categories.isEmpty) {
                 return InkWell(
                   onTap: () async {
-                    final created = await showQuickCreateCategoryDialog(context, ref);
+                    final created = await showQuickCreateCategoryDialog(
+                      context,
+                      ref,
+                    );
                     if (created != null && mounted) {
                       setState(() => _selectedCategoryId = created.id);
                     }
@@ -728,7 +869,11 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                     children: [
                       Text(
                         '+ CREATE FIRST CATEGORY',
-                        style: GoogleFonts.inter(color: accentColor, fontSize: 12, fontWeight: FontWeight.bold),
+                        style: GoogleFonts.inter(
+                          color: accentColor,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       Icon(Icons.add_rounded, color: accentColor, size: 18),
                     ],
@@ -736,7 +881,8 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                 );
               }
 
-              if (_selectedCategoryId == null || !categories.any((c) => c.id == _selectedCategoryId)) {
+              if (_selectedCategoryId == null ||
+                  !categories.any((c) => c.id == _selectedCategoryId)) {
                 _selectedCategoryId = categories.first.id;
               }
 
@@ -762,7 +908,11 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                           ),
                           Text(
                             cat.name.toUpperCase(),
-                            style: GoogleFonts.inter(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                            style: GoogleFonts.inter(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ],
                       ),
@@ -772,8 +922,17 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                 ),
               );
             },
-            loading: () => const Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
-            error: (_, _) => const Text('Error loading categories', style: TextStyle(color: Colors.red)),
+            loading: () => const Center(
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+            error: (_, _) => const Text(
+              'Error loading categories',
+              style: TextStyle(color: Colors.red),
+            ),
           ),
         ),
       ],
@@ -782,12 +941,18 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
 
   Color _getSectorColor(CategorySector sector) {
     switch (sector) {
-      case CategorySector.pharmacy: return const Color(0xFF00D1FF);
-      case CategorySector.stationery: return const Color(0xFFB565FF);
-      case CategorySector.grocery: return const Color(0xFF00FF85);
-      case CategorySector.food: return const Color(0xFFFF5C00);
-      case CategorySector.restaurant: return const Color(0xFFF39C12);
-      case CategorySector.other: return const Color(0xFFC1F11D);
+      case CategorySector.pharmacy:
+        return const Color(0xFF00D1FF);
+      case CategorySector.stationery:
+        return const Color(0xFFB565FF);
+      case CategorySector.grocery:
+        return const Color(0xFF00FF85);
+      case CategorySector.food:
+        return const Color(0xFFFF5C00);
+      case CategorySector.restaurant:
+        return const Color(0xFFF39C12);
+      case CategorySector.other:
+        return const Color(0xFFC1F11D);
     }
   }
 
@@ -814,7 +979,11 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
               ),
-              child: const Icon(Icons.lock_outline_rounded, color: Colors.amber, size: 20),
+              child: const Icon(
+                Icons.lock_outline_rounded,
+                color: Colors.amber,
+                size: 20,
+              ),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -836,7 +1005,10 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                         ),
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 1.5,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.amber.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(4),
@@ -879,18 +1051,35 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                 Navigator.pop(context);
                 await showDialog<bool>(
                   context: context,
-                  builder: (context) => StockAdjustmentModal(
-                    product: widget.product!,
-                  ),
+                  builder: (context) =>
+                      StockAdjustmentModal(product: widget.product!),
                 );
               },
-              icon: const Icon(Icons.tune_rounded, size: 14, color: Color(0xFF4ADE80)),
-              label: Text('Adjust', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: const Color(0xFF4ADE80))),
+              icon: const Icon(
+                Icons.tune_rounded,
+                size: 14,
+                color: Color(0xFF4ADE80),
+              ),
+              label: Text(
+                'Adjust',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF4ADE80),
+                ),
+              ),
               style: OutlinedButton.styleFrom(
                 side: const BorderSide(color: Color(0xFF4ADE80), width: 1),
-                backgroundColor: const Color(0xFF4ADE80).withValues(alpha: 0.08),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                backgroundColor: const Color(
+                  0xFF4ADE80,
+                ).withValues(alpha: 0.08),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
             ),
           ],
@@ -904,14 +1093,20 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
       hint: '0',
       keyboardType: TextInputType.number,
       accentColor: accentColor,
-      validator: (v) => int.tryParse(v ?? '') == null ? 'Please enter a valid initial stock' : null,
+      validator: (v) => int.tryParse(v ?? '') == null
+          ? 'Please enter a valid initial stock'
+          : null,
     );
   }
 
   Widget _buildPackagingUnitSelector(Color accentColor) {
     final bool isCustom = _isCustomUnit;
-    final hasMatch = commonPackagingUnits.any((u) => u['id']!.toUpperCase() == _unitOfMeasure.toUpperCase());
-    final currentDropdownValue = isCustom ? 'custom' : (hasMatch ? _unitOfMeasure.toUpperCase() : 'custom');
+    final hasMatch = commonPackagingUnits.any(
+      (u) => u['id']!.toUpperCase() == _unitOfMeasure.toUpperCase(),
+    );
+    final currentDropdownValue = isCustom
+        ? 'custom'
+        : (hasMatch ? _unitOfMeasure.toUpperCase() : 'custom');
 
     const quickUnits = [
       {'id': 'NT', 'label': 'Piece (NT)'},
@@ -939,7 +1134,11 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
             children: [
               Row(
                 children: [
-                  Icon(Icons.inventory_2_outlined, color: accentColor, size: 18),
+                  Icon(
+                    Icons.inventory_2_outlined,
+                    color: accentColor,
+                    size: 18,
+                  ),
                   const SizedBox(width: 8),
                   Text(
                     'DIGITAX / ZRA PACKAGING UNIT',
@@ -975,7 +1174,8 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
             scrollDirection: Axis.horizontal,
             child: Row(
               children: quickUnits.map((qu) {
-                final isSelected = !_isCustomUnit && _unitOfMeasure.toUpperCase() == qu['id']!;
+                final isSelected =
+                    !_isCustomUnit && _unitOfMeasure.toUpperCase() == qu['id']!;
                 return Padding(
                   padding: const EdgeInsets.only(right: 6),
                   child: ChoiceChip(
@@ -993,16 +1193,23 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                     backgroundColor: Colors.white.withValues(alpha: 0.04),
                     labelStyle: GoogleFonts.inter(
                       fontSize: 11,
-                      fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
+                      fontWeight: isSelected
+                          ? FontWeight.w800
+                          : FontWeight.w500,
                       color: isSelected ? Colors.black : Colors.white70,
                     ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                       side: BorderSide(
-                        color: isSelected ? accentColor : Colors.white.withValues(alpha: 0.08),
+                        color: isSelected
+                            ? accentColor
+                            : Colors.white.withValues(alpha: 0.08),
                       ),
                     ),
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
                   ),
                 );
               }).toList(),
@@ -1023,7 +1230,10 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                 value: currentDropdownValue,
                 isExpanded: true,
                 dropdownColor: const Color(0xFF1E2230),
-                icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white54),
+                icon: const Icon(
+                  Icons.keyboard_arrow_down_rounded,
+                  color: Colors.white54,
+                ),
                 items: [
                   ...commonPackagingUnits.map((u) {
                     return DropdownMenuItem<String>(
@@ -1034,32 +1244,49 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                           Row(
                             children: [
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
                                 decoration: BoxDecoration(
                                   color: accentColor.withValues(alpha: 0.15),
                                   borderRadius: BorderRadius.circular(4),
                                 ),
                                 child: Text(
                                   u['code']!,
-                                  style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w800, color: accentColor),
+                                  style: GoogleFonts.inter(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w800,
+                                    color: accentColor,
+                                  ),
                                 ),
                               ),
                               const SizedBox(width: 8),
                               Text(
                                 u['name']!,
-                                style: GoogleFonts.inter(fontSize: 12.5, color: Colors.white, fontWeight: FontWeight.w600),
+                                style: GoogleFonts.inter(
+                                  fontSize: 12.5,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ],
                           ),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.white.withValues(alpha: 0.06),
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
                               u['group']!,
-                              style: GoogleFonts.inter(fontSize: 9.5, color: Colors.white38),
+                              style: GoogleFonts.inter(
+                                fontSize: 9.5,
+                                color: Colors.white38,
+                              ),
                             ),
                           ),
                         ],
@@ -1070,11 +1297,19 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                     value: 'custom',
                     child: Row(
                       children: [
-                        Icon(Icons.edit_note_rounded, size: 16, color: accentColor),
+                        Icon(
+                          Icons.edit_note_rounded,
+                          size: 16,
+                          color: accentColor,
+                        ),
                         const SizedBox(width: 8),
                         Text(
                           'Custom / Specific Code...',
-                          style: TextStyle(fontSize: 12.5, color: accentColor, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            color: accentColor,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ],
                     ),
@@ -1086,7 +1321,9 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                     if (val == 'custom') {
                       _isCustomUnit = true;
                       if (_customUnitController.text.trim().isNotEmpty) {
-                        _unitOfMeasure = _customUnitController.text.trim().toUpperCase();
+                        _unitOfMeasure = _customUnitController.text
+                            .trim()
+                            .toUpperCase();
                       }
                     } else {
                       _isCustomUnit = false;
@@ -1108,13 +1345,28 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
               ),
               child: TextField(
                 controller: _customUnitController,
-                style: GoogleFonts.inter(fontSize: 12, color: Colors.white, fontWeight: FontWeight.bold),
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
                 decoration: InputDecoration(
-                  hintText: 'Type custom unit (e.g. bale, strip, dose, tin, loaf)',
-                  hintStyle: GoogleFonts.inter(fontSize: 11, color: Colors.white38),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  hintText:
+                      'Type custom unit (e.g. bale, strip, dose, tin, loaf)',
+                  hintStyle: GoogleFonts.inter(
+                    fontSize: 11,
+                    color: Colors.white38,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                   border: InputBorder.none,
-                  prefixIcon: Icon(Icons.edit_rounded, size: 15, color: accentColor),
+                  prefixIcon: Icon(
+                    Icons.edit_rounded,
+                    size: 15,
+                    color: accentColor,
+                  ),
                 ),
                 onChanged: (text) {
                   final cleaned = text.trim();
@@ -1134,9 +1386,15 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: _isWeighted ? const Color(0xFFC1F11D).withValues(alpha: 0.05) : Colors.white.withValues(alpha: 0.02),
+        color: _isWeighted
+            ? const Color(0xFFC1F11D).withValues(alpha: 0.05)
+            : Colors.white.withValues(alpha: 0.02),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _isWeighted ? const Color(0xFFC1F11D).withValues(alpha: 0.25) : Colors.white.withValues(alpha: 0.05)),
+        border: Border.all(
+          color: _isWeighted
+              ? const Color(0xFFC1F11D).withValues(alpha: 0.25)
+              : Colors.white.withValues(alpha: 0.05),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1148,7 +1406,9 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                 children: [
                   Icon(
                     Icons.scale_rounded,
-                    color: _isWeighted ? const Color(0xFFC1F11D) : Colors.white38,
+                    color: _isWeighted
+                        ? const Color(0xFFC1F11D)
+                        : Colors.white38,
                     size: 22,
                   ),
                   const SizedBox(width: 14),
@@ -1171,7 +1431,9 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                             : 'Standard fixed-quantity product',
                         style: GoogleFonts.inter(
                           fontSize: 11,
-                          color: _isWeighted ? const Color(0xFFC1F11D) : Colors.white38,
+                          color: _isWeighted
+                              ? const Color(0xFFC1F11D)
+                              : Colors.white38,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -1184,7 +1446,13 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                 onChanged: (v) {
                   setState(() {
                     _isWeighted = v;
-                    if (v && (_unitOfMeasure == 'pcs' || _unitOfMeasure == 'unit' || _unitOfMeasure == 'box' || _unitOfMeasure == 'tab' || _unitOfMeasure == 'NT' || _unitOfMeasure == 'BX')) {
+                    if (v &&
+                        (_unitOfMeasure == 'pcs' ||
+                            _unitOfMeasure == 'unit' ||
+                            _unitOfMeasure == 'box' ||
+                            _unitOfMeasure == 'tab' ||
+                            _unitOfMeasure == 'NT' ||
+                            _unitOfMeasure == 'BX')) {
                       _unitOfMeasure = 'KG';
                     }
                   });
@@ -1219,15 +1487,23 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
             ),
             Builder(
               builder: (context) {
-                final currencySymbol = ref.watch(storeConfigProvider).value?.currencySymbol ?? r'$';
-                final costPerUnit = double.tryParse(_unitCostController.text.trim()) ?? 0.0;
-                final pricePerUnit = double.tryParse(_priceController.text.trim()) ?? 0.0;
-                final stockQty = double.tryParse(_stockController.text.trim()) ?? (widget.product?.stockLevel.toDouble() ?? 100.0);
+                final currencySymbol =
+                    ref.watch(storeConfigProvider).value?.currencySymbol ??
+                    r'$';
+                final costPerUnit =
+                    double.tryParse(_unitCostController.text.trim()) ?? 0.0;
+                final pricePerUnit =
+                    double.tryParse(_priceController.text.trim()) ?? 0.0;
+                final stockQty =
+                    double.tryParse(_stockController.text.trim()) ??
+                    (widget.product?.stockLevel.toDouble() ?? 100.0);
                 final totalCost = stockQty * costPerUnit;
                 final totalRevenue = stockQty * pricePerUnit;
                 final projectedProfit = totalRevenue - totalCost;
                 final profitPerUnit = pricePerUnit - costPerUnit;
-                final markupPercent = costPerUnit > 0 ? ((pricePerUnit - costPerUnit) / costPerUnit * 100) : 0.0;
+                final markupPercent = costPerUnit > 0
+                    ? ((pricePerUnit - costPerUnit) / costPerUnit * 100)
+                    : 0.0;
 
                 return Container(
                   margin: const EdgeInsets.only(top: 16),
@@ -1235,14 +1511,20 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                   decoration: BoxDecoration(
                     color: const Color(0xFFC1F11D).withValues(alpha: 0.06),
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0xFFC1F11D).withValues(alpha: 0.2)),
+                    border: Border.all(
+                      color: const Color(0xFFC1F11D).withValues(alpha: 0.2),
+                    ),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
                         children: [
-                          const Icon(Icons.analytics_rounded, color: Color(0xFFC1F11D), size: 16),
+                          const Icon(
+                            Icons.analytics_rounded,
+                            color: Color(0xFFC1F11D),
+                            size: 16,
+                          ),
                           const SizedBox(width: 8),
                           Text(
                             'SCALE VALUATION & PROFIT PROJECTION',
@@ -1259,51 +1541,121 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text('Stock Batch Weight:', style: const TextStyle(color: Colors.white70, fontSize: 11.5)),
-                          Text('${stockQty.toStringAsFixed(0)} ${_unitOfMeasure.toUpperCase()}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                          Text(
+                            'Stock Batch Weight:',
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 11.5,
+                            ),
+                          ),
+                          Text(
+                            '${stockQty.toStringAsFixed(0)} ${_unitOfMeasure.toUpperCase()}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
                         ],
                       ),
                       const SizedBox(height: 5),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text('Unit Purchase Cost:', style: const TextStyle(color: Colors.white70, fontSize: 11.5)),
-                          Text('$currencySymbol${costPerUnit.toStringAsFixed(2)} / $_unitOfMeasure', style: const TextStyle(color: Colors.white, fontSize: 11.5)),
+                          Text(
+                            'Unit Purchase Cost:',
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 11.5,
+                            ),
+                          ),
+                          Text(
+                            '$currencySymbol${costPerUnit.toStringAsFixed(2)} / $_unitOfMeasure',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11.5,
+                            ),
+                          ),
                         ],
                       ),
                       const SizedBox(height: 5),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text('Selling Price per ${_unitOfMeasure.toUpperCase()}:', style: const TextStyle(color: Colors.white70, fontSize: 11.5)),
-                          Text('$currencySymbol${pricePerUnit.toStringAsFixed(2)} / $_unitOfMeasure', style: const TextStyle(color: Colors.white, fontSize: 11.5)),
+                          Text(
+                            'Selling Price per ${_unitOfMeasure.toUpperCase()}:',
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 11.5,
+                            ),
+                          ),
+                          Text(
+                            '$currencySymbol${pricePerUnit.toStringAsFixed(2)} / $_unitOfMeasure',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11.5,
+                            ),
+                          ),
                         ],
                       ),
                       const SizedBox(height: 5),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text('Total Stock Cost (${stockQty.toStringAsFixed(0)} $_unitOfMeasure × $currencySymbol${costPerUnit.toStringAsFixed(2)}):', style: const TextStyle(color: Colors.white70, fontSize: 11)),
-                          Text('$currencySymbol${totalCost.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                          Text(
+                            'Total Stock Cost (${stockQty.toStringAsFixed(0)} $_unitOfMeasure × $currencySymbol${costPerUnit.toStringAsFixed(2)}):',
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 11,
+                            ),
+                          ),
+                          Text(
+                            '$currencySymbol${totalCost.toStringAsFixed(2)}',
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 11,
+                            ),
+                          ),
                         ],
                       ),
                       const SizedBox(height: 5),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text('Total Sales Value (${stockQty.toStringAsFixed(0)} $_unitOfMeasure × $currencySymbol${pricePerUnit.toStringAsFixed(2)}):', style: const TextStyle(color: Colors.white70, fontSize: 11)),
-                          Text('$currencySymbol${totalRevenue.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                          Text(
+                            'Total Sales Value (${stockQty.toStringAsFixed(0)} $_unitOfMeasure × $currencySymbol${pricePerUnit.toStringAsFixed(2)}):',
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 11,
+                            ),
+                          ),
+                          Text(
+                            '$currencySymbol${totalRevenue.toStringAsFixed(2)}',
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 11,
+                            ),
+                          ),
                         ],
                       ),
                       const Divider(color: Colors.white12, height: 18),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text('PROJECTED PROFIT:', style: GoogleFonts.manrope(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 12)),
+                          Text(
+                            'PROJECTED PROFIT:',
+                            style: GoogleFonts.manrope(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 12,
+                            ),
+                          ),
                           Text(
                             '${projectedProfit >= 0 ? "+" : ""}$currencySymbol${projectedProfit.toStringAsFixed(2)} (${markupPercent.toStringAsFixed(1)}% markup)',
                             style: GoogleFonts.manrope(
-                              color: projectedProfit >= 0 ? const Color(0xFFC1F11D) : Colors.redAccent,
+                              color: projectedProfit >= 0
+                                  ? const Color(0xFFC1F11D)
+                                  : Colors.redAccent,
                               fontWeight: FontWeight.w900,
                               fontSize: 13,
                             ),
@@ -1313,7 +1665,11 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                       const SizedBox(height: 8),
                       Text(
                         'Profit per $_unitOfMeasure: Selling at $currencySymbol${pricePerUnit.toStringAsFixed(2)} - cost $currencySymbol${costPerUnit.toStringAsFixed(2)} = +$currencySymbol${profitPerUnit.toStringAsFixed(2)} profit per 1 $_unitOfMeasure.',
-                        style: GoogleFonts.inter(fontSize: 10.5, color: Colors.white60, height: 1.3),
+                        style: GoogleFonts.inter(
+                          fontSize: 10.5,
+                          color: Colors.white60,
+                          height: 1.3,
+                        ),
                       ),
                     ],
                   ),
@@ -1349,8 +1705,12 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
               Row(
                 children: [
                   Icon(
-                    _isDigitaxSyncEnabled ? Icons.cloud_done_rounded : Icons.cloud_off_rounded,
-                    color: _isDigitaxSyncEnabled ? const Color(0xFF10B981) : Colors.blueAccent,
+                    _isDigitaxSyncEnabled
+                        ? Icons.cloud_done_rounded
+                        : Icons.cloud_off_rounded,
+                    color: _isDigitaxSyncEnabled
+                        ? const Color(0xFF10B981)
+                        : Colors.blueAccent,
                     size: 22,
                   ),
                   const SizedBox(width: 14),
@@ -1363,7 +1723,9 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                           fontSize: 12,
                           fontWeight: FontWeight.w900,
                           letterSpacing: 1,
-                          color: _isDigitaxSyncEnabled ? Colors.white : Colors.blue.shade100,
+                          color: _isDigitaxSyncEnabled
+                              ? Colors.white
+                              : Colors.blue.shade100,
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -1373,7 +1735,9 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                             : 'Offline-only product • Will NOT sync to DigiTax',
                         style: GoogleFonts.inter(
                           fontSize: 11,
-                          color: _isDigitaxSyncEnabled ? const Color(0xFF10B981) : Colors.blueAccent,
+                          color: _isDigitaxSyncEnabled
+                              ? const Color(0xFF10B981)
+                              : Colors.blueAccent,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -1387,7 +1751,8 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                   setState(() {
                     _isDigitaxSyncEnabled = v;
                     if (!v) {
-                      _taxRateController.text = '0'; // Default untaxed for offline private items
+                      _taxRateController.text =
+                          '0'; // Default untaxed for offline private items
                     } else {
                       _taxRateController.text = '16';
                     }
@@ -1408,12 +1773,19 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.shield_outlined, color: Colors.blueAccent, size: 16),
+                  const Icon(
+                    Icons.shield_outlined,
+                    color: Colors.blueAccent,
+                    size: 16,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       'Private Offline Item: Stored locally only on this computer. Excluded from DigiTax cloud stock and ZRA fiscal sales payloads.',
-                      style: GoogleFonts.inter(fontSize: 11, color: Colors.white70),
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: Colors.white70,
+                      ),
                     ),
                   ),
                 ],
@@ -1436,12 +1808,16 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
       decoration: BoxDecoration(
         color: isExempt
             ? const Color(0xFF10B981).withValues(alpha: 0.05)
-            : (_isTaxInclusive ? accentColor.withValues(alpha: 0.04) : Colors.white.withValues(alpha: 0.02)),
+            : (_isTaxInclusive
+                  ? accentColor.withValues(alpha: 0.04)
+                  : Colors.white.withValues(alpha: 0.02)),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: isExempt
               ? const Color(0xFF10B981).withValues(alpha: 0.3)
-              : (_isTaxInclusive ? accentColor.withValues(alpha: 0.2) : Colors.white.withValues(alpha: 0.05)),
+              : (_isTaxInclusive
+                    ? accentColor.withValues(alpha: 0.2)
+                    : Colors.white.withValues(alpha: 0.05)),
         ),
       ),
       child: Column(
@@ -1455,7 +1831,9 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                   Icon(
                     isExempt
                         ? Icons.health_and_safety_rounded
-                        : (isTot ? Icons.receipt_long_rounded : Icons.account_balance_rounded),
+                        : (isTot
+                              ? Icons.receipt_long_rounded
+                              : Icons.account_balance_rounded),
                     color: isExempt ? const Color(0xFF10B981) : accentColor,
                     size: 22,
                   ),
@@ -1477,13 +1855,17 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                         isExempt
                             ? 'Code C • 0% VAT Exempt (Medicines, Medical Supplies & Books)'
                             : (isZeroRated
-                                ? 'Code B • 0% Zero-Rated (Mealie Meal, Bread, Milk, Produce)'
-                                : (isTot
-                                    ? 'Code D • Turnover Tax (TOT Presumptive 4%)'
-                                    : 'Code A • 16% Standard VAT (General Goods)')),
+                                  ? 'Code B • 0% Zero-Rated (Mealie Meal, Bread, Milk, Produce)'
+                                  : (isTot
+                                        ? 'Code D • Turnover Tax (TOT Presumptive 4%)'
+                                        : 'Code A • 16% Standard VAT (General Goods)')),
                         style: GoogleFonts.inter(
                           fontSize: 11,
-                          color: isExempt ? const Color(0xFF10B981) : (isZeroRated ? Colors.amberAccent : accentColor),
+                          color: isExempt
+                              ? const Color(0xFF10B981)
+                              : (isZeroRated
+                                    ? Colors.amberAccent
+                                    : accentColor),
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -1492,20 +1874,27 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                 ],
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: isExempt
                       ? const Color(0xFF10B981).withValues(alpha: 0.2)
                       : (isZeroRated
-                          ? Colors.amber.withValues(alpha: 0.2)
-                          : (isTot ? Colors.purple.withValues(alpha: 0.2) : accentColor.withValues(alpha: 0.15))),
+                            ? Colors.amber.withValues(alpha: 0.2)
+                            : (isTot
+                                  ? Colors.purple.withValues(alpha: 0.2)
+                                  : accentColor.withValues(alpha: 0.15))),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
                     color: isExempt
                         ? const Color(0xFF10B981).withValues(alpha: 0.4)
                         : (isZeroRated
-                            ? Colors.amber.withValues(alpha: 0.4)
-                            : (isTot ? Colors.purple.withValues(alpha: 0.4) : accentColor.withValues(alpha: 0.3))),
+                              ? Colors.amber.withValues(alpha: 0.4)
+                              : (isTot
+                                    ? Colors.purple.withValues(alpha: 0.4)
+                                    : accentColor.withValues(alpha: 0.3))),
                   ),
                 ),
                 child: Text(
@@ -1515,7 +1904,9 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                     fontWeight: FontWeight.w900,
                     color: isExempt
                         ? const Color(0xFF10B981)
-                        : (isZeroRated ? Colors.amberAccent : (isTot ? Colors.purpleAccent : accentColor)),
+                        : (isZeroRated
+                              ? Colors.amberAccent
+                              : (isTot ? Colors.purpleAccent : accentColor)),
                   ),
                 ),
               ),
@@ -1539,7 +1930,8 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                   code: 'A',
                   title: 'Standard VAT',
                   badge: '16%',
-                  subtitle: 'General retail, groceries, drinks, electronics & clothes',
+                  subtitle:
+                      'General retail, groceries, drinks, electronics & clothes',
                   isSelected: isStandard,
                   activeColor: accentColor,
                   onTap: () {
@@ -1556,14 +1948,17 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                   code: 'C',
                   title: 'VAT Exempt',
                   badge: '0%',
-                  subtitle: 'Medicines, pharmaceuticals, medical supplies & books',
+                  subtitle:
+                      'Medicines, pharmaceuticals, medical supplies & books',
                   isSelected: isExempt,
                   activeColor: const Color(0xFF10B981),
                   onTap: () {
                     setState(() {
                       _selectedZraTaxCode = 'C';
                       _taxRateController.text = '0';
-                      if (_selectedItemClsCode == '56101530' || _selectedItemClsCode == '50202301' || _selectedItemClsCode == '50192701') {
+                      if (_selectedItemClsCode == '56101530' ||
+                          _selectedItemClsCode == '50202301' ||
+                          _selectedItemClsCode == '50192701') {
                         _selectedItemClsCode = '42141501';
                       }
                     });
@@ -1580,14 +1975,16 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                   code: 'B',
                   title: 'Zero-Rated',
                   badge: '0%',
-                  subtitle: 'Mealie meal, fresh bread, milk, agricultural produce & feed',
+                  subtitle:
+                      'Mealie meal, fresh bread, milk, agricultural produce & feed',
                   isSelected: isZeroRated,
                   activeColor: Colors.amberAccent,
                   onTap: () {
                     setState(() {
                       _selectedZraTaxCode = 'B';
                       _taxRateController.text = '0';
-                      if (_selectedItemClsCode == '56101530' || _selectedItemClsCode == '42141501') {
+                      if (_selectedItemClsCode == '56101530' ||
+                          _selectedItemClsCode == '42141501') {
                         _selectedItemClsCode = '50202301';
                       }
                     });
@@ -1619,7 +2016,11 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
           // ZRA Item Classification Section
           Row(
             children: [
-              const Icon(Icons.category_rounded, size: 16, color: Colors.white70),
+              const Icon(
+                Icons.category_rounded,
+                size: 16,
+                color: Colors.white70,
+              ),
               const SizedBox(width: 8),
               Text(
                 'ZRA ITEM CLASSIFICATION (UNSPSC)',
@@ -1660,7 +2061,10 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
               child: DropdownButton<String>(
                 isExpanded: true,
                 dropdownColor: const Color(0xFF1E293B),
-                value: commonZraClassifications.any((c) => c['code'] == _selectedItemClsCode)
+                value:
+                    commonZraClassifications.any(
+                      (c) => c['code'] == _selectedItemClsCode,
+                    )
                     ? _selectedItemClsCode
                     : 'CUSTOM',
                 items: [
@@ -1672,7 +2076,10 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                           Expanded(
                             child: Text(
                               '${item['name']} (${item['code']})',
-                              style: GoogleFonts.inter(fontSize: 12.5, color: Colors.white),
+                              style: GoogleFonts.inter(
+                                fontSize: 12.5,
+                                color: Colors.white,
+                              ),
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
@@ -1684,7 +2091,10 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                     value: 'CUSTOM',
                     child: Text(
                       'Custom 8-digit UNSPSC Code...',
-                      style: GoogleFonts.inter(fontSize: 12.5, color: Colors.amberAccent),
+                      style: GoogleFonts.inter(
+                        fontSize: 12.5,
+                        color: Colors.amberAccent,
+                      ),
                     ),
                   ),
                 ],
@@ -1710,15 +2120,28 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
               controller: _customClsCodeController,
               keyboardType: TextInputType.number,
               maxLength: 8,
-              style: GoogleFonts.robotoMono(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+              style: GoogleFonts.robotoMono(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+              ),
               decoration: InputDecoration(
                 labelText: 'Enter 8-digit ZRA UNSPSC code',
-                labelStyle: const TextStyle(color: Colors.white60, fontSize: 12),
+                labelStyle: const TextStyle(
+                  color: Colors.white60,
+                  fontSize: 12,
+                ),
                 counterText: '',
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
                 filled: true,
                 fillColor: Colors.white.withValues(alpha: 0.05),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.amberAccent)),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Colors.amberAccent),
+                ),
               ),
               onChanged: (v) {
                 if (v.trim().length == 8) {
@@ -1736,7 +2159,9 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
               Row(
                 children: [
                   Icon(
-                    _isTaxInclusive ? Icons.check_circle_outline_rounded : Icons.remove_circle_outline_rounded,
+                    _isTaxInclusive
+                        ? Icons.check_circle_outline_rounded
+                        : Icons.remove_circle_outline_rounded,
                     color: _isTaxInclusive ? accentColor : Colors.white38,
                     size: 18,
                   ),
@@ -1754,8 +2179,13 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                         ),
                       ),
                       Text(
-                        _isTaxInclusive ? 'Selling price includes tax' : 'Tax will be added on top at checkout',
-                        style: GoogleFonts.inter(fontSize: 10.5, color: Colors.white54),
+                        _isTaxInclusive
+                            ? 'Selling price includes tax'
+                            : 'Tax will be added on top at checkout',
+                        style: GoogleFonts.inter(
+                          fontSize: 10.5,
+                          color: Colors.white54,
+                        ),
                       ),
                     ],
                   ),
@@ -1788,14 +2218,24 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                 child: TextFormField(
                   controller: _taxRateController,
                   keyboardType: TextInputType.number,
-                  style: GoogleFonts.inter(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                  style: GoogleFonts.inter(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
                   decoration: InputDecoration(
                     suffixText: '%',
                     suffixStyle: const TextStyle(color: Colors.white60),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                     filled: true,
                     fillColor: Colors.white.withValues(alpha: 0.05),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide.none,
+                    ),
                   ),
                 ),
               ),
@@ -1822,10 +2262,14 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: isSelected ? activeColor.withValues(alpha: 0.12) : Colors.white.withValues(alpha: 0.03),
+          color: isSelected
+              ? activeColor.withValues(alpha: 0.12)
+              : Colors.white.withValues(alpha: 0.03),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isSelected ? activeColor : Colors.white.withValues(alpha: 0.08),
+            color: isSelected
+                ? activeColor
+                : Colors.white.withValues(alpha: 0.08),
             width: isSelected ? 1.5 : 1.0,
           ),
         ),
@@ -1866,9 +2310,14 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                   ],
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
-                    color: isSelected ? activeColor.withValues(alpha: 0.25) : Colors.white.withValues(alpha: 0.05),
+                    color: isSelected
+                        ? activeColor.withValues(alpha: 0.25)
+                        : Colors.white.withValues(alpha: 0.05),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
@@ -1936,7 +2385,9 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                     ),
                     child: Icon(
                       Icons.handshake_rounded,
-                      color: _isConsignment ? const Color(0xFF8B5CF6) : theme.colorScheme.onSurfaceVariant,
+                      color: _isConsignment
+                          ? const Color(0xFF8B5CF6)
+                          : theme.colorScheme.onSurfaceVariant,
                       size: 18,
                     ),
                   ),
@@ -1950,7 +2401,9 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                           fontSize: 11,
                           fontWeight: FontWeight.w900,
                           letterSpacing: 0.8,
-                          color: _isConsignment ? const Color(0xFF8B5CF6) : theme.colorScheme.onSurface,
+                          color: _isConsignment
+                              ? const Color(0xFF8B5CF6)
+                              : theme.colorScheme.onSurface,
                         ),
                       ),
                       Text(
@@ -1959,7 +2412,9 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                             : 'Standard store-owned inventory',
                         style: GoogleFonts.inter(
                           fontSize: 11,
-                          color: _isConsignment ? const Color(0xFF8B5CF6) : theme.colorScheme.onSurfaceVariant,
+                          color: _isConsignment
+                              ? const Color(0xFF8B5CF6)
+                              : theme.colorScheme.onSurfaceVariant,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -1971,7 +2426,9 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                 value: _isConsignment,
                 onChanged: (v) => setState(() => _isConsignment = v),
                 activeThumbColor: const Color(0xFF8B5CF6),
-                activeTrackColor: const Color(0xFF8B5CF6).withValues(alpha: 0.3),
+                activeTrackColor: const Color(
+                  0xFF8B5CF6,
+                ).withValues(alpha: 0.3),
               ),
             ],
           ),
@@ -2002,12 +2459,19 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.info_outline, size: 16, color: Colors.orangeAccent),
+                        const Icon(
+                          Icons.info_outline,
+                          size: 16,
+                          color: Colors.orangeAccent,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             'No suppliers recorded. Please create a supplier in the Purchases module first.',
-                            style: GoogleFonts.inter(fontSize: 11, color: Colors.orangeAccent),
+                            style: GoogleFonts.inter(
+                              fontSize: 11,
+                              color: Colors.orangeAccent,
+                            ),
                           ),
                         ),
                       ],
@@ -2019,25 +2483,39 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                   height: 48,
                   padding: const EdgeInsets.symmetric(horizontal: 14),
                   decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                    color: isDark
+                        ? const Color(0xFF0F172A)
+                        : const Color(0xFFF8FAFC),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFF8B5CF6).withValues(alpha: 0.2)),
+                    border: Border.all(
+                      color: const Color(0xFF8B5CF6).withValues(alpha: 0.2),
+                    ),
                   ),
                   child: DropdownButtonHideUnderline(
                     child: DropdownButton<int>(
-                      value: suppliers.any((s) => s.id == _selectedSupplierId) ? _selectedSupplierId : null,
+                      value: suppliers.any((s) => s.id == _selectedSupplierId)
+                          ? _selectedSupplierId
+                          : null,
                       hint: Text(
                         'Select Supplier / Consignor',
-                        style: GoogleFonts.inter(fontSize: 12.5, color: theme.colorScheme.onSurfaceVariant),
+                        style: GoogleFonts.inter(
+                          fontSize: 12.5,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
                       ),
                       isExpanded: true,
-                      dropdownColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+                      dropdownColor: isDark
+                          ? const Color(0xFF1E293B)
+                          : Colors.white,
                       items: suppliers.map((s) {
                         return DropdownMenuItem<int>(
                           value: s.id,
                           child: Text(
                             '${s.name} ${s.tpin != null ? "(TPIN: ${s.tpin})" : ""}',
-                            style: GoogleFonts.inter(fontSize: 13, color: theme.colorScheme.onSurface),
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              color: theme.colorScheme.onSurface,
+                            ),
                           ),
                         );
                       }).toList(),
@@ -2092,19 +2570,32 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
             // Live Commission Simulation Box
             Builder(
               builder: (context) {
-                final retailPrice = double.tryParse(_priceController.text.trim()) ?? 0.0;
-                final commRate = double.tryParse(_commissionRateController.text.trim()) ?? 0.0;
-                final fixedPayout = double.tryParse(_supplierPayoutPriceController.text.trim()) ?? 0.0;
+                final retailPrice =
+                    double.tryParse(_priceController.text.trim()) ?? 0.0;
+                final commRate =
+                    double.tryParse(_commissionRateController.text.trim()) ??
+                    0.0;
+                final fixedPayout =
+                    double.tryParse(
+                      _supplierPayoutPriceController.text.trim(),
+                    ) ??
+                    0.0;
 
                 double storeCommission = 0.0;
                 double supplierPayout = 0.0;
 
                 if (fixedPayout > 0) {
                   supplierPayout = fixedPayout;
-                  storeCommission = (retailPrice - fixedPayout).clamp(0.0, retailPrice);
+                  storeCommission = (retailPrice - fixedPayout).clamp(
+                    0.0,
+                    retailPrice,
+                  );
                 } else {
                   storeCommission = retailPrice * (commRate / 100);
-                  supplierPayout = (retailPrice - storeCommission).clamp(0.0, retailPrice);
+                  supplierPayout = (retailPrice - storeCommission).clamp(
+                    0.0,
+                    retailPrice,
+                  );
                 }
 
                 return Container(
@@ -2112,15 +2603,30 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                   decoration: BoxDecoration(
                     color: const Color(0xFF8B5CF6).withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFF8B5CF6).withValues(alpha: 0.15)),
+                    border: Border.all(
+                      color: const Color(0xFF8B5CF6).withValues(alpha: 0.15),
+                    ),
                   ),
                   child: Column(
                     children: [
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text('Retail Selling Price:', style: GoogleFonts.inter(fontSize: 11, color: theme.colorScheme.onSurfaceVariant)),
-                          Text('$currencySymbol ${retailPrice.toStringAsFixed(2)}', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurface)),
+                          Text(
+                            'Retail Selling Price:',
+                            style: GoogleFonts.inter(
+                              fontSize: 11,
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          Text(
+                            '$currencySymbol ${retailPrice.toStringAsFixed(2)}',
+                            style: GoogleFonts.inter(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: theme.colorScheme.onSurface,
+                            ),
+                          ),
                         ],
                       ),
                       const SizedBox(height: 4),
@@ -2129,12 +2635,30 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                         children: [
                           Row(
                             children: [
-                              const Icon(Icons.arrow_upward_rounded, size: 12, color: Color(0xFF10B981)),
+                              const Icon(
+                                Icons.arrow_upward_rounded,
+                                size: 12,
+                                color: Color(0xFF10B981),
+                              ),
                               const SizedBox(width: 4),
-                              Text('Your Commission (Store Profit):', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: const Color(0xFF10B981))),
+                              Text(
+                                'Your Commission (Store Profit):',
+                                style: GoogleFonts.inter(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(0xFF10B981),
+                                ),
+                              ),
                             ],
                           ),
-                          Text('$currencySymbol ${storeCommission.toStringAsFixed(2)}', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: const Color(0xFF10B981))),
+                          Text(
+                            '$currencySymbol ${storeCommission.toStringAsFixed(2)}',
+                            style: GoogleFonts.inter(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: const Color(0xFF10B981),
+                            ),
+                          ),
                         ],
                       ),
                       const SizedBox(height: 4),
@@ -2143,12 +2667,30 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                         children: [
                           Row(
                             children: [
-                              const Icon(Icons.arrow_downward_rounded, size: 12, color: Color(0xFF8B5CF6)),
+                              const Icon(
+                                Icons.arrow_downward_rounded,
+                                size: 12,
+                                color: Color(0xFF8B5CF6),
+                              ),
                               const SizedBox(width: 4),
-                              Text('Supplier Payout (Pass-Through):', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: const Color(0xFF8B5CF6))),
+                              Text(
+                                'Supplier Payout (Pass-Through):',
+                                style: GoogleFonts.inter(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(0xFF8B5CF6),
+                                ),
+                              ),
                             ],
                           ),
-                          Text('$currencySymbol ${supplierPayout.toStringAsFixed(2)}', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: const Color(0xFF8B5CF6))),
+                          Text(
+                            '$currencySymbol ${supplierPayout.toStringAsFixed(2)}',
+                            style: GoogleFonts.inter(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: const Color(0xFF8B5CF6),
+                            ),
+                          ),
                         ],
                       ),
                     ],
@@ -2166,9 +2708,15 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: _hasDiscount ? accentColor.withValues(alpha: 0.05) : Colors.white.withValues(alpha: 0.02),
+        color: _hasDiscount
+            ? accentColor.withValues(alpha: 0.05)
+            : Colors.white.withValues(alpha: 0.02),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _hasDiscount ? accentColor.withValues(alpha: 0.2) : Colors.white.withValues(alpha: 0.05)),
+        border: Border.all(
+          color: _hasDiscount
+              ? accentColor.withValues(alpha: 0.2)
+              : Colors.white.withValues(alpha: 0.05),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2178,7 +2726,11 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
             children: [
               Row(
                 children: [
-                  Icon(Icons.label_important_outline, color: _hasDiscount ? accentColor : Colors.white24, size: 18),
+                  Icon(
+                    Icons.label_important_outline,
+                    color: _hasDiscount ? accentColor : Colors.white24,
+                    size: 18,
+                  ),
                   const SizedBox(width: 12),
                   Text(
                     'PROMOTIONAL DISCOUNT',
@@ -2186,7 +2738,9 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                       fontSize: 11,
                       fontWeight: FontWeight.w900,
                       letterSpacing: 1,
-                      color: _hasDiscount ? Colors.white : Colors.white.withValues(alpha: 0.3),
+                      color: _hasDiscount
+                          ? Colors.white
+                          : Colors.white.withValues(alpha: 0.3),
                     ),
                   ),
                 ],
@@ -2210,7 +2764,11 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                     keyboardType: TextInputType.number,
                     prefix: currencySymbol,
                     accentColor: accentColor,
-                    validator: (v) => (_hasDiscount && (v == null || double.tryParse(v) == null)) ? 'Required' : null,
+                    validator: (v) =>
+                        (_hasDiscount &&
+                            (v == null || double.tryParse(v) == null))
+                        ? 'Required'
+                        : null,
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -2221,7 +2779,10 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                     hint: 'e.g. 2',
                     keyboardType: TextInputType.number,
                     accentColor: accentColor,
-                    validator: (v) => (_hasDiscount && (v == null || int.tryParse(v) == null)) ? 'Required' : null,
+                    validator: (v) =>
+                        (_hasDiscount && (v == null || int.tryParse(v) == null))
+                        ? 'Required'
+                        : null,
                   ),
                 ),
               ],
@@ -2229,7 +2790,11 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
             const SizedBox(height: 8),
             Text(
               'Price will automatically revert after this duration.',
-              style: GoogleFonts.inter(fontSize: 10, fontStyle: FontStyle.italic, color: Colors.white24),
+              style: GoogleFonts.inter(
+                fontSize: 10,
+                fontStyle: FontStyle.italic,
+                color: Colors.white24,
+              ),
             ),
           ],
         ],
@@ -2241,14 +2806,21 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
     if (_formKey.currentState?.validate() ?? false) {
       final db = ref.read(databaseServiceProvider);
       final currentUser = ref.read(authProvider);
-      final discountPrice = _hasDiscount ? double.tryParse(_discountPriceController.text) : null;
-      final durationDays = _hasDiscount ? int.tryParse(_discountDurationController.text) : null;
-      final tareWeight = double.tryParse(_tareWeightController.text.trim()) ?? 0.0;
-      final scalePlu = _scalePluController.text.trim().isNotEmpty ? _scalePluController.text.trim() : null;
-      
+      final discountPrice = _hasDiscount
+          ? double.tryParse(_discountPriceController.text)
+          : null;
+      final durationDays = _hasDiscount
+          ? int.tryParse(_discountDurationController.text)
+          : null;
+      final tareWeight =
+          double.tryParse(_tareWeightController.text.trim()) ?? 0.0;
+      final scalePlu = _scalePluController.text.trim().isNotEmpty
+          ? _scalePluController.text.trim()
+          : null;
+
       final storeConfig = ref.read(storeConfigProvider).value;
       final isOwner = ref.read(isOwnerProvider);
-      
+
       String normalizeBranch(String? code) {
         final c = code?.trim() ?? '';
         if (c.isEmpty || c == '000' || c == '00' || c == '0') return '00';
@@ -2256,30 +2828,48 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
       }
 
       final branchBhfId = normalizeBranch(
-        (currentUser?.branchCode != null && currentUser!.branchCode!.isNotEmpty && currentUser.branchCode != '00')
+        (currentUser?.branchCode != null &&
+                currentUser!.branchCode!.isNotEmpty &&
+                currentUser.branchCode != '00')
             ? currentUser.branchCode!
             : ((storeConfig != null && storeConfig.bhfId.isNotEmpty)
-                ? storeConfig.bhfId
-                : (isOwner ? '00' : '01')),
+                  ? storeConfig.bhfId
+                  : (isOwner ? '00' : '01')),
       );
-      final branchName = (storeConfig != null && storeConfig.branchName != null && storeConfig.branchName!.isNotEmpty)
+      final branchName =
+          (storeConfig != null &&
+              storeConfig.branchName != null &&
+              storeConfig.branchName!.isNotEmpty)
           ? storeConfig.branchName!
-          : (currentUser?.branchName ?? (isOwner ? 'Headquarters (HQ)' : 'Main Branch'));
+          : (currentUser?.branchName ??
+                (isOwner ? 'Headquarters (HQ)' : 'Main Branch'));
 
       final initialStock = (widget.product != null)
           ? widget.product!.stockLevel
           : (int.tryParse(_stockController.text.trim()) ?? 0);
 
-      final parsedTaxRate = double.tryParse(_taxRateController.text.trim()) ?? (_selectedZraTaxCode == 'A' ? 16.0 : 0.0);
+      final parsedTaxRate =
+          double.tryParse(_taxRateController.text.trim()) ??
+          (_selectedZraTaxCode == 'A' ? 16.0 : 0.0);
       final zraTaxCode = _selectedZraTaxCode;
-      final finalUom = _isCustomUnit && _customUnitController.text.trim().isNotEmpty ? _customUnitController.text.trim() : _unitOfMeasure;
+      final finalUom =
+          _isCustomUnit && _customUnitController.text.trim().isNotEmpty
+          ? _customUnitController.text.trim()
+          : _unitOfMeasure;
 
       // Check if another product already exists with the same SKU in this branch
       Product? targetProduct = widget.product;
       if (targetProduct == null && _skuController.text.trim().isNotEmpty) {
         final existingBySku = await db.isar.products
             .filter()
-            .group((q) => q.branchCodeEqualTo(branchBhfId).or().branchCodeEqualTo(branchBhfId == '00' ? '000' : branchBhfId).or().branchCodeEqualTo(branchBhfId == '00' ? '' : branchBhfId))
+            .group(
+              (q) => q
+                  .branchCodeEqualTo(branchBhfId)
+                  .or()
+                  .branchCodeEqualTo(branchBhfId == '00' ? '000' : branchBhfId)
+                  .or()
+                  .branchCodeEqualTo(branchBhfId == '00' ? '' : branchBhfId),
+            )
             .and()
             .skuEqualTo(_skuController.text.trim(), caseSensitive: false)
             .findFirst();
@@ -2290,36 +2880,40 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
 
       final effectiveCls = _isCustomClsCode
           ? (_customClsCodeController.text.trim().isNotEmpty
-              ? _customClsCodeController.text.trim()
-              : _selectedItemClsCode)
+                ? _customClsCodeController.text.trim()
+                : _selectedItemClsCode)
           : _selectedItemClsCode;
 
-      final product = targetProduct ?? Product(
-        name: _nameController.text.trim(),
-        sku: _skuController.text.trim(),
-        price: double.parse(_priceController.text),
-        stockLevel: initialStock,
-        categoryId: _selectedCategoryId ?? 0,
-        unitCost: double.tryParse(_unitCostController.text) ?? 0.0,
-        imagePath: _imagePath,
-        discountPrice: discountPrice,
-        discountStartDate: _hasDiscount ? DateTime.now() : null,
-        discountEndDate: (_hasDiscount && durationDays != null) ? DateTime.now().add(Duration(days: durationDays)) : null,
-        isTaxInclusive: _isTaxInclusive,
-        taxRate: parsedTaxRate,
-        zraTaxCode: zraTaxCode,
-        itemClsCd: effectiveCls,
-        branchCode: branchBhfId,
-        branchName: branchName,
-        isSyncedWithDigitax: false,
-        isDigitaxSyncEnabled: _isDigitaxSyncEnabled,
-        lastDigitaxSyncDate: null,
-        isWeighted: _isWeighted,
-        unitOfMeasure: finalUom,
-        tareWeight: tareWeight,
-        scalePlu: scalePlu,
-      );
-      
+      final product =
+          targetProduct ??
+          Product(
+            name: _nameController.text.trim(),
+            sku: _skuController.text.trim(),
+            price: double.parse(_priceController.text),
+            stockLevel: initialStock,
+            categoryId: _selectedCategoryId ?? 0,
+            unitCost: double.tryParse(_unitCostController.text) ?? 0.0,
+            imagePath: _imagePath,
+            discountPrice: discountPrice,
+            discountStartDate: _hasDiscount ? DateTime.now() : null,
+            discountEndDate: (_hasDiscount && durationDays != null)
+                ? DateTime.now().add(Duration(days: durationDays))
+                : null,
+            isTaxInclusive: _isTaxInclusive,
+            taxRate: parsedTaxRate,
+            zraTaxCode: zraTaxCode,
+            itemClsCd: effectiveCls,
+            branchCode: branchBhfId,
+            branchName: branchName,
+            isSyncedWithDigitax: false,
+            isDigitaxSyncEnabled: _isDigitaxSyncEnabled,
+            lastDigitaxSyncDate: null,
+            isWeighted: _isWeighted,
+            unitOfMeasure: finalUom,
+            tareWeight: tareWeight,
+            scalePlu: scalePlu,
+          );
+
       final previousStock = targetProduct?.stockLevel;
 
       if (targetProduct != null) {
@@ -2333,12 +2927,17 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
         product.categoryId = _selectedCategoryId ?? product.categoryId;
         product.imagePath = _imagePath ?? product.imagePath;
         product.discountPrice = discountPrice;
-        product.discountStartDate = _hasDiscount ? (product.discountStartDate ?? DateTime.now()) : null;
-        product.discountEndDate = (_hasDiscount && durationDays != null) ? DateTime.now().add(Duration(days: durationDays)) : null;
+        product.discountStartDate = _hasDiscount
+            ? (product.discountStartDate ?? DateTime.now())
+            : null;
+        product.discountEndDate = (_hasDiscount && durationDays != null)
+            ? DateTime.now().add(Duration(days: durationDays))
+            : null;
         product.isTaxInclusive = _isTaxInclusive;
         product.taxRate = parsedTaxRate;
         product.zraTaxCode = zraTaxCode;
-        if (!targetProduct.itemClsCd.startsWith('item_') || _selectedItemClsCode != targetProduct.itemClsCd) {
+        if (!targetProduct.itemClsCd.startsWith('item_') ||
+            _selectedItemClsCode != targetProduct.itemClsCd) {
           product.itemClsCd = effectiveCls;
         }
         product.isDigitaxSyncEnabled = _isDigitaxSyncEnabled;
@@ -2350,8 +2949,10 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
         product.scalePlu = scalePlu;
       }
 
-      final commRate = double.tryParse(_commissionRateController.text.trim()) ?? 0.0;
-      final suppPayout = double.tryParse(_supplierPayoutPriceController.text.trim()) ?? 0.0;
+      final commRate =
+          double.tryParse(_commissionRateController.text.trim()) ?? 0.0;
+      final suppPayout =
+          double.tryParse(_supplierPayoutPriceController.text.trim()) ?? 0.0;
       product.setConsignmentDetails(
         enabled: _isConsignment,
         supplierId: _selectedSupplierId,
@@ -2362,8 +2963,12 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
 
       await db.saveProduct(product);
 
-      final diff = (previousStock != null) ? (product.stockLevel - previousStock) : product.stockLevel;
-      final movementType = previousStock == null ? '01' : (diff > 0 ? '06' : '16');
+      final diff = (previousStock != null)
+          ? (product.stockLevel - previousStock)
+          : product.stockLevel;
+      final movementType = previousStock == null
+          ? '01'
+          : (diff > 0 ? '06' : '16');
 
       // Record stock movement audit entry if stock changed
       if (previousStock == null && product.stockLevel > 0) {
@@ -2388,7 +2993,9 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
           movementType: diff > 0 ? '06' : '16',
           quantityChanged: diff.abs(),
           newStockLevel: product.stockLevel,
-          reasonCategory: diff > 0 ? 'Manual Inventory Adjustment In' : 'Manual Inventory Adjustment Out',
+          reasonCategory: diff > 0
+              ? 'Manual Inventory Adjustment In'
+              : 'Manual Inventory Adjustment Out',
           reasonNotes: 'Adjusted in Product Editor',
           userId: currentUser?.numericId ?? '1001',
           userName: currentUser?.name ?? 'Manager',
@@ -2403,14 +3010,16 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
       String? syncErr;
       if (product.isDigitaxSyncEnabled) {
         try {
-          digitaxSynced = await ref.read(digitaxInventoryServiceProvider).syncSingleProductToDigitax(
-            product,
-            previousStock: previousStock,
-            branchCode: branchBhfId,
-            movementType: movementType,
-            reasonNotes: 'Product Editor update',
-            throwOnError: true,
-          );
+          digitaxSynced = await ref
+              .read(digitaxInventoryServiceProvider)
+              .syncSingleProductToDigitax(
+                product,
+                previousStock: previousStock,
+                branchCode: branchBhfId,
+                movementType: movementType,
+                reasonNotes: 'Product Editor update',
+                throwOnError: true,
+              );
         } catch (e) {
           syncErr = e.toString();
           debugPrint('DigiTax product push notice: $e');
@@ -2423,10 +3032,16 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
             SnackBar(
               content: Row(
                 children: [
-                  const Icon(Icons.shield_rounded, color: Colors.blueAccent, size: 18),
+                  const Icon(
+                    Icons.shield_rounded,
+                    color: Colors.blueAccent,
+                    size: 18,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Text('${product.name} saved offline (Exempt from DigiTax/ZRA sync)'),
+                    child: Text(
+                      '${product.name} saved offline (Exempt from DigiTax/ZRA sync)',
+                    ),
                   ),
                 ],
               ),
@@ -2451,7 +3066,9 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('${product.name} saved locally. DigiTax sync queued.'),
+              content: Text(
+                '${product.name} saved locally. DigiTax sync queued.',
+              ),
               backgroundColor: const Color(0xFF64748B),
               duration: const Duration(seconds: 3),
             ),

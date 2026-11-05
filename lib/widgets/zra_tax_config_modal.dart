@@ -230,21 +230,12 @@ class _ZraTaxConfigModalState extends ConsumerState<ZraTaxConfigModal> {
       debugPrint('Notice: Cloud store config sync: $e');
     }
 
-    // Saving an HQ credential immediately refreshes the HQ DigiTax catalog.
-    try {
-      await ref
-          .read(digitaxInventoryServiceProvider)
-          .syncAllInventoryWithDigitax(branchCode: config.bhfId);
-    } catch (e) {
-      debugPrint('Notice: DigiTax inventory pull after save: $e');
-    }
-
     if (!mounted) return;
     ref.invalidate(storeConfigProvider);
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text(
-          'DigiTax & ZRA Smart Invoice configuration saved and synced to Cloud!',
+          'DigiTax & ZRA Smart Invoice configuration saved and synced to Cloud. Catalogue sync requires separate confirmation.',
         ),
         backgroundColor: Color(0xFF10B981),
       ),

@@ -471,6 +471,11 @@ class LocalSqlService {
     return await db.delete(table, where: where, whereArgs: whereArgs);
   }
 
+  Future<void> close() async {
+    await _database?.close();
+    _database = null;
+  }
+
   /// Execute custom SQL statement
   Future<void> execute(String sql, [List<dynamic>? arguments]) async {
     await db.execute(sql, arguments);

@@ -730,6 +730,7 @@ class ApiService {
       unitCostAtSale: (j['unitCostAtSale'] as num?)?.toDouble() ?? 0.0,
       quantity: j['quantity'] as int? ?? 1,
       isRefunded: j['isRefunded'] as bool? ?? false,
+      isDigitaxExempt: j['isDigitaxExempt'] as bool? ?? true,
       taxRateAtSale: (j['taxRateAtSale'] as num?)?.toDouble() ?? 0.0,
       isTaxInclusiveAtSale: j['isTaxInclusiveAtSale'] as bool? ?? true,
     );

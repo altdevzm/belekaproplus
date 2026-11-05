@@ -15,7 +15,7 @@ class UserSyncBatch(BaseModel):
 @router.get("", response_model=List[schemas.UserResponse])
 def get_users(
     store_id: Optional[int] = None,
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User = Depends(require_roles(["owner", "branch_manager"])),
     db: Session = Depends(get_db)
 ):
     """Fetch active users from Cloud PostgreSQL (tenant-scoped)."""

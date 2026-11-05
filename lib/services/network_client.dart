@@ -16,12 +16,14 @@ class NetworkClient {
   String? _terminalName;
 
   NetworkClient({required this.serverUrl})
-      : _dio = Dio(BaseOptions(
+    : _dio = Dio(
+        BaseOptions(
           baseUrl: serverUrl,
           connectTimeout: const Duration(seconds: 5),
           receiveTimeout: const Duration(seconds: 10),
           headers: {'Content-Type': 'application/json'},
-        ));
+        ),
+      );
 
   /// Whether the server is reachable.
   bool _isConnected = false;
@@ -32,10 +34,15 @@ class NetworkClient {
   /// Ping the server to check connectivity.
   Future<bool> testConnection([String? overrideHost]) async {
     try {
-      final client = overrideHost != null 
-          ? Dio(BaseOptions(baseUrl: 'http://$overrideHost:8080', connectTimeout: const Duration(seconds: 3)))
+      final client = overrideHost != null
+          ? Dio(
+              BaseOptions(
+                baseUrl: 'http://$overrideHost:8080',
+                connectTimeout: const Duration(seconds: 3),
+              ),
+            )
           : _dio;
-      
+
       final response = await client.get('/status');
       _isConnected = response.statusCode == 200;
       return _isConnected;
@@ -49,13 +56,20 @@ class NetworkClient {
   /// Retrieve server configuration and branch info from the Manager POS.
   Future<Map<String, dynamic>?> getServerInfo([String? overrideHost]) async {
     try {
-      final client = overrideHost != null 
-          ? Dio(BaseOptions(baseUrl: 'http://$overrideHost:8080', connectTimeout: const Duration(seconds: 4)))
+      final client = overrideHost != null
+          ? Dio(
+              BaseOptions(
+                baseUrl: 'http://$overrideHost:8080',
+                connectTimeout: const Duration(seconds: 4),
+              ),
+            )
           : _dio;
-      
+
       final response = await client.get('/status');
       if (response.statusCode == 200 && response.data != null) {
-        final data = response.data is String ? jsonDecode(response.data as String) : response.data;
+        final data = response.data is String
+            ? jsonDecode(response.data as String)
+            : response.data;
         if (data is Map<String, dynamic>) {
           _isConnected = true;
           return data;
@@ -90,9 +104,10 @@ class NetworkClient {
 
   Future<void> _sendHeartbeat() async {
     try {
-      await _dio.post('/terminals/heartbeat', data: {
-        'terminalName': _terminalName,
-      });
+      await _dio.post(
+        '/terminals/heartbeat',
+        data: {'terminalName': _terminalName},
+      );
       _isConnected = true;
     } catch (_) {
       _isConnected = false;
@@ -109,20 +124,25 @@ class NetworkClient {
     String? branchCode,
   }) async {
     try {
-      final response = await _dio.post('/terminals/register', data: {
-        'terminalCode': terminalCode,
-        'terminalName': terminalCode,
-        'name': name,
-        'deviceIp': deviceIp,
-        'hardwareId': hardwareId,
-        'deviceModel': deviceModel,
-        'branchCode': branchCode,
-        'timestamp': DateTime.now().toIso8601String(),
-      });
+      final response = await _dio.post(
+        '/terminals/register',
+        data: {
+          'terminalCode': terminalCode,
+          'terminalName': terminalCode,
+          'name': name,
+          'deviceIp': deviceIp,
+          'hardwareId': hardwareId,
+          'deviceModel': deviceModel,
+          'branchCode': branchCode,
+          'timestamp': DateTime.now().toIso8601String(),
+        },
+      );
 
       if (response.statusCode == 200 && response.data != null) {
         _isConnected = true;
-        final data = response.data is String ? jsonDecode(response.data as String) : response.data;
+        final data = response.data is String
+            ? jsonDecode(response.data as String)
+            : response.data;
         return data is Map<String, dynamic> ? data : {'success': true};
       }
       return null;
@@ -138,13 +158,19 @@ class NetworkClient {
   /// Authenticate a cashier against the Manager's user database.
   /// Returns the user data on success, null on failure.
   Future<Map<String, dynamic>?> login(
-      String numericId, String password, String terminalName) async {
+    String numericId,
+    String password,
+    String terminalName,
+  ) async {
     try {
-      final response = await _dio.post('/auth/login', data: {
-        'numericId': numericId,
-        'password': password,
-        'terminalName': terminalName,
-      });
+      final response = await _dio.post(
+        '/auth/login',
+        data: {
+          'numericId': numericId,
+          'password': password,
+          'terminalName': terminalName,
+        },
+      );
 
       if (response.statusCode == 200) {
         final body = response.data is String
@@ -176,7 +202,9 @@ class NetworkClient {
           : response.data as List;
 
       _isConnected = true;
-      return data.map((j) => _jsonToProduct(j as Map<String, dynamic>)).toList();
+      return data
+          .map((j) => _jsonToProduct(j as Map<String, dynamic>))
+          .toList();
     } catch (e) {
       _isConnected = false;
       debugPrint('FETCH_PRODUCTS_ERROR: $e');
@@ -212,12 +240,17 @@ class NetworkClient {
 
   /// Push a single completed sale to the Manager's server.
   Future<Map<String, dynamic>?> pushTransaction(
-      SaleTransaction transaction, List<SaleItem> items) async {
+    SaleTransaction transaction,
+    List<SaleItem> items,
+  ) async {
     try {
-      final response = await _dio.post('/transactions', data: {
-        'transaction': _transactionToJson(transaction),
-        'items': items.map(_saleItemToJson).toList(),
-      });
+      final response = await _dio.post(
+        '/transactions',
+        data: {
+          'transaction': _transactionToJson(transaction),
+          'items': items.map(_saleItemToJson).toList(),
+        },
+      );
 
       _isConnected = true;
       final body = response.data is String
@@ -233,10 +266,13 @@ class NetworkClient {
 
   /// Push a batch of offline sales to the Manager's server.
   Future<Map<String, dynamic>?> pushBatchTransactions(
-      List<Map<String, dynamic>> batch) async {
+    List<Map<String, dynamic>> batch,
+  ) async {
     try {
-      final response =
-          await _dio.post('/transactions/batch', data: {'transactions': batch});
+      final response = await _dio.post(
+        '/transactions/batch',
+        data: {'transactions': batch},
+      );
 
       _isConnected = true;
       final body = response.data is String
@@ -307,18 +343,22 @@ class NetworkClient {
   }
 
   /// Create a new user (Manager use).
-  Future<bool> createUser(
-      {required String numericId,
-      required String name,
-      required String password,
-      String role = 'cashier'}) async {
+  Future<bool> createUser({
+    required String numericId,
+    required String name,
+    required String password,
+    String role = 'cashier',
+  }) async {
     try {
-      final response = await _dio.post('/users', data: {
-        'numericId': numericId,
-        'name': name,
-        'password': password,
-        'role': role,
-      });
+      final response = await _dio.post(
+        '/users',
+        data: {
+          'numericId': numericId,
+          'name': name,
+          'password': password,
+          'role': role,
+        },
+      );
       final body = response.data is String
           ? jsonDecode(response.data as String)
           : response.data;
@@ -345,6 +385,10 @@ class NetworkClient {
       categoryId: j['categoryId'] as int,
       unitCost: (j['unitCost'] as num?)?.toDouble() ?? 0.0,
       isTaxInclusive: j['isTaxInclusive'] as bool? ?? true,
+      isDigitaxSyncEnabled:
+          j['isDigitaxSyncEnabled'] as bool? ??
+          j['is_digitax_sync_enabled'] as bool? ??
+          false,
       taxRate: (j['taxRate'] as num?)?.toDouble() ?? 0.0,
       isArchived: j['isArchived'] as bool? ?? false,
       imagePath: img,
@@ -352,45 +396,51 @@ class NetworkClient {
   }
 
   static Map<String, dynamic> _transactionToJson(SaleTransaction tx) => {
-        'totalAmount': tx.totalAmount,
-        'paymentMethod': tx.paymentMethod,
-        'cashierName': tx.cashierName,
-        'status': tx.status,
-        'subtotal': tx.subtotal,
-        'taxAmount': tx.taxAmount,
-        'discountAmount': tx.discountAmount,
-        'totalCost': tx.totalCost,
-        'grossProfit': tx.grossProfit,
-        'tenderedAmount': tx.tenderedAmount,
-        'changeAmount': tx.changeAmount,
-        'cashierId': tx.cashierId,
-        'terminalName': tx.terminalName,
-        'transactionId': tx.transactionId,
-        'customerTpin': tx.customerTpin,
-        'customerBusinessName': tx.customerBusinessName,
-        'customerAddress': tx.customerAddress,
-        'zraSdcId': tx.zraSdcId,
-        'zraReceiptNumber': tx.zraReceiptNumber,
-        'zraMarkId': tx.zraMarkId,
-        'zraInternalData': tx.zraInternalData,
-        'zraQrCode': tx.zraQrCode,
-        'zraInvoiceType': tx.zraInvoiceType,
-        'zraStatus': tx.zraStatus,
-        'orgInvoiceNo': tx.orgInvoiceNo,
-        'isCreditNote': tx.isCreditNote,
-        'creditNoteReason': tx.creditNoteReason,
-      };
+    'totalAmount': tx.totalAmount,
+    'paymentMethod': tx.paymentMethod,
+    'cashierName': tx.cashierName,
+    'status': tx.status,
+    'subtotal': tx.subtotal,
+    'taxAmount': tx.taxAmount,
+    'discountAmount': tx.discountAmount,
+    'totalCost': tx.totalCost,
+    'grossProfit': tx.grossProfit,
+    'tenderedAmount': tx.tenderedAmount,
+    'changeAmount': tx.changeAmount,
+    'cashierId': tx.cashierId,
+    'terminalName': tx.terminalName,
+    'cashShiftNumber': tx.cashShiftNumber,
+    'externalPaymentReference': tx.externalPaymentReference,
+    'externalPaymentConfirmedBy': tx.externalPaymentConfirmedBy,
+    'externalPaymentConfirmedAt': tx.externalPaymentConfirmedAt
+        ?.toIso8601String(),
+    'transactionId': tx.transactionId,
+    'customerTpin': tx.customerTpin,
+    'customerBusinessName': tx.customerBusinessName,
+    'customerAddress': tx.customerAddress,
+    'zraSdcId': tx.zraSdcId,
+    'zraReceiptNumber': tx.zraReceiptNumber,
+    'zraMarkId': tx.zraMarkId,
+    'zraInternalData': tx.zraInternalData,
+    'zraQrCode': tx.zraQrCode,
+    'zraInvoiceType': tx.zraInvoiceType,
+    'zraStatus': tx.zraStatus,
+    'orgInvoiceNo': tx.orgInvoiceNo,
+    'isCreditNote': tx.isCreditNote,
+    'creditNoteReason': tx.creditNoteReason,
+  };
 
   static Map<String, dynamic> _saleItemToJson(SaleItem item) => {
-        'productId': item.productId,
-        'productName': item.productName,
-        'priceAtSale': item.priceAtSale,
-        'unitCostAtSale': item.unitCostAtSale,
-        'quantity': item.quantity,
-        'isRefunded': item.isRefunded,
-        'taxRateAtSale': item.taxRateAtSale,
-        'isTaxInclusiveAtSale': item.isTaxInclusiveAtSale,
-      };
+    'productId': item.productId,
+    'productName': item.productName,
+    'priceAtSale': item.priceAtSale,
+    'unitCostAtSale': item.unitCostAtSale,
+    'quantity': item.quantity,
+    'isRefunded': item.isRefunded,
+    'isDigitaxExempt': item.isDigitaxExempt,
+    'taxRateAtSale': item.taxRateAtSale,
+    'isTaxInclusiveAtSale': item.isTaxInclusiveAtSale,
+  };
 
   void dispose() {
     stopBackgroundTasks();
@@ -402,15 +452,15 @@ class NetworkClient {
 /// Reads the server IP from StoreConfig.
 final networkClientProvider = Provider<NetworkClient?>((ref) {
   final configAsync = ref.watch(storeConfigProvider);
-  
+
   return configAsync.when(
     data: (config) {
       if (config == null) return null;
       if (config.isManagerMode) return null;
-      
+
       final ip = config.serverIp;
       if (ip == null || ip.isEmpty) return null;
-      
+
       return NetworkClient(serverUrl: 'http://$ip:${config.port}');
     },
     loading: () => null,

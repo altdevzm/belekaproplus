@@ -56,12 +56,15 @@ def run_auto_migrations():
                     ALTER TABLE products 
                     ADD COLUMN IF NOT EXISTS package_unit_code VARCHAR(20) DEFAULT 'NT',
                     ADD COLUMN IF NOT EXISTS unit_of_measure VARCHAR(50) DEFAULT 'kg',
-                    ADD COLUMN IF NOT EXISTS is_digitax_sync_enabled BOOLEAN DEFAULT TRUE,
+                    ADD COLUMN IF NOT EXISTS is_digitax_sync_enabled BOOLEAN DEFAULT FALSE,
                     ADD COLUMN IF NOT EXISTS is_synced_with_digitax BOOLEAN DEFAULT FALSE,
                     ADD COLUMN IF NOT EXISTS branch_code VARCHAR(50) DEFAULT '00';
 
                     CREATE INDEX IF NOT EXISTS idx_products_branch_code ON products(branch_code);
                     CREATE INDEX IF NOT EXISTS idx_products_digitax_sync ON products(is_synced_with_digitax);
+
+                    ALTER TABLE sale_items
+                    ADD COLUMN IF NOT EXISTS is_digitax_exempt BOOLEAN NOT NULL DEFAULT TRUE;
                 """))
                 conn.commit()
     except Exception as e:
@@ -142,4 +145,3 @@ def seed_initial_data():
         db.rollback()
     finally:
         db.close()
-

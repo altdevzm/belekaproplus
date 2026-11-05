@@ -8,27 +8,20 @@ class User {
 
   @Index(unique: true)
   late String numericId; // Unique ID for login (e.g. 1001)
-  
+
   late String name;
-  late String passwordHash; 
+  late String passwordHash;
   late String role; // 'owner', 'branch_manager', 'cashier'
-  
+
   String? branchName; // e.g. 'Main Branch (HQ)', 'Kitwe Retail Store'
   String? branchCode; // e.g. '00', '01'
   String? phone;
-  
+
   @Index()
   bool isActive = true;
 }
 
-enum CategorySector {
-  pharmacy,
-  stationery,
-  grocery,
-  food,
-  restaurant,
-  other
-}
+enum CategorySector { pharmacy, stationery, grocery, food, restaurant, other }
 
 @collection
 class Category {
@@ -36,14 +29,14 @@ class Category {
 
   late String name;
   String iconPath = '';
-  
+
   @enumerated
   CategorySector sector = CategorySector.other;
 
   Category({
-    required this.name, 
-    this.iconPath = '', 
-    this.sector = CategorySector.other
+    required this.name,
+    this.iconPath = '',
+    this.sector = CategorySector.other,
   });
 }
 
@@ -57,19 +50,20 @@ class Product {
   late double price;
   late int stockLevel;
   late int categoryId;
-  
+
   double unitCost = 0.0;
-  
+
   List<String>? sizes;
   List<String>? colors;
-  
+
   String? imagePath;
-  
+
   bool isTaxInclusive = true;
   double taxRate = 16.0;
-  
+
   // ZRA Smart Invoice / EFD Tax Classification
-  String zraTaxCode = 'A'; // 'A' (Standard 16%), 'B' (Zero 0%), 'C' (Exempt 0%), 'E' (Non-VAT), 'TOT' (Turnover 3%)
+  String zraTaxCode =
+      'A'; // 'A' (Standard 16%), 'B' (Zero 0%), 'C' (Exempt 0%), 'E' (Non-VAT), 'TOT' (Turnover 3%)
   String itemClsCd = '10101501';
 
   // Multi-Branch Store Isolation (bhfId: '00' = HQ, '01' = Branch 1, etc.)
@@ -80,8 +74,11 @@ class Product {
   // DigiTax Inventory Synchronization Status
   bool isSyncedWithDigitax = false;
   DateTime? lastDigitaxSyncDate;
-  bool isDigitaxSyncEnabled = true; // When false: product is kept offline/private, NEVER uploaded to DigiTax, and excluded from fiscal payloads
-  
+  bool isDigitaxSyncEnabled = false; // DigiTax sync requires explicit opt-in.
+
+  @ignore
+  bool get isDigitaxSyncEligible => isDigitaxSyncEnabled && isTaxInclusive;
+
   @Index()
   bool isArchived = false;
 
@@ -95,7 +92,8 @@ class Product {
     // Pure 8-digit numbers are ZRA UNSPSC classification codes, NOT DigiTax item IDs
     if (RegExp(r'^\d{8}$').hasMatch(value)) return false;
     if (value == '10101501' || value == '56101530') return false;
-    return value.startsWith('item_') || (value.length > 10 && !RegExp(r'^\d+$').hasMatch(value));
+    return value.startsWith('item_') ||
+        (value.length > 10 && !RegExp(r'^\d+$').hasMatch(value));
   }
 
   // Electronic Scale & Unit of Measure
@@ -107,7 +105,8 @@ class Product {
   // Consignment / Vendor Sales on Behalf
   // Stored in scalePlu with format: 'CONSIGNMENT:suppId:suppName:commPct:payoutPrice' or scalePlu code
   @ignore
-  bool get isConsignment => scalePlu != null && scalePlu!.startsWith('CONSIGN:');
+  bool get isConsignment =>
+      scalePlu != null && scalePlu!.startsWith('CONSIGN:');
 
   @ignore
   int? get consignmentSupplierId {
@@ -148,8 +147,11 @@ class Product {
       if (isConsignment) scalePlu = null;
       return;
     }
-    final cleanName = (supplierName ?? '').replaceAll(':', ' ').replaceAll(' ', '_');
-    scalePlu = 'CONSIGN:${supplierId ?? 0}:$cleanName:$commissionRate:$supplierPayoutPrice';
+    final cleanName = (supplierName ?? '')
+        .replaceAll(':', ' ')
+        .replaceAll(' ', '_');
+    scalePlu =
+        'CONSIGN:${supplierId ?? 0}:$cleanName:$commissionRate:$supplierPayoutPrice';
   }
 
   Product({
@@ -170,7 +172,7 @@ class Product {
     this.branchName,
     this.isSyncedWithDigitax = false,
     this.lastDigitaxSyncDate,
-    this.isDigitaxSyncEnabled = true,
+    this.isDigitaxSyncEnabled = false,
     this.isArchived = false,
     this.discountPrice,
     this.discountStartDate,
@@ -211,6 +213,10 @@ class SaleTransaction {
   bool isSynced = false;
   String? cashierId;
   String? terminalName;
+  String? cashShiftNumber;
+  String? externalPaymentReference;
+  String? externalPaymentConfirmedBy;
+  DateTime? externalPaymentConfirmedAt;
 
   // B2B Corporate / Tax Invoice Customer Data
   String? customerTpin;
@@ -256,6 +262,10 @@ class SaleTransaction {
     this.cloudStoreId = 0,
     this.cashierId,
     this.terminalName,
+    this.cashShiftNumber,
+    this.externalPaymentReference,
+    this.externalPaymentConfirmedBy,
+    this.externalPaymentConfirmedAt,
     this.customerTpin,
     this.customerBusinessName,
     this.customerAddress,
@@ -292,19 +302,24 @@ class SaleItem {
 
   late int productId;
   late String productName;
+  String? productSkuAtSale;
   late double priceAtSale;
+  double discountAmountAtSale = 0.0;
   double unitCostAtSale = 0.0;
   int quantity = 1;
   double weight = 0.0; // In kg/g
   bool isWeighted = false;
   String unitOfMeasure = 'kg'; // 'kg', 'g', 'pcs', 'unit', 'ltr', 'lb'
   bool isRefunded = false;
-  bool isDigitaxExempt = false; // When true: item is offline/private and excluded from fiscal invoice
+  bool isDigitaxExempt =
+      false; // When true: item is offline/private and excluded from fiscal invoice
 
   SaleItem({
     required this.productId,
     required this.productName,
     required this.priceAtSale,
+    this.productSkuAtSale,
+    this.discountAmountAtSale = 0.0,
     this.unitCostAtSale = 0.0,
     this.quantity = 1,
     this.weight = 0.0,
@@ -343,29 +358,29 @@ class StoreConfig {
   String? sdcId;
   String? mrcNo;
   String? currencySymbol;
-  
+
   // Terminal Identifier
   late String terminalName;
-  
+
   // Branding, Contact & Document Theming
   String? logoPath;
   String? email;
   String? website;
   String? brandColorHex; // Hex string e.g. #C1F11D, #1A73E8, etc.
   String? branchName;
-  
+
   @enumerated
   CategorySector primarySector = CategorySector.other;
 
   // Security
   String? recoveryCodeHash;
-  
+
   double taxRate = 16.0; // Default VAT in Zambia
-  
+
   // Restaurant / Hospitality Service Charge (Non-Taxable, Not sent to DigiTax)
   bool serviceChargeEnabled = false;
   double defaultServiceChargeRate = 0.0; // e.g. 10.0%
-  
+
   // Loyalty Program System Settings
   bool loyaltyEnabled = false;
   double loyaltyEarnRate = 1.0; // Points earned per 1 unit of currency
@@ -386,10 +401,11 @@ class StoreConfig {
   String? cloudAuthUserId;
   String? cloudAuthPin;
 
-
   // ZRA Smart Invoice / DigiTax API Configuration
-  String bhfId = '00'; // ZRA Branch Code ('00' = HQ, '01' = Branch 1, '02' = Branch 2)
-  String businessTaxType = 'VAT_STANDARD'; // 'VAT_STANDARD', 'TURNOVER_TAX', 'EXEMPT', 'COMPOSITE'
+  String bhfId =
+      '00'; // ZRA Branch Code ('00' = HQ, '01' = Branch 1, '02' = Branch 2)
+  String businessTaxType =
+      'VAT_STANDARD'; // 'VAT_STANDARD', 'TURNOVER_TAX', 'EXEMPT', 'COMPOSITE'
   String? digitaxApiKey;
   String digitaxEnvironment = 'sandbox'; // 'sandbox', 'production'
 
@@ -417,16 +433,19 @@ class StoreConfig {
 
   // Cash Drawer Hardware & Driver Settings
   bool autoOpenCashDrawer = true; // Auto-kick drawer on payment completion
-  bool openDrawerCashOnly = false; // true = cash/split only, false = all payment methods
+  bool openDrawerCashOnly =
+      false; // true = cash/split only, false = all payment methods
   int cashDrawerPin = 2; // 2 = Standard Pin 2 (0x00), 5 = Pin 5 (0x01)
   int cashDrawerPulseOnMs = 50; // Pulse ON duration in ms
   int cashDrawerPulseOffMs = 250; // Pulse OFF duration in ms
 
   // Electronic Weight Scale Hardware & Driver Settings
   bool scaleEnabled = true;
-  String scalePort = 'COM1'; // e.g. 'COM1', 'COM3', '/dev/ttyUSB0', '127.0.0.1:9001'
+  String scalePort =
+      'COM1'; // e.g. 'COM1', 'COM3', '/dev/ttyUSB0', '127.0.0.1:9001'
   int scaleBaudRate = 9600; // 9600, 4800, 19200, 115200
-  String scaleProtocol = 'generic'; // 'generic', 'toledo', 'cas', 'avery', 'bridge'
+  String scaleProtocol =
+      'generic'; // 'generic', 'toledo', 'cas', 'avery', 'bridge'
   double defaultTareWeight = 0.0;
 }
 
@@ -435,17 +454,17 @@ class Customer {
   Id id = Isar.autoIncrement;
 
   late String name;
-  
+
   @Index(unique: true)
   late String phoneNumber;
-  
+
   String? email;
-  
+
   // Loyalty balance
   int accumulatedPoints = 0;
-  
+
   DateTime? createdAt;
-  
+
   double totalSpend = 0.0;
 
   Customer({
@@ -493,7 +512,7 @@ class Supplier {
   String? address;
   double balance = 0.0; // Outstanding balance owed to supplier
   double totalPurchases = 0.0;
-  
+
   @Index()
   DateTime createdAt = DateTime.now();
 }
@@ -516,10 +535,10 @@ class PurchaseOrder {
   double totalAmount = 0.0;
   DateTime? expectedDeliveryDate;
   String? notes;
-  
+
   @Index()
   DateTime createdAt = DateTime.now();
-  
+
   DateTime? approvedAt;
 
   final items = IsarLinks<PurchaseOrderItem>();
@@ -555,7 +574,7 @@ class GoodsReceivedNote {
   String warehouseBranch = 'Main Branch';
   int totalItemsReceived = 0;
   String? notes;
-  
+
   @Index()
   DateTime createdAt = DateTime.now();
 }
@@ -575,7 +594,7 @@ class PurchaseInvoice {
   double balanceDue = 0.0;
   late String paymentStatus; // 'unpaid', 'partial', 'paid'
   DateTime? dueDate;
-  
+
   @Index()
   DateTime createdAt = DateTime.now();
 }
@@ -590,9 +609,11 @@ class PurchaseReturn {
   late String supplierName;
   String? poNumber;
   double totalAmount = 0.0;
-  late String reason; // 'Damaged Goods', 'Expired Stock', 'Wrong Item Received', 'Excess Delivery'
-  String refundMethod = 'Supplier Credit Note'; // 'Cash Refund', 'Supplier Credit Note'
-  
+  late String
+  reason; // 'Damaged Goods', 'Expired Stock', 'Wrong Item Received', 'Excess Delivery'
+  String refundMethod =
+      'Supplier Credit Note'; // 'Cash Refund', 'Supplier Credit Note'
+
   @Index()
   DateTime createdAt = DateTime.now();
 }
@@ -604,7 +625,8 @@ class PaymentAccount {
   @Index(unique: true)
   late String name; // 'Cash in Till', 'Main Bank Account', 'Airtel Money', 'MTN Money', 'Zamtel Money', 'Visa/Mastercard'
 
-  late String accountType; // 'CASH', 'BANK', 'AIRTEL_MONEY', 'MTN_MONEY', 'ZAMTEL_MONEY', 'CARD', 'OTHER'
+  late String
+  accountType; // 'CASH', 'BANK', 'AIRTEL_MONEY', 'MTN_MONEY', 'ZAMTEL_MONEY', 'CARD', 'OTHER'
   String? accountNumber;
   double balance = 0.0;
   String currency = 'ZMW';
@@ -621,7 +643,8 @@ class Expense {
   @Index(unique: true)
   late String expenseNumber;
 
-  late String category; // 'Rent', 'Utilities', 'Salaries & Wages', 'Transport / Fuel', 'Inventory & Supplies', 'Repairs', 'Marketing', 'Other'
+  late String
+  category; // 'Rent', 'Utilities', 'Salaries & Wages', 'Transport / Fuel', 'Inventory & Supplies', 'Repairs', 'Marketing', 'Other'
   double amount = 0.0;
   int? paymentAccountId;
   late String paymentAccountName;
@@ -630,7 +653,7 @@ class Expense {
   String? referenceNumber;
   String? notes;
   String? receiptImagePath;
-  
+
   @Index()
   DateTime expenseDate = DateTime.now();
 
@@ -638,7 +661,8 @@ class Expense {
   DateTime createdAt = DateTime.now();
 
   @ignore
-  String get title => (notes != null && notes!.trim().isNotEmpty) ? notes!.trim() : category;
+  String get title =>
+      (notes != null && notes!.trim().isNotEmpty) ? notes!.trim() : category;
 }
 
 @collection
@@ -676,7 +700,7 @@ class CashShift {
   String branchName = 'Main Branch';
   DateTime openingTime = DateTime.now();
   DateTime? closingTime;
-  
+
   double openingCash = 0.0;
   double cashSales = 0.0;
   double cashExpenses = 0.0;
@@ -684,11 +708,11 @@ class CashShift {
   double cashReceived = 0.0;
   double cashDeposits = 0.0;
   double cashWithdrawals = 0.0;
-  
+
   double expectedClosingCash = 0.0;
   double actualClosingCash = 0.0;
   double cashVariance = 0.0; // Actual - Expected
-  
+
   late String status; // 'OPEN', 'CLOSED'
   String? notes;
 
@@ -708,7 +732,7 @@ class RefundTransaction {
   double amount = 0.0;
   late String reason;
   String? authorizedBy;
-  
+
   @Index()
   DateTime refundDate = DateTime.now();
 
@@ -724,10 +748,10 @@ class StoreBranch {
   late String code; // e.g. 'HQ-001', 'KT-002', 'ND-003'
 
   late String name;
-  
+
   @Index()
   late String bhfId; // ZRA Branch Code (3 digits: '001' = HQ, '002', '003', etc.)
-  
+
   String tpin = '1000000000';
   String? sdcId;
   String? mrcNo;
@@ -738,11 +762,11 @@ class StoreBranch {
   // Branch-isolated DigiTax API Key & Environment
   String? digitaxApiKey;
   String digitaxEnvironment = 'production'; // 'production', 'sandbox'
-  
+
   String? managerId;
   String? managerName;
   String? managerPhone;
-  
+
   bool isHQ = false;
   String status = 'ONLINE'; // 'ONLINE', 'OFFLINE'
   String zraStatus = 'FISCALIZED'; // 'FISCALIZED', 'PENDING'
@@ -751,7 +775,7 @@ class StoreBranch {
   // Cloud backend store_id for this branch (0 if not synced to cloud yet)
   @Index()
   int cloudStoreId = 0;
-  
+
   @Index()
   DateTime createdAt = DateTime.now();
 }
@@ -766,21 +790,21 @@ class PosTerminal {
   late String name; // e.g. 'Main Counter Till 1'
   String branchCode = '00';
   String branchName = 'Main Branch (HQ)';
-  
+
   String? deviceIp;
   String? serialNumber;
-  
+
   String? assignedCashierId;
   String? assignedCashierName;
-  
+
   String status = 'ACTIVE'; // 'ACTIVE', 'INACTIVE', 'MAINTENANCE'
   String digitaxBhfId = '00'; // DigiTax Branch / Till ID
-  
+
   double salesToday = 0.0;
-  
+
   @Index()
   DateTime lastActive = DateTime.now();
-  
+
   @Index()
   DateTime createdAt = DateTime.now();
 }
@@ -793,34 +817,35 @@ class StockMovement {
   late int productId;
   late String productName;
   late String sku;
-  
+
   @Index()
   String branchCode = '00';
   String? branchName;
-  
+
   // ZRA SAR Movement Type Code ('01', '02', '03', '04', '06', '11', '12', '13', '14', '15', '16')
   late String movementType;
-  
+
   // 'ADD' (Stock In), 'DEDUCT' (Stock Out), 'RECOUNT' (Physical Audit Recount)
   late String actionType;
-  
+
   int previousStock = 0;
   int quantityChanged = 0; // Absolute value of quantity adjusted
   int newStock = 0;
-  
+
   double unitCost = 0.0;
   double totalCostImpact = 0.0; // quantityChanged * unitCost
-  
+
   // Descriptive business reason
-  late String reasonCategory; // e.g. 'Damaged / Broken Goods', 'Expired Stock', 'Restock / Purchase', 'Physical Audit Shrinkage', 'Theft / Loss', 'Store Use / Sample', 'Return to Supplier', 'Transfer In', 'Transfer Out', 'Other'
+  late String
+  reasonCategory; // e.g. 'Damaged / Broken Goods', 'Expired Stock', 'Restock / Purchase', 'Physical Audit Shrinkage', 'Theft / Loss', 'Store Use / Sample', 'Return to Supplier', 'Transfer In', 'Transfer Out', 'Other'
   String? reasonNotes; // Custom remarks or batch/PO/audit reference
-  
+
   String? userId;
   String? userName;
-  
+
   bool isSyncedWithDigitax = false;
   String? digitaxSarNo; // e.g. 'SAR-00-1724867123'
-  
+
   @Index()
   DateTime timestamp = DateTime.now();
 
@@ -846,4 +871,3 @@ class StockMovement {
     this.digitaxSarNo,
   }) : timestamp = DateTime.now();
 }
-

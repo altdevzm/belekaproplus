@@ -1,6 +1,5 @@
 import os
 import time
-import random
 import logging
 from typing import Dict, Any, Optional, List
 import requests
@@ -170,8 +169,27 @@ class DigiTaxZraService:
             "itemList": digitax_items,
         }
 
-        # Attempt live API call if API Key is configured
-        if api_key and not api_key.startswith("test_") and not api_key.startswith("demo_"):
+        def pending_result(message: str, *, zra_status: str = "PENDING") -> Dict[str, Any]:
+            logger.warning(
+                "DigiTax fiscalization %s for %s: %s",
+                zra_status,
+                transaction.get("transaction_uuid"),
+                message,
+            )
+            return {
+                "status": zra_status,
+                "zra_status": zra_status,
+                "detail": message,
+                "tpin": tpin,
+                "sdc_id": sdc_id,
+            }
+
+        # Never fabricate fiscal data when DigiTax is unavailable or unconfigured.
+        if not api_key or api_key.startswith(("test_", "demo_")):
+            return pending_result("No live DigiTax API key is configured.")
+
+        # Attempt live API call only with an explicitly configured real key.
+        if api_key:
             try:
                 base_url = DigiTaxZraService.get_base_url(env)
                 headers = {
@@ -183,6 +201,13 @@ class DigiTaxZraService:
                 resp = requests.post(f"{base_url}/sales", json=payload, headers=headers, timeout=8)
                 if resp.status_code in [200, 201]:
                     data = resp.json()
+                    receipt_number = data.get("sdcReceiptNo") or data.get("zra_receipt_number")
+                    mark_id = data.get("vsdcMarkId") or data.get("zra_mark_id")
+                    if not receipt_number or not mark_id:
+                        return pending_result(
+                            "DigiTax accepted the request without confirmed receipt metadata; reconcile before retrying.",
+                            zra_status="RECONCILIATION_REQUIRED",
+                        )
                     logger.info(f"DigiTax Live API Successful for {transaction.get('transaction_uuid')}")
                     tax_summary = data.get("sales_tax_summary") or {}
                     vat_tax = float(tax_summary.get("tax_amount_vat") or 0.0)
@@ -192,8 +217,8 @@ class DigiTaxZraService:
 
                     return {
                         "status": "SUCCESS",
-                        "zra_receipt_number": data.get("sdcReceiptNo") or data.get("zra_receipt_number"),
-                        "zra_mark_id": data.get("vsdcMarkId") or data.get("zra_mark_id"),
+                        "zra_receipt_number": receipt_number,
+                        "zra_mark_id": mark_id,
                         "zra_qr_code": data.get("qrCodeUrl") or data.get("zra_qr_code"),
                         "zra_status": "APPROVED",
                         "tax_amount": server_tax,
@@ -203,31 +228,21 @@ class DigiTaxZraService:
                         "sdc_id": sdc_id
                     }
                 else:
-                    logger.warning(f"DigiTax API HTTP {resp.status_code}: {resp.text}. Using VSDC compliant signature.")
+                    return pending_result(
+                        f"DigiTax returned HTTP {resp.status_code}: {resp.text}",
+                        zra_status=(
+                            "RECONCILIATION_REQUIRED"
+                            if resp.status_code == 409 or resp.status_code >= 500
+                            else "FAILED"
+                        ),
+                    )
             except Exception as ex:
-                logger.error(f"DigiTax Live Connection Exception: {ex}. Proceeding with offline VSDC signature.")
+                return pending_result(
+                    f"DigiTax request outcome is unknown: {ex}",
+                    zra_status="RECONCILIATION_REQUIRED",
+                )
 
-        # Fallback: Compliant ZRA Smart Invoice VSDC Signature
-        timestamp_str = time.strftime("%Y%m%d%H%M%S")
-        seq_num = random.randint(100000, 999999)
-        sdc_receipt_no = f"{sdc_id}/{timestamp_str}/{seq_num}"
-        mark_id = f"ZRA-VSDC-{sdc_id}-{timestamp_str}"
-        qr_data_url = f"https://smartinvoice.zra.org.zm/verify?tpin={tpin}&sdc={sdc_id}&rcpt={seq_num}&mark={mark_id}"
-
-        logger.info(f"Fiscalized sale transaction {transaction.get('transaction_uuid')} via DigiTax engine")
-
-        return {
-            "status": "SUCCESS",
-            "zra_receipt_number": sdc_receipt_no,
-            "zra_mark_id": mark_id,
-            "zra_qr_code": qr_data_url,
-            "zra_status": "APPROVED",
-            "tax_amount": payload.get("totTaxAmt", 0.0),
-            "subtotal": payload.get("totTaxblAmt", 0.0),
-            "timestamp": timestamp_str,
-            "tpin": tpin,
-            "sdc_id": sdc_id
-        }
+        return pending_result("DigiTax did not confirm the transaction.")
 
     @staticmethod
     def fetch_tax_rates(api_key: Optional[str] = None, env: str = "sandbox") -> Dict[str, Any]:
@@ -363,6 +378,18 @@ class DigiTaxZraService:
         """
         Register or update a product item in DigiTax / ZRA Smart Invoice VSDC.
         """
+        sync_enabled = item_data.get(
+            "is_digitax_sync_enabled",
+            item_data.get("isDigitaxSyncEnabled", False),
+        )
+        if sync_enabled is not True:
+            return {
+                "status": "SKIPPED",
+                "live_synced": False,
+                "sku": item_data.get("sku") or item_data.get("itemCd"),
+                "reason": "DigiTax sync is not explicitly enabled for this product.",
+            }
+
         api_key = store_config.get("digitax_api_key") or os.getenv("DIGITAX_API_KEY")
         env = store_config.get("digitax_environment", "sandbox")
         tpin = store_config.get("tpin", "1000000000")
@@ -451,6 +478,19 @@ class DigiTaxZraService:
         store_config["bhf_id"] = branch_code
 
         for item in items_list:
+            sync_enabled = item.get(
+                "is_digitax_sync_enabled",
+                item.get("isDigitaxSyncEnabled", False),
+            )
+            if sync_enabled is not True:
+                results.append({
+                    "status": "SKIPPED",
+                    "live_synced": False,
+                    "sku": item.get("sku") or item.get("itemCd"),
+                    "reason": "DigiTax sync is not explicitly enabled for this product.",
+                })
+                continue
+
             res = DigiTaxZraService.save_item(store_config, item)
             results.append(res)
             if res.get("live_synced"):
@@ -593,7 +633,14 @@ class DigiTaxZraService:
             ]
         }
 
-        if api_key and not api_key.startswith("test_") and not api_key.startswith("demo_"):
+        if not api_key or api_key.startswith(("test_", "demo_")):
+            return {
+                "status": "PENDING",
+                "zra_status": "PENDING",
+                "detail": "No live DigiTax API key is configured.",
+            }
+
+        if api_key:
             try:
                 base_url = DigiTaxZraService.get_base_url(env)
                 headers = {
@@ -605,11 +652,30 @@ class DigiTaxZraService:
                 resp = requests.post(f"{base_url}/sales", json=payload, headers=headers, timeout=8)
                 if resp.status_code in [200, 201]:
                     data = resp.json()
+                    receipt_number = (
+                        data.get("sdcReceiptNo")
+                        or data.get("receipt_number")
+                        or data.get("zra_receipt_number")
+                    )
+                    mark_id = (
+                        data.get("receipt_signature")
+                        or data.get("vsdcMarkId")
+                        or data.get("zra_mark_id")
+                    )
+                    if not receipt_number or not mark_id:
+                        return {
+                            "status": "RECONCILIATION_REQUIRED",
+                            "zra_status": "RECONCILIATION_REQUIRED",
+                            "detail": (
+                                "DigiTax accepted the credit note without confirmed "
+                                "receipt metadata; reconcile before retrying."
+                            ),
+                        }
                     logger.info(f"DigiTax Live Credit Note Successful for {trader_inv_no}")
                     return {
                         "status": "SUCCESS",
-                        "zra_receipt_number": data.get("sdcReceiptNo") or data.get("receipt_number") or data.get("zra_receipt_number"),
-                        "zra_mark_id": data.get("receipt_signature") or data.get("vsdcMarkId") or data.get("zra_mark_id"),
+                        "zra_receipt_number": receipt_number,
+                        "zra_mark_id": mark_id,
                         "zra_qr_code": data.get("receipt_url") or data.get("qrCodeUrl") or data.get("zra_qr_code"),
                         "zra_status": "APPROVED",
                         "timestamp": time.strftime("%Y%m%d%H%M%S"),
@@ -617,25 +683,32 @@ class DigiTaxZraService:
                         "sdc_id": sdc_id
                     }
                 else:
-                    logger.warning(f"DigiTax Credit Note HTTP {resp.status_code}: {resp.text}")
+                    status = (
+                        "RECONCILIATION_REQUIRED"
+                        if resp.status_code == 409 or resp.status_code >= 500
+                        else "FAILED"
+                    )
+                    logger.warning(
+                        "DigiTax credit note %s: HTTP %s: %s",
+                        status,
+                        resp.status_code,
+                        resp.text,
+                    )
+                    return {
+                        "status": status,
+                        "zra_status": status,
+                        "detail": f"DigiTax returned HTTP {resp.status_code}: {resp.text}",
+                    }
             except Exception as ex:
-                logger.error(f"DigiTax Credit Note Exception: {ex}")
-
-        # Fallback compliant signature
-        timestamp_str = time.strftime("%Y%m%d%H%M%S")
-        seq_num = random.randint(100000, 999999)
-        sdc_receipt_no = f"CN-{sdc_id}/{timestamp_str}/{seq_num}"
-        mark_id = f"ZRA-CN-VSDC-{sdc_id}-{timestamp_str}"
-        qr_data_url = f"https://smartinvoice.zra.org.zm/verify?tpin={tpin}&sdc={sdc_id}&rcpt={seq_num}&mark={mark_id}"
+                logger.exception("DigiTax credit note request outcome is unknown")
+                return {
+                    "status": "RECONCILIATION_REQUIRED",
+                    "zra_status": "RECONCILIATION_REQUIRED",
+                    "detail": f"DigiTax request outcome is unknown: {ex}",
+                }
 
         return {
-            "status": "SUCCESS",
-            "zra_receipt_number": sdc_receipt_no,
-            "zra_mark_id": mark_id,
-            "zra_qr_code": qr_data_url,
-            "zra_status": "APPROVED",
-            "timestamp": timestamp_str,
-            "tpin": tpin,
-            "sdc_id": sdc_id
+            "status": "PENDING",
+            "zra_status": "PENDING",
+            "detail": "DigiTax did not confirm the credit note.",
         }
-

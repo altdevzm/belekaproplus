@@ -19,10 +19,7 @@ import 'package:beleka_pos/screens/reports_screen.dart';
 class ReceiptDetailModal extends ConsumerStatefulWidget {
   final SaleTransaction transaction;
 
-  const ReceiptDetailModal({
-    super.key,
-    required this.transaction,
-  });
+  const ReceiptDetailModal({super.key, required this.transaction});
 
   @override
   ConsumerState<ReceiptDetailModal> createState() => _ReceiptDetailModalState();
@@ -48,16 +45,22 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(digitaxInventoryServiceProvider).refreshTransactionFiscalData(widget.transaction).then((updated) {
-        if (updated && mounted) setState(() {});
-      });
+      ref
+          .read(digitaxInventoryServiceProvider)
+          .refreshTransactionFiscalData(widget.transaction)
+          .then((updated) {
+            if (updated && mounted) setState(() {});
+          });
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final itemsAsync = ref.watch(transactionItemsProvider(widget.transaction.id));
-    final currency = ref.watch(storeConfigProvider).value?.currencySymbol ?? 'K';
+    final itemsAsync = ref.watch(
+      transactionItemsProvider(widget.transaction.id),
+    );
+    final currency =
+        ref.watch(storeConfigProvider).value?.currencySymbol ?? 'K';
     final screenHeight = MediaQuery.of(context).size.height;
     final maxModalHeight = (screenHeight * 0.88).clamp(420.0, 780.0);
 
@@ -94,7 +97,10 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
             Expanded(
               child: SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 18,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -116,9 +122,16 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
                       data: (items) => _buildItemList(items, currency),
                       loading: () => const Padding(
                         padding: EdgeInsets.symmetric(vertical: 24),
-                        child: Center(child: CircularProgressIndicator(color: Color(0xFF1D4ED8))),
+                        child: Center(
+                          child: CircularProgressIndicator(
+                            color: Color(0xFF1D4ED8),
+                          ),
+                        ),
                       ),
-                      error: (err, stack) => Text('Error: $err', style: const TextStyle(color: Colors.redAccent)),
+                      error: (err, stack) => Text(
+                        'Error: $err',
+                        style: const TextStyle(color: Colors.redAccent),
+                      ),
                     ),
                     const SizedBox(height: 18),
                     const Divider(color: Colors.white10, height: 1),
@@ -148,7 +161,9 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
   }
 
   Widget _buildHeader(BuildContext context) {
-    final isRefunded = widget.transaction.status == 'refunded' || widget.transaction.isCreditNote;
+    final isRefunded =
+        widget.transaction.status == 'refunded' ||
+        widget.transaction.isCreditNote;
     final isCN = widget.transaction.isCreditNote;
     final title = isCN ? 'ZRA FISCAL CREDIT NOTE' : 'OFFICIAL RECEIPT';
     final receiptNum = isCN
@@ -169,7 +184,9 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
                     width: 8,
                     height: 8,
                     decoration: BoxDecoration(
-                      color: isRefunded ? const Color(0xFFDC2626) : const Color(0xFF059669),
+                      color: isRefunded
+                          ? const Color(0xFFDC2626)
+                          : const Color(0xFF059669),
                       shape: BoxShape.circle,
                     ),
                   ),
@@ -180,17 +197,24 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
                       fontSize: 11,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 1.5,
-                      color: isRefunded ? const Color(0xFFDC2626) : const Color(0xFF059669),
+                      color: isRefunded
+                          ? const Color(0xFFDC2626)
+                          : const Color(0xFF059669),
                     ),
                   ),
                   if (isRefunded) ...[
                     const SizedBox(width: 10),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.redAccent.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(4),
-                        border: Border.all(color: Colors.redAccent.withValues(alpha: 0.4)),
+                        border: Border.all(
+                          color: Colors.redAccent.withValues(alpha: 0.4),
+                        ),
                       ),
                       child: Text(
                         'REFUNDED',
@@ -222,21 +246,58 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
           onPressed: () => Navigator.pop(context),
           style: IconButton.styleFrom(
             backgroundColor: Colors.white.withValues(alpha: 0.05),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
           ),
-          icon: const Icon(Icons.close_rounded, color: Colors.white70, size: 20),
+          icon: const Icon(
+            Icons.close_rounded,
+            color: Colors.white70,
+            size: 20,
+          ),
         ),
       ],
     );
   }
 
   Widget _buildSummary() {
-    final dateStr = DateFormat('MMM dd, yyyy • HH:mm').format(widget.transaction.timestamp);
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    final dateStr = DateFormat(
+      'MMM dd, yyyy • HH:mm',
+    ).format(widget.transaction.timestamp);
+    final transaction = widget.transaction;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSummaryItem('TRANSACTION DATE', dateStr),
-        _buildSummaryItem('PAYMENT METHOD', widget.transaction.paymentMethod.toUpperCase()),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            _buildSummaryItem('TRANSACTION DATE', dateStr),
+            _buildSummaryItem(
+              'PAYMENT METHOD',
+              transaction.paymentMethod.toUpperCase(),
+            ),
+          ],
+        ),
+        if (transaction.paymentMethod == 'EXTERNAL MOBILE MONEY') ...[
+          const SizedBox(height: 10),
+          if (transaction.externalPaymentReference != null)
+            _buildSummaryItem(
+              'EXTERNAL REFERENCE',
+              transaction.externalPaymentReference!,
+            ),
+          if (transaction.externalPaymentConfirmedBy != null)
+            _buildSummaryItem(
+              'CONFIRMED BY',
+              transaction.externalPaymentConfirmedBy!,
+            ),
+          if (transaction.externalPaymentConfirmedAt != null)
+            _buildSummaryItem(
+              'CONFIRMED AT',
+              DateFormat(
+                'MMM dd, yyyy • HH:mm',
+              ).format(transaction.externalPaymentConfirmedAt!),
+            ),
+        ],
       ],
     );
   }
@@ -279,7 +340,9 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
             fontSize: 10,
             fontWeight: FontWeight.w900,
             letterSpacing: 1.5,
-            color: _isRefundMode ? Colors.redAccent : Colors.white.withValues(alpha: 0.35),
+            color: _isRefundMode
+                ? Colors.redAccent
+                : Colors.white.withValues(alpha: 0.35),
           ),
         ),
         if (_isRefundMode && availableItems.isNotEmpty)
@@ -298,7 +361,9 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               child: Text(
-                _selectedItemIds.length == availableItems.length ? 'DESELECT ALL' : 'SELECT ALL',
+                _selectedItemIds.length == availableItems.length
+                    ? 'DESELECT ALL'
+                    : 'SELECT ALL',
                 style: GoogleFonts.inter(
                   fontSize: 10,
                   fontWeight: FontWeight.w800,
@@ -323,7 +388,11 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
         child: Center(
           child: Text(
             'NO ITEMS RECORDED',
-            style: GoogleFonts.manrope(fontSize: 11, color: Colors.white30, fontWeight: FontWeight.bold),
+            style: GoogleFonts.manrope(
+              fontSize: 11,
+              color: Colors.white30,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
       );
@@ -338,7 +407,9 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
           decoration: BoxDecoration(
             color: isSelected
                 ? const Color(0xFF1D4ED8).withValues(alpha: 0.12)
-                : (item.isRefunded ? const Color(0xFFDC2626).withValues(alpha: 0.05) : Colors.white.withValues(alpha: 0.02)),
+                : (item.isRefunded
+                      ? const Color(0xFFDC2626).withValues(alpha: 0.05)
+                      : Colors.white.withValues(alpha: 0.02)),
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
               color: isSelected
@@ -383,13 +454,18 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
                         activeColor: const Color(0xFF1D4ED8),
                         checkColor: Colors.white,
                         side: const BorderSide(color: Colors.white30),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(4),
+                        ),
                       ),
                     ),
                     const SizedBox(width: 10),
                   ],
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 7,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
                       color: item.isRefunded
                           ? const Color(0xFFDC2626).withValues(alpha: 0.15)
@@ -401,7 +477,9 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
                       style: GoogleFonts.inter(
                         fontSize: 11,
                         fontWeight: FontWeight.w800,
-                        color: item.isRefunded ? const Color(0xFFDC2626) : const Color(0xFF1D4ED8),
+                        color: item.isRefunded
+                            ? const Color(0xFFDC2626)
+                            : const Color(0xFF1D4ED8),
                       ),
                     ),
                   ),
@@ -415,8 +493,12 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
                           style: GoogleFonts.inter(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
-                            color: item.isRefunded ? Colors.white24 : Colors.white,
-                            decoration: item.isRefunded ? TextDecoration.lineThrough : null,
+                            color: item.isRefunded
+                                ? Colors.white24
+                                : Colors.white,
+                            decoration: item.isRefunded
+                                ? TextDecoration.lineThrough
+                                : null,
                           ),
                         ),
                         if (item.isRefunded)
@@ -464,7 +546,12 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
         _buildTotalRow('SUBTOTAL', widget.transaction.subtotal, currency),
         const SizedBox(height: 10),
         if (widget.transaction.discountAmount > 0) ...[
-          _buildTotalRow('DISCOUNT', -widget.transaction.discountAmount, currency, isDiscount: true),
+          _buildTotalRow(
+            'DISCOUNT',
+            -widget.transaction.discountAmount,
+            currency,
+            isDiscount: true,
+          ),
           const SizedBox(height: 10),
         ],
         _buildTotalRow('SALES TAX', widget.transaction.taxAmount, currency),
@@ -482,7 +569,9 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
             decoration: BoxDecoration(
               color: Colors.redAccent.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.redAccent.withValues(alpha: 0.3)),
+              border: Border.all(
+                color: Colors.redAccent.withValues(alpha: 0.3),
+              ),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -512,7 +601,13 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
     );
   }
 
-  Widget _buildTotalRow(String label, double amount, String currency, {bool isMain = false, bool isDiscount = false}) {
+  Widget _buildTotalRow(
+    String label,
+    double amount,
+    String currency, {
+    bool isMain = false,
+    bool isDiscount = false,
+  }) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -530,7 +625,9 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
           style: GoogleFonts.inter(
             fontSize: isMain ? 28 : 14,
             fontWeight: FontWeight.w900,
-            color: isMain ? const Color(0xFF059669) : (isDiscount ? const Color(0xFFDC2626) : Colors.white),
+            color: isMain
+                ? const Color(0xFF059669)
+                : (isDiscount ? const Color(0xFFDC2626) : Colors.white),
             letterSpacing: isMain ? -0.5 : 0,
           ),
         ),
@@ -539,50 +636,86 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
   }
 
   Widget _buildZraFiscalCard(StoreConfig? config) {
-    final dateFormatted = DateFormat('dd/MM/yyyy').format(widget.transaction.timestamp);
-    final timeFormatted = DateFormat('HH:mm:ss').format(widget.transaction.timestamp);
-    
+    final dateFormatted = DateFormat(
+      'dd/MM/yyyy',
+    ).format(widget.transaction.timestamp);
+    final timeFormatted = DateFormat(
+      'HH:mm:ss',
+    ).format(widget.transaction.timestamp);
+
     String formatZraInvoiceNo(String? raw, {String? sdcId}) {
-      if (raw == null || raw.trim().isEmpty || raw.trim() == 'PENDING' || raw.trim() == 'null') return 'PENDING';
+      if (raw == null ||
+          raw.trim().isEmpty ||
+          raw.trim() == 'PENDING' ||
+          raw.trim() == 'null') {
+        return 'PENDING';
+      }
       final trimmed = raw.trim();
-      if (trimmed.contains('/') && (trimmed.toUpperCase().startsWith('INV') || trimmed.toUpperCase().startsWith('CN'))) return trimmed;
-      if (trimmed.toUpperCase().startsWith('INV0') || trimmed.toUpperCase().startsWith('INV1/') || trimmed.toUpperCase().startsWith('INV/') || trimmed.toUpperCase().startsWith('CN')) return trimmed;
-      final clean = trimmed.replaceFirst(RegExp(r'^(INV|CN)-0*'), '').replaceFirst(RegExp(r'^(INV|CN)-'), '');
-      final sdcClean = (sdcId ?? '').replaceAll(RegExp(r'^SDC', caseSensitive: false), '');
+      if (trimmed.contains('/') &&
+          (trimmed.toUpperCase().startsWith('INV') ||
+              trimmed.toUpperCase().startsWith('CN'))) {
+        return trimmed;
+      }
+      if (trimmed.toUpperCase().startsWith('INV0') ||
+          trimmed.toUpperCase().startsWith('INV1/') ||
+          trimmed.toUpperCase().startsWith('INV/') ||
+          trimmed.toUpperCase().startsWith('CN')) {
+        return trimmed;
+      }
+      final clean = trimmed
+          .replaceFirst(RegExp(r'^(INV|CN)-0*'), '')
+          .replaceFirst(RegExp(r'^(INV|CN)-'), '');
+      final sdcClean = (sdcId ?? '').replaceAll(
+        RegExp(r'^SDC', caseSensitive: false),
+        '',
+      );
       if (sdcClean.isNotEmpty) {
         return 'INV$sdcClean/$clean';
       }
       return 'INV1/$clean';
     }
 
-    String sdcIdStr = (widget.transaction.zraSdcId != null && widget.transaction.zraSdcId!.isNotEmpty && widget.transaction.zraSdcId != 'PENDING')
+    String sdcIdStr =
+        (widget.transaction.zraSdcId != null &&
+            widget.transaction.zraSdcId!.isNotEmpty &&
+            widget.transaction.zraSdcId != 'PENDING')
         ? widget.transaction.zraSdcId!
         : (config?.sdcId?.isNotEmpty == true ? config!.sdcId! : '');
     if (sdcIdStr.isEmpty && widget.transaction.zraReceiptNumber != null) {
-      final match = RegExp(r'INV(\d+)/', caseSensitive: false).firstMatch(widget.transaction.zraReceiptNumber!);
+      final match = RegExp(
+        r'INV(\d+)/',
+        caseSensitive: false,
+      ).firstMatch(widget.transaction.zraReceiptNumber!);
       if (match != null && match.group(1) != null && match.group(1) != '1') {
         sdcIdStr = 'SDC${match.group(1)}';
       }
     }
     if (sdcIdStr.isEmpty) sdcIdStr = 'PENDING';
-    final sdcInvNoStr = formatZraInvoiceNo(widget.transaction.zraReceiptNumber, sdcId: sdcIdStr);
+    final sdcInvNoStr = formatZraInvoiceNo(
+      widget.transaction.zraReceiptNumber,
+      sdcId: sdcIdStr,
+    );
     // A real ZRA signature is a short uppercase code (e.g. Z7DSL7MVVUKAESRV)
     // A DigiTax internal sale ID starts with 'sale_' and must NOT be shown as the signature
     bool isRealZraSig(String? s) {
-      if (s == null || s.isEmpty || s == 'PENDING' || s == 'APPROVED') return false;
+      if (s == null || s.isEmpty || s == 'PENDING' || s == 'APPROVED') {
+        return false;
+      }
       if (s.startsWith('sale_') || s.startsWith('SALE_')) return false;
       return true;
     }
 
     final signatureRaw = widget.transaction.zraMarkId;
     final signatureStr = isRealZraSig(signatureRaw) ? signatureRaw! : 'PENDING';
-    final internalDataStr = (widget.transaction.zraInternalData != null &&
+    final internalDataStr =
+        (widget.transaction.zraInternalData != null &&
             widget.transaction.zraInternalData!.isNotEmpty &&
             widget.transaction.zraInternalData != 'PENDING')
         ? widget.transaction.zraInternalData!
         : (config?.mrcNo?.isNotEmpty == true ? config!.mrcNo! : 'PENDING');
 
-    final isApproved = widget.transaction.zraStatus == 'APPROVED' ||
+    final isApproved =
+        widget.transaction.zraStatus == 'APPROVED' ||
         widget.transaction.zraStatus == 'FISCALIZED' ||
         isRealZraSig(signatureRaw);
 
@@ -591,7 +724,9 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
       decoration: BoxDecoration(
         color: const Color(0xFF10B981).withValues(alpha: 0.04),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.2)),
+        border: Border.all(
+          color: const Color(0xFF10B981).withValues(alpha: 0.2),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -601,7 +736,11 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.verified_rounded, color: Color(0xFF10B981), size: 16),
+                  const Icon(
+                    Icons.verified_rounded,
+                    color: Color(0xFF10B981),
+                    size: 16,
+                  ),
                   const SizedBox(width: 8),
                   Text(
                     'ZRA SMART INVOICE FISCAL CONTROL',
@@ -617,9 +756,15 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: isApproved ? const Color(0xFF10B981).withValues(alpha: 0.15) : Colors.amber.withValues(alpha: 0.15),
+                  color: isApproved
+                      ? const Color(0xFF10B981).withValues(alpha: 0.15)
+                      : Colors.amber.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: isApproved ? const Color(0xFF10B981).withValues(alpha: 0.4) : Colors.amber.withValues(alpha: 0.4)),
+                  border: Border.all(
+                    color: isApproved
+                        ? const Color(0xFF10B981).withValues(alpha: 0.4)
+                        : Colors.amber.withValues(alpha: 0.4),
+                  ),
                 ),
                 child: Text(
                   isApproved ? 'APPROVED' : 'PENDING',
@@ -638,14 +783,31 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
           _buildFiscalRow('SDC Invoice No', sdcInvNoStr),
           _buildFiscalRow('Signature', signatureStr),
           _buildFiscalRow('Internal Data', internalDataStr),
-          _buildFiscalRow('Invoice Type', widget.transaction.zraInvoiceType ?? (widget.transaction.isCreditNote ? 'Credit Note' : 'Normal Sale'), isMono: false),
-          _buildFiscalRow('QR Verify URL', widget.transaction.zraQrCode ?? 'https://smartinvoice.zra.org.zm/verify', isUrl: true),
+          _buildFiscalRow(
+            'Invoice Type',
+            widget.transaction.zraInvoiceType ??
+                (widget.transaction.isCreditNote
+                    ? 'Credit Note'
+                    : 'Normal Sale'),
+            isMono: false,
+          ),
+          _buildFiscalRow(
+            'QR Verify URL',
+            widget.transaction.zraQrCode ??
+                'https://smartinvoice.zra.org.zm/verify',
+            isUrl: true,
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildFiscalRow(String label, String value, {bool isMono = true, bool isUrl = false}) {
+  Widget _buildFiscalRow(
+    String label,
+    String value, {
+    bool isMono = true,
+    bool isUrl = false,
+  }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3.5),
       child: Row(
@@ -654,7 +816,11 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
         children: [
           Text(
             label,
-            style: GoogleFonts.inter(fontSize: 11, color: Colors.white54, fontWeight: FontWeight.w500),
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              color: Colors.white54,
+              fontWeight: FontWeight.w500,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -680,12 +846,18 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
                           Clipboard.setData(ClipboardData(text: value));
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text('ZRA QR Verification URL copied to clipboard'),
+                              content: Text(
+                                'ZRA QR Verification URL copied to clipboard',
+                              ),
                               duration: Duration(seconds: 2),
                             ),
                           );
                         },
-                        child: const Icon(Icons.copy_rounded, size: 14, color: Color(0xFF10B981)),
+                        child: const Icon(
+                          Icons.copy_rounded,
+                          size: 14,
+                          color: Color(0xFF10B981),
+                        ),
                       ),
                     ],
                   )
@@ -695,8 +867,16 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
                     overflow: TextOverflow.ellipsis,
                     maxLines: 1,
                     style: isMono
-                        ? GoogleFonts.ibmPlexMono(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)
-                        : GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white),
+                        ? GoogleFonts.ibmPlexMono(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          )
+                        : GoogleFonts.inter(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
                   ),
           ),
         ],
@@ -722,7 +902,9 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
                 },
                 style: OutlinedButton.styleFrom(
                   side: const BorderSide(color: Colors.white24),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
                 child: Text(
                   'CANCEL',
@@ -742,12 +924,18 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
             child: SizedBox(
               height: 48,
               child: ElevatedButton(
-                onPressed: _selectedItemIds.isEmpty ? null : () => _executeRefund(context),
+                onPressed: _selectedItemIds.isEmpty
+                    ? null
+                    : () => _executeRefund(context),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.redAccent,
                   foregroundColor: Colors.white,
-                  disabledBackgroundColor: Colors.redAccent.withValues(alpha: 0.3),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  disabledBackgroundColor: Colors.redAccent.withValues(
+                    alpha: 0.3,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   elevation: 0,
                 ),
                 child: FittedBox(
@@ -788,7 +976,9 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
                   foregroundColor: Colors.redAccent,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
-                    side: BorderSide(color: Colors.redAccent.withValues(alpha: 0.4)),
+                    side: BorderSide(
+                      color: Colors.redAccent.withValues(alpha: 0.4),
+                    ),
                   ),
                   elevation: 0,
                 ),
@@ -819,16 +1009,27 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
           child: SizedBox(
             height: 48,
             child: ElevatedButton(
-              onPressed: (_isPrinting || isRefunded) ? null : () => _executeReprint(context),
+              onPressed: (_isPrinting || isRefunded)
+                  ? null
+                  : () => _executeReprint(context),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.white.withValues(alpha: 0.05),
                 foregroundColor: isRefunded ? Colors.white24 : Colors.white,
                 disabledBackgroundColor: Colors.white.withValues(alpha: 0.02),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 elevation: 0,
               ),
               child: _isPrinting
-                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
                   : FittedBox(
                       fit: BoxFit.scaleDown,
                       child: Row(
@@ -857,9 +1058,13 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
             child: ElevatedButton(
               onPressed: () => Navigator.pop(context),
               style: ElevatedButton.styleFrom(
-                backgroundColor: isRefunded ? const Color(0xFFDC2626) : const Color(0xFF1D4ED8),
+                backgroundColor: isRefunded
+                    ? const Color(0xFFDC2626)
+                    : const Color(0xFF1D4ED8),
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
                 elevation: 0,
               ),
               child: FittedBox(
@@ -893,14 +1098,16 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
     bool authorized = isManager;
 
     if (!isManager) {
-      authorized = await showDialog<bool>(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const ManagerAuthDialog(
-          title: 'REFUND AUTHORIZATION',
-          message: 'Manager or Admin PIN is required to process refunds.',
-        ),
-      ) ?? false;
+      authorized =
+          await showDialog<bool>(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => const ManagerAuthDialog(
+              title: 'REFUND AUTHORIZATION',
+              message: 'Manager or Admin PIN is required to process refunds.',
+            ),
+          ) ??
+          false;
     }
 
     if (!authorized || !context.mounted) return;
@@ -923,7 +1130,11 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
                 color: Colors.redAccent.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Icon(Icons.undo_rounded, color: Colors.redAccent, size: 20),
+              child: const Icon(
+                Icons.undo_rounded,
+                color: Colors.redAccent,
+                size: 20,
+              ),
             ),
             const SizedBox(width: 12),
             Text(
@@ -954,15 +1165,34 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.info_outline_rounded, color: Colors.amber, size: 16),
+                  const Icon(
+                    Icons.info_outline_rounded,
+                    color: Colors.amber,
+                    size: 16,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('REASON', style: GoogleFonts.manrope(fontSize: 9, fontWeight: FontWeight.w900, color: Colors.white38, letterSpacing: 1)),
+                        Text(
+                          'REASON',
+                          style: GoogleFonts.manrope(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white38,
+                            letterSpacing: 1,
+                          ),
+                        ),
                         const SizedBox(height: 2),
-                        Text(reason, style: GoogleFonts.inter(fontSize: 12, color: Colors.amber, fontWeight: FontWeight.w600)),
+                        Text(
+                          reason,
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            color: Colors.amber,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -974,16 +1204,24 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('CANCEL', style: GoogleFonts.manrope(color: Colors.white38)),
+            child: Text(
+              'CANCEL',
+              style: GoogleFonts.manrope(color: Colors.white38),
+            ),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.redAccent,
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
-            child: Text('PROCESS REFUND', style: GoogleFonts.manrope(fontWeight: FontWeight.w900)),
+            child: Text(
+              'PROCESS REFUND',
+              style: GoogleFonts.manrope(fontWeight: FontWeight.w900),
+            ),
           ),
         ],
       ),
@@ -995,12 +1233,16 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
 
         // 1. Fetch actual items from database
         final allItems = await db.getTransactionItems(widget.transaction.id);
-        final refundedItems = allItems.where((i) => _selectedItemIds.contains(i.id)).toList();
+        final refundedItems = allItems
+            .where((i) => _selectedItemIds.contains(i.id))
+            .toList();
 
         if (refundedItems.isEmpty) {
           if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('No valid items selected for refund.')),
+              const SnackBar(
+                content: Text('No valid items selected for refund.'),
+              ),
             );
           }
           return;
@@ -1011,13 +1253,26 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
 
         // 3. Generate & Persist official ZRA Credit Note
         // Use the original trader_invoice_number (the one that was sent to DigiTax during the sale)
-        final origTraderInvNo = widget.transaction.zraReceiptNumber?.isNotEmpty == true
+        final origTraderInvNo =
+            widget.transaction.zraReceiptNumber?.isNotEmpty == true
             ? widget.transaction.zraReceiptNumber!
             : 'INV-${widget.transaction.id}';
-        final refundAmount = double.parse(refundedItems.fold(0.0, (s, i) => s + (i.priceAtSale * i.quantity)).toStringAsFixed(2));
-        final refundCost = double.parse(refundedItems.fold(0.0, (s, i) => s + (i.unitCostAtSale * i.quantity)).toStringAsFixed(2));
-        final taxableRefund = double.parse((refundAmount / 1.16).toStringAsFixed(2));
-        final refundTax = double.parse((refundAmount - taxableRefund).toStringAsFixed(2));
+        final refundAmount = double.parse(
+          refundedItems
+              .fold(0.0, (s, i) => s + (i.priceAtSale * i.quantity))
+              .toStringAsFixed(2),
+        );
+        final refundCost = double.parse(
+          refundedItems
+              .fold(0.0, (s, i) => s + (i.unitCostAtSale * i.quantity))
+              .toStringAsFixed(2),
+        );
+        final taxableRefund = double.parse(
+          (refundAmount / 1.16).toStringAsFixed(2),
+        );
+        final refundTax = double.parse(
+          (refundAmount - taxableRefund).toStringAsFixed(2),
+        );
 
         final refundTx = SaleTransaction(
           totalAmount: refundAmount,
@@ -1044,12 +1299,14 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
         // 4. Submit to DigiTax online — fire and wait, show status in snackbar
         bool digitaxSuccess = false;
         try {
-          digitaxSuccess = await ref.read(digitaxInventoryServiceProvider).submitCreditNoteToDigitax(
-            refundTx,
-            items: refundedItems,
-            originalSdcInvoiceNo: origTraderInvNo,
-            reason: reason,
-          );
+          digitaxSuccess = await ref
+              .read(digitaxInventoryServiceProvider)
+              .submitCreditNoteToDigitax(
+                refundTx,
+                items: refundedItems,
+                originalSdcInvoiceNo: origTraderInvNo,
+                reason: reason,
+              );
         } catch (e) {
           debugPrint('DIGITAX_CN_SUBMIT_ERROR: $e');
         }
@@ -1057,11 +1314,9 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
         // 5. Print ZRA Fiscal Credit Note
         try {
           final config = ref.read(storeConfigProvider).value;
-          await ref.read(printerServiceProvider).printReceipt(
-            refundTx,
-            refundedItems,
-            config: config,
-          );
+          await ref
+              .read(printerServiceProvider)
+              .printReceipt(refundTx, refundedItems, config: config);
         } catch (e) {
           debugPrint('PRINTER_CN_ERROR: $e');
         }
@@ -1087,7 +1342,9 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
                     ? '\u2713 ZRA Credit Note submitted & refund processed!'
                     : 'Refund processed locally. ZRA credit note submission pending.',
               ),
-              backgroundColor: digitaxSuccess ? const Color(0xFF10B981) : Colors.amber.shade700,
+              backgroundColor: digitaxSuccess
+                  ? const Color(0xFF10B981)
+                  : Colors.amber.shade700,
               duration: const Duration(seconds: 4),
             ),
           );
@@ -1095,7 +1352,10 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
       } catch (e) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Refund failed: $e'), backgroundColor: Colors.redAccent),
+            SnackBar(
+              content: Text('Refund failed: $e'),
+              backgroundColor: Colors.redAccent,
+            ),
           );
         }
       }
@@ -1114,7 +1374,9 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setModalState) => AlertDialog(
           backgroundColor: const Color(0xFF1A1A20),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1153,14 +1415,19 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
                       }),
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 150),
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 7,
+                        ),
                         decoration: BoxDecoration(
                           color: isSelected
                               ? Colors.redAccent.withValues(alpha: 0.2)
                               : Colors.white.withValues(alpha: 0.04),
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
-                            color: isSelected ? Colors.redAccent : Colors.white12,
+                            color: isSelected
+                                ? Colors.redAccent
+                                : Colors.white12,
                             width: isSelected ? 1.5 : 1,
                           ),
                         ),
@@ -1168,8 +1435,12 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
                           r,
                           style: GoogleFonts.inter(
                             fontSize: 12,
-                            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w400,
-                            color: isSelected ? Colors.redAccent : Colors.white60,
+                            fontWeight: isSelected
+                                ? FontWeight.w700
+                                : FontWeight.w400,
+                            color: isSelected
+                                ? Colors.redAccent
+                                : Colors.white60,
                           ),
                         ),
                       ),
@@ -1186,7 +1457,10 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
                     style: GoogleFonts.inter(fontSize: 13, color: Colors.white),
                     decoration: InputDecoration(
                       hintText: 'Describe the reason...',
-                      hintStyle: GoogleFonts.inter(color: Colors.white30, fontSize: 13),
+                      hintStyle: GoogleFonts.inter(
+                        color: Colors.white30,
+                        fontSize: 13,
+                      ),
                       filled: true,
                       fillColor: Colors.white.withValues(alpha: 0.04),
                       border: OutlineInputBorder(
@@ -1197,7 +1471,10 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
                         borderRadius: BorderRadius.circular(8),
                         borderSide: const BorderSide(color: Colors.redAccent),
                       ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
                     ),
                     onChanged: (_) => setModalState(() {}),
                   ),
@@ -1208,12 +1485,17 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: Text('CANCEL', style: GoogleFonts.manrope(color: Colors.white38)),
+              child: Text(
+                'CANCEL',
+                style: GoogleFonts.manrope(color: Colors.white38),
+              ),
             ),
             ElevatedButton(
               onPressed: () {
                 final finalReason = isCustom
-                    ? (customController.text.trim().isEmpty ? null : customController.text.trim())
+                    ? (customController.text.trim().isEmpty
+                          ? null
+                          : customController.text.trim())
                     : selectedReason;
                 if (finalReason == null) return;
                 Navigator.pop(ctx, finalReason);
@@ -1221,9 +1503,17 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.redAccent,
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
-              child: Text('CONFIRM REASON', style: GoogleFonts.manrope(fontWeight: FontWeight.w900, fontSize: 12)),
+              child: Text(
+                'CONFIRM REASON',
+                style: GoogleFonts.manrope(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 12,
+                ),
+              ),
             ),
           ],
         ),
@@ -1237,14 +1527,16 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
     bool authorized = isManager;
 
     if (!isManager) {
-      authorized = await showDialog<bool>(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const ManagerAuthDialog(
-          title: 'REPRINT AUTHORIZATION',
-          message: 'Manager or Admin PIN is required to reprint receipts.',
-        ),
-      ) ?? false;
+      authorized =
+          await showDialog<bool>(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => const ManagerAuthDialog(
+              title: 'REPRINT AUTHORIZATION',
+              message: 'Manager or Admin PIN is required to reprint receipts.',
+            ),
+          ) ??
+          false;
     }
 
     if (!authorized || !context.mounted) return;
@@ -1252,19 +1544,25 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
     setState(() => _isPrinting = true);
     try {
       final selectedConfig = ref.read(selectedPrinterProvider);
-      final items = await ref.read(transactionItemsProvider(widget.transaction.id).future);
+      final items = await ref.read(
+        transactionItemsProvider(widget.transaction.id).future,
+      );
       final config = ref.read(storeConfigProvider).value;
 
       if (selectedConfig == null) {
-        await ref.read(exportServiceProvider).exportReceiptToPdf(
-          widget.transaction,
-          items,
-          config: config,
-          printDirectly: true,
-        );
+        await ref
+            .read(exportServiceProvider)
+            .exportReceiptToPdf(
+              widget.transaction,
+              items,
+              config: config,
+              printDirectly: true,
+            );
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Receipt sent to system print dialog')),
+            const SnackBar(
+              content: Text('Receipt sent to system print dialog'),
+            ),
           );
         }
         return;
@@ -1275,13 +1573,18 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
           widget.transaction.zraReceiptNumber == 'PENDING' ||
           widget.transaction.zraMarkId == null ||
           widget.transaction.zraMarkId == 'PENDING') {
-        await ref.read(digitaxInventoryServiceProvider).refreshTransactionFiscalData(widget.transaction);
+        await ref
+            .read(digitaxInventoryServiceProvider)
+            .refreshTransactionFiscalData(widget.transaction);
       }
 
       final printerService = ref.read(printerServiceProvider);
 
       if (!printerService.isConnected) {
-        await printerService.connect(selectedConfig.device, selectedConfig.type);
+        await printerService.connect(
+          selectedConfig.device,
+          selectedConfig.type,
+        );
       }
 
       if (printerService.isConnected) {
@@ -1296,23 +1599,29 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
           );
         }
       } else {
-        await ref.read(exportServiceProvider).exportReceiptToPdf(
-          widget.transaction,
-          items,
-          config: config,
-          printDirectly: true,
-        );
+        await ref
+            .read(exportServiceProvider)
+            .exportReceiptToPdf(
+              widget.transaction,
+              items,
+              config: config,
+              printDirectly: true,
+            );
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('POS printer unavailable. Opened system print dialog.')),
+            const SnackBar(
+              content: Text(
+                'POS printer unavailable. Opened system print dialog.',
+              ),
+            ),
           );
         }
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Printing failed: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Printing failed: $e')));
       }
     } finally {
       if (mounted) setState(() => _isPrinting = false);
@@ -1320,7 +1629,10 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
   }
 }
 
-final transactionItemsProvider = FutureProvider.family<List<SaleItem>, int>((ref, id) async {
+final transactionItemsProvider = FutureProvider.family<List<SaleItem>, int>((
+  ref,
+  id,
+) async {
   final db = ref.watch(databaseServiceProvider);
   return db.getTransactionItems(id);
 });

@@ -8,7 +8,7 @@ import 'package:beleka_pos/services/database_service.dart';
 import 'package:beleka_pos/services/network_client.dart';
 
 /// Manages data synchronization between a Cashier terminal and the Manager server.
-/// 
+///
 /// For Cashier terminals (Terminal Mode):
 /// - Periodically pulls Latest Products and Categories.
 /// - Pushes completed transactions in real-time or batch (if offline).
@@ -24,10 +24,7 @@ class SyncService {
 
   /// Number of transactions waiting to be synced.
   Future<int> get pendingCount async {
-    return await _isar.saleTransactions
-        .filter()
-        .isSyncedEqualTo(false)
-        .count();
+    return await _isar.saleTransactions.filter().isSyncedEqualTo(false).count();
   }
 
   /// Start the background sync loops.
@@ -64,7 +61,9 @@ class SyncService {
   /// Attempt to push a single transaction to the server right after sale.
   /// Returns true if successfully synced, false if queued for later.
   Future<bool> trySyncTransaction(
-      SaleTransaction transaction, List<SaleItem> items) async {
+    SaleTransaction transaction,
+    List<SaleItem> items,
+  ) async {
     if (_client == null || !_client.isConnected) return false;
 
     try {
@@ -72,18 +71,24 @@ class SyncService {
       if (response != null && response['success'] == true) {
         await _isar.writeTxn(() async {
           transaction.isSynced = true;
-          if (response['zraReceiptNumber'] != null && (response['zraReceiptNumber'] as String).isNotEmpty) {
-            transaction.zraReceiptNumber = response['zraReceiptNumber'] as String;
+          if (response['zraReceiptNumber'] != null &&
+              (response['zraReceiptNumber'] as String).isNotEmpty) {
+            transaction.zraReceiptNumber =
+                response['zraReceiptNumber'] as String;
             transaction.zraMarkId = response['zraMarkId'] as String?;
             transaction.zraQrCode = response['zraQrCode'] as String?;
-            transaction.zraInternalData = response['zraInternalData'] as String?;
+            transaction.zraInternalData =
+                response['zraInternalData'] as String?;
             transaction.zraSdcId = response['zraSdcId'] as String?;
             transaction.zraInvoiceType = response['zraInvoiceType'] as String?;
-            transaction.zraStatus = response['zraStatus'] as String? ?? 'APPROVED';
+            transaction.zraStatus =
+                response['zraStatus'] as String? ?? 'APPROVED';
           }
           await _isar.saleTransactions.put(transaction);
         });
-        debugPrint('SYNC: Transaction ${transaction.id} synced immediately (Fiscal: ${transaction.zraStatus})');
+        debugPrint(
+          'SYNC: Transaction ${transaction.id} synced immediately (Fiscal: ${transaction.zraStatus})',
+        );
         return true;
       }
     } catch (e) {
@@ -129,6 +134,11 @@ class SyncService {
           'changeAmount': tx.changeAmount,
           'cashierId': tx.cashierId,
           'terminalName': tx.terminalName,
+          'cashShiftNumber': tx.cashShiftNumber,
+          'externalPaymentReference': tx.externalPaymentReference,
+          'externalPaymentConfirmedBy': tx.externalPaymentConfirmedBy,
+          'externalPaymentConfirmedAt': tx.externalPaymentConfirmedAt
+              ?.toIso8601String(),
           'transactionId': tx.transactionId,
           'customerTpin': tx.customerTpin,
           'customerBusinessName': tx.customerBusinessName,
@@ -145,16 +155,19 @@ class SyncService {
           'creditNoteReason': tx.creditNoteReason,
         },
         'items': items
-            .map((item) => {
-                  'productId': item.productId,
-                  'productName': item.productName,
-                  'priceAtSale': item.priceAtSale,
-                  'unitCostAtSale': item.unitCostAtSale,
-                  'quantity': item.quantity,
-                  'isRefunded': item.isRefunded,
-                  'taxRateAtSale': item.taxRateAtSale,
-                  'isTaxInclusiveAtSale': item.isTaxInclusiveAtSale,
-                })
+            .map(
+              (item) => {
+                'productId': item.productId,
+                'productName': item.productName,
+                'priceAtSale': item.priceAtSale,
+                'unitCostAtSale': item.unitCostAtSale,
+                'quantity': item.quantity,
+                'isRefunded': item.isRefunded,
+                'isDigitaxExempt': item.isDigitaxExempt,
+                'taxRateAtSale': item.taxRateAtSale,
+                'isTaxInclusiveAtSale': item.isTaxInclusiveAtSale,
+              },
+            )
             .toList(),
       });
     }
@@ -174,7 +187,8 @@ class SyncService {
           if (fiscalUpdates != null) {
             for (final upd in fiscalUpdates) {
               if (upd is Map && upd['transactionId'] == tx.transactionId) {
-                if (upd['zraReceiptNumber'] != null && (upd['zraReceiptNumber'] as String).isNotEmpty) {
+                if (upd['zraReceiptNumber'] != null &&
+                    (upd['zraReceiptNumber'] as String).isNotEmpty) {
                   tx.zraReceiptNumber = upd['zraReceiptNumber'] as String;
                   tx.zraMarkId = upd['zraMarkId'] as String?;
                   tx.zraQrCode = upd['zraQrCode'] as String?;
@@ -215,10 +229,13 @@ class SyncService {
         final bhfId = serverInfo['bhfId']?.toString().trim();
         final env = serverInfo['digitaxEnvironment']?.toString().trim();
 
-        final config = await _isar.storeConfigs.where().findFirst() ?? StoreConfig();
+        final config =
+            await _isar.storeConfigs.where().findFirst() ?? StoreConfig();
         bool configChanged = false;
 
-        if (apiKey != null && apiKey.isNotEmpty && config.digitaxApiKey != apiKey) {
+        if (apiKey != null &&
+            apiKey.isNotEmpty &&
+            config.digitaxApiKey != apiKey) {
           config.digitaxApiKey = apiKey;
           configChanged = true;
         }
@@ -230,7 +247,9 @@ class SyncService {
           config.tpin = tpin;
           configChanged = true;
         }
-        if (taxType != null && taxType.isNotEmpty && config.businessTaxType != taxType) {
+        if (taxType != null &&
+            taxType.isNotEmpty &&
+            config.businessTaxType != taxType) {
           config.businessTaxType = taxType;
           configChanged = true;
         }
@@ -247,10 +266,12 @@ class SyncService {
           await _isar.writeTxn(() async {
             await _isar.storeConfigs.put(config);
           });
-          debugPrint('SYNC: Local StoreConfig synced with Manager DigiTax credentials');
+          debugPrint(
+            'SYNC: Local StoreConfig synced with Manager DigiTax credentials',
+          );
         }
       }
-      
+
       // 1. Sync Categories
       final categories = await _client.fetchCategories();
       if (categories.isNotEmpty) {
@@ -275,8 +296,13 @@ class SyncService {
             final txId = upd['transactionId'] as String?;
             final rcptNo = upd['zraReceiptNumber'] as String?;
             if (txId != null && rcptNo != null && rcptNo.isNotEmpty) {
-              final tx = await _isar.saleTransactions.filter().transactionIdEqualTo(txId).findFirst();
-              if (tx != null && (tx.zraReceiptNumber == null || tx.zraReceiptNumber!.isEmpty)) {
+              final tx = await _isar.saleTransactions
+                  .filter()
+                  .transactionIdEqualTo(txId)
+                  .findFirst();
+              if (tx != null &&
+                  (tx.zraReceiptNumber == null ||
+                      tx.zraReceiptNumber!.isEmpty)) {
                 tx.zraReceiptNumber = rcptNo;
                 tx.zraMarkId = upd['zraMarkId'] as String?;
                 tx.zraQrCode = upd['zraQrCode'] as String?;
@@ -290,8 +316,10 @@ class SyncService {
           }
         });
       }
-      
-      debugPrint('SYNC: Metadata update complete. (${products.length} products, ${categories.length} categories, ${fiscalUpdates.length} fiscal status updates)');
+
+      debugPrint(
+        'SYNC: Metadata update complete. (${products.length} products, ${categories.length} categories, ${fiscalUpdates.length} fiscal status updates)',
+      );
     } catch (e) {
       debugPrint('SYNC_METADATA_ERROR: $e');
     } finally {

@@ -441,6 +441,11 @@ class CloudDatabaseService {
           'cashier_id': tx.cashierId,
           'cashier_name': tx.cashierName,
           'terminal_name': tx.terminalName,
+          'cash_shift_number': tx.cashShiftNumber,
+          'external_payment_reference': tx.externalPaymentReference,
+          'external_payment_confirmed_by': tx.externalPaymentConfirmedBy,
+          'external_payment_confirmed_at': tx.externalPaymentConfirmedAt
+              ?.toIso8601String(),
           'customer_id': tx.customerId,
           'points_earned': tx.pointsEarned,
           'points_redeemed': tx.pointsRedeemed,
@@ -448,11 +453,17 @@ class CloudDatabaseService {
             return {
               'product_id': item.productId,
               'product_name': item.productName,
+              'product_sku_at_sale': item.productSkuAtSale,
               'price_at_sale': item.priceAtSale,
+              'discount_amount_at_sale': item.discountAmountAtSale,
               'unit_cost_at_sale': item.unitCostAtSale,
               'quantity': item.quantity,
+              'weight': item.weight,
+              'is_weighted': item.isWeighted,
+              'unit_of_measure': item.unitOfMeasure,
               'tax_rate_at_sale': item.taxRateAtSale,
               'is_tax_inclusive_at_sale': item.isTaxInclusiveAtSale,
+              'is_digitax_exempt': item.isDigitaxExempt,
             };
           }).toList(),
         };
@@ -508,19 +519,30 @@ class CloudDatabaseService {
                 'item_cls_cd': product.itemClsCd,
                 'is_archived': product.isArchived,
                 'discount_price': product.discountPrice,
-                'package_unit_code': (product.unitOfMeasure.toLowerCase().contains('box') || product.unitOfMeasure.toLowerCase().contains('bx') || product.unitOfMeasure.toLowerCase().contains('tab') || product.unitOfMeasure.toLowerCase().contains('stp'))
+                'package_unit_code':
+                    (product.unitOfMeasure.toLowerCase().contains('box') ||
+                        product.unitOfMeasure.toLowerCase().contains('bx') ||
+                        product.unitOfMeasure.toLowerCase().contains('tab') ||
+                        product.unitOfMeasure.toLowerCase().contains('stp'))
                     ? 'BX'
-                    : (product.unitOfMeasure.toLowerCase().contains('btl') || product.unitOfMeasure.toLowerCase().contains('bottle'))
-                        ? 'BO'
-                        : (product.unitOfMeasure.toLowerCase().contains('pkt') || product.unitOfMeasure.toLowerCase().contains('pack'))
-                            ? 'PA'
-                            : (product.unitOfMeasure.toLowerCase().contains('can'))
-                                ? 'CA'
-                                : (product.unitOfMeasure.toLowerCase().contains('carton') || product.unitOfMeasure.toLowerCase() == 'ctn' || product.unitOfMeasure.toLowerCase() == 'crt')
-                                    ? 'CT'
-                                    : (product.unitOfMeasure.toLowerCase().contains('bag') || product.unitOfMeasure.toLowerCase() == 'bg')
-                                        ? 'BG'
-                                        : 'NT',
+                    : (product.unitOfMeasure.toLowerCase().contains('btl') ||
+                          product.unitOfMeasure.toLowerCase().contains(
+                            'bottle',
+                          ))
+                    ? 'BO'
+                    : (product.unitOfMeasure.toLowerCase().contains('pkt') ||
+                          product.unitOfMeasure.toLowerCase().contains('pack'))
+                    ? 'PA'
+                    : (product.unitOfMeasure.toLowerCase().contains('can'))
+                    ? 'CA'
+                    : (product.unitOfMeasure.toLowerCase().contains('carton') ||
+                          product.unitOfMeasure.toLowerCase() == 'ctn' ||
+                          product.unitOfMeasure.toLowerCase() == 'crt')
+                    ? 'CT'
+                    : (product.unitOfMeasure.toLowerCase().contains('bag') ||
+                          product.unitOfMeasure.toLowerCase() == 'bg')
+                    ? 'BG'
+                    : 'NT',
                 'unit_of_measure': product.unitOfMeasure,
                 'is_digitax_sync_enabled': product.isDigitaxSyncEnabled,
                 'is_synced_with_digitax': product.isSyncedWithDigitax,
@@ -692,7 +714,10 @@ class CloudDatabaseService {
       if (response.statusCode == 200 && response.data is Map) {
         return Map<String, dynamic>.from(response.data);
       }
-      return {'success': true, 'message': 'Company account successfully purged.'};
+      return {
+        'success': true,
+        'message': 'Company account successfully purged.',
+      };
     } on DioException catch (e) {
       final detail = e.response?.data is Map
           ? (e.response?.data['detail']?.toString() ?? e.message)
@@ -703,4 +728,3 @@ class CloudDatabaseService {
     }
   }
 }
-

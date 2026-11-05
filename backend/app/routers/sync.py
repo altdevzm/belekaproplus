@@ -71,6 +71,19 @@ def sync_batch_sales(
     synced_uuids = []
 
     for sale_in in payload.sales:
+        if sale_in.payment_method.upper() == "EXTERNAL MOBILE MONEY" and (
+            not sale_in.external_payment_confirmed_by
+            or not sale_in.external_payment_confirmed_by.strip()
+            or sale_in.external_payment_confirmed_at is None
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "External mobile money sales require cashier confirmation "
+                    "and a confirmation timestamp."
+                ),
+            )
+
         # Financial validation: prevent negative sales or invalid amounts
         if sale_in.total_amount < 0 or sale_in.subtotal < 0 or sale_in.discount_amount < 0:
             raise HTTPException(
@@ -111,6 +124,10 @@ def sync_batch_sales(
             cashier_id=sale_in.cashier_id,
             cashier_name=sale_in.cashier_name,
             terminal_name=sale_in.terminal_name,
+            cash_shift_number=sale_in.cash_shift_number,
+            external_payment_reference=sale_in.external_payment_reference,
+            external_payment_confirmed_by=sale_in.external_payment_confirmed_by,
+            external_payment_confirmed_at=sale_in.external_payment_confirmed_at,
             customer_id=sale_in.customer_id,
             points_earned=sale_in.points_earned,
             points_redeemed=sale_in.points_redeemed,
@@ -142,11 +159,17 @@ def sync_batch_sales(
                 sale_transaction_id=tx.id,
                 product_id=resolved_product_id,
                 product_name=item_in.product_name,
+                product_sku_at_sale=item_in.product_sku_at_sale,
                 price_at_sale=item_in.price_at_sale,
+                discount_amount_at_sale=item_in.discount_amount_at_sale or 0.0,
                 unit_cost_at_sale=item_in.unit_cost_at_sale,
                 quantity=item_in.quantity,
+                weight=item_in.weight or 0.0,
+                is_weighted=item_in.is_weighted or False,
+                unit_of_measure=item_in.unit_of_measure or "kg",
                 tax_rate_at_sale=item_in.tax_rate_at_sale,
                 is_tax_inclusive_at_sale=item_in.is_tax_inclusive_at_sale,
+                is_digitax_exempt=True,
                 is_consignment=item_in.is_consignment or False,
                 supplier_share=item_in.supplier_share or 0.0,
                 commission_share=item_in.commission_share or 0.0,
@@ -172,17 +195,33 @@ def sync_batch_sales(
             if not resolved_tax_code:
                 resolved_tax_code = "C" if float(item_in.tax_rate_at_sale or 0) == 0 else "A"
 
-            items_for_fiscal.append({
-                "product_id": item_in.product_id,
-                "product_name": item_in.product_name,
-                "price_at_sale": float(item_in.price_at_sale),
-                "quantity": item_in.quantity,
-                "zra_tax_code": resolved_tax_code,
-                "tax_rate_at_sale": float(item_in.tax_rate_at_sale),
-            })
+            digitax_eligible = (
+                item_in.is_digitax_exempt is False
+                and (
+                    product_rec is None
+                    or (
+                        product_rec.is_digitax_sync_enabled is True
+                        and product_rec.is_tax_inclusive is True
+                    )
+                )
+            )
+            item.is_digitax_exempt = not digitax_eligible
+            if digitax_eligible:
+                items_for_fiscal.append({
+                    "product_id": item_in.product_id,
+                    "product_name": item_in.product_name,
+                    "price_at_sale": float(item_in.price_at_sale),
+                    "quantity": (
+                        item_in.weight
+                        if item_in.is_weighted and item_in.weight and item_in.weight > 0
+                        else item_in.quantity
+                    ),
+                    "zra_tax_code": resolved_tax_code,
+                    "tax_rate_at_sale": float(item_in.tax_rate_at_sale),
+                })
 
         # Auto-fiscalize via DigiTax on cloud backend if API key configured and transaction not yet fiscalized
-        if store.digitax_api_key and store.digitax_api_key.strip():
+        if store.digitax_api_key and store.digitax_api_key.strip() and items_for_fiscal:
             try:
                 store_config = {
                     "digitax_api_key": store.digitax_api_key,
@@ -198,15 +237,36 @@ def sync_batch_sales(
                     "cashier_name": tx.cashier_name,
                 }
                 res = DigiTaxZraService.fiscalize_sale_invoice(store_config, tx_dict, items_for_fiscal)
-                if res and res.get("zra_receipt_number"):
+                if (
+                    res
+                    and res.get("status") == "SUCCESS"
+                    and res.get("zra_receipt_number")
+                    and res.get("zra_mark_id")
+                ):
                     tx.zra_receipt_number = res.get("zra_receipt_number")
                     tx.zra_mark_id = res.get("zra_mark_id")
                     tx.zra_qr_code = res.get("zra_qr_code")
                     tx.zra_status = "APPROVED"
-                    if res.get("tax_amount") is not None:
-                        tx.tax_amount = res["tax_amount"]
-                    if res.get("subtotal") is not None and res["subtotal"] > 0:
-                        tx.subtotal = res["subtotal"]
+                    server_total = (res.get("subtotal") or 0) + (res.get("tax_amount") or 0)
+                    if server_total and abs(float(server_total) - float(tx.total_amount)) > 0.01:
+                        logger.warning(
+                            "DIGITAX_TOTAL_MISMATCH: transaction %s recorded=%s fiscal_summary=%s; preserving recorded sale amounts",
+                            tx.transaction_uuid,
+                            tx.total_amount,
+                            server_total,
+                        )
+                elif res:
+                    response_status = res.get("zra_status")
+                    tx.zra_status = (
+                        response_status
+                        if response_status in ["PENDING", "RECONCILIATION_REQUIRED"]
+                        else "RECONCILIATION_REQUIRED"
+                    )
+                    if tx.zra_status == "RECONCILIATION_REQUIRED":
+                        logger.error(
+                            "SYNC_BATCH: DigiTax outcome requires reconciliation for %s",
+                            tx.transaction_uuid,
+                        )
             except Exception as e:
                 print(f"Backend auto-fiscalize notice for {tx.transaction_uuid}: {e}")
 
@@ -533,5 +593,3 @@ def list_cloud_snapshots(
                 })
 
     return {"store_id": store_id, "snapshots": snapshots}
-
-

@@ -17,7 +17,7 @@ class AuthNotifier extends Notifier<User?> {
     try {
       final db = ref.read(databaseServiceProvider);
       final config = await db.isar.storeConfigs.where().findFirst();
-      
+
       if (config != null && config.backupPath != null) {
         await db.backupDatabase(config.backupPath!);
       }
@@ -33,11 +33,13 @@ class AuthNotifier extends Notifier<User?> {
 /// Provider to track the currently logged-in User.
 final authProvider = NotifierProvider<AuthNotifier, User?>(AuthNotifier.new);
 
+String normalizeUserRole(String? role) => (role ?? '').trim().toLowerCase();
+
 /// Convenient provider to check if Corporate Owner / HQ Admin is logged in.
 final isOwnerProvider = Provider<bool>((ref) {
   final user = ref.watch(authProvider);
   if (user == null) return false;
-  final role = user.role.toLowerCase().trim();
+  final role = normalizeUserRole(user.role);
   return role == 'owner' || role == 'admin' || role == 'super_admin';
 });
 
@@ -50,7 +52,7 @@ final isAdminProvider = Provider<bool>((ref) {
 final isBranchManagerProvider = Provider<bool>((ref) {
   final user = ref.watch(authProvider);
   if (user == null) return false;
-  final role = user.role.toLowerCase().trim();
+  final role = normalizeUserRole(user.role);
   return role == 'branch_manager' || role == 'manager';
 });
 
@@ -58,15 +60,19 @@ final isBranchManagerProvider = Provider<bool>((ref) {
 final isManagerProvider = Provider<bool>((ref) {
   final user = ref.watch(authProvider);
   if (user == null) return false;
-  final role = user.role.toLowerCase().trim();
-  return role == 'owner' || role == 'admin' || role == 'super_admin' || role == 'manager' || role == 'branch_manager';
+  final role = normalizeUserRole(user.role);
+  return role == 'owner' ||
+      role == 'admin' ||
+      role == 'super_admin' ||
+      role == 'manager' ||
+      role == 'branch_manager';
 });
 
 /// Convenient provider to check if a Cashier is logged in.
 final isCashierProvider = Provider<bool>((ref) {
   final user = ref.watch(authProvider);
   if (user == null) return false;
-  final role = user.role.toLowerCase().trim();
+  final role = normalizeUserRole(user.role);
   return role == 'cashier';
 });
 
