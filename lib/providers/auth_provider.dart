@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:beleka_pos/models/models.dart';
 import 'package:beleka_pos/services/database_service.dart';
+import 'package:beleka_pos/services/network_client.dart';
 import 'package:isar/isar.dart';
 
 /// Notifier to manage authentication state.
@@ -25,7 +26,12 @@ class AuthNotifier extends Notifier<User?> {
       // Fail silently for backup to ensure user can always log out
     }
 
-    // 2. Clear state
+    // 2. Clear network assignment and cashier info
+    try {
+      ref.read(networkClientProvider)?.clearAssignment();
+    } catch (_) {}
+
+    // 3. Clear state
     state = null;
   }
 }

@@ -101,7 +101,12 @@ final posTerminalsProvider = StreamProvider<List<PosTerminal>>((ref) async* {
   Future<List<PosTerminal>> loadWithLiveSales() async {
     final terminals = await db.isar.posTerminals.where().sortByTerminalCode().findAll();
     for (final t in terminals) {
-      final liveSales = await db.getTodaySalesForTerminal(t.terminalCode, terminalName: t.name, cashierId: t.assignedCashierId);
+      final openShift = await db.getOpenShiftForTerminal(t.terminalCode, cashierId: t.assignedCashierId);
+      final liveSales = openShift != null
+          ? await db.getShiftTotalSales(openShift)
+          : (t.assignedCashierId != null && t.assignedCashierId!.isNotEmpty
+              ? await db.getTodaySalesForTerminal(t.terminalCode, terminalName: t.name, cashierId: t.assignedCashierId)
+              : 0.0);
       t.salesToday = liveSales;
     }
     return terminals;
@@ -109,7 +114,8 @@ final posTerminalsProvider = StreamProvider<List<PosTerminal>>((ref) async* {
 
   yield await loadWithLiveSales();
 
-  await for (final _ in db.isar.posTerminals.watchLazy()) {
+  while (true) {
+    await Future<void>.delayed(const Duration(seconds: 10));
     yield await loadWithLiveSales();
   }
 });

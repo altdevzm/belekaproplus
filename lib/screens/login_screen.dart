@@ -249,17 +249,41 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             if (assignInfo != null) {
               final assignedId = assignInfo['assignedCashierId'] as String?;
               final assignedName = assignInfo['assignedCashierName'] as String?;
-              if (assignedId != null &&
-                  assignedId.isNotEmpty &&
-                  assignedId != user.numericId &&
-                  user.role == 'cashier') {
-                throw Exception(
-                  'Till "${config.terminalName}" is currently assigned to ${assignedName ?? assignedId}. You cannot sell on this till. Please ask the Manager to assign you.',
-                );
+              final isShiftOpen = assignInfo['isShiftOpen'] == true;
+              final shiftEndTimeStr = assignInfo['shiftEndTime'] as String?;
+
+              if (user.role == 'cashier') {
+                if (assignedId == null || assignedId.trim().isEmpty) {
+                  throw Exception(
+                    'Till "${config.terminalName}" is not currently assigned to any cashier. Please ask your Store Manager on the Master POS to assign this till and open your shift before logging in.',
+                  );
+                }
+                if (assignedId != user.numericId) {
+                  throw Exception(
+                    'Till "${config.terminalName}" is assigned to ${assignedName ?? assignedId}. You cannot sell on this till. Please ask the Manager to assign you.',
+                  );
+                }
+                if (!isShiftOpen) {
+                  throw Exception(
+                    'No open shift found for Till "${config.terminalName}". Please ask your Store Manager to open your shift before logging in.',
+                  );
+                }
+                if (shiftEndTimeStr != null && shiftEndTimeStr.isNotEmpty) {
+                  try {
+                    final endTime = DateTime.parse(shiftEndTimeStr);
+                    if (DateTime.now().isAfter(endTime)) {
+                      throw Exception(
+                        'Your shift for Till "${config.terminalName}" ended at ${shiftEndTimeStr.substring(11, 16)}. Please ask your Manager to extend or start a new shift.',
+                      );
+                    }
+                  } catch (e) {
+                    if (e.toString().contains('ended at')) rethrow;
+                  }
+                }
               }
             }
           } catch (e) {
-            if (e.toString().contains('is currently assigned to')) {
+            if (e.toString().contains('Till "') || e.toString().contains('shift') || e.toString().contains('Shift')) {
               rethrow;
             }
           }

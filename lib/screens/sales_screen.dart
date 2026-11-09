@@ -6054,6 +6054,69 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         }
         return;
       }
+
+      final isShiftOpen = assignInfo?['isShiftOpen'] == true;
+      if (!isShiftOpen) {
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: const Row(
+                children: [
+                  Icon(Icons.schedule_rounded, color: Colors.amber),
+                  SizedBox(width: 10),
+                  Text('Shift Not Open'),
+                ],
+              ),
+              content: Text(
+                'There is currently no open shift for Till "$tillCode".\n\nPlease ask your Store Manager on the Master POS to open your shift before making sales.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('OK'),
+                ),
+              ],
+            ),
+          );
+        }
+        return;
+      }
+
+      final shiftEndTimeStr = assignInfo?['shiftEndTime'] as String?;
+      if (shiftEndTimeStr != null && shiftEndTimeStr.isNotEmpty) {
+        try {
+          final endTime = DateTime.parse(shiftEndTimeStr);
+          if (DateTime.now().isAfter(endTime)) {
+            if (mounted) {
+              showDialog(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  title: const Row(
+                    children: [
+                      Icon(Icons.timer_off_rounded, color: Colors.redAccent),
+                      SizedBox(width: 10),
+                      Text('Shift Ended'),
+                    ],
+                  ),
+                  content: Text(
+                    'Your shift for Till "$tillCode" ended at ${shiftEndTimeStr.substring(11, 16)}.\n\nThis till is now locked. Please ask your Store Manager to close your shift or extend it.',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text('OK'),
+                    ),
+                  ],
+                ),
+              );
+            }
+            return;
+          }
+        } catch (_) {}
+      }
     }
 
     final total = cartNotifier.total;
@@ -6156,6 +6219,16 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         customerAddress: cartState.customerAddress,
         zraSdcId: config?.sdcId,
       );
+
+      String? activeShiftNumber;
+      if (config?.isManagerMode == false) {
+        final client = ref.read(networkClientProvider);
+        activeShiftNumber = client?.lastAssignmentInfo?['shiftNumber'] as String?;
+      } else {
+        final openShift = await db.getOpenShiftForTerminal(config?.terminalName ?? 'TILL-01');
+        activeShiftNumber = openShift?.shiftNumber;
+      }
+      transaction.cashShiftNumber = activeShiftNumber;
 
       transaction.cloudStoreId = config?.cloudStoreId ?? 0;
       await db.saveTransaction(transaction, saleItems);

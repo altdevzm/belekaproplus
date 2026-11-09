@@ -126,6 +126,21 @@ class ApiService {
     debugPrint('SERVER_STOPPED');
   }
 
+  void removeTerminal(String terminalCode) {
+    final code = terminalCode.trim().toUpperCase();
+    _activeTerminals.remove(code);
+    _notifyTerminals();
+  }
+
+  void resetTerminalShiftSales(String terminalCode) {
+    final code = terminalCode.trim().toUpperCase();
+    if (_activeTerminals.containsKey(code)) {
+      _activeTerminals[code]!.salesToday = 0.0;
+      _activeTerminals[code]!.transactionCount = 0;
+      _notifyTerminals();
+    }
+  }
+
   // ─── Route Registration ───────────────────────────────────────
 
   void _registerRoutes(Router router) {
@@ -168,7 +183,9 @@ class ApiService {
             (t) => t.terminalCode == code,
             orElse: () => PosTerminal()
               ..terminalCode = code
-              ..name = 'Cashier Till ($code)',
+              ..name = 'Cashier Till ($code)'
+              ..branchCode = (config?.bhfId != null && config!.bhfId.isNotEmpty) ? config.bhfId : '00'
+              ..branchName = config?.branchName ?? 'Main Branch',
           );
           terminal.status = 'ACTIVE';
           terminal.lastActive = DateTime.now();
@@ -251,8 +268,8 @@ class ApiService {
               headers: _jsonHeaders);
         }
 
-        // Enforce till assignment: if the till is assigned to a specific cashier,
-        // prevent a different cashier from selling on this till.
+        // Enforce till assignment: if the till is unassigned or assigned to someone else,
+        // prevent cashiers from logging in.
         PosTerminal? existingTerm;
         try {
           existingTerm = existingTerminals.firstWhere(
@@ -260,16 +277,63 @@ class ApiService {
           );
         } catch (_) {}
 
-        if (existingTerm != null &&
-            existingTerm.assignedCashierId != null &&
-            existingTerm.assignedCashierId!.isNotEmpty &&
-            existingTerm.assignedCashierId != user.numericId &&
-            user.role == 'cashier') {
-          return Response(403,
-              body: jsonEncode({
-                'error': 'Till "$terminalName" is assigned to ${existingTerm.assignedCashierName ?? existingTerm.assignedCashierId}. You cannot sell on this till. Please ask the Manager to reassign.'
-              }),
-              headers: _jsonHeaders);
+        if (user.role == 'cashier') {
+          if (existingTerm == null ||
+              existingTerm.assignedCashierId == null ||
+              existingTerm.assignedCashierId!.isEmpty) {
+            return Response(403,
+                body: jsonEncode({
+                  'error': 'Till "$terminalName" is not currently assigned to any cashier. Please ask your Store Manager on the Master POS to assign this till and open your shift before logging in.'
+                }),
+                headers: _jsonHeaders);
+          }
+
+          if (existingTerm.assignedCashierId != user.numericId) {
+            return Response(403,
+                body: jsonEncode({
+                  'error': 'Till "$terminalName" is assigned to ${existingTerm.assignedCashierName ?? existingTerm.assignedCashierId}. You cannot sell on this till. Please ask the Manager to reassign.'
+                }),
+                headers: _jsonHeaders);
+          }
+
+          // Check if active open shift exists
+          final openShift = await _db.isar.cashShifts
+              .filter()
+              .statusEqualTo('OPEN')
+              .and()
+              .group((q) => q
+                  .terminalIdEqualTo(terminalName)
+                  .or()
+                  .terminalIdEqualTo('${existingTerm!.terminalCode} - ${existingTerm.name}')
+                  .or()
+                  .terminalIdContains(existingTerm.terminalCode))
+              .findFirst();
+
+          if (openShift == null) {
+            return Response(403,
+                body: jsonEncode({
+                  'error': 'No open shift found for Till "$terminalName". Please ask your Store Manager on the Master POS to open your shift before logging in.'
+                }),
+                headers: _jsonHeaders);
+          }
+
+          // Check if shift schedule has expired
+          if (openShift.notes != null && openShift.notes!.contains('SCHEDULE:')) {
+            try {
+              final schedPart = openShift.notes!.split('SCHEDULE:').last.split(';').first;
+              final times = schedPart.split('|');
+              if (times.length >= 2) {
+                final endTime = DateTime.parse(times[1].trim());
+                if (DateTime.now().isAfter(endTime)) {
+                  return Response(403,
+                      body: jsonEncode({
+                        'error': 'Shift for Till "$terminalName" ended at ${times[1].trim().substring(11, 16)}. Please ask your Store Manager to close or extend your shift.'
+                      }),
+                      headers: _jsonHeaders);
+                }
+              }
+            } catch (_) {}
+          }
         }
 
         _activeTerminals[terminalName] = TerminalInfo(
@@ -392,6 +456,14 @@ class ApiService {
         }
       }
 
+      // Link transaction to current open shift for this terminal if not already assigned
+      if (transaction.cashShiftNumber == null || transaction.cashShiftNumber!.isEmpty) {
+        final openShift = await _db.getOpenShiftForTerminal(transaction.terminalName ?? 'TILL-01');
+        if (openShift != null) {
+          transaction.cashShiftNumber = openShift.shiftNumber;
+        }
+      }
+
       await _db.saveTransaction(transaction, items);
 
       // Instantly fiscalize with DigiTax on Manager server if API Key present & not yet fiscalized
@@ -450,7 +522,15 @@ class ApiService {
               .map((i) => _jsonToSaleItem(i as Map<String, dynamic>))
               .toList();
 
-          await _db.saveTransaction(transaction, items);
+          // Link transaction to current open shift for this terminal if not already assigned
+      if (transaction.cashShiftNumber == null || transaction.cashShiftNumber!.isEmpty) {
+        final openShift = await _db.getOpenShiftForTerminal(transaction.terminalName ?? 'TILL-01');
+        if (openShift != null) {
+          transaction.cashShiftNumber = openShift.shiftNumber;
+        }
+      }
+
+      await _db.saveTransaction(transaction, items);
 
           // Instantly fiscalize with DigiTax on Manager server if needed
           if (ref != null && (transaction.zraReceiptNumber == null || transaction.zraReceiptNumber!.isEmpty)) {
@@ -543,6 +623,18 @@ class ApiService {
                 s.terminalId == t.terminalCode ||
                 s.terminalId == t.name)
             .firstOrNull;
+        String? tSchedStart;
+        String? tSchedEnd;
+        if (shift?.notes != null && shift!.notes!.contains('SCHEDULE:')) {
+          try {
+            final part = shift.notes!.split('SCHEDULE:').last.split(';').first;
+            final times = part.split('|');
+            if (times.isNotEmpty) tSchedStart = times[0].trim();
+            if (times.length > 1) tSchedEnd = times[1].trim();
+          } catch (_) {}
+        }
+        tSchedStart ??= shift?.openingTime.toIso8601String();
+
         return {
           'id': t.id,
           'terminalCode': t.terminalCode,
@@ -556,6 +648,8 @@ class ApiService {
           'isShiftOpen': shift != null,
           'shiftNumber': shift?.shiftNumber,
           'openingCash': shift?.openingCash ?? 0.0,
+          'shiftStartTime': tSchedStart,
+          'shiftEndTime': tSchedEnd,
           'salesToday': t.salesToday,
           'lastActive': t.lastActive.toIso8601String(),
         };
@@ -627,6 +721,18 @@ class ApiService {
 
       final config = await _db.getStoreConfig();
 
+      String? regSchedStart;
+      String? regSchedEnd;
+      if (openShift?.notes != null && openShift!.notes!.contains('SCHEDULE:')) {
+        try {
+          final part = openShift.notes!.split('SCHEDULE:').last.split(';').first;
+          final times = part.split('|');
+          if (times.isNotEmpty) regSchedStart = times[0].trim();
+          if (times.length > 1) regSchedEnd = times[1].trim();
+        } catch (_) {}
+      }
+      regSchedStart ??= openShift?.openingTime.toIso8601String();
+
       return Response.ok(
         jsonEncode({
           'success': true,
@@ -637,6 +743,8 @@ class ApiService {
           'isShiftOpen': openShift != null,
           'shiftNumber': openShift?.shiftNumber,
           'openingCash': openShift?.openingCash ?? 0.0,
+          'shiftStartTime': regSchedStart,
+          'shiftEndTime': regSchedEnd,
           'storeConfig': {
             'businessName': config?.businessName ?? 'Beleka POS',
             'branchName': config?.branchName ?? 'Main Branch',
@@ -686,36 +794,63 @@ class ApiService {
           }
         }
 
-        // Keep lastActive up to date in Isar
+        // Keep lastActive up to date in Isar, and auto re-create if missing or deleted
         final term = await _db.isar.posTerminals
             .filter()
             .terminalCodeEqualTo(terminalName)
             .findFirst();
-        if (term != null) {
-          await _db.isar.writeTxn(() async {
-            term.lastActive = DateTime.now();
-            term.status = 'ACTIVE';
-            await _db.isar.posTerminals.putByTerminalCode(term);
-          });
-        }
+
+        final config = await _db.getStoreConfig();
+        PosTerminal termToSave = term ?? (PosTerminal()
+          ..terminalCode = terminalName
+          ..name = 'Cashier Till ($terminalName)'
+          ..branchCode = (config?.bhfId != null && config!.bhfId.isNotEmpty) ? config.bhfId : '00'
+          ..branchName = config?.branchName ?? 'Main Branch');
+
+        termToSave.lastActive = DateTime.now();
+        termToSave.status = 'ACTIVE';
+
+        await _db.isar.writeTxn(() async {
+          await _db.isar.posTerminals.putByTerminalCode(termToSave);
+        });
+
         _notifyTerminals();
         ref?.invalidate(posTerminalsProvider);
 
         final openShift = await _db.isar.cashShifts
             .filter()
-            .terminalIdContains(terminalName)
-            .and()
             .statusEqualTo('OPEN')
+            .and()
+            .group((q) => q
+                .terminalIdEqualTo(terminalName)
+                .or()
+                .terminalIdEqualTo('${termToSave.terminalCode} - ${termToSave.name}')
+                .or()
+                .terminalIdContains(terminalName))
             .findFirst();
+
+        String? schedStart;
+        String? schedEnd;
+        if (openShift?.notes != null && openShift!.notes!.contains('SCHEDULE:')) {
+          try {
+            final part = openShift.notes!.split('SCHEDULE:').last.split(';').first;
+            final times = part.split('|');
+            if (times.isNotEmpty) schedStart = times[0].trim();
+            if (times.length > 1) schedEnd = times[1].trim();
+          } catch (_) {}
+        }
+        schedStart ??= openShift?.openingTime.toIso8601String();
 
         return Response.ok(
           jsonEncode({
             'status': 'ok',
-            'assignedCashierId': term?.assignedCashierId,
-            'assignedCashierName': term?.assignedCashierName,
+            'assignedCashierId': termToSave.assignedCashierId,
+            'assignedCashierName': termToSave.assignedCashierName,
             'isShiftOpen': openShift != null,
             'shiftNumber': openShift?.shiftNumber,
             'openingCash': openShift?.openingCash ?? 0.0,
+            'shiftStartTime': schedStart,
+            'shiftEndTime': schedEnd,
           }),
           headers: _jsonHeaders,
         );
@@ -890,6 +1025,7 @@ class ApiService {
       isCreditNote: j['isCreditNote'] as bool? ?? false,
       creditNoteReason: j['creditNoteReason'] as String?,
     );
+    tx.cashShiftNumber = j['cashShiftNumber'] as String?;
     return tx;
   }
 

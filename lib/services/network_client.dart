@@ -20,6 +20,13 @@ class NetworkClient {
 
   Map<String, dynamic>? get lastAssignmentInfo => _lastAssignmentInfo;
 
+  /// Clear the cached assignment and cashier info on logout.
+  void clearAssignment() {
+    _lastAssignmentInfo = null;
+    _cashierId = null;
+    _cashierName = null;
+  }
+
   NetworkClient({required this.serverUrl})
     : _dio = Dio(
         BaseOptions(

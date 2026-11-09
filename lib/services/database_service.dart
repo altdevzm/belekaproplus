@@ -1160,6 +1160,11 @@ class DatabaseService {
         if (t.cashShiftNumber != shiftNumber) continue;
       }
 
+      // When a specific cashier is requested, ignore transactions from previous cashiers on the same till
+      if (cashierId != null && cashierId.isNotEmpty) {
+        if (t.cashierId != cashierId) continue;
+      }
+
       final tTerm = t.terminalName?.trim().toUpperCase();
       bool matched = false;
 

@@ -592,11 +592,15 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen>
                     final matchingShift = activeShifts
                         .where(
                           (s) =>
-                              s.terminalId == '${t.terminalCode} - ${t.name}' ||
-                              s.terminalId == t.terminalCode ||
-                              s.terminalId == t.name,
+                              (s.terminalId == '${t.terminalCode} - ${t.name}' ||
+                               s.terminalId == t.terminalCode ||
+                               s.terminalId == t.name ||
+                               s.terminalId.contains(t.terminalCode)) &&
+                              (t.assignedCashierId == null ||
+                               t.assignedCashierId!.isEmpty ||
+                               s.cashierId == t.assignedCashierId),
                         )
-                        .firstOrNull;
+                        .lastOrNull;
                     final isShiftOpen = matchingShift != null;
                     final isActive = t.status == 'ACTIVE';
 
@@ -2327,6 +2331,10 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen>
         debugPrint('LocalSQL terminal delete notice: $e');
       }
 
+      // Also remove from the API server's in-memory active terminals map so it
+      // doesn't show as CONNECTED after deletion.
+      ref.read(apiServiceProvider).removeTerminal(t.terminalCode);
+
       ref.invalidate(posTerminalsProvider);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -3101,6 +3109,11 @@ class _AssignShiftModalState extends ConsumerState<_AssignShiftModal> {
   late PosTerminal _currentTerminal;
   String? _selectedCashierId;
 
+  /// Optional shift scheduling — when set, cashiers are blocked from logging
+  /// in outside this window and the sales counter resets per shift.
+  DateTime? _shiftStartTime;
+  DateTime? _shiftEndTime;
+
   @override
   void initState() {
     super.initState();
@@ -3114,6 +3127,25 @@ class _AssignShiftModalState extends ConsumerState<_AssignShiftModal> {
   void dispose() {
     _floatCtrl.dispose();
     super.dispose();
+  }
+
+  /// Picks a date+time (today's date + user-chosen time) for the shift schedule.
+  Future<void> _pickTime({required bool isStart}) async {
+    final now = DateTime.now();
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(isStart ? (now) : now.add(const Duration(hours: 8))),
+      helpText: isStart ? 'Select Shift Start Time' : 'Select Shift End Time',
+    );
+    if (picked == null) return;
+    final dt = DateTime(now.year, now.month, now.day, picked.hour, picked.minute);
+    setState(() {
+      if (isStart) {
+        _shiftStartTime = dt;
+      } else {
+        _shiftEndTime = dt;
+      }
+    });
   }
 
   Future<void> _openShift() async {
@@ -3132,24 +3164,21 @@ class _AssignShiftModalState extends ConsumerState<_AssignShiftModal> {
         '${_currentTerminal.terminalCode} - ${_currentTerminal.name}';
     final branchName = _currentTerminal.branchName;
 
-    // Verify if already open
-    final existingShift = await isar.cashShifts
+    // Auto-close any previous open shift for this till so figures reset to zero cleanly
+    final codeUpper = _currentTerminal.terminalCode.trim().toUpperCase();
+    final openShifts = await isar.cashShifts
         .filter()
-        .terminalIdEqualTo(tillName)
-        .and()
         .statusEqualTo('OPEN')
-        .findFirst();
-
-    if (existingShift != null && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Warning: $tillName is already open under ${existingShift.cashierName}!',
-          ),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
-      return;
+        .findAll();
+    for (final s in openShifts) {
+      final sTerm = s.terminalId.trim().toUpperCase();
+      if (sTerm == codeUpper || sTerm.contains(codeUpper)) {
+        await isar.writeTxn(() async {
+          s.status = 'CLOSED';
+          s.closingTime = DateTime.now();
+          await isar.cashShifts.put(s);
+        });
+      }
     }
 
     await isar.writeTxn(() async {
@@ -3161,6 +3190,15 @@ class _AssignShiftModalState extends ConsumerState<_AssignShiftModal> {
         ..branchName = branchName
         ..openingCash = floatVal
         ..status = 'OPEN';
+
+      // Write shift schedule into the notes field so the till-side login screen
+      // and api_service can enforce it.  Format: "SCHEDULE: <startISO>|<endISO>;"
+      if (_shiftStartTime != null || _shiftEndTime != null) {
+        final start = (_shiftStartTime ?? DateTime.now()).toIso8601String();
+        final end = (_shiftEndTime ?? '').toString().replaceAll(' ', 'T');
+        shift.notes = 'SCHEDULE: $start|$end;';
+      }
+
       await isar.cashShifts.put(shift);
 
       // Adjust cash drawer balance
@@ -3173,13 +3211,16 @@ class _AssignShiftModalState extends ConsumerState<_AssignShiftModal> {
         await isar.paymentAccounts.put(cashAccount);
       }
 
-      // Update terminal last active and default cashier
+      // Update terminal last active and default cashier, resetting salesToday to zero
       _currentTerminal
         ..assignedCashierId = cashierId
         ..assignedCashierName = cashierName
+        ..salesToday = 0.0
         ..lastActive = DateTime.now();
       await isar.posTerminals.put(_currentTerminal);
     });
+
+    ref.read(apiServiceProvider).resetTerminalShiftSales(_currentTerminal.terminalCode);
 
     ref.invalidate(posTerminalsProvider);
     ref.invalidate(activeShiftProvider);
@@ -3423,6 +3464,103 @@ class _AssignShiftModalState extends ConsumerState<_AssignShiftModal> {
                   ),
                 ),
               ),
+
+              // ── Shift Scheduling (optional) ───────────────────────────────
+              const SizedBox(height: 18),
+              Text(
+                'Shift Schedule (Optional)',
+                style: GoogleFonts.inter(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12,
+                  color: theme.colorScheme.onSurfaceVariant,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _pickTime(isStart: true),
+                      icon: Icon(
+                        Icons.login_rounded,
+                        size: 16,
+                        color: _shiftStartTime != null
+                            ? primaryColor
+                            : theme.colorScheme.onSurfaceVariant,
+                      ),
+                      label: Text(
+                        _shiftStartTime != null
+                            ? '${_shiftStartTime!.hour.toString().padLeft(2, '0')}:${_shiftStartTime!.minute.toString().padLeft(2, '0')}'
+                            : 'Start Time',
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          color: _shiftStartTime != null
+                              ? primaryColor
+                              : theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(
+                          color: _shiftStartTime != null
+                              ? primaryColor
+                              : inputBorderColor,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _pickTime(isStart: false),
+                      icon: Icon(
+                        Icons.logout_rounded,
+                        size: 16,
+                        color: _shiftEndTime != null
+                            ? Colors.orange
+                            : theme.colorScheme.onSurfaceVariant,
+                      ),
+                      label: Text(
+                        _shiftEndTime != null
+                            ? '${_shiftEndTime!.hour.toString().padLeft(2, '0')}:${_shiftEndTime!.minute.toString().padLeft(2, '0')}'
+                            : 'End Time',
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          color: _shiftEndTime != null
+                              ? Colors.orange
+                              : theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(
+                          color: _shiftEndTime != null
+                              ? Colors.orange
+                              : inputBorderColor,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              if (_shiftEndTime != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    'Till will auto-block logins after ${_shiftEndTime!.hour.toString().padLeft(2, '0')}:${_shiftEndTime!.minute.toString().padLeft(2, '0')}',
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: Colors.orange,
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
@@ -3528,8 +3666,10 @@ class _CloseShiftModalState extends ConsumerState<_CloseShiftModal> {
                 t.assignedCashierId == widget.shift.cashierId)) {
           t.assignedCashierId = null;
           t.assignedCashierName = null;
+          t.salesToday = 0.0;
           t.lastActive = DateTime.now();
           await isar.posTerminals.put(t);
+          ref.read(apiServiceProvider).resetTerminalShiftSales(t.terminalCode);
         }
       }
     });
