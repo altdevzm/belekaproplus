@@ -2159,6 +2159,18 @@ class ReportsScreen extends ConsumerWidget {
       );
     }
 
+    final pendingCount = transactions.where((t) {
+      final isApproved = (t.zraStatus.toUpperCase() == 'APPROVED' ||
+              t.zraStatus.toUpperCase() == 'FISCALIZED') &&
+          ((t.zraReceiptNumber != null &&
+                  t.zraReceiptNumber!.isNotEmpty &&
+                  t.zraReceiptNumber != 'PENDING') ||
+              (t.zraMarkId != null &&
+                  t.zraMarkId!.isNotEmpty &&
+                  t.zraMarkId != 'PENDING'));
+      return !isApproved && t.status != 'refunded';
+    }).length;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -2179,6 +2191,10 @@ class ReportsScreen extends ConsumerWidget {
               ),
             ),
             const Spacer(),
+            if (pendingCount > 0) ...[
+              _SyncAllPendingButton(pendingCount: pendingCount),
+              const SizedBox(width: 12),
+            ],
             Text(
               '${transactions.length} Total Records',
               style: GoogleFonts.inter(
@@ -2216,6 +2232,15 @@ class ReportsScreen extends ConsumerWidget {
     final itemNames = tx.items
         .map((i) => '${i.quantity}x ${i.productName}')
         .join(', ');
+
+    final isFiscalApproved = (tx.zraStatus.toUpperCase() == 'APPROVED' ||
+            tx.zraStatus.toUpperCase() == 'FISCALIZED') &&
+        ((tx.zraReceiptNumber != null &&
+                tx.zraReceiptNumber!.isNotEmpty &&
+                tx.zraReceiptNumber != 'PENDING') ||
+            (tx.zraMarkId != null &&
+                tx.zraMarkId!.isNotEmpty &&
+                tx.zraMarkId != 'PENDING'));
 
     return Container(
       decoration: BoxDecoration(
@@ -2265,7 +2290,10 @@ class ReportsScreen extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
+                      Wrap(
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 8,
+                        runSpacing: 4,
                         children: [
                           Text(
                             '#${tx.id}',
@@ -2277,8 +2305,7 @@ class ReportsScreen extends ConsumerWidget {
                                   : theme.colorScheme.onSurface,
                             ),
                           ),
-                          if (tx.status == 'refunded') ...[
-                            const SizedBox(width: 8),
+                          if (tx.status == 'refunded')
                             Container(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 6,
@@ -2296,9 +2323,77 @@ class ReportsScreen extends ConsumerWidget {
                                   color: const Color(0xFFDC2626),
                                 ),
                               ),
+                            )
+                          else if (isFiscalApproved)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF059669)
+                                    .withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(
+                                  color: const Color(0xFF059669)
+                                      .withValues(alpha: 0.35),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.qr_code_2_rounded,
+                                    size: 11,
+                                    color: Color(0xFF059669),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'COMPLETE (ZRA QR)',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 8.5,
+                                      fontWeight: FontWeight.w800,
+                                      color: const Color(0xFF059669),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          else
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFD97706)
+                                    .withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(
+                                  color: const Color(0xFFD97706)
+                                      .withValues(alpha: 0.35),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.cloud_off_rounded,
+                                    size: 11,
+                                    color: Color(0xFFD97706),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'OFFLINE / PENDING',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 8.5,
+                                      fontWeight: FontWeight.w800,
+                                      color: const Color(0xFFD97706),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ],
-                          const SizedBox(width: 8),
                           Text(
                             '•  ${DateFormat('dd MMM yyyy, HH:mm').format(tx.timestamp)}',
                             style: GoogleFonts.inter(
@@ -2358,6 +2453,10 @@ class ReportsScreen extends ConsumerWidget {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    _TransactionSyncButton(
+                      tx: tx,
+                      isFiscalApproved: isFiscalApproved,
+                    ),
                     IconButton(
                       onPressed: () async {
                         final items = await ref.read(
@@ -2578,6 +2677,260 @@ class ActionButton extends StatelessWidget {
                         ? const Color(0xFF293548)
                         : const Color(0xFFE2E8F0),
                   ),
+          ),
+          elevation: 0,
+        ),
+      ),
+    );
+  }
+}
+
+class _TransactionSyncButton extends ConsumerStatefulWidget {
+  final SaleTransaction tx;
+  final bool isFiscalApproved;
+
+  const _TransactionSyncButton({
+    required this.tx,
+    required this.isFiscalApproved,
+  });
+
+  @override
+  ConsumerState<_TransactionSyncButton> createState() =>
+      _TransactionSyncButtonState();
+}
+
+class _TransactionSyncButtonState
+    extends ConsumerState<_TransactionSyncButton> {
+  bool _isSyncing = false;
+
+  Future<void> _sync() async {
+    if (_isSyncing) return;
+    setState(() => _isSyncing = true);
+
+    try {
+      final digitax = ref.read(digitaxInventoryServiceProvider);
+
+      // 1. Check network connectivity to DigiTax first
+      final canReach = await DigiTaxInventoryService.canReachDigiTax();
+      if (!canReach) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'DigiTax is currently unreachable. Please check your internet connection.',
+              ),
+              backgroundColor: Color(0xFFDC2626),
+            ),
+          );
+        }
+        return;
+      }
+
+      // 2. Safe check: verify if already reached DigiTax in the background or during a timeout
+      // This prevents duplicate pushes and avoids 409 conflicts.
+      final alreadyRecovered =
+          await digitax.refreshTransactionFiscalData(widget.tx);
+      if (alreadyRecovered) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Tx #${widget.tx.id} verified! Sale already confirmed on ZRA DigiTax (SDC Inv: ${widget.tx.zraReceiptNumber ?? "Approved"}).',
+              ),
+              backgroundColor: const Color(0xFF059669),
+            ),
+          );
+        }
+        return;
+      }
+
+      // 3. Not on DigiTax yet: push the sale to DigiTax and decrement inventory
+      await widget.tx.items.load();
+      final items = widget.tx.items.toList();
+      final pushed = await digitax.fiscalizeSaleTransaction(
+        widget.tx,
+        items,
+      );
+
+      if (pushed) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Tx #${widget.tx.id} successfully pushed to ZRA DigiTax! QR Code generated.',
+              ),
+              backgroundColor: const Color(0xFF059669),
+            ),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Failed to push Tx #${widget.tx.id} to DigiTax. ZRA status: ${widget.tx.zraStatus}',
+              ),
+              backgroundColor: const Color(0xFFDC2626),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Sync error on Tx #${widget.tx.id}: $e'),
+            backgroundColor: const Color(0xFFDC2626),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSyncing = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.isFiscalApproved) {
+      return IconButton(
+        onPressed: null,
+        icon: const Icon(
+          Icons.cloud_done_rounded,
+          size: 18,
+          color: Color(0xFF059669),
+        ),
+        tooltip: 'Synced with ZRA DigiTax (Complete)',
+      );
+    }
+
+    if (widget.tx.status == 'refunded') {
+      return const SizedBox.shrink();
+    }
+
+    if (_isSyncing) {
+      return const Padding(
+        padding: EdgeInsets.all(12),
+        child: SizedBox(
+          width: 14,
+          height: 14,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: Color(0xFFD97706),
+          ),
+        ),
+      );
+    }
+
+    return IconButton(
+      onPressed: _sync,
+      icon: const Icon(
+        Icons.cloud_upload_rounded,
+        size: 18,
+        color: Color(0xFFD97706),
+      ),
+      tooltip: 'Push Sale to ZRA DigiTax',
+    );
+  }
+}
+
+class _SyncAllPendingButton extends ConsumerStatefulWidget {
+  final int pendingCount;
+
+  const _SyncAllPendingButton({required this.pendingCount});
+
+  @override
+  ConsumerState<_SyncAllPendingButton> createState() =>
+      _SyncAllPendingButtonState();
+}
+
+class _SyncAllPendingButtonState
+    extends ConsumerState<_SyncAllPendingButton> {
+  bool _isSyncingAll = false;
+
+  Future<void> _syncAll() async {
+    if (_isSyncingAll) return;
+    setState(() => _isSyncingAll = true);
+
+    try {
+      final digitax = ref.read(digitaxInventoryServiceProvider);
+      final canReach = await DigiTaxInventoryService.canReachDigiTax();
+      if (!canReach) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'DigiTax server unreachable. Check internet connection.',
+              ),
+              backgroundColor: Color(0xFFDC2626),
+            ),
+          );
+        }
+        return;
+      }
+
+      final count = await digitax.processPendingFiscalQueue();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              count > 0
+                  ? 'Successfully synced $count offline sale(s) to DigiTax!'
+                  : 'Pending queue processed. All sales are up to date.',
+            ),
+            backgroundColor: const Color(0xFF059669),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error syncing pending sales: $e'),
+            backgroundColor: const Color(0xFFDC2626),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSyncingAll = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 28,
+      child: ElevatedButton.icon(
+        onPressed: _isSyncingAll ? null : _syncAll,
+        icon: _isSyncingAll
+            ? const SizedBox(
+                width: 12,
+                height: 12,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
+              )
+            : const Icon(Icons.sync_rounded, size: 14),
+        label: Text(
+          _isSyncingAll
+              ? 'SYNCING...'
+              : 'SYNC PENDING (${widget.pendingCount})',
+          style: GoogleFonts.inter(
+            fontSize: 10,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.5,
+          ),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFFD97706),
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(6),
           ),
           elevation: 0,
         ),

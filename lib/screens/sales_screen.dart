@@ -6582,27 +6582,14 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       }
 
       if (!fiscalized && (hasDigitax || syncSuccess)) {
-        // Not yet fiscalized: keep retrying in background.
-        // When confirmed, the official receipt will be auto-printed.
+        // Not yet fiscalized: keep retrying in background to update DB & sync stock with DigiTax.
+        // As requested: do NOT auto-print receipt when background sync completes later.
         _scheduleDigitaxFiscalRefreshAndPrint(
           tx,
           items,
           digitaxService: digitaxService,
-          printer: printer,
-          config: config,
           onFiscalStatusChanged: onFiscalStatusChanged,
         );
-      } else if (fiscalized && !alreadyFiscalized && config?.autoPrintReceipt != false) {
-        // Fiscalized here in the background (not in the preflight step):
-        // the first print was an offline slip, so now print the official one.
-        try {
-          await printer.printReceipt(tx, items, config: config);
-          debugPrint(
-            'DIGITAX_BG_PRINT: Official receipt printed after background fiscalization for tx ${tx.transactionId}',
-          );
-        } catch (e) {
-          debugPrint('DIGITAX_CONFIRMED_RECEIPT_PRINT_NOTICE: $e');
-        }
       }
       // If alreadyFiscalized == true, the official receipt was already printed
       // in _finalizeSale before this method was called — no second print needed.
@@ -6613,8 +6600,6 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     SaleTransaction tx,
     List<SaleItem> items, {
     required DigiTaxInventoryService digitaxService,
-    required PrinterService printer,
-    required StoreConfig? config,
     required ValueChanged<String> onFiscalStatusChanged,
   }) {
     Future(() async {
@@ -6638,12 +6623,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
             onFiscalStatusChanged(
               'ZRA receipt confirmed. The official receipt is ready.',
             );
-            if (config?.autoPrintReceipt != false) {
-              await printer.printReceipt(tx, items, config: config);
-              debugPrint(
-                'DIGITAX_ASYNC_PRINT: Live receipt printed after background confirmation for Tx #${tx.id}',
-              );
-            }
+            debugPrint(
+              'DIGITAX_ASYNC_SYNC: Live fiscal data saved in DB for Tx #${tx.id} (Stock & ZRA updated silently without physical reprint)',
+            );
             return;
           }
         } catch (e) {

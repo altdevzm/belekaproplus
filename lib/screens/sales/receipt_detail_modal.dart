@@ -27,6 +27,7 @@ class ReceiptDetailModal extends ConsumerStatefulWidget {
 
 class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
   bool _isPrinting = false;
+  bool _isSyncing = false;
   bool _isRefundMode = false;
   final Set<int> _selectedItemIds = {};
 
@@ -40,6 +41,14 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
     'Order Cancelled',
     'Other',
   ];
+
+  static bool _isRealZraSig(String? s) {
+    if (s == null || s.isEmpty || s == 'PENDING' || s == 'APPROVED') {
+      return false;
+    }
+    if (s.startsWith('sale_') || s.startsWith('SALE_')) return false;
+    return true;
+  }
 
   @override
   void initState() {
@@ -695,18 +704,9 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
       widget.transaction.zraReceiptNumber,
       sdcId: sdcIdStr,
     );
-    // A real ZRA signature is a short uppercase code (e.g. Z7DSL7MVVUKAESRV)
-    // A DigiTax internal sale ID starts with 'sale_' and must NOT be shown as the signature
-    bool isRealZraSig(String? s) {
-      if (s == null || s.isEmpty || s == 'PENDING' || s == 'APPROVED') {
-        return false;
-      }
-      if (s.startsWith('sale_') || s.startsWith('SALE_')) return false;
-      return true;
-    }
-
     final signatureRaw = widget.transaction.zraMarkId;
-    final signatureStr = isRealZraSig(signatureRaw) ? signatureRaw! : 'PENDING';
+    final signatureStr =
+        _isRealZraSig(signatureRaw) ? signatureRaw! : 'PENDING';
     final internalDataStr =
         (widget.transaction.zraInternalData != null &&
             widget.transaction.zraInternalData!.isNotEmpty &&
@@ -717,7 +717,7 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
     final isApproved =
         widget.transaction.zraStatus == 'APPROVED' ||
         widget.transaction.zraStatus == 'FISCALIZED' ||
-        isRealZraSig(signatureRaw);
+        _isRealZraSig(signatureRaw);
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -753,27 +753,83 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
                   ),
                 ],
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: isApproved
-                      ? const Color(0xFF10B981).withValues(alpha: 0.15)
-                      : Colors.amber.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(
-                    color: isApproved
-                        ? const Color(0xFF10B981).withValues(alpha: 0.4)
-                        : Colors.amber.withValues(alpha: 0.4),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: isApproved
+                          ? const Color(0xFF10B981).withValues(alpha: 0.15)
+                          : Colors.amber.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(
+                        color: isApproved
+                            ? const Color(0xFF10B981).withValues(alpha: 0.4)
+                            : Colors.amber.withValues(alpha: 0.4),
+                      ),
+                    ),
+                    child: Text(
+                      isApproved ? 'APPROVED' : 'PENDING',
+                      style: GoogleFonts.manrope(
+                        fontSize: 8,
+                        fontWeight: FontWeight.w900,
+                        color:
+                            isApproved ? const Color(0xFF10B981) : Colors.amber,
+                      ),
+                    ),
                   ),
-                ),
-                child: Text(
-                  isApproved ? 'APPROVED' : 'PENDING',
-                  style: GoogleFonts.manrope(
-                    fontSize: 8,
-                    fontWeight: FontWeight.w900,
-                    color: isApproved ? const Color(0xFF10B981) : Colors.amber,
-                  ),
-                ),
+                  if (!isApproved && widget.transaction.status != 'refunded') ...[
+                    const SizedBox(width: 8),
+                    InkWell(
+                      onTap: _isSyncing ? null : _syncToDigitax,
+                      borderRadius: BorderRadius.circular(4),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color:
+                              const Color(0xFFD97706).withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(
+                            color:
+                                const Color(0xFFD97706).withValues(alpha: 0.5),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (_isSyncing)
+                              const SizedBox(
+                                width: 8,
+                                height: 8,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 1.5,
+                                  color: Color(0xFFD97706),
+                                ),
+                              )
+                            else
+                              const Icon(
+                                Icons.sync_rounded,
+                                size: 10,
+                                color: Color(0xFFD97706),
+                              ),
+                            const SizedBox(width: 4),
+                            Text(
+                              _isSyncing ? 'SYNCING...' : 'SYNC ZRA',
+                              style: GoogleFonts.manrope(
+                                fontSize: 8,
+                                fontWeight: FontWeight.w900,
+                                color: const Color(0xFFD97706),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ],
           ),
@@ -886,6 +942,9 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
 
   Widget _buildFooterActions(BuildContext context) {
     final isRefunded = widget.transaction.status == 'refunded';
+    final isApproved = widget.transaction.zraStatus == 'APPROVED' ||
+        widget.transaction.zraStatus == 'FISCALIZED' ||
+        _isRealZraSig(widget.transaction.zraMarkId);
 
     if (_isRefundMode) {
       return Row(
@@ -965,6 +1024,56 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
 
     return Row(
       children: [
+        if (!isApproved && !isRefunded) ...[
+          Expanded(
+            child: SizedBox(
+              height: 48,
+              child: ElevatedButton(
+                onPressed: _isSyncing ? null : _syncToDigitax,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor:
+                      const Color(0xFFD97706).withValues(alpha: 0.15),
+                  foregroundColor: const Color(0xFFD97706),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(
+                      color: const Color(0xFFD97706).withValues(alpha: 0.5),
+                    ),
+                  ),
+                  elevation: 0,
+                ),
+                child: _isSyncing
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Color(0xFFD97706),
+                        ),
+                      )
+                    : FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.cloud_upload_rounded, size: 16),
+                            const SizedBox(width: 6),
+                            Text(
+                              'SYNC ZRA',
+                              style: GoogleFonts.manrope(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 1.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
         if (!isRefunded) ...[
           Expanded(
             child: SizedBox(
@@ -1083,6 +1192,91 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
         ),
       ],
     );
+  }
+
+  Future<void> _syncToDigitax() async {
+    if (_isSyncing) return;
+    setState(() => _isSyncing = true);
+
+    try {
+      final digitax = ref.read(digitaxInventoryServiceProvider);
+      final canReach = await DigiTaxInventoryService.canReachDigiTax();
+      if (!canReach) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'DigiTax server unreachable. Check internet connection.',
+              ),
+              backgroundColor: Color(0xFFDC2626),
+            ),
+          );
+        }
+        return;
+      }
+
+      // 1. Safe check: verify if already reached DigiTax (e.g. from previous network timeout)
+      final alreadyRecovered =
+          await digitax.refreshTransactionFiscalData(widget.transaction);
+      if (alreadyRecovered) {
+        if (mounted) {
+          setState(() {});
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Verified! Transaction was already accepted by ZRA DigiTax (SDC Inv: ${widget.transaction.zraReceiptNumber ?? "Approved"}).',
+              ),
+              backgroundColor: const Color(0xFF059669),
+            ),
+          );
+        }
+        return;
+      }
+
+      // 2. If not on DigiTax yet, push the sale now
+      await widget.transaction.items.load();
+      final items = widget.transaction.items.toList();
+      final pushed = await digitax.fiscalizeSaleTransaction(
+        widget.transaction,
+        items,
+      );
+
+      if (mounted) {
+        setState(() {});
+        if (pushed) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Successfully pushed to ZRA DigiTax! Receipt: ${widget.transaction.zraReceiptNumber ?? "Approved"}',
+              ),
+              backgroundColor: const Color(0xFF059669),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Could not sync to DigiTax. Status: ${widget.transaction.zraStatus}',
+              ),
+              backgroundColor: const Color(0xFFDC2626),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Sync error: $e'),
+            backgroundColor: const Color(0xFFDC2626),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSyncing = false);
+      }
+    }
   }
 
   Future<void> _executeRefund(BuildContext context) async {
