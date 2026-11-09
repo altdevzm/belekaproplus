@@ -14,6 +14,7 @@ import 'package:beleka_pos/services/sync_service.dart';
 import 'package:beleka_pos/services/postgres_sync_service.dart';
 import 'package:beleka_pos/services/digitax_inventory_service.dart';
 import 'package:beleka_pos/services/lenco_payment_service.dart';
+import 'package:beleka_pos/services/network_client.dart';
 import 'package:beleka_pos/screens/sales/weight_scale_modal.dart';
 import 'package:beleka_pos/widgets/camera_barcode_scanner_modal.dart';
 import 'package:beleka_pos/widgets/product_image_widget.dart';
@@ -5978,6 +5979,83 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
 
   Future<void> _finalizeSale(CartNotifier cartNotifier) async {
     if (_isProcessingPayment) return;
+
+    final config = ref.read(storeConfigProvider).value;
+    final currentUser = ref.read(authProvider);
+    final isCashier = normalizeUserRole(currentUser?.role) == 'cashier';
+
+    // Till Assignment Enforcement: Cashiers cannot sell on unassigned tills or tills assigned to someone else
+    if (config?.isManagerMode == false && isCashier) {
+      final client = ref.read(networkClientProvider);
+      final tillCode = config?.terminalName ?? 'TILL-01';
+
+      Map<String, dynamic>? assignInfo = client?.lastAssignmentInfo;
+      if (client != null && client.isConnected) {
+        try {
+          assignInfo = await client.checkTerminalAssignment(tillCode);
+        } catch (_) {}
+      }
+
+      final assignedId = assignInfo?['assignedCashierId'] as String?;
+      final assignedName = assignInfo?['assignedCashierName'] as String?;
+
+      if (assignedId == null || assignedId.trim().isEmpty) {
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: const Row(
+                children: [
+                  Icon(Icons.lock_clock_rounded, color: Colors.amber),
+                  SizedBox(width: 10),
+                  Text('Till Not Assigned'),
+                ],
+              ),
+              content: Text(
+                'Till "$tillCode" is currently unassigned.\n\nPlease ask your Store Manager on the Master POS to assign this till to you and open your shift before making sales.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('OK'),
+                ),
+              ],
+            ),
+          );
+        }
+        return;
+      }
+
+      if (assignedId != currentUser?.numericId) {
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: const Row(
+                children: [
+                  Icon(Icons.lock_rounded, color: Colors.redAccent),
+                  SizedBox(width: 10),
+                  Text('Till Assignment Mismatch'),
+                ],
+              ),
+              content: Text(
+                'Till "$tillCode" is currently assigned to ${assignedName ?? assignedId}.\n\nYou are logged in as ${currentUser?.name}.\n\nOnly the assigned cashier can complete sales on this till. Please ask your Store Manager to reassign this till.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('OK'),
+                ),
+              ],
+            ),
+          );
+        }
+        return;
+      }
+    }
+
     final total = cartNotifier.total;
     if (_selectedPaymentMethod.isEmpty || _tenderedAmount < total) {
       if (mounted) {
@@ -5995,12 +6073,14 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     if (_selectedPaymentMethod == 'EXTERNAL MOBILE MONEY' &&
         (_externalPaymentConfirmedBy == null ||
             _externalPaymentConfirmedAt == null)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Confirm receipt on the external device first.'),
-          backgroundColor: Colors.orangeAccent,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Confirm receipt on the external device first.'),
+            backgroundColor: Colors.orangeAccent,
+          ),
+        );
+      }
       return;
     }
     setState(() => _isProcessingPayment = true);

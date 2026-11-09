@@ -14,6 +14,11 @@ class NetworkClient {
   Timer? _heartbeatTimer;
   Timer? _syncTimer;
   String? _terminalName;
+  String? _cashierId;
+  String? _cashierName;
+  Map<String, dynamic>? _lastAssignmentInfo;
+
+  Map<String, dynamic>? get lastAssignmentInfo => _lastAssignmentInfo;
 
   NetworkClient({required this.serverUrl})
     : _dio = Dio(
@@ -31,8 +36,8 @@ class NetworkClient {
 
   // ─── Connection ───────────────────────────────────────────────
 
-  /// Ping the server to check connectivity.
-  Future<bool> testConnection([String? overrideHost]) async {
+  /// Ping the server to check connectivity and announce this terminal.
+  Future<bool> testConnection([String? overrideHost, String? terminalCode]) async {
     try {
       final client = overrideHost != null
           ? Dio(
@@ -43,8 +48,22 @@ class NetworkClient {
             )
           : _dio;
 
-      final response = await client.get('/status');
+      final code = (terminalCode ?? _terminalName)?.trim().toUpperCase();
+      final path = (code != null && code.isNotEmpty)
+          ? '/status?terminalCode=$code'
+          : '/status';
+
+      final response = await client.get(path);
       _isConnected = response.statusCode == 200;
+
+      // If connected and we know the terminal code, perform registration handshake
+      if (_isConnected && code != null && code.isNotEmpty) {
+        registerTerminal(
+          terminalCode: code,
+          name: 'Cashier Till ($code)',
+        ).catchError((_) => null);
+      }
+
       return _isConnected;
     } catch (e) {
       _isConnected = false;
@@ -54,7 +73,7 @@ class NetworkClient {
   }
 
   /// Retrieve server configuration and branch info from the Manager POS.
-  Future<Map<String, dynamic>?> getServerInfo([String? overrideHost]) async {
+  Future<Map<String, dynamic>?> getServerInfo([String? overrideHost, String? terminalCode]) async {
     try {
       final client = overrideHost != null
           ? Dio(
@@ -65,7 +84,12 @@ class NetworkClient {
             )
           : _dio;
 
-      final response = await client.get('/status');
+      final code = (terminalCode ?? _terminalName)?.trim().toUpperCase();
+      final path = (code != null && code.isNotEmpty)
+          ? '/status?terminalCode=$code'
+          : '/status';
+
+      final response = await client.get(path);
       if (response.statusCode == 200 && response.data != null) {
         final data = response.data is String
             ? jsonDecode(response.data as String)
@@ -84,12 +108,17 @@ class NetworkClient {
   }
 
   /// Start periodic heartbeat and sync timers.
-  void startBackgroundTasks(String terminalName) {
+  void startBackgroundTasks(String terminalName, {String? cashierId, String? cashierName}) {
     _terminalName = terminalName;
+    if (cashierId != null) _cashierId = cashierId;
+    if (cashierName != null) _cashierName = cashierName;
 
-    // Heartbeat every 60 seconds
+    // Send immediate heartbeat on startup
+    _sendHeartbeat();
+
+    // Heartbeat every 30 seconds
     _heartbeatTimer?.cancel();
-    _heartbeatTimer = Timer.periodic(const Duration(seconds: 60), (_) {
+    _heartbeatTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       _sendHeartbeat();
     });
   }
@@ -104,13 +133,50 @@ class NetworkClient {
 
   Future<void> _sendHeartbeat() async {
     try {
-      await _dio.post(
+      final response = await _dio.post(
         '/terminals/heartbeat',
-        data: {'terminalName': _terminalName},
+        data: {
+          'terminalName': _terminalName,
+          'cashierId': _cashierId,
+          'cashierName': _cashierName,
+        },
       );
       _isConnected = true;
+      if (response.statusCode == 200 && response.data != null) {
+        final data = response.data is String
+            ? jsonDecode(response.data as String)
+            : response.data;
+        if (data is Map<String, dynamic>) {
+          _lastAssignmentInfo = data;
+        }
+      }
     } catch (_) {
       _isConnected = false;
+    }
+  }
+
+  /// Check this terminal's cashier assignment and shift status from Master POS.
+  Future<Map<String, dynamic>?> checkTerminalAssignment(String terminalCode) async {
+    try {
+      final response = await _dio.post(
+        '/terminals/heartbeat',
+        data: {
+          'terminalName': terminalCode.trim().toUpperCase(),
+        },
+      );
+      if (response.statusCode == 200 && response.data != null) {
+        final data = response.data is String
+            ? jsonDecode(response.data as String)
+            : response.data;
+        if (data is Map<String, dynamic>) {
+          _lastAssignmentInfo = data;
+          return data;
+        }
+      }
+      return null;
+    } catch (e) {
+      debugPrint('CHECK_ASSIGNMENT_ERROR: $e');
+      return null;
     }
   }
 
@@ -124,11 +190,12 @@ class NetworkClient {
     String? branchCode,
   }) async {
     try {
+      final code = terminalCode.trim().toUpperCase();
       final response = await _dio.post(
         '/terminals/register',
         data: {
-          'terminalCode': terminalCode,
-          'terminalName': terminalCode,
+          'terminalCode': code,
+          'terminalName': code,
           'name': name,
           'deviceIp': deviceIp,
           'hardwareId': hardwareId,
@@ -143,7 +210,11 @@ class NetworkClient {
         final data = response.data is String
             ? jsonDecode(response.data as String)
             : response.data;
-        return data is Map<String, dynamic> ? data : {'success': true};
+        if (data is Map<String, dynamic>) {
+          _lastAssignmentInfo = data;
+          return data;
+        }
+        return {'success': true};
       }
       return null;
     } catch (e) {

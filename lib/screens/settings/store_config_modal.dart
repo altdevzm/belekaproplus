@@ -191,6 +191,20 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
     await db.saveStoreConfig(config);
     ref.invalidate(storeConfigProvider);
     
+    // Auto-register with Master POS server if saving as a subordinate cashier till
+    if (!_isManagerMode && config.serverIp != null && config.serverIp!.isNotEmpty) {
+      try {
+        final client = NetworkClient(serverUrl: 'http://${config.serverIp}:8080');
+        await client.registerTerminal(
+          terminalCode: config.terminalName,
+          name: 'Cashier Till (${config.terminalName})',
+          branchCode: config.bhfId,
+        );
+      } catch (e) {
+        debugPrint('Store config till auto-register notice: $e');
+      }
+    }
+
     // Auto-sync store profile up to Cloud PostgreSQL DB
     try {
       await ref.read(postgresSyncServiceProvider).syncStoreConfigToCloud(config);
@@ -1007,7 +1021,10 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
           return;
         }
 
-        final success = await client.testConnection(_serverIpController.text);
+        final success = await client.testConnection(
+          _serverIpController.text.trim(),
+          _terminalController.text.trim().toUpperCase(),
+        );
         
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(

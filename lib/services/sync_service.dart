@@ -28,7 +28,7 @@ class SyncService {
   }
 
   /// Start the background sync loops.
-  void startSyncLoops(String terminalName) {
+  void startSyncLoops(String terminalName, {String? cashierId, String? cashierName}) {
     stopSyncLoops();
 
     // 1. Transaction retry loop (every 60s)
@@ -42,7 +42,11 @@ class SyncService {
     });
 
     // 3. Start heartbeat in client
-    _client?.startBackgroundTasks(terminalName);
+    _client?.startBackgroundTasks(
+      terminalName,
+      cashierId: cashierId,
+      cashierName: cashierName,
+    );
 
     // Initial sync
     syncPendingTransactions();

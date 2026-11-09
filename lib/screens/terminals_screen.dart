@@ -226,7 +226,8 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen>
               .where(
                 (t) =>
                     t.branchCode == effectiveBranchCode ||
-                    t.digitaxBhfId == effectiveBranchCode,
+                    t.digitaxBhfId == effectiveBranchCode ||
+                    t.branchCode == '00',
               )
               .toList()
         : allTerminals;
@@ -953,7 +954,7 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen>
                                                       .assignedCashierId!
                                                       .isNotEmpty)
                                             ? 'Assigned ID: ${t.assignedCashierId}'
-                                            : 'Cashier can log in directly',
+                                            : 'Awaiting cashier assignment & float',
                                         style: GoogleFonts.inter(
                                           fontSize: 10.5,
                                           color: theme
@@ -2306,9 +2307,26 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen>
 
     if (confirmed == true) {
       final isar = ref.read(isarProvider);
+      final localSql = ref.read(localSqlServiceProvider);
+
+      // Delete from Isar using the unique index so the index is properly cleared.
+      // Using deleteByTerminalCode prevents stale unique-index entries that would
+      // block re-adding the same terminal code later.
       await isar.writeTxn(() async {
-        await isar.posTerminals.delete(t.id);
+        await isar.posTerminals.deleteByTerminalCode(t.terminalCode);
       });
+
+      // Also remove from SQLite so re-adding the same terminal_code doesn't conflict.
+      try {
+        await localSql.db.delete(
+          'pos_terminals',
+          where: 'terminal_code = ?',
+          whereArgs: [t.terminalCode],
+        );
+      } catch (e) {
+        debugPrint('LocalSQL terminal delete notice: $e');
+      }
+
       ref.invalidate(posTerminalsProvider);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -2994,7 +3012,10 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen>
                     ..lastActive = DateTime.now();
 
                   await isar.writeTxn(() async {
-                    await isar.posTerminals.put(posTerminal);
+                    // putByTerminalCode upserts on the unique index, so
+                    // re-adding a previously-deleted terminal code works
+                    // without hitting a unique-constraint error.
+                    await isar.posTerminals.putByTerminalCode(posTerminal);
                   });
 
                   try {

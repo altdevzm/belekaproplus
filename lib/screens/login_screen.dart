@@ -241,6 +241,29 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             await db.isar.storeConfigs.put(config);
           });
         }
+
+        // Verify till assignment with Master POS if running as a LAN Cashier Till
+        if (config != null && !config.isManagerMode && networkClient != null) {
+          try {
+            final assignInfo = await networkClient.checkTerminalAssignment(config.terminalName);
+            if (assignInfo != null) {
+              final assignedId = assignInfo['assignedCashierId'] as String?;
+              final assignedName = assignInfo['assignedCashierName'] as String?;
+              if (assignedId != null &&
+                  assignedId.isNotEmpty &&
+                  assignedId != user.numericId &&
+                  user.role == 'cashier') {
+                throw Exception(
+                  'Till "${config.terminalName}" is currently assigned to ${assignedName ?? assignedId}. You cannot sell on this till. Please ask the Manager to assign you.',
+                );
+              }
+            }
+          } catch (e) {
+            if (e.toString().contains('is currently assigned to')) {
+              rethrow;
+            }
+          }
+        }
       }
 
       // 2. If local fails and we have a network connection to manager, try remote login
@@ -489,7 +512,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         });
       }
     } catch (e) {
-      setState(() => _errorMessage = 'Login failed: $e');
+      final msg = e.toString().replaceFirst('Exception: ', '');
+      setState(() => _errorMessage = msg.startsWith('Till') ? msg : 'Login failed: $msg');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

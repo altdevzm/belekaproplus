@@ -9,6 +9,7 @@ import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_router/shelf_router.dart';
 import 'package:beleka_pos/models/models.dart';
+import 'package:beleka_pos/providers/store_provider.dart';
 import 'package:beleka_pos/services/database_service.dart';
 import 'package:beleka_pos/services/digitax_inventory_service.dart';
 // isar imported above at line 6
@@ -152,6 +153,42 @@ class ApiService {
 
   Future<Response> _handleStatus(Request request) async {
     final config = await _db.getStoreConfig();
+    
+    // Auto-discover and register till if terminal code/name was supplied in query or header
+    final paramCode = request.url.queryParameters['terminalCode'] ??
+        request.url.queryParameters['terminalName'] ??
+        request.headers['x-terminal-code'];
+    if (paramCode != null && paramCode.trim().isNotEmpty) {
+      final code = paramCode.trim().toUpperCase();
+      try {
+        final existingTerminals = await _db.isar.posTerminals.where().findAll();
+        final exists = existingTerminals.any((t) => t.terminalCode == code);
+        if (exists || existingTerminals.length < 3) {
+          PosTerminal terminal = existingTerminals.firstWhere(
+            (t) => t.terminalCode == code,
+            orElse: () => PosTerminal()
+              ..terminalCode = code
+              ..name = 'Cashier Till ($code)',
+          );
+          terminal.status = 'ACTIVE';
+          terminal.lastActive = DateTime.now();
+          await _db.isar.writeTxn(() async {
+            await _db.isar.posTerminals.putByTerminalCode(terminal);
+          });
+          _activeTerminals[code] = TerminalInfo(
+            terminalName: code,
+            cashierId: terminal.assignedCashierId ?? '',
+            cashierName: terminal.assignedCashierName ?? 'Unassigned Cashier',
+            connectedAt: DateTime.now(),
+          );
+          _notifyTerminals();
+          ref?.invalidate(posTerminalsProvider);
+        }
+      } catch (e) {
+        debugPrint('STATUS_AUTO_REGISTER_NOTICE: $e');
+      }
+    }
+
     return Response.ok(
       jsonEncode({
         'status': 'ok',
@@ -214,12 +251,50 @@ class ApiService {
               headers: _jsonHeaders);
         }
 
+        // Enforce till assignment: if the till is assigned to a specific cashier,
+        // prevent a different cashier from selling on this till.
+        PosTerminal? existingTerm;
+        try {
+          existingTerm = existingTerminals.firstWhere(
+            (t) => t.terminalCode == terminalName || t.name == terminalName,
+          );
+        } catch (_) {}
+
+        if (existingTerm != null &&
+            existingTerm.assignedCashierId != null &&
+            existingTerm.assignedCashierId!.isNotEmpty &&
+            existingTerm.assignedCashierId != user.numericId &&
+            user.role == 'cashier') {
+          return Response(403,
+              body: jsonEncode({
+                'error': 'Till "$terminalName" is assigned to ${existingTerm.assignedCashierName ?? existingTerm.assignedCashierId}. You cannot sell on this till. Please ask the Manager to reassign.'
+              }),
+              headers: _jsonHeaders);
+        }
+
         _activeTerminals[terminalName] = TerminalInfo(
           terminalName: terminalName,
           cashierId: user.numericId,
           cashierName: user.name,
           connectedAt: DateTime.now(),
         );
+
+        // Persist terminal to Isar so the admin dashboard watchLazy() stream
+        // fires and the connected till appears on the terminals screen.
+        try {
+          PosTerminal terminal = existingTerm ?? (PosTerminal()
+            ..terminalCode = terminalName
+            ..name = terminalName);
+          terminal.status = 'ACTIVE';
+          terminal.lastActive = DateTime.now();
+          await _db.isar.writeTxn(() async {
+            await _db.isar.posTerminals.putByTerminalCode(terminal);
+          });
+          ref?.invalidate(posTerminalsProvider);
+        } catch (e) {
+          debugPrint('LOGIN_TERMINAL_PERSIST_NOTICE: $e');
+        }
+
         _notifyTerminals();
       }
 
@@ -456,15 +531,34 @@ class ApiService {
   Future<Response> _handleGetTerminals(Request request) async {
     try {
       final terminals = await _db.isar.posTerminals.where().findAll();
-      final jsonList = terminals.map((t) => {
-        'id': t.id,
-        'terminalCode': t.terminalCode,
-        'name': t.name,
-        'deviceIp': t.deviceIp,
-        'serialNumber': t.serialNumber,
-        'status': t.status,
-        'branchCode': t.branchCode,
-        'lastActive': t.lastActive.toIso8601String(),
+      final openShifts = await _db.isar.cashShifts
+          .filter()
+          .statusEqualTo('OPEN')
+          .findAll();
+
+      final jsonList = terminals.map((t) {
+        final shift = openShifts
+            .where((s) =>
+                s.terminalId == '${t.terminalCode} - ${t.name}' ||
+                s.terminalId == t.terminalCode ||
+                s.terminalId == t.name)
+            .firstOrNull;
+        return {
+          'id': t.id,
+          'terminalCode': t.terminalCode,
+          'name': t.name,
+          'deviceIp': t.deviceIp,
+          'serialNumber': t.serialNumber,
+          'status': t.status,
+          'branchCode': t.branchCode,
+          'assignedCashierId': t.assignedCashierId,
+          'assignedCashierName': t.assignedCashierName,
+          'isShiftOpen': shift != null,
+          'shiftNumber': shift?.shiftNumber,
+          'openingCash': shift?.openingCash ?? 0.0,
+          'salesToday': t.salesToday,
+          'lastActive': t.lastActive.toIso8601String(),
+        };
       }).toList();
       return Response.ok(jsonEncode(jsonList), headers: _jsonHeaders);
     } catch (e) {
@@ -476,8 +570,8 @@ class ApiService {
   Future<Response> _handleRegisterTerminal(Request request) async {
     try {
       final body = jsonDecode(await request.readAsString());
-      final terminalCode = (body['terminalCode'] as String?) ?? 'TILL-01';
-      final name = body['name'] as String? ?? terminalCode;
+      final terminalCode = (body['terminalCode'] as String?)?.trim().toUpperCase() ?? 'TILL-01';
+      final name = (body['name'] as String?)?.trim() ?? 'Cashier Till ($terminalCode)';
       final deviceIp = body['deviceIp'] as String?;
       final hardwareId = body['hardwareId'] as String?;
       final branchCode = body['branchCode'] as String?;
@@ -497,7 +591,7 @@ class ApiService {
             headers: _jsonHeaders);
       }
 
-      PosTerminal? terminal = existingTerminals.firstWhere(
+      PosTerminal terminal = existingTerminals.firstWhere(
         (t) => t.terminalCode == terminalCode,
         orElse: () => PosTerminal()
           ..terminalCode = terminalCode
@@ -505,15 +599,31 @@ class ApiService {
       );
 
       terminal.name = name;
-      if (deviceIp != null) terminal.deviceIp = deviceIp;
-      if (hardwareId != null) terminal.serialNumber = hardwareId;
-      if (branchCode != null) terminal.branchCode = branchCode;
+      if (deviceIp != null && deviceIp.isNotEmpty) terminal.deviceIp = deviceIp;
+      if (hardwareId != null && hardwareId.isNotEmpty) terminal.serialNumber = hardwareId;
+      if (branchCode != null && branchCode.isNotEmpty) terminal.branchCode = branchCode;
       terminal.status = 'ACTIVE';
       terminal.lastActive = DateTime.now();
 
       await _db.isar.writeTxn(() async {
-        await _db.isar.posTerminals.put(terminal);
+        await _db.isar.posTerminals.putByTerminalCode(terminal);
       });
+
+      _activeTerminals[terminalCode] = TerminalInfo(
+        terminalName: terminalCode,
+        cashierId: terminal.assignedCashierId ?? '',
+        cashierName: terminal.assignedCashierName ?? 'Unassigned Cashier',
+        connectedAt: DateTime.now(),
+      );
+      _notifyTerminals();
+      ref?.invalidate(posTerminalsProvider);
+
+      final openShift = await _db.isar.cashShifts
+          .filter()
+          .terminalIdContains(terminalCode)
+          .and()
+          .statusEqualTo('OPEN')
+          .findFirst();
 
       final config = await _db.getStoreConfig();
 
@@ -522,6 +632,11 @@ class ApiService {
           'success': true,
           'terminalId': terminal.id,
           'terminalCode': terminal.terminalCode,
+          'assignedCashierId': terminal.assignedCashierId,
+          'assignedCashierName': terminal.assignedCashierName,
+          'isShiftOpen': openShift != null,
+          'shiftNumber': openShift?.shiftNumber,
+          'openingCash': openShift?.openingCash ?? 0.0,
           'storeConfig': {
             'businessName': config?.businessName ?? 'Beleka POS',
             'branchName': config?.branchName ?? 'Main Branch',
@@ -544,10 +659,66 @@ class ApiService {
   Future<Response> _handleHeartbeat(Request request) async {
     try {
       final body = jsonDecode(await request.readAsString());
-      final terminalName = body['terminalName'] as String?;
+      final terminalName = (body['terminalName'] as String?)?.trim().toUpperCase();
+      final cashierId = body['cashierId'] as String?;
+      final cashierName = body['cashierName'] as String?;
 
-      if (terminalName != null && _activeTerminals.containsKey(terminalName)) {
-        _activeTerminals[terminalName]!.lastHeartbeat = DateTime.now();
+      if (terminalName != null && terminalName.isNotEmpty) {
+        if (_activeTerminals.containsKey(terminalName)) {
+          final info = _activeTerminals[terminalName]!;
+          info.lastHeartbeat = DateTime.now();
+          if (cashierId != null && cashierId.isNotEmpty) {
+            info.cashierId = cashierId;
+          }
+          if (cashierName != null && cashierName.isNotEmpty) {
+            info.cashierName = cashierName;
+          }
+        } else {
+          final existingTerminals = await _db.isar.posTerminals.where().findAll();
+          final isKnown = existingTerminals.any((t) => t.terminalCode == terminalName);
+          if (isKnown || existingTerminals.length < 3) {
+            _activeTerminals[terminalName] = TerminalInfo(
+              terminalName: terminalName,
+              cashierId: cashierId ?? '',
+              cashierName: cashierName ?? 'Cashier',
+              connectedAt: DateTime.now(),
+            );
+          }
+        }
+
+        // Keep lastActive up to date in Isar
+        final term = await _db.isar.posTerminals
+            .filter()
+            .terminalCodeEqualTo(terminalName)
+            .findFirst();
+        if (term != null) {
+          await _db.isar.writeTxn(() async {
+            term.lastActive = DateTime.now();
+            term.status = 'ACTIVE';
+            await _db.isar.posTerminals.putByTerminalCode(term);
+          });
+        }
+        _notifyTerminals();
+        ref?.invalidate(posTerminalsProvider);
+
+        final openShift = await _db.isar.cashShifts
+            .filter()
+            .terminalIdContains(terminalName)
+            .and()
+            .statusEqualTo('OPEN')
+            .findFirst();
+
+        return Response.ok(
+          jsonEncode({
+            'status': 'ok',
+            'assignedCashierId': term?.assignedCashierId,
+            'assignedCashierName': term?.assignedCashierName,
+            'isShiftOpen': openShift != null,
+            'shiftNumber': openShift?.shiftNumber,
+            'openingCash': openShift?.openingCash ?? 0.0,
+          }),
+          headers: _jsonHeaders,
+        );
       }
 
       return Response.ok(jsonEncode({'status': 'ok'}), headers: _jsonHeaders);

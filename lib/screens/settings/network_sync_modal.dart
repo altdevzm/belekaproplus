@@ -77,16 +77,33 @@ class _NetworkSyncModalState extends ConsumerState<NetworkSyncModal> {
     final config = existing ?? StoreConfig();
     config.isManagerMode = _isManagerMode;
     config.serverIp = _serverIpController.text.trim();
-    config.terminalName = _terminalController.text.trim();
+    config.terminalName = _terminalController.text.trim().toUpperCase();
     
     await db.saveStoreConfig(config);
     ref.invalidate(storeConfigProvider);
+
+    // Auto-register with Master POS server immediately so it appears on the dashboard
+    if (!_isManagerMode && config.serverIp != null && config.serverIp!.isNotEmpty) {
+      try {
+        final client = NetworkClient(serverUrl: 'http://${config.serverIp}:8080');
+        await client.registerTerminal(
+          terminalCode: config.terminalName,
+          name: 'Cashier Till (${config.terminalName})',
+          deviceIp: _localIp,
+          branchCode: config.bhfId,
+        );
+      } catch (e) {
+        debugPrint('SAVE_CONFIG_REGISTER_NOTICE: $e');
+      }
+    }
 
     if (mounted) {
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(_isManagerMode ? 'Saved as Master Hub (Server IP: $_localIp)' : 'Saved as Cashier Till (Connecting to ${_serverIpController.text.trim()})'),
+          content: Text(_isManagerMode
+              ? 'Saved as Master Hub (Server IP: $_localIp)'
+              : 'Saved as Cashier Till ${config.terminalName} (Linked to Master POS ${_serverIpController.text.trim()})'),
           backgroundColor: const Color(0xFF6366F1),
           behavior: SnackBarBehavior.floating,
         ),
@@ -96,6 +113,7 @@ class _NetworkSyncModalState extends ConsumerState<NetworkSyncModal> {
 
   Future<void> _testConnection() async {
     final ip = _serverIpController.text.trim();
+    final tillCode = _terminalController.text.trim().toUpperCase();
     if (ip.isEmpty) {
       setState(() {
         _testResult = 'Please enter the Master POS IP address.';
@@ -110,14 +128,26 @@ class _NetworkSyncModalState extends ConsumerState<NetworkSyncModal> {
     });
 
     final client = NetworkClient(serverUrl: 'http://$ip:8080');
-    final success = await client.testConnection();
+    final success = await client.testConnection(null, tillCode);
+
+    if (success && tillCode.isNotEmpty) {
+      try {
+        await client.registerTerminal(
+          terminalCode: tillCode,
+          name: 'Cashier Till ($tillCode)',
+          deviceIp: _localIp,
+        );
+      } catch (e) {
+        debugPrint('TEST_CONNECTION_REGISTER_NOTICE: $e');
+      }
+    }
 
     if (mounted) {
       setState(() {
         _isTesting = false;
         _testSuccess = success;
         _testResult = success 
-            ? 'Connection Successful! Connected to Master POS ($ip:8080).' 
+            ? 'Connection Successful! Till $tillCode is registered and visible on Master POS ($ip:8080).' 
             : 'Connection Failed. Please check that Master POS is running and on the same Wi-Fi.';
       });
     }

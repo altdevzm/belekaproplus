@@ -4149,6 +4149,54 @@ class DigiTaxInventoryService {
     }
   }
 
+  /// Returns a map of productId -> total unpushed sold quantity across all pending sales.
+  /// Used by stock reconciliation to detect when a stock discrepancy is caused by unsynced sales.
+  Future<Map<int, int>> getUnpushedSalesQtyMap() async {
+    final db = ref.read(databaseServiceProvider);
+    final allTx = await db.isar.saleTransactions.where().findAll();
+    final pendingTxs = allTx.where((tx) {
+      final hasReceipt = tx.zraReceiptNumber != null &&
+          tx.zraReceiptNumber!.trim().isNotEmpty &&
+          tx.zraReceiptNumber != 'PENDING';
+      if (hasReceipt) return false;
+      final s = tx.zraStatus.toUpperCase();
+      return s != 'APPROVED' &&
+          s != 'FISCALIZED' &&
+          s != 'OFFLINE_EXEMPT' &&
+          s != 'FAILED';
+    }).toList();
+
+    final Map<int, int> productQtyMap = {};
+    for (final tx in pendingTxs) {
+      await tx.items.load();
+      for (final item in tx.items) {
+        final current = productQtyMap[item.productId] ?? 0;
+        final qty = (item.isWeighted && item.weight > 0)
+            ? item.weight.ceil()
+            : item.quantity;
+        productQtyMap[item.productId] = current + qty;
+      }
+    }
+    return productQtyMap;
+  }
+
+  /// Returns the count of local sales that have not yet reached DigiTax / ZRA
+  Future<int> countPendingFiscalTransactions() async {
+    final db = ref.read(databaseServiceProvider);
+    final allTx = await db.isar.saleTransactions.where().findAll();
+    return allTx.where((tx) {
+      final hasReceipt = tx.zraReceiptNumber != null &&
+          tx.zraReceiptNumber!.trim().isNotEmpty &&
+          tx.zraReceiptNumber != 'PENDING';
+      if (hasReceipt) return false;
+      final s = tx.zraStatus.toUpperCase();
+      return s != 'APPROVED' &&
+          s != 'FISCALIZED' &&
+          s != 'OFFLINE_EXEMPT' &&
+          s != 'FAILED';
+    }).length;
+  }
+
   /// Reconciles stock for a single item by either pulling from DigiTax or pushing local POS stock to DigiTax
   Future<bool> reconcileProductStock({
     required Product product,

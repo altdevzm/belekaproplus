@@ -4,6 +4,7 @@ import 'package:beleka_pos/models/models.dart';
 import 'package:beleka_pos/providers/auth_provider.dart';
 import 'package:beleka_pos/providers/store_provider.dart';
 import 'package:beleka_pos/services/api_service.dart';
+import 'package:beleka_pos/services/network_client.dart';
 import 'package:beleka_pos/services/sync_service.dart';
 
 /// Orchestrates the multi-terminal network features.
@@ -59,13 +60,31 @@ class NetworkManager {
         apiService.stop();
       }
 
-      // Sync only if a user is logged in
+      // Immediately register with Master POS host so this till appears live on the Manager dashboard
+      final client = _ref.read(networkClientProvider);
+      if (client != null && config.serverIp != null && config.serverIp!.trim().isNotEmpty) {
+        client.registerTerminal(
+          terminalCode: config.terminalName,
+          name: 'Cashier Till (${config.terminalName})',
+          branchCode: config.bhfId,
+        ).catchError((e) {
+          debugPrint('TILL_AUTO_REGISTER_NOTICE: $e');
+          return null;
+        });
+      }
+
+      // Sync and background heartbeat
       final syncService = _ref.read(syncServiceProvider);
       if (user != null) {
-        debugPrint('NETWORK_MANAGER: Starting Sync for Terminal [${config.terminalName}]');
-        syncService.startSyncLoops(config.terminalName);
+        debugPrint('NETWORK_MANAGER: Starting Sync for Terminal [${config.terminalName}] (${user.name})');
+        syncService.startSyncLoops(
+          config.terminalName,
+          cashierId: user.numericId,
+          cashierName: user.name,
+        );
       } else {
-        syncService.stopSyncLoops();
+        // Even when logged out, keep background heartbeat active so Master POS sees CONNECTED till
+        client?.startBackgroundTasks(config.terminalName);
       }
     }
   }
