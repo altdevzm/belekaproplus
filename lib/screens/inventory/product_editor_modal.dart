@@ -55,6 +55,7 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
   bool _isTaxInclusive = true;
   bool _isWeighted = false;
   bool _isDigitaxSyncEnabled = false;
+  bool _isSaving = false;
   String _unitOfMeasure = 'NT';
   String _selectedZraTaxCode = 'A';
   String _selectedItemClsCode = '52151501';
@@ -476,7 +477,7 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                       ],
                     ),
                     IconButton(
-                      onPressed: () => Navigator.pop(context),
+                      onPressed: _isSaving ? null : () => Navigator.pop(context),
                       icon: Icon(
                         Icons.close_rounded,
                         size: 18,
@@ -567,25 +568,54 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                 SizedBox(
                   height: 48,
                   child: ElevatedButton(
-                    onPressed: _save,
+                    onPressed: _isSaving ? null : _save,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: primaryColor,
                       foregroundColor: Colors.white,
+                      disabledBackgroundColor:
+                          primaryColor.withValues(alpha: 0.6),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
                       elevation: 0,
                     ),
-                    child: Text(
-                      widget.product == null
-                          ? 'CREATE PRODUCT'
-                          : 'SAVE CHANGES',
-                      style: GoogleFonts.inter(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13,
-                        color: Colors.white,
-                      ),
-                    ),
+                    child: _isSaving
+                        ? Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.white,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Text(
+                                widget.product == null
+                                    ? 'CREATING PRODUCT...'
+                                    : 'SAVING CHANGES...',
+                                style: GoogleFonts.inter(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          )
+                        : Text(
+                            widget.product == null
+                                ? 'CREATE PRODUCT'
+                                : 'SAVE CHANGES',
+                            style: GoogleFonts.inter(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                              color: Colors.white,
+                            ),
+                          ),
                   ),
                 ),
               ],
@@ -2803,7 +2833,29 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
   }
 
   Future<void> _save() async {
-    if (_formKey.currentState?.validate() ?? false) {
+    if (_isSaving) return;
+
+    if (!(_formKey.currentState?.validate() ?? false)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please fill in all required fields marked in red.'),
+            backgroundColor: Color(0xFFD97706),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+      return;
+    }
+
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+
+    setState(() {
+      _isSaving = true;
+    });
+
+    try {
       final db = ref.read(databaseServiceProvider);
       final currentUser = ref.read(authProvider);
       final discountPrice = _hasDiscount
@@ -3005,76 +3057,108 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
         );
       }
 
-      // Push product to DigiTax VSDC Cloud ONLY if enabled for DigiTax sync
-      bool digitaxSynced = false;
-      String? syncErr;
-      if (product.isDigitaxSyncEnabled) {
-        try {
-          digitaxSynced = await ref
-              .read(digitaxInventoryServiceProvider)
-              .syncSingleProductToDigitax(
-                product,
-                previousStock: previousStock,
-                branchCode: branchBhfId,
-                movementType: movementType,
-                reasonNotes: 'Product Editor update',
-                throwOnError: true,
-              );
-        } catch (e) {
-          syncErr = e.toString();
-          debugPrint('DigiTax product push notice: $e');
-        }
+      final digitaxService = ref.read(digitaxInventoryServiceProvider);
+
+      // Close the modal immediately so the UI is responsive and user cannot double-click
+      if (mounted) {
+        navigator.pop(true);
       }
 
-      if (mounted) {
-        if (!product.isDigitaxSyncEnabled) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  const Icon(
-                    Icons.shield_rounded,
-                    color: Colors.blueAccent,
-                    size: 18,
+      // Push product to DigiTax VSDC Cloud asynchronously in background if enabled
+      if (!product.isDigitaxSyncEnabled) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(
+                  Icons.shield_rounded,
+                  color: Colors.blueAccent,
+                  size: 18,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '${product.name} saved offline (Exempt from DigiTax/ZRA sync)',
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      '${product.name} saved offline (Exempt from DigiTax/ZRA sync)',
+                ),
+              ],
+            ),
+            backgroundColor: const Color(0xFF1E293B),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      } else {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    '${product.name} saved! Registering with DigiTax...',
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: const Color(0xFF1E293B),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+
+        digitaxService
+            .syncSingleProductToDigitax(
+              product,
+              previousStock: previousStock,
+              branchCode: branchBhfId,
+              movementType: movementType,
+              reasonNotes: 'Product Editor update',
+              throwOnError: true,
+            )
+            .then((digitaxSynced) {
+              if (digitaxSynced) {
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      '${product.name} registered with DigiTax!',
                     ),
+                    backgroundColor: const Color(0xFF10B981),
+                    duration: const Duration(seconds: 3),
                   ),
-                ],
-              ),
-              backgroundColor: const Color(0xFF1E293B),
-            ),
-          );
-        } else if (digitaxSynced) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('${product.name} saved & registered with DigiTax!'),
-              backgroundColor: const Color(0xFF10B981),
-            ),
-          );
-        } else if (syncErr != null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Saved locally. DigiTax Notice: $syncErr'),
-              backgroundColor: const Color(0xFFD97706),
-              duration: const Duration(seconds: 5),
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                '${product.name} saved locally. DigiTax sync queued.',
-              ),
-              backgroundColor: const Color(0xFF64748B),
-              duration: const Duration(seconds: 3),
-            ),
-          );
-        }
-        Navigator.pop(context, true);
+                );
+              }
+            })
+            .catchError((e) {
+              debugPrint('DigiTax product push notice: $e');
+              messenger.showSnackBar(
+                SnackBar(
+                  content: Text('Saved locally. DigiTax Notice: $e'),
+                  backgroundColor: const Color(0xFFD97706),
+                  duration: const Duration(seconds: 5),
+                ),
+              );
+            });
+      }
+    } catch (e) {
+      debugPrint('Error saving product: $e');
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('Failed to save product: $e'),
+            backgroundColor: Colors.redAccent,
+            duration: const Duration(seconds: 4),
+          ),
+        );
       }
     }
   }
