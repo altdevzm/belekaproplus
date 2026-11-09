@@ -6237,9 +6237,38 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         }
       }
 
-      // Print official thermal receipt:
-      // Includes official ZRA Tax Invoice / SDC details if DigiTax is online,
-      // or prints OFFLINE PENDING notice if DigiTax / internet is currently unreachable.
+      // ── STEP 1: Try DigiTax FIRST (before printing) ─────────────────────
+      // If DigiTax is reachable we fiscalize immediately so the printed
+      // receipt already carries the official ZRA QR code / receipt number.
+      // If DigiTax is offline we skip and fall through to print an offline
+      // slip right away. The background worker will keep retrying and
+      // auto-print the official receipt once ZRA confirms.
+      bool fiscalizedBeforePrint = false;
+      if (hasDigitax) {
+        try {
+          final reachable = await DigiTaxInventoryService.canReachDigiTax();
+          if (reachable) {
+            fiscalizedBeforePrint = await digitaxService
+                .fiscalizeSaleTransaction(transaction, saleItems);
+            if (fiscalizedBeforePrint) {
+              debugPrint(
+                'DIGITAX_PREFLIGHT: Fiscalized before print for tx ${transaction.transactionId}',
+              );
+              updateFiscalStatus(
+                'ZRA receipt confirmed. The official receipt is ready.',
+              );
+            }
+          } else {
+            debugPrint(
+              'DIGITAX_PREFLIGHT: DigiTax unreachable – printing offline receipt and scheduling retry.',
+            );
+          }
+        } catch (e, stack) {
+          debugPrint('DIGITAX_PREFLIGHT_ERROR: $e\n$stack');
+        }
+      }
+
+      // ── STEP 2: Print receipt (official if fiscalized, offline if not) ───
       bool printSuccess = true;
       String? printErrorMessage;
       if (config?.autoPrintReceipt != false) {
@@ -6263,6 +6292,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         }
       }
 
+      // ── STEP 3: Schedule background retry & auto-reprint ─────────────────
+      // If we already fiscalized above, only the cloud VPS sync still needs
+      // to run. If not yet fiscalized, full background retry is scheduled.
       _scheduleSaleFiscalizationAndSync(
         transaction,
         saleItems,
@@ -6271,6 +6303,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         printer: printer,
         config: config,
         hasDigitax: hasDigitax,
+        alreadyFiscalized: fiscalizedBeforePrint,
         onFiscalStatusChanged: updateFiscalStatus,
       );
 
@@ -6501,13 +6534,15 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     required PrinterService printer,
     required StoreConfig? config,
     required bool hasDigitax,
+    bool alreadyFiscalized = false,
     required ValueChanged<String> onFiscalStatusChanged,
   }) {
     Future<void>(() async {
-      var fiscalized = false;
+      var fiscalized = alreadyFiscalized;
       var syncSuccess = false;
 
-      if (hasDigitax) {
+      // Only attempt fiscalization if not already done in the preflight step
+      if (hasDigitax && !fiscalized) {
         try {
           fiscalized = await digitaxService.fiscalizeSaleTransaction(tx, items);
         } catch (e, stackTrace) {
@@ -6547,6 +6582,8 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       }
 
       if (!fiscalized && (hasDigitax || syncSuccess)) {
+        // Not yet fiscalized: keep retrying in background.
+        // When confirmed, the official receipt will be auto-printed.
         _scheduleDigitaxFiscalRefreshAndPrint(
           tx,
           items,
@@ -6555,13 +6592,20 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
           config: config,
           onFiscalStatusChanged: onFiscalStatusChanged,
         );
-      } else if (fiscalized && config?.autoPrintReceipt != false) {
+      } else if (fiscalized && !alreadyFiscalized && config?.autoPrintReceipt != false) {
+        // Fiscalized here in the background (not in the preflight step):
+        // the first print was an offline slip, so now print the official one.
         try {
           await printer.printReceipt(tx, items, config: config);
+          debugPrint(
+            'DIGITAX_BG_PRINT: Official receipt printed after background fiscalization for tx ${tx.transactionId}',
+          );
         } catch (e) {
           debugPrint('DIGITAX_CONFIRMED_RECEIPT_PRINT_NOTICE: $e');
         }
       }
+      // If alreadyFiscalized == true, the official receipt was already printed
+      // in _finalizeSale before this method was called — no second print needed.
     });
   }
 
