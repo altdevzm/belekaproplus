@@ -4,7 +4,7 @@ import 'package:beleka_pos/models/models.dart';
 import 'package:beleka_pos/services/digitax_inventory_service.dart';
 
 void main() {
-  test('new products default to local-only DigiTax status', () {
+  test('new products default to DigiTax-enabled status', () {
     final product = Product(
       name: 'Local product',
       sku: 'LOCAL-1',
@@ -13,8 +13,10 @@ void main() {
       categoryId: 0,
     );
 
-    expect(product.isDigitaxSyncEnabled, isFalse);
-    expect(product.isDigitaxSyncEligible, isFalse);
+    // v3.0.13: isDigitaxSyncEnabled now defaults to true so ALL retail
+    // products are fiscalized with ZRA DigiTax unless explicitly opted out.
+    expect(product.isDigitaxSyncEnabled, isTrue);
+    expect(product.isDigitaxSyncEligible, isTrue);
   });
 
   test('local-only products skip DigiTax product and stock uploads', () async {

@@ -6117,7 +6117,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
               weight: item.isWeighted ? item.weight : 0.0,
               isWeighted: item.isWeighted,
               unitOfMeasure: item.product.unitOfMeasure,
-              isDigitaxExempt: !item.product.isDigitaxSyncEligible,
+              isDigitaxExempt: item.product.isDigitaxSyncEnabled == false,
             ),
           )
           .toList();

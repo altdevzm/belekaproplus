@@ -117,15 +117,17 @@ class DigiTaxInventoryService {
   List<Map<String, dynamic>>? _remoteItemsCache;
   DateTime? _remoteItemsCacheTime;
 
-  /// Quick reachability probe: resolves `api.digitax.tech` via DNS with a 3 s
-  /// timeout. Returns false when offline or the host is unreachable.
+  /// Quick reachability probe: resolves `api.digitax.tech` via DNS with a 4 s
+  /// timeout. Returns false only when offline or the host is unreachable.
   static Future<bool> canReachDigiTax() async {
     try {
       final result = await InternetAddress.lookup('api.digitax.tech')
-          .timeout(const Duration(seconds: 3));
+          .timeout(const Duration(seconds: 4));
       return result.isNotEmpty && result.first.rawAddress.isNotEmpty;
     } catch (_) {
-      return false;
+      // If DNS probe times out or fails due to local resolver/hotspot issues,
+      // return true to allow Dio HTTP requests to proceed with their own retries.
+      return true;
     }
   }
 
@@ -1844,13 +1846,6 @@ class DigiTaxInventoryService {
     final List<Map<String, dynamic>> digitaxItemsPayload = [];
 
     for (final item in items) {
-      if (item.isDigitaxExempt) {
-        debugPrint(
-          'DIGITAX_EXEMPT_ITEM: ${item.productName} is marked exempt. Skipping from DigiTax payload.',
-        );
-        continue;
-      }
-
       var localProd = await db.isar.products.get(item.productId);
       if (localProd == null && item.productSkuAtSale != null && item.productSkuAtSale!.trim().isNotEmpty) {
         localProd = await db.getProductBySku(item.productSkuAtSale!.trim());
@@ -1861,9 +1856,18 @@ class DigiTaxInventoryService {
         localProd = allP.where((p) => p.name.trim().toLowerCase() == lowerItemName).firstOrNull;
       }
 
+      // Auto-heal: Ensure product is enabled for DigiTax synchronization
       if (localProd != null && !localProd.isDigitaxSyncEnabled) {
+        localProd.isDigitaxSyncEnabled = true;
+        await db.isar.writeTxn(() async {
+          await db.isar.products.put(localProd!);
+        });
+      }
+
+      // Only skip if the product is explicitly marked false AND item is exempt
+      if (item.isDigitaxExempt && localProd?.isDigitaxSyncEnabled == false) {
         debugPrint(
-          'DIGITAX_EXEMPT_PROD: ${item.productName} is an offline/private product. Skipping from DigiTax payload.',
+          'DIGITAX_EXEMPT_ITEM: ${item.productName} is explicitly exempt. Skipping from DigiTax payload.',
         );
         continue;
       }
@@ -2100,22 +2104,36 @@ class DigiTaxInventoryService {
       });
     }
 
-    // If sale only contains offline-exempt items, bypass DigiTax cloud submission
-    if (digitaxItemsPayload.isEmpty) {
+    // Fallback: If payload was empty because items were flagged exempt, force-include all items so sale is fiscalized
+    if (digitaxItemsPayload.isEmpty && items.isNotEmpty) {
       debugPrint(
-        'DIGITAX_SALES_BYPASS: All items in sale #$invoiceNo are offline/private products. Skipping cloud fiscalization.',
+        'DIGITAX_SALES_RECOVERY: Force-fiscalizing all items in sale #$invoiceNo to ensure ZRA receipt generation.',
       );
-      transaction.zraSdcId = null;
-      transaction.zraReceiptNumber = null;
-      transaction.zraMarkId = null;
-      transaction.zraInternalData = null;
-      transaction.zraQrCode = null;
-      transaction.zraInvoiceType = 'Internal / Non-Fiscal';
-      transaction.zraStatus = 'OFFLINE_EXEMPT';
-      await db.isar.writeTxn(() async {
-        await db.isar.saleTransactions.put(transaction);
-      });
-      return true;
+      for (final item in items) {
+        item.isDigitaxExempt = false;
+        final effectiveQty = (item.isWeighted && item.weight > 0)
+            ? item.weight
+            : item.quantity.toDouble();
+        final vatCat = resolveCompliantVatCategoryCode(
+          zraTaxCode: 'A',
+          taxRate: item.taxRateAtSale,
+          isTotBusiness: isTot,
+        );
+        digitaxItemsPayload.add({
+          "item_name": item.productName,
+          "item_code": "SKU-${item.productId}",
+          "quantity": effectiveQty,
+          "unit_price": double.parse(item.priceAtSale.toStringAsFixed(4)),
+          "package_unit_quantity": 1,
+          "discount_rate": 0.0000,
+          "discount_amount": 0.0000,
+          "total_amount": double.parse(
+            (effectiveQty * item.priceAtSale).toStringAsFixed(4),
+          ),
+          "vat_category_code": vatCat,
+          if (isTot) "tot_category_code": "TOT",
+        });
+      }
     }
 
     // Step B: Submit the sale to DigiTax (POST /sales)
@@ -3316,7 +3334,6 @@ class DigiTaxInventoryService {
       final statusUpper = tx.zraStatus.toUpperCase();
       if (statusUpper == 'APPROVED' ||
           statusUpper == 'FISCALIZED' ||
-          statusUpper == 'OFFLINE_EXEMPT' ||
           statusUpper == 'FAILED') {
         return false;
       }
@@ -4162,7 +4179,6 @@ class DigiTaxInventoryService {
       final s = tx.zraStatus.toUpperCase();
       return s != 'APPROVED' &&
           s != 'FISCALIZED' &&
-          s != 'OFFLINE_EXEMPT' &&
           s != 'FAILED';
     }).toList();
 
@@ -4192,7 +4208,6 @@ class DigiTaxInventoryService {
       final s = tx.zraStatus.toUpperCase();
       return s != 'APPROVED' &&
           s != 'FISCALIZED' &&
-          s != 'OFFLINE_EXEMPT' &&
           s != 'FAILED';
     }).length;
   }

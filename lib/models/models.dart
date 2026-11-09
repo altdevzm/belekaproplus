@@ -74,10 +74,10 @@ class Product {
   // DigiTax Inventory Synchronization Status
   bool isSyncedWithDigitax = false;
   DateTime? lastDigitaxSyncDate;
-  bool isDigitaxSyncEnabled = false; // DigiTax sync requires explicit opt-in.
+  bool isDigitaxSyncEnabled = true; // Enabled by default so all retail sales are fiscalized with ZRA DigiTax
 
   @ignore
-  bool get isDigitaxSyncEligible => isDigitaxSyncEnabled && isTaxInclusive;
+  bool get isDigitaxSyncEligible => isDigitaxSyncEnabled;
 
   @Index()
   bool isArchived = false;
@@ -172,7 +172,7 @@ class Product {
     this.branchName,
     this.isSyncedWithDigitax = false,
     this.lastDigitaxSyncDate,
-    this.isDigitaxSyncEnabled = false,
+    this.isDigitaxSyncEnabled = true,
     this.isArchived = false,
     this.discountPrice,
     this.discountStartDate,

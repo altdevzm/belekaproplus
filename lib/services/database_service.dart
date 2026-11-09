@@ -2589,7 +2589,7 @@ class DatabaseService {
             unitCostAtSale: (item['unitCostAtSale'] as num?)?.toDouble() ?? 0.0,
             quantity: (item['quantity'] as num?)?.toInt() ?? 1,
             isRefunded: item['isRefunded'] ?? false,
-            isDigitaxExempt: item['isDigitaxExempt'] ?? true,
+            isDigitaxExempt: item['isDigitaxExempt'] ?? false,
             taxRateAtSale: (item['taxRateAtSale'] as num?)?.toDouble() ?? 0.0,
             isTaxInclusiveAtSale: item['isTaxInclusiveAtSale'] ?? true,
           );
