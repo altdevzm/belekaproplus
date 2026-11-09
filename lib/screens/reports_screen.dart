@@ -2160,6 +2160,11 @@ class ReportsScreen extends ConsumerWidget {
     }
 
     final pendingCount = transactions.where((t) {
+      final isLocal = t.zraStatus == 'LOCAL_EXEMPT' ||
+          t.zraStatus == 'OFFLINE_EXEMPT' ||
+          (t.items.isNotEmpty && t.items.every((i) => i.isDigitaxExempt));
+      if (isLocal) return false;
+
       final isApproved = (t.zraStatus.toUpperCase() == 'APPROVED' ||
               t.zraStatus.toUpperCase() == 'FISCALIZED') &&
           ((t.zraReceiptNumber != null &&
@@ -2242,6 +2247,10 @@ class ReportsScreen extends ConsumerWidget {
                 tx.zraMarkId!.isNotEmpty &&
                 tx.zraMarkId != 'PENDING'));
 
+    final isLocalExempt = tx.zraStatus == 'LOCAL_EXEMPT' ||
+        tx.zraStatus == 'OFFLINE_EXEMPT' ||
+        (tx.items.isNotEmpty && tx.items.every((i) => i.isDigitaxExempt));
+
     return Container(
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF151F32) : Colors.white,
@@ -2322,6 +2331,41 @@ class ReportsScreen extends ConsumerWidget {
                                   fontWeight: FontWeight.bold,
                                   color: const Color(0xFFDC2626),
                                 ),
+                              ),
+                            )
+                          else if (isLocalExempt)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color:
+                                    Colors.blueAccent.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(
+                                  color:
+                                      Colors.blueAccent.withValues(alpha: 0.35),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.lock_outline_rounded,
+                                    size: 11,
+                                    color: Colors.blueAccent,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'LOCAL / PRIVATE',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 8.5,
+                                      fontWeight: FontWeight.w800,
+                                      color: Colors.blueAccent,
+                                    ),
+                                  ),
+                                ],
                               ),
                             )
                           else if (isFiscalApproved)
@@ -2806,6 +2850,14 @@ class _TransactionSyncButtonState
     }
 
     if (widget.tx.status == 'refunded') {
+      return const SizedBox.shrink();
+    }
+
+    final isLocal = widget.tx.zraStatus == 'LOCAL_EXEMPT' ||
+        widget.tx.zraStatus == 'OFFLINE_EXEMPT' ||
+        (widget.tx.items.isNotEmpty &&
+            widget.tx.items.every((i) => i.isDigitaxExempt));
+    if (isLocal) {
       return const SizedBox.shrink();
     }
 

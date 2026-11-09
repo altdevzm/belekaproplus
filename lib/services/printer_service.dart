@@ -1030,15 +1030,19 @@ class PrinterService {
           );
         }
       } else {
-        bytes += generator.text(
-          '*** OFFLINE TRANSACTION - FISCAL PENDING ***',
-          styles: const PosStyles(align: PosAlign.center, bold: true),
-        );
-        bytes += generator.text(
-          'Official ZRA Smart Invoice will sync automatically',
-          styles: const PosStyles(align: PosAlign.center),
-        );
-        bytes += generator.text(preset.singleDivider);
+        final isLocalOnly = transaction.zraStatus == 'LOCAL_EXEMPT' ||
+            transaction.zraStatus == 'OFFLINE_EXEMPT';
+        if (!isLocalOnly) {
+          bytes += generator.text(
+            '*** OFFLINE TRANSACTION - FISCAL PENDING ***',
+            styles: const PosStyles(align: PosAlign.center, bold: true),
+          );
+          bytes += generator.text(
+            'Official ZRA Smart Invoice will sync automatically',
+            styles: const PosStyles(align: PosAlign.center),
+          );
+          bytes += generator.text(preset.singleDivider);
+        }
       }
 
       // 10. Customer Friendly Footer
@@ -1750,11 +1754,15 @@ class PrinterService {
       commands.append('Scan QR Code to Verify on ZRA Portal\n');
       commands.append('$zraQrData\n\n');
     } else {
-      commands.appendEmphasis(true);
-      commands.append('*** OFFLINE TRANSACTION - FISCAL PENDING ***\n');
-      commands.appendEmphasis(false);
-      commands.append('Official ZRA Smart Invoice will sync automatically\n');
-      commands.append('${preset.singleDivider}\n\n');
+      final isLocalOnly = transaction.zraStatus == 'LOCAL_EXEMPT' ||
+          transaction.zraStatus == 'OFFLINE_EXEMPT';
+      if (!isLocalOnly) {
+        commands.appendEmphasis(true);
+        commands.append('*** OFFLINE TRANSACTION - FISCAL PENDING ***\n');
+        commands.appendEmphasis(false);
+        commands.append('Official ZRA Smart Invoice will sync automatically\n');
+        commands.append('${preset.singleDivider}\n\n');
+      }
     }
 
     commands.append('${preset.doubleDivider}\n');
@@ -2097,7 +2105,7 @@ class PrinterService {
                   ),
                   pw.SizedBox(height: 1 * pdf.PdfPageFormat.mm),
                   pw.Text('Scan QR Code to Verify on ZRA Portal', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 6.5)),
-                ] else ...[
+                ] else if (transaction.zraStatus != 'LOCAL_EXEMPT' && transaction.zraStatus != 'OFFLINE_EXEMPT') ...[
                   pw.Text('*** OFFLINE TRANSACTION - FISCAL PENDING ***', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7.5)),
                   pw.Text('Official ZRA Smart Invoice will sync automatically', style: const pw.TextStyle(fontSize: 6.5)),
                   pw.Text('--------------------------------'),

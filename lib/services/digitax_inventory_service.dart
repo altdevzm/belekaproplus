@@ -1856,18 +1856,11 @@ class DigiTaxInventoryService {
         localProd = allP.where((p) => p.name.trim().toLowerCase() == lowerItemName).firstOrNull;
       }
 
-      // Auto-heal: Ensure product is enabled for DigiTax synchronization
-      if (localProd != null && !localProd.isDigitaxSyncEnabled) {
-        localProd.isDigitaxSyncEnabled = true;
-        await db.isar.writeTxn(() async {
-          await db.isar.products.put(localProd!);
-        });
-      }
-
-      // Only skip if the product is explicitly marked false AND item is exempt
-      if (item.isDigitaxExempt && localProd?.isDigitaxSyncEnabled == false) {
+      // If the product is marked as local-only (isDigitaxSyncEnabled == false) or the sale item is exempt,
+      // respect the user's choice: do NOT send to DigiTax or register on DigiTax.
+      if (item.isDigitaxExempt || (localProd != null && !localProd.isDigitaxSyncEnabled)) {
         debugPrint(
-          'DIGITAX_EXEMPT_ITEM: ${item.productName} is explicitly exempt. Skipping from DigiTax payload.',
+          'DIGITAX_EXEMPT_ITEM: ${item.productName} is an offline/private product. Skipping from DigiTax payload.',
         );
         continue;
       }
@@ -2104,36 +2097,22 @@ class DigiTaxInventoryService {
       });
     }
 
-    // Fallback: If payload was empty because items were flagged exempt, force-include all items so sale is fiscalized
-    if (digitaxItemsPayload.isEmpty && items.isNotEmpty) {
+    // If sale only contains offline/private products, bypass DigiTax cloud submission completely
+    if (digitaxItemsPayload.isEmpty) {
       debugPrint(
-        'DIGITAX_SALES_RECOVERY: Force-fiscalizing all items in sale #$invoiceNo to ensure ZRA receipt generation.',
+        'DIGITAX_SALES_BYPASS: All items in sale #$invoiceNo are offline/private products. Skipping cloud fiscalization.',
       );
-      for (final item in items) {
-        item.isDigitaxExempt = false;
-        final effectiveQty = (item.isWeighted && item.weight > 0)
-            ? item.weight
-            : item.quantity.toDouble();
-        final vatCat = resolveCompliantVatCategoryCode(
-          zraTaxCode: 'A',
-          taxRate: item.taxRateAtSale,
-          isTotBusiness: isTot,
-        );
-        digitaxItemsPayload.add({
-          "item_name": item.productName,
-          "item_code": "SKU-${item.productId}",
-          "quantity": effectiveQty,
-          "unit_price": double.parse(item.priceAtSale.toStringAsFixed(4)),
-          "package_unit_quantity": 1,
-          "discount_rate": 0.0000,
-          "discount_amount": 0.0000,
-          "total_amount": double.parse(
-            (effectiveQty * item.priceAtSale).toStringAsFixed(4),
-          ),
-          "vat_category_code": vatCat,
-          if (isTot) "tot_category_code": "TOT",
-        });
-      }
+      transaction.zraSdcId = null;
+      transaction.zraReceiptNumber = null;
+      transaction.zraMarkId = null;
+      transaction.zraInternalData = null;
+      transaction.zraQrCode = null;
+      transaction.zraInvoiceType = 'Internal / Non-Fiscal';
+      transaction.zraStatus = 'LOCAL_EXEMPT';
+      await db.isar.writeTxn(() async {
+        await db.isar.saleTransactions.put(transaction);
+      });
+      return true;
     }
 
     // Step B: Submit the sale to DigiTax (POST /sales)
@@ -2419,15 +2398,22 @@ class DigiTaxInventoryService {
         transaction.zraInternalData = internalData;
         transaction.zraQrCode = qrData;
         transaction.zraInvoiceType = invoiceType;
+        final expectedFiscalTotal = digitaxItemsPayload.fold<double>(
+          0.0,
+          (sum, itm) =>
+              sum + ((itm['total_amount'] as num?)?.toDouble() ?? 0.0),
+        );
         final fiscalTotal = _fiscalResponseTotal(saleData);
+        final targetTotal =
+            expectedFiscalTotal > 0 ? expectedFiscalTotal : transaction.totalAmount;
         if (fiscalTotal != null &&
-            (fiscalTotal - transaction.totalAmount).abs() > 0.01) {
+            (fiscalTotal - targetTotal).abs() > 0.01) {
           transaction.zraStatus = 'RECONCILIATION_REQUIRED';
           await db.isar.writeTxn(() async {
             await db.isar.saleTransactions.put(transaction);
           });
           debugPrint(
-            'DIGITAX_SALES_TOTAL_MISMATCH: DigiTax receipt $sdcRcptNo totals ${fiscalTotal.toStringAsFixed(2)}, but local transaction ${transaction.transactionId} totals ${transaction.totalAmount.toStringAsFixed(2)}. Receipt metadata was preserved and the sale requires reconciliation.',
+            'DIGITAX_SALES_TOTAL_MISMATCH: DigiTax receipt $sdcRcptNo totals ${fiscalTotal.toStringAsFixed(2)}, but target total is ${targetTotal.toStringAsFixed(2)} (local tx total: ${transaction.totalAmount.toStringAsFixed(2)}). Receipt metadata was preserved and the sale requires reconciliation.',
           );
           return false;
         }
@@ -3334,7 +3320,9 @@ class DigiTaxInventoryService {
       final statusUpper = tx.zraStatus.toUpperCase();
       if (statusUpper == 'APPROVED' ||
           statusUpper == 'FISCALIZED' ||
-          statusUpper == 'FAILED') {
+          statusUpper == 'FAILED' ||
+          statusUpper == 'LOCAL_EXEMPT' ||
+          statusUpper == 'OFFLINE_EXEMPT') {
         return false;
       }
       return true;
@@ -4179,7 +4167,9 @@ class DigiTaxInventoryService {
       final s = tx.zraStatus.toUpperCase();
       return s != 'APPROVED' &&
           s != 'FISCALIZED' &&
-          s != 'FAILED';
+          s != 'FAILED' &&
+          s != 'LOCAL_EXEMPT' &&
+          s != 'OFFLINE_EXEMPT';
     }).toList();
 
     final Map<int, int> productQtyMap = {};
@@ -4208,7 +4198,9 @@ class DigiTaxInventoryService {
       final s = tx.zraStatus.toUpperCase();
       return s != 'APPROVED' &&
           s != 'FISCALIZED' &&
-          s != 'FAILED';
+          s != 'FAILED' &&
+          s != 'LOCAL_EXEMPT' &&
+          s != 'OFFLINE_EXEMPT';
     }).length;
   }
 

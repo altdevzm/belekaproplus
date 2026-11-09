@@ -645,6 +645,59 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
   }
 
   Widget _buildZraFiscalCard(StoreConfig? config) {
+    final isLocalOnly = widget.transaction.zraStatus == 'LOCAL_EXEMPT' ||
+        widget.transaction.zraStatus == 'OFFLINE_EXEMPT' ||
+        (widget.transaction.items.isNotEmpty &&
+            widget.transaction.items.every((i) => i.isDigitaxExempt));
+
+    if (isLocalOnly) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.blueAccent.withValues(alpha: 0.04),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: Colors.blueAccent.withValues(alpha: 0.2),
+          ),
+        ),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.lock_outline_rounded,
+              color: Colors.blueAccent,
+              size: 20,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'LOCAL PRIVATE TRANSACTION',
+                    style: GoogleFonts.manrope(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.2,
+                      color: Colors.blueAccent,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Contains offline-only products • Stays local and is not submitted to ZRA DigiTax.',
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: Colors.white70,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     final dateFormatted = DateFormat(
       'dd/MM/yyyy',
     ).format(widget.transaction.timestamp);
@@ -1022,9 +1075,14 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
       );
     }
 
+    final isLocalOnly = widget.transaction.zraStatus == 'LOCAL_EXEMPT' ||
+        widget.transaction.zraStatus == 'OFFLINE_EXEMPT' ||
+        (widget.transaction.items.isNotEmpty &&
+            widget.transaction.items.every((i) => i.isDigitaxExempt));
+
     return Row(
       children: [
-        if (!isApproved && !isRefunded) ...[
+        if (!isApproved && !isRefunded && !isLocalOnly) ...[
           Expanded(
             child: SizedBox(
               height: 48,

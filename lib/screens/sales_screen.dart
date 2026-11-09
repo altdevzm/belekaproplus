@@ -6215,8 +6215,23 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
           (config?.digitaxApiKey != null &&
               config!.digitaxApiKey!.trim().isNotEmpty);
       final syncService = ref.read(syncServiceProvider);
+
+      // Check if all items in this sale are local/private (offline exempt)
+      final allItemsExempt =
+          saleItems.isNotEmpty && saleItems.every((i) => i.isDigitaxExempt);
+
+      if (allItemsExempt) {
+        transaction.zraStatus = 'LOCAL_EXEMPT';
+        transaction.zraInvoiceType = 'Internal / Non-Fiscal';
+        await db.isar.writeTxn(() async {
+          await db.isar.saleTransactions.put(transaction);
+        });
+      }
+
       final fiscalStatus = ValueNotifier<String>(
-        'Sale saved. ZRA receipt is pending and will update automatically.',
+        allItemsExempt
+            ? 'Local private sale saved.'
+            : 'Sale saved. ZRA receipt is pending and will update automatically.',
       );
       var fiscalStatusDisposed = false;
       void updateFiscalStatus(String message) {
@@ -6238,13 +6253,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       }
 
       // ── STEP 1: Try DigiTax FIRST (before printing) ─────────────────────
-      // If DigiTax is reachable we fiscalize immediately so the printed
-      // receipt already carries the official ZRA QR code / receipt number.
-      // If DigiTax is offline we skip and fall through to print an offline
-      // slip right away. The background worker will keep retrying and
-      // auto-print the official receipt once ZRA confirms.
+      // Only fiscalize if this sale contains at least one product intended for ZRA DigiTax.
+      // Private/local-only sales skip DigiTax completely so they are never rejected or uploaded.
       bool fiscalizedBeforePrint = false;
-      if (hasDigitax) {
+      if (hasDigitax && !allItemsExempt) {
         try {
           final reachable = await DigiTaxInventoryService.canReachDigiTax();
           if (reachable) {
@@ -6293,19 +6305,20 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       }
 
       // ── STEP 3: Schedule background retry & auto-reprint ─────────────────
-      // If we already fiscalized above, only the cloud VPS sync still needs
-      // to run. If not yet fiscalized, full background retry is scheduled.
-      _scheduleSaleFiscalizationAndSync(
-        transaction,
-        saleItems,
-        digitaxService: digitaxService,
-        syncService: syncService,
-        printer: printer,
-        config: config,
-        hasDigitax: hasDigitax,
-        alreadyFiscalized: fiscalizedBeforePrint,
-        onFiscalStatusChanged: updateFiscalStatus,
-      );
+      // If we already fiscalized above or sale is local private, do not queue for ZRA.
+      if (!allItemsExempt) {
+        _scheduleSaleFiscalizationAndSync(
+          transaction,
+          saleItems,
+          digitaxService: digitaxService,
+          syncService: syncService,
+          printer: printer,
+          config: config,
+          hasDigitax: hasDigitax,
+          alreadyFiscalized: fiscalizedBeforePrint,
+          onFiscalStatusChanged: updateFiscalStatus,
+        );
+      }
 
       if (mounted) {
         final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -6381,7 +6394,43 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                       ),
                     ),
                   ],
-                  if (hasDigitax) ...[
+                  if (allItemsExempt) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.blueAccent.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: Colors.blueAccent.withValues(alpha: 0.25),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.lock_outline_rounded,
+                            color: Colors.blueAccent,
+                            size: 14,
+                          ),
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              'Local Private Sale • Stays on this device',
+                              style: GoogleFonts.inter(
+                                color: Colors.blueAccent,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ] else if (hasDigitax) ...[
                     const SizedBox(height: 12),
                     Container(
                       padding: const EdgeInsets.symmetric(

@@ -67,6 +67,8 @@ class _DigiTaxStockReconcileModalState extends ConsumerState<DigiTaxStockReconci
       final List<StockDiscrepancyItem> items = [];
 
       for (final p in localProducts) {
+        if (!p.isDigitaxSyncEnabled) continue; // Skip local private products
+
         Map<String, dynamic>? remoteItem;
 
         if (p.itemClsCd.isNotEmpty && remoteMap.containsKey(p.itemClsCd)) {
