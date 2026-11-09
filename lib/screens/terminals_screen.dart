@@ -34,6 +34,27 @@ final activeShiftsListProvider = FutureProvider<List<CashShift>>((ref) async {
   return await isar.cashShifts.filter().statusEqualTo('OPEN').findAll();
 });
 
+final activeShiftSalesStreamProvider =
+    StreamProvider<Map<String, double>>((ref) async* {
+  final db = ref.watch(databaseServiceProvider);
+
+  Future<Map<String, double>> loadSales() async {
+    final shifts =
+        await db.isar.cashShifts.filter().statusEqualTo('OPEN').findAll();
+    final Map<String, double> map = {};
+    for (final s in shifts) {
+      map[s.shiftNumber] = await db.getShiftTotalSales(s);
+    }
+    return map;
+  }
+
+  yield await loadSales();
+
+  await for (final _ in db.isar.saleTransactions.watchLazy()) {
+    yield await loadSales();
+  }
+});
+
 final paymentAccountsProvider = FutureProvider<List<PaymentAccount>>((
   ref,
 ) async {
@@ -213,6 +234,8 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen>
     final branches = ref.watch(storeBranchesProvider).value ?? [];
     final users = ref.watch(allUsersProvider).value ?? [];
     final activeShifts = ref.watch(activeShiftsListProvider).value ?? [];
+    final shiftSalesMap =
+        ref.watch(activeShiftSalesStreamProvider).value ?? {};
 
     final activeTerminalsCount = terminals
         .where((t) => t.status == 'ACTIVE')
@@ -419,6 +442,7 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen>
                       maxAllowedTills: maxAllowedTills,
                       activeTerminalsCount: activeTerminalsCount,
                       activeShifts: activeShifts,
+                      shiftSalesMap: shiftSalesMap,
                       branches: branches,
                       users: users,
                       totalSalesToday: totalSalesToday,
@@ -457,6 +481,7 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen>
     required int maxAllowedTills,
     required int activeTerminalsCount,
     required List<CashShift> activeShifts,
+    required Map<String, double> shiftSalesMap,
     required List<StoreBranch> branches,
     required List<User> users,
     required double totalSalesToday,
@@ -952,25 +977,43 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen>
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    'TILL REVENUE TODAY',
+                                    isShiftOpen
+                                        ? 'CURRENT SHIFT SALES'
+                                        : 'TILL REVENUE TODAY',
                                     style: GoogleFonts.inter(
                                       fontSize: 9.5,
                                       fontWeight: FontWeight.w800,
-                                      color: theme.colorScheme.onSurfaceVariant,
+                                      color: isShiftOpen
+                                          ? const Color(0xFF059669)
+                                          : theme.colorScheme.onSurfaceVariant,
                                       letterSpacing: 0.5,
                                     ),
                                   ),
                                   Text(
                                     CurrencyFormatter.format(
-                                      t.salesToday,
+                                      isShiftOpen
+                                          ? (shiftSalesMap[matchingShift.shiftNumber] ??
+                                              matchingShift.cashSales)
+                                          : t.salesToday,
                                       currency,
                                     ),
                                     style: GoogleFonts.inter(
                                       fontSize: 14,
                                       fontWeight: FontWeight.bold,
-                                      color: primaryColor,
+                                      color: isShiftOpen
+                                          ? const Color(0xFF059669)
+                                          : primaryColor,
                                     ),
                                   ),
+                                  if (isShiftOpen)
+                                    Text(
+                                      'Till Day Total: ${CurrencyFormatter.format(t.salesToday, currency)}',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 9.5,
+                                        color:
+                                            theme.colorScheme.onSurfaceVariant,
+                                      ),
+                                    ),
                                 ],
                               ),
                               Row(
@@ -1642,11 +1685,13 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen>
     final export = ref.read(exportServiceProvider);
     final config = ref.read(storeConfigProvider).value;
 
-    final todayTransactions = await db.getTodayTransactionsForTerminal(
-      terminal.terminalCode,
-      terminalName: terminal.name,
-      cashierId: terminal.assignedCashierId,
-    );
+    final todayTransactions = currentShift != null
+        ? await db.getTransactionsForShift(currentShift)
+        : await db.getTodayTransactionsForTerminal(
+            terminal.terminalCode,
+            terminalName: terminal.name,
+            cashierId: terminal.assignedCashierId,
+          );
 
     await export.exportTillReportToPdf(
       terminal: terminal,
@@ -1660,7 +1705,9 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen>
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Till Report for ${terminal.terminalCode} exported to PDF!',
+            currentShift != null
+                ? 'Till Report for ${terminal.terminalCode} (${currentShift.cashierName}) exported to PDF!'
+                : 'Till Report for ${terminal.terminalCode} exported to PDF!',
           ),
           backgroundColor: const Color(0xFF10B981),
         ),
@@ -3445,8 +3492,28 @@ class _CloseShiftModalState extends ConsumerState<_CloseShiftModal> {
       widget.shift.cashVariance = cleanVariance;
       widget.shift.status = 'CLOSED';
       await isar.cashShifts.put(widget.shift);
+
+      // Unassign the closed cashier from the corresponding terminal so the till is freed cleanly
+      final termUpper = widget.shift.terminalId.trim().toUpperCase();
+      final allTerminals = await isar.posTerminals.where().findAll();
+      for (final t in allTerminals) {
+        final code = t.terminalCode.trim().toUpperCase();
+        final name = t.name.trim().toUpperCase();
+        final full = '$code - $name';
+        if (termUpper == full ||
+            termUpper == code ||
+            termUpper.contains(code) ||
+            (widget.shift.cashierId != null &&
+                t.assignedCashierId == widget.shift.cashierId)) {
+          t.assignedCashierId = null;
+          t.assignedCashierName = null;
+          t.lastActive = DateTime.now();
+          await isar.posTerminals.put(t);
+        }
+      }
     });
 
+    ref.invalidate(posTerminalsProvider);
     ref.invalidate(activeShiftProvider);
     ref.invalidate(activeShiftsListProvider);
     ref.invalidate(cashShiftsProvider);

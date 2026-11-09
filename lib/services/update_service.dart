@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
@@ -29,6 +30,8 @@ class UpdateInfo {
 }
 
 class UpdateService {
+  static const String _githubManifestUrl =
+      'https://github.com/altdevzm/belekaproplus-releases/releases/latest/download/version.json';
   static const String _githubApiUrl =
       'https://api.github.com/repos/altdevzm/belekaproplus-releases/releases/latest';
   static const String _githubRepoBase =
@@ -38,8 +41,12 @@ class UpdateService {
 
   UpdateService()
       : _dio = Dio(BaseOptions(
-          connectTimeout: const Duration(seconds: 10),
-          receiveTimeout: const Duration(seconds: 10),
+          connectTimeout: const Duration(seconds: 15),
+          receiveTimeout: const Duration(seconds: 15),
+          headers: {
+            'User-Agent': 'BelekaPOS-Updater',
+            'Accept': 'application/vnd.github.v3+json',
+          },
         ));
 
   Future<UpdateInfo?> checkForUpdate() async {
@@ -47,10 +54,62 @@ class UpdateService {
       final packageInfo = await PackageInfo.fromPlatform();
       final currentVersion = packageInfo.version;
 
+      // 1. Direct fetch of static version.json (Fast, no GitHub API 60 req/hr rate limit)
+      try {
+        final manifestResp = await _dio.get(
+          _githubManifestUrl,
+          options: Options(
+            responseType: ResponseType.json,
+            validateStatus: (s) => s != null && s < 400,
+          ),
+        );
+
+        if (manifestResp.statusCode == 200 && manifestResp.data != null) {
+          final mData = manifestResp.data is Map<String, dynamic>
+              ? manifestResp.data as Map<String, dynamic>
+              : (manifestResp.data is String
+                  ? jsonDecode(manifestResp.data as String) as Map<String, dynamic>
+                  : null);
+
+          if (mData != null) {
+            final latestVer = (mData['version'] as String? ?? '').replaceAll('v', '').trim();
+            if (latestVer.isNotEmpty) {
+              final winUrl = mData['windows_url'] as String? ??
+                  '$_githubRepoBase/download/v$latestVer/Beleka_POS_Setup_v$latestVer.exe';
+              final androidUrl = mData['android_url'] as String? ??
+                  '$_githubRepoBase/download/v$latestVer/Beleka_POS_v$latestVer.apk';
+              final notes = _parseReleaseNotes(mData['release_notes'] as String? ?? '');
+              final isReq = mData['required'] == true;
+              final hasUpdate = _isNewer(latestVer, currentVersion);
+
+              debugPrint(
+                'UPDATER: Manifest checked successfully (latest: $latestVer, current: $currentVersion, hasUpdate: $hasUpdate)',
+              );
+
+              return UpdateInfo(
+                latestVersion: latestVer,
+                currentVersion: currentVersion,
+                windowsDownloadUrl: winUrl,
+                androidDownloadUrl: androidUrl,
+                releaseNotes: notes,
+                isRequired: isReq,
+                hasUpdate: hasUpdate,
+              );
+            }
+          }
+        }
+      } catch (manifestErr) {
+        debugPrint('UPDATE_MANIFEST_NOTE: Direct manifest fetch: $manifestErr; falling back to GitHub API.');
+      }
+
+      // 2. Fallback: GitHub REST API
       final resp = await _dio.get(
         _githubApiUrl,
         options: Options(
-          headers: {'Accept': 'application/vnd.github.v3+json'},
+          headers: {
+            'User-Agent': 'BelekaPOS-Updater',
+            'Accept': 'application/vnd.github.v3+json',
+          },
           validateStatus: (s) => s != null && s < 500,
         ),
       );
@@ -149,15 +208,43 @@ class UpdateService {
         },
       );
 
-      debugPrint('UPDATER: Launching installer silently...');
+      debugPrint('UPDATER: Launching installer with elevation...');
 
-      await Process.start(
-        installerPath,
-        ['/SILENT', '/CLOSEAPPLICATIONS', '/RESTARTAPPLICATIONS'],
-        mode: ProcessStartMode.detached,
-      );
+      // On Windows, launching directly via Process.start fails with Error 740 if
+      // admin elevation is required. Using 'cmd.exe /c start "" ...' utilizes ShellExecute
+      // which properly presents the Windows UAC elevation prompt if needed.
+      try {
+        await Process.start(
+          'cmd.exe',
+          [
+            '/c',
+            'start',
+            '',
+            installerPath,
+            '/VERYSILENT',
+            '/SP-',
+            '/SUPPRESSMSGBOXES',
+            '/FORCECLOSEAPPLICATIONS',
+            '/RESTARTAPPLICATIONS',
+          ],
+          mode: ProcessStartMode.detached,
+        );
+      } catch (e) {
+        debugPrint('UPDATER_CMD_FALLBACK: cmd start failed: $e, trying direct Process.start');
+        await Process.start(
+          installerPath,
+          [
+            '/VERYSILENT',
+            '/SP-',
+            '/SUPPRESSMSGBOXES',
+            '/FORCECLOSEAPPLICATIONS',
+            '/RESTARTAPPLICATIONS',
+          ],
+          mode: ProcessStartMode.detached,
+        );
+      }
 
-      await Future.delayed(const Duration(seconds: 2));
+      await Future.delayed(const Duration(milliseconds: 1500));
       exit(0);
     } catch (e) {
       debugPrint('UPDATER_INSTALL_ERROR: $e');

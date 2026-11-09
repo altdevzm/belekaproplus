@@ -51,10 +51,14 @@ class _SoftwareUpdateModalState extends ConsumerState<SoftwareUpdateModal> {
         setState(() {
           _manualUpdateInfo = updateInfo;
           _isChecking = false;
-          if (updateInfo != null && updateInfo.hasUpdate) {
-            _statusMessage = 'New version v${updateInfo.latestVersion} is available!';
+          if (updateInfo != null) {
+            if (updateInfo.hasUpdate) {
+              _statusMessage = 'New version v${updateInfo.latestVersion} is available!';
+            } else {
+              _statusMessage = 'You are already on the latest version (v$_currentVersion).';
+            }
           } else {
-            _statusMessage = 'You are already on the latest version (v$_currentVersion).';
+            _statusMessage = 'Could not reach update server. Check internet connection or GitHub rate limit.';
           }
         });
       }

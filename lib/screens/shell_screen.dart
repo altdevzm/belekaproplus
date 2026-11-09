@@ -65,6 +65,15 @@ class ShellScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Listen to auth changes and lock cashiers to sales screen
+    ref.listen(authProvider, (previous, next) {
+      if (next != null && normalizeUserRole(next.role) == 'cashier') {
+        final current = ref.read(navigationProvider);
+        if (current != ScreenType.sales && current != ScreenType.settings) {
+          ref.read(navigationProvider.notifier).state = ScreenType.sales;
+        }
+      }
+    });
     final requestedScreen = ref.watch(navigationProvider);
     final currentScreen = screenAllowedForRole(
       requestedScreen,

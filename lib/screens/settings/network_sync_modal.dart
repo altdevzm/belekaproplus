@@ -8,6 +8,7 @@ import 'package:beleka_pos/models/models.dart';
 import 'package:beleka_pos/services/database_service.dart';
 import 'package:beleka_pos/services/network_client.dart';
 import 'package:beleka_pos/services/sync_service.dart';
+import 'package:beleka_pos/services/digitax_inventory_service.dart';
 import 'package:beleka_pos/providers/store_provider.dart';
 
 class NetworkSyncModal extends ConsumerStatefulWidget {
@@ -127,6 +128,11 @@ class _NetworkSyncModalState extends ConsumerState<NetworkSyncModal> {
     final syncService = ref.read(syncServiceProvider);
     await syncService.syncMetadata();
     final synced = await syncService.syncPendingTransactions();
+
+    // Also flush the DigiTax fiscal queue so pending sales sync with ZRA
+    try {
+      await ref.read(digitaxInventoryServiceProvider).processPendingFiscalQueue();
+    } catch (_) {}
 
     if (mounted) {
       setState(() => _isSyncing = false);

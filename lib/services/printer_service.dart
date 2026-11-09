@@ -899,6 +899,31 @@ class PrinterService {
         bytes += generator.text(_formatRow2('Change Returned', CurrencyFormatter.format(transaction.changeAmount, currency), colCount), styles: const PosStyles(bold: true));
       }
 
+      // Print external mobile money reference and confirming cashier details on receipt
+      if (transaction.paymentMethod.toUpperCase().contains('EXTERNAL MOBILE MONEY')) {
+        if (transaction.externalPaymentReference != null &&
+            transaction.externalPaymentReference!.trim().isNotEmpty) {
+          bytes += generator.text(
+            _formatRow2('Ref No.', transaction.externalPaymentReference!.trim(), colCount),
+          );
+        }
+        if (transaction.externalPaymentConfirmedBy != null &&
+            transaction.externalPaymentConfirmedBy!.trim().isNotEmpty) {
+          bytes += generator.text(
+            _formatRow2('Confirmed By', transaction.externalPaymentConfirmedBy!.trim(), colCount),
+          );
+        }
+        if (transaction.externalPaymentConfirmedAt != null) {
+          bytes += generator.text(
+            _formatRow2(
+              'Confirmed At',
+              DateFormat('dd/MM/yyyy HH:mm').format(transaction.externalPaymentConfirmedAt!),
+              colCount,
+            ),
+          );
+        }
+      }
+
       // 8. Tax Summary Table
       bytes += generator.feed(1);
       if (isTot) {
@@ -1950,6 +1975,38 @@ class PrinterService {
                       pw.Text(CurrencyFormatter.format(transaction.changeAmount, currency), style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8)),
                     ],
                   ),
+                // External mobile money audit trail on PDF receipt
+                if (transaction.paymentMethod.toUpperCase().contains('EXTERNAL MOBILE MONEY')) ...[
+                  if (transaction.externalPaymentReference != null &&
+                      transaction.externalPaymentReference!.trim().isNotEmpty)
+                    pw.Row(
+                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                      children: [
+                        pw.Text('Ref No.', style: const pw.TextStyle(fontSize: 8)),
+                        pw.Text(transaction.externalPaymentReference!.trim(), style: const pw.TextStyle(fontSize: 8)),
+                      ],
+                    ),
+                  if (transaction.externalPaymentConfirmedBy != null &&
+                      transaction.externalPaymentConfirmedBy!.trim().isNotEmpty)
+                    pw.Row(
+                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                      children: [
+                        pw.Text('Confirmed By', style: const pw.TextStyle(fontSize: 8)),
+                        pw.Text(transaction.externalPaymentConfirmedBy!.trim(), style: const pw.TextStyle(fontSize: 8)),
+                      ],
+                    ),
+                  if (transaction.externalPaymentConfirmedAt != null)
+                    pw.Row(
+                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                      children: [
+                        pw.Text('Confirmed At', style: const pw.TextStyle(fontSize: 8)),
+                        pw.Text(
+                          DateFormat('dd/MM/yyyy HH:mm').format(transaction.externalPaymentConfirmedAt!),
+                          style: const pw.TextStyle(fontSize: 8),
+                        ),
+                      ],
+                    ),
+                ],
 
                 pw.SizedBox(height: 1.5 * pdf.PdfPageFormat.mm),
                 pw.Text('TAX SUMMARY BREAKDOWN', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7.5)),
@@ -2036,6 +2093,7 @@ class PrinterService {
                     data: zraQrData,
                     width: 58,
                     height: 58,
+                    drawText: false,
                   ),
                   pw.SizedBox(height: 1 * pdf.PdfPageFormat.mm),
                   pw.Text('Scan QR Code to Verify on ZRA Portal', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 6.5)),

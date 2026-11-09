@@ -734,13 +734,25 @@ class PostgresSyncService {
           if (parsedTimestamp != null) {
             existing.timestamp = parsedTimestamp;
           }
-          existing.totalAmount =
-              numericValue(raw['total_amount'])?.toDouble() ??
-              existing.totalAmount;
-          existing.subtotal =
-              numericValue(raw['subtotal'])?.toDouble() ?? existing.subtotal;
-          existing.taxAmount =
-              numericValue(raw['tax_amount'])?.toDouble() ?? existing.taxAmount;
+          // RECEIPT INTEGRITY FIX: Never overwrite locally-computed totals with
+          // remote values.  The POS calculates subtotal / tax / total from the
+          // actual line items at the time of sale; the cloud VPS may carry
+          // different rounding or incomplete tax data.  Only fall back to the
+          // remote value when the local field is genuinely absent (zero/null),
+          // which can happen for transactions that were created on another
+          // device and downloaded here for the first time.
+          final remoteTotalAmount = numericValue(raw['total_amount'])?.toDouble();
+          final remoteSubtotal    = numericValue(raw['subtotal'])?.toDouble();
+          final remoteTaxAmount   = numericValue(raw['tax_amount'])?.toDouble();
+          if (remoteTotalAmount != null && existing.totalAmount <= 0) {
+            existing.totalAmount = remoteTotalAmount;
+          }
+          if (remoteSubtotal != null && existing.subtotal <= 0) {
+            existing.subtotal = remoteSubtotal;
+          }
+          if (remoteTaxAmount != null && existing.taxAmount <= 0) {
+            existing.taxAmount = remoteTaxAmount;
+          }
           existing.grossProfit =
               numericValue(raw['gross_profit'])?.toDouble() ??
               existing.grossProfit;

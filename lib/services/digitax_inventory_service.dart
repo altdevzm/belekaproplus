@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -87,10 +88,23 @@ final digitaxInventoryServiceProvider = Provider<DigiTaxInventoryService>((
 
 class DigiTaxInventoryService {
   final Ref ref;
+
+  /// Primary Dio instance used for foreground (user-initiated) requests.
+  /// Generous timeouts because the user is waiting for feedback.
   final Dio _dio = Dio(
     BaseOptions(
       connectTimeout: const Duration(seconds: 20),
-      receiveTimeout: const Duration(seconds: 20),
+      receiveTimeout: const Duration(seconds: 30),
+      headers: {'Content-Type': 'application/json'},
+    ),
+  );
+
+  /// Short-timeout Dio instance used exclusively by the background fiscal queue
+  /// worker so it doesn't block for 40 s per transaction during poor connectivity.
+  final Dio _backgroundDio = Dio(
+    BaseOptions(
+      connectTimeout: const Duration(seconds: 8),
+      receiveTimeout: const Duration(seconds: 15),
       headers: {'Content-Type': 'application/json'},
     ),
   );
@@ -98,6 +112,22 @@ class DigiTaxInventoryService {
   bool _isSyncRunning = false;
   bool _isProcessingFiscalQueue = false;
   Timer? _fiscalQueueTimer;
+
+  // In-memory cache for remote catalogue items to avoid redundant pagination on every sale
+  List<Map<String, dynamic>>? _remoteItemsCache;
+  DateTime? _remoteItemsCacheTime;
+
+  /// Quick reachability probe: resolves `api.digitax.tech` via DNS with a 3 s
+  /// timeout. Returns false when offline or the host is unreachable.
+  static Future<bool> canReachDigiTax() async {
+    try {
+      final result = await InternetAddress.lookup('api.digitax.tech')
+          .timeout(const Duration(seconds: 3));
+      return result.isNotEmpty && result.first.rawAddress.isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
 
   // Official DigiTax Zambia API Base URL from zm.docs.digitax.tech OpenAPI spec
   static const String digitaxZambiaApiBaseUrl =
@@ -392,8 +422,17 @@ class DigiTaxInventoryService {
   }
 
   Future<List<Map<String, dynamic>>> _fetchAllRemoteItems(
-    Map<String, String> headers,
-  ) async {
+    Map<String, String> headers, {
+    bool forceRefresh = false,
+  }) async {
+    if (!forceRefresh &&
+        _remoteItemsCache != null &&
+        _remoteItemsCacheTime != null &&
+        DateTime.now().difference(_remoteItemsCacheTime!) <
+            const Duration(minutes: 10)) {
+      return _remoteItemsCache!;
+    }
+
     final List<Map<String, dynamic>> allItems = [];
     String? nextCursor;
     int pageCount = 0;
@@ -444,6 +483,8 @@ class DigiTaxInventoryService {
         rethrow;
       }
     }
+    _remoteItemsCache = allItems;
+    _remoteItemsCacheTime = DateTime.now();
     return allItems;
   }
 
@@ -466,6 +507,14 @@ class DigiTaxInventoryService {
     _fiscalQueueTimer?.cancel();
     _fiscalQueueTimer = Timer.periodic(const Duration(seconds: 45), (_) async {
       try {
+        // Skip immediately if DigiTax API is unreachable – avoids wasting 8 s
+        // per connect attempt when the terminal has no internet.
+        if (!await canReachDigiTax()) {
+          debugPrint(
+            'DIGITAX_QUEUE_WORKER: DigiTax unreachable – skipping this cycle.',
+          );
+          return;
+        }
         await processPendingFiscalQueue();
       } catch (e) {
         debugPrint('DIGITAX_QUEUE_WORKER_ERROR: $e');
@@ -1802,7 +1851,16 @@ class DigiTaxInventoryService {
         continue;
       }
 
-      final localProd = await db.isar.products.get(item.productId);
+      var localProd = await db.isar.products.get(item.productId);
+      if (localProd == null && item.productSkuAtSale != null && item.productSkuAtSale!.trim().isNotEmpty) {
+        localProd = await db.getProductBySku(item.productSkuAtSale!.trim());
+      }
+      if (localProd == null) {
+        final allP = await db.getAllProducts();
+        final lowerItemName = item.productName.trim().toLowerCase();
+        localProd = allP.where((p) => p.name.trim().toLowerCase() == lowerItemName).firstOrNull;
+      }
+
       if (localProd != null && !localProd.isDigitaxSyncEnabled) {
         debugPrint(
           'DIGITAX_EXEMPT_PROD: ${item.productName} is an offline/private product. Skipping from DigiTax payload.',
@@ -1876,44 +1934,47 @@ class DigiTaxInventoryService {
             }
           }
 
-          final matchingItems = hasSpecificClass
-              ? classMatches
-                    .where(
-                      (candidate) =>
-                          codeMatches.contains(candidate) ||
-                          nameMatches.contains(candidate),
-                    )
-                    .toList()
-              : codeMatches.isNotEmpty
-              ? codeMatches
-              : nameMatches;
+          // Resolve matching remote product:
+          // 1. Exact Barcode / SKU match is definitive — never discard an exact barcode match
+          if (codeMatches.length == 1) {
+            digitaxItemId = (codeMatches.single['id'] ?? codeMatches.single['item_id'] ?? '').toString().trim();
+          } else if (codeMatches.length > 1) {
+            // Disambiguate by name or classification if multiple barcode matches exist
+            final bothMatch = codeMatches.where((c) => nameMatches.contains(c)).toList();
+            final best = bothMatch.isNotEmpty ? bothMatch.first : codeMatches.first;
+            digitaxItemId = (best['id'] ?? best['item_id'] ?? '').toString().trim();
+          } else if (nameMatches.length == 1) {
+            // 2. Unique exact name match
+            digitaxItemId = (nameMatches.single['id'] ?? nameMatches.single['item_id'] ?? '').toString().trim();
+          } else if (nameMatches.length > 1) {
+            // Disambiguate by classification if multiple identical names exist
+            final classAndName = classMatches.where((c) => nameMatches.contains(c)).toList();
+            final best = classAndName.isNotEmpty ? classAndName.first : nameMatches.first;
+            digitaxItemId = (best['id'] ?? best['item_id'] ?? '').toString().trim();
+          }
 
-          if (matchingItems.length > 1) {
-            debugPrint(
-              'DIGITAX_SALES_ABORT: Multiple DigiTax products match "${item.productName}" and SKU "${localProd?.sku ?? ''}"; refusing an ambiguous classification match.',
-            );
-            return false;
-          }
-          if (matchingItems.isEmpty &&
-              (codeMatches.isNotEmpty || nameMatches.isNotEmpty)) {
-            debugPrint(
-              'DIGITAX_SALES_ABORT: DigiTax has matching product names/SKUs, but none match the local classification "$localCls".',
-            );
-            return false;
-          }
-          if (matchingItems.length == 1) {
-            digitaxItemId =
-                (matchingItems.single['id'] ??
-                        matchingItems.single['item_id'] ??
-                        '')
-                    .toString()
-                    .trim();
-            if (localProd != null && digitaxItemId.isNotEmpty) {
-              localProd.itemClsCd = digitaxItemId;
-              localProd.isSyncedWithDigitax = true;
+          if (digitaxItemId != null && digitaxItemId.isNotEmpty) {
+            final prodToSave = localProd;
+            if (prodToSave != null) {
+              prodToSave.itemClsCd = digitaxItemId;
+              prodToSave.isSyncedWithDigitax = true;
               await db.isar.writeTxn(() async {
-                await db.isar.products.put(localProd);
+                await db.isar.products.put(prodToSave);
               });
+              // Append to local memory cache so subsequent items/lookups hit memory
+              if (_remoteItemsCache != null) {
+                _remoteItemsCache!.add({
+                  'id': digitaxItemId,
+                  'item_id': digitaxItemId,
+                  'item_name': item.productName.trim(),
+                  'bar_code': (prodToSave.sku.trim().isNotEmpty)
+                      ? prodToSave.sku.trim()
+                      : "SKU-${item.productId}",
+                });
+              }
+              debugPrint(
+                'DIGITAX_SALES: Linked "${item.productName}" to existing DigiTax item ID "$digitaxItemId".',
+              );
             }
           }
         } catch (e) {
@@ -1975,14 +2036,26 @@ class DigiTaxInventoryService {
               regResp.data is Map) {
             digitaxItemId = (regResp.data['id'] ?? regResp.data['item_id'])
                 ?.toString();
-            if (localProd != null &&
+            final prodToSave = localProd;
+            if (prodToSave != null &&
                 digitaxItemId != null &&
                 digitaxItemId.isNotEmpty) {
-              localProd.itemClsCd = digitaxItemId;
-              localProd.isSyncedWithDigitax = true;
+              prodToSave.itemClsCd = digitaxItemId;
+              prodToSave.isSyncedWithDigitax = true;
               await db.isar.writeTxn(() async {
-                await db.isar.products.put(localProd);
+                await db.isar.products.put(prodToSave);
               });
+              // Append to local memory cache so subsequent items/lookups hit memory
+              if (_remoteItemsCache != null) {
+                _remoteItemsCache!.add({
+                  'id': digitaxItemId,
+                  'item_id': digitaxItemId,
+                  'item_name': item.productName.trim(),
+                  'bar_code': (prodToSave.sku.trim().isNotEmpty)
+                      ? prodToSave.sku.trim()
+                      : "SKU-${item.productId}",
+                });
+              }
             }
           }
         } on DioException catch (dioErr) {
@@ -2371,6 +2444,19 @@ class DigiTaxInventoryService {
                 'trader_invoice_number has already been used',
               ) ==
               true) {
+        debugPrint(
+          'DIGITAX_SALES_409_CONFLICT: Invoice ${transaction.transactionId} already exists in DigiTax. Auto-recovering fiscal metadata...',
+        );
+        final recovered = await refreshTransactionFiscalData(
+          transaction,
+          useShortTimeout: true,
+        );
+        if (recovered) {
+          debugPrint(
+            'DIGITAX_SALES_409_RESOLVED: Successfully synced existing ZRA receipt for ${transaction.transactionId}!',
+          );
+          return true;
+        }
         await persistFiscalStatus('RECONCILIATION_REQUIRED');
         debugPrint(
           'DIGITAX_SALES_RECONCILIATION_REQUIRED: transaction ${transaction.transactionId} conflicts with an existing trader invoice number; refusing to resubmit automatically.',
@@ -2378,6 +2464,19 @@ class DigiTaxInventoryService {
         return false;
       }
       final responseStatus = dioErr.response?.statusCode;
+      // Connection / send / receive timeouts mean the request never reached
+      // DigiTax (or DigiTax is busy). Keep status as PENDING so the 45 s queue
+      // worker will retry once the network recovers.
+      if (dioErr.type == DioExceptionType.connectionTimeout ||
+          dioErr.type == DioExceptionType.sendTimeout ||
+          dioErr.type == DioExceptionType.receiveTimeout ||
+          dioErr.type == DioExceptionType.connectionError) {
+        await persistFiscalStatus('PENDING');
+        debugPrint(
+          'DIGITAX_SALES_TIMEOUT: Transaction ${transaction.transactionId} kept as PENDING – will retry when DigiTax is reachable.',
+        );
+        return false;
+      }
       await persistFiscalStatus(
         responseStatus == null || responseStatus >= 500
             ? 'RECONCILIATION_REQUIRED'
@@ -3210,13 +3309,14 @@ class DigiTaxInventoryService {
     final allTx = await db.isar.saleTransactions.where().findAll();
     final pendingTransactions = allTx.where((tx) {
       final hasReceipt =
-          tx.zraReceiptNumber != null && tx.zraReceiptNumber!.trim().isNotEmpty;
+          tx.zraReceiptNumber != null &&
+          tx.zraReceiptNumber!.trim().isNotEmpty &&
+          tx.zraReceiptNumber != 'PENDING';
       if (hasReceipt) return false;
       final statusUpper = tx.zraStatus.toUpperCase();
       if (statusUpper == 'APPROVED' ||
           statusUpper == 'FISCALIZED' ||
           statusUpper == 'OFFLINE_EXEMPT' ||
-          statusUpper == 'RECONCILIATION_REQUIRED' ||
           statusUpper == 'FAILED') {
         return false;
       }
@@ -3232,6 +3332,20 @@ class DigiTaxInventoryService {
     int fiscalizedCount = 0;
     for (final tx in pendingTransactions) {
       try {
+        // Step 1: First try recovering from DigiTax in case it was already accepted
+        // (resolves 409 conflicts and previous network timeouts without double-submitting)
+        final recovered = await refreshTransactionFiscalData(
+          tx,
+          useShortTimeout: true,
+        );
+        if (recovered) {
+          fiscalizedCount++;
+          debugPrint(
+            'DIGITAX_QUEUE_WORKER: Tx #${tx.id} (${tx.transactionId}) resolved via live fiscal refresh!',
+          );
+          continue;
+        }
+
         await tx.items.load();
         final items = tx.items.toList();
         final localProducts = <Product>[];
@@ -3557,8 +3671,14 @@ class DigiTaxInventoryService {
     };
   }
 
-  /// Query DigiTax for the live fiscal control data of a specific transaction
-  Future<bool> refreshTransactionFiscalData(SaleTransaction transaction) async {
+  /// Query DigiTax for the live fiscal control data of a specific transaction.
+  /// Pass [useShortTimeout] = true when calling from background contexts (queue
+  /// worker) so a slow network doesn't stall the app for 30 s per attempt.
+  Future<bool> refreshTransactionFiscalData(
+    SaleTransaction transaction, {
+    bool useShortTimeout = false,
+  }) async {
+    final dio = useShortTimeout ? _backgroundDio : _dio;
     final config = ref.read(storeConfigProvider).value;
     final currentUser = ref.read(authProvider);
     final resolvedBhfId =
@@ -3591,11 +3711,11 @@ class DigiTaxInventoryService {
 
     try {
       final resp = (directSaleId != null)
-          ? await _dio.get(
+          ? await dio.get(
               '$digitaxZambiaApiBaseUrl/sales/$directSaleId',
               options: Options(headers: headers),
             )
-          : await _dio.get(
+          : await dio.get(
               '$digitaxZambiaApiBaseUrl/sales',
               queryParameters: {'trader_invoice_number': traderInvoice},
               options: Options(headers: headers),
@@ -3610,7 +3730,23 @@ class DigiTaxInventoryService {
               resp.data['items'] ??
               resp.data['results'];
           if (list is List && list.isNotEmpty) {
-            matchData = list.first;
+            // Find the exact matching transaction rather than blindly taking list.first
+            final found = list.firstWhere(
+              (s) =>
+                  s is Map &&
+                  (s['trader_invoice_number']?.toString().trim() ==
+                          traderInvoice ||
+                      s['id']?.toString().trim() == traderInvoice),
+              orElse: () => directSaleId != null ? list.first : null,
+            );
+            if (found != null && found is Map) {
+              matchData = found;
+            } else {
+              debugPrint(
+                'DIGITAX_REFRESH_NOTICE: Invoice $traderInvoice not found in current page of sales.',
+              );
+              return false;
+            }
           }
         }
 

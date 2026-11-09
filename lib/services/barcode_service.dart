@@ -79,6 +79,11 @@ class BarcodeService {
         }
 
         if (char != null && _isValidBarcodeChar(char)) {
+          // Guard against stale buffer accumulation (barcodes rarely exceed 48 chars)
+          if (_buffer.length >= 48) {
+            _buffer = '';
+            debugPrint('BarcodeService: Buffer overflow reset (exceeded 48 chars).');
+          }
           _buffer += char;
         }
       }
@@ -90,6 +95,15 @@ class BarcodeService {
     // Alphanumeric, hyphen, slash, etc.
     final regex = RegExp(r'[a-zA-Z0-9\-\./]');
     return regex.hasMatch(char);
+  }
+
+  /// Clears the internal scan buffer and resets the inter-character timer.
+  /// Call this after a successful product lookup, a failed lookup, or after a
+  /// sale is completed to ensure the next scan is treated as an independent input.
+  void clearBuffer() {
+    _buffer = '';
+    _lastTime = DateTime(1970); // Reset timer so the next char is never treated as a continuation
+    debugPrint('BarcodeService: Buffer cleared.');
   }
 
   Future<void> _playBeep() async {

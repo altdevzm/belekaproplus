@@ -562,6 +562,14 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     }
 
     // E. Alert User if Barcode is Unrecognized
+    // Always clear the hardware scanner buffer so the unrecognised barcode
+    // does not bleed into the next scan attempt.
+    ref.read(barcodeServiceProvider).clearBuffer();
+    if (mounted) {
+      _searchController.clear();
+      setState(() {});
+      _searchFocusNode.requestFocus();
+    }
     if (mounted && showNotFoundAlert) {
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
@@ -872,7 +880,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                   controller: _searchController,
                   focusNode: _searchFocusNode,
                   onChanged: (_) => setState(() {}),
-                  onSubmitted: (val) => _lookupProduct(val),
+                  onSubmitted: (val) => _lookupProduct(val, clearInputAfterLookup: true),
                   style: GoogleFonts.inter(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
@@ -1606,7 +1614,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                   controller: _searchController,
                   focusNode: _searchFocusNode,
                   onChanged: (_) => setState(() {}),
-                  onSubmitted: (val) => _lookupProduct(val),
+                  onSubmitted: (val) => _lookupProduct(val, clearInputAfterLookup: true),
                   style: GoogleFonts.inter(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
@@ -1889,7 +1897,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                     controller: _searchController,
                     focusNode: _searchFocusNode,
                     onChanged: (_) => setState(() {}),
-                    onSubmitted: (val) => _lookupProduct(val),
+                    onSubmitted: (val) => _lookupProduct(val, clearInputAfterLookup: true),
                     style: GoogleFonts.inter(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
@@ -6091,6 +6099,8 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
 
       // Clear cart & reset payment state immediately so sale is marked done and cart is ready for next sale
       cartNotifier.clear();
+      // Clear barcode buffer so the completed sale's last scan cannot bleed into the next transaction
+      ref.read(barcodeServiceProvider).clearBuffer();
       if (mounted) {
         setState(() {
           _searchController.clear();
@@ -6448,11 +6458,11 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         );
       } else if (status == 'RECONCILIATION_REQUIRED') {
         onFiscalStatusChanged(
-          'DigiTax needs to confirm this sale. Check its status before retrying.',
+          'ZRA receipt is pending confirmation. The system will retry automatically.',
         );
       } else {
         onFiscalStatusChanged(
-          'Sale saved. ZRA is still processing the receipt.',
+          'Sale saved. ZRA receipt is pending — the system will confirm it automatically.',
         );
       }
 
@@ -6484,11 +6494,21 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     required ValueChanged<String> onFiscalStatusChanged,
   }) {
     Future(() async {
-      for (int attempt = 1; attempt <= 6; attempt++) {
-        await Future.delayed(Duration(seconds: attempt == 1 ? 2 : 3));
+      // Exponential backoff delays: 3 s, 6 s, 12 s, 24 s, 45 s, 90 s
+      const delays = [3, 6, 12, 24, 45, 90];
+      for (int attempt = 0; attempt < delays.length; attempt++) {
+        await Future.delayed(Duration(seconds: delays[attempt]));
+        // Skip this attempt if DigiTax is currently unreachable
+        if (!await DigiTaxInventoryService.canReachDigiTax()) {
+          debugPrint(
+            'Fiscal refresh attempt ${attempt + 1}: DigiTax unreachable – backing off.',
+          );
+          continue;
+        }
         try {
           final refreshed = await digitaxService.refreshTransactionFiscalData(
             tx,
+            useShortTimeout: true,
           );
           if (refreshed) {
             onFiscalStatusChanged(
@@ -6500,15 +6520,16 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                 'DIGITAX_ASYNC_PRINT: Live receipt printed after background confirmation for Tx #${tx.id}',
               );
             }
-            break;
+            return;
           }
         } catch (e) {
-          debugPrint('Delayed fiscal refresh attempt $attempt notice: $e');
+          debugPrint('Delayed fiscal refresh attempt ${attempt + 1} notice: $e');
         }
       }
-      if (tx.zraStatus.toUpperCase() == 'PENDING') {
+      if (tx.zraStatus.toUpperCase() == 'PENDING' ||
+          tx.zraStatus.toUpperCase() == 'RECONCILIATION_REQUIRED') {
         onFiscalStatusChanged(
-          'ZRA confirmation is still pending. Check the sale before retrying.',
+          'ZRA confirmation is still pending. The system will keep retrying automatically.',
         );
       }
     });

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "dgtxzm": {
+      "type": "http",
+      "url": "https://zm.docs.digitax.tech/mcp"
+    }
+  }
+}

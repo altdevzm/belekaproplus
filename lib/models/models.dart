@@ -92,8 +92,8 @@ class Product {
     // Pure 8-digit numbers are ZRA UNSPSC classification codes, NOT DigiTax item IDs
     if (RegExp(r'^\d{8}$').hasMatch(value)) return false;
     if (value == '10101501' || value == '56101530') return false;
-    return value.startsWith('item_') ||
-        (value.length > 10 && !RegExp(r'^\d+$').hasMatch(value));
+    // Any valid non-UNSPSC identifier is a DigiTax item ID (item_*, itm_*, UUIDs, CUIDs, or numeric IDs)
+    return true;
   }
 
   // Electronic Scale & Unit of Measure

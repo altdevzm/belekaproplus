@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:beleka_pos/providers/update_provider.dart';
 import 'package:beleka_pos/services/update_service.dart';
 
@@ -282,11 +283,14 @@ class _BannerContent extends ConsumerWidget {
       // Non-windows or mobile: open browser with platform URL
       try {
         final targetUrl = Platform.isAndroid ? info.androidDownloadUrl : info.windowsDownloadUrl;
-        if (Platform.isLinux) {
+        final uri = Uri.parse(targetUrl);
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+        } else if (Platform.isLinux) {
           await Process.run('xdg-open', [targetUrl]);
         } else if (Platform.isMacOS) {
           await Process.run('open', [targetUrl]);
-        } else {
+        } else if (Platform.isWindows) {
           await Process.run('start', [targetUrl], runInShell: true);
         }
       } catch (_) {}

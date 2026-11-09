@@ -12,6 +12,7 @@ import 'package:beleka_pos/providers/store_provider.dart';
 import 'package:beleka_pos/services/network_client.dart';
 import 'package:beleka_pos/services/postgres_sync_service.dart';
 import 'package:beleka_pos/models/models.dart';
+import 'package:beleka_pos/screens/shell_screen.dart';
 import 'package:isar/isar.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -474,6 +475,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         }
         if (mounted) {
           ref.read(authProvider.notifier).login(user);
+          // Reset navigation to sales for cashiers
+          final role = normalizeUserRole(user.role);
+          if (role == 'cashier') {
+            ref.read(navigationProvider.notifier).state = ScreenType.sales;
+          }
         }
       } else {
         setState(() {

@@ -116,28 +116,124 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
           .length;
       if (!mounted) return;
 
+      final isLiveEnvironment =
+          (storeConfig?.digitaxEnvironment ?? 'sandbox').toLowerCase() ==
+          'production';
+
       final confirmed = await showDialog<bool>(
         context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Review DigiTax catalogue sync'),
-          content: Text(
-            'Environment: ${(storeConfig?.digitaxEnvironment ?? 'sandbox').toUpperCase()}\n'
-            'Branch: $currentBranch\n'
-            'Eligible local products: ${eligibleProducts.length}\n'
-            'Not yet linked to DigiTax: $unsyncedCount\n\n'
-            'This bidirectional sync may create DigiTax items and import remote prices or stock into Beleka. No items will be deleted. Review the environment and counts before continuing.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Continue'),
-            ),
-          ],
-        ),
+        barrierDismissible: false,
+        builder: (context) {
+          final confirmController = TextEditingController();
+          return StatefulBuilder(
+            builder: (context, setDialogState) {
+              return AlertDialog(
+                title: Row(
+                  children: [
+                    Icon(
+                      isLiveEnvironment
+                          ? Icons.warning_amber_rounded
+                          : Icons.cloud_sync_rounded,
+                      color: isLiveEnvironment ? Colors.red : Colors.orange,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        isLiveEnvironment
+                            ? '⚠️ LIVE DigiTax Catalogue Sync'
+                            : 'Review DigiTax catalogue sync',
+                        style: TextStyle(
+                          color: isLiveEnvironment ? Colors.red : null,
+                          fontWeight: isLiveEnvironment
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (isLiveEnvironment)
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        margin: const EdgeInsets.only(bottom: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withValues(alpha: 0.1),
+                          border: Border.all(color: Colors.red),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Text(
+                          'YOU ARE CONNECTED TO YOUR LIVE DIGITAX ACCOUNT.\n\n'
+                          'This action will push products to your PRODUCTION DigiTax '
+                          'catalogue. Products that do not yet exist in DigiTax will be '
+                          'CREATED. Existing products will be matched and updated.\n\n'
+                          'This cannot be undone. Only proceed if you are certain.',
+                          style: TextStyle(
+                            color: Colors.red,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    Text(
+                      'Environment: ${(storeConfig?.digitaxEnvironment ?? 'sandbox').toUpperCase()}\n'
+                      'Branch: $currentBranch\n'
+                      'Eligible local products: ${eligibleProducts.length}\n'
+                      'Not yet linked to DigiTax: $unsyncedCount\n\n'
+                      'This bidirectional sync may create DigiTax items and import remote prices or stock into Beleka. No items will be deleted. Review the environment and counts before continuing.',
+                    ),
+                    if (isLiveEnvironment) ...[
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Type CONFIRM to proceed:',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: confirmController,
+                        onChanged: (_) => setDialogState(() {}),
+                        decoration: const InputDecoration(
+                          hintText: 'CONFIRM',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text('Cancel'),
+                  ),
+                  FilledButton(
+                    // Require "CONFIRM" typed for live environment to prevent accidental sync
+                    onPressed:
+                        isLiveEnvironment &&
+                            confirmController.text.trim() != 'CONFIRM'
+                        ? null
+                        : () => Navigator.pop(context, true),
+                    style: isLiveEnvironment
+                        ? ButtonStyle(
+                            backgroundColor: WidgetStateProperty.resolveWith(
+                              (states) => states.contains(WidgetState.disabled)
+                                  ? Colors.grey
+                                  : Colors.red,
+                            ),
+                          )
+                        : null,
+                    child: Text(
+                      isLiveEnvironment ? 'Push to LIVE DigiTax' : 'Continue',
+                    ),
+                  ),
+                ],
+              );
+            },
+          );
+        },
       );
       if (!mounted || confirmed != true) return;
 

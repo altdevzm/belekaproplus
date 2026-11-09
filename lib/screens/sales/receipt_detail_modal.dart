@@ -1573,9 +1573,14 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
           widget.transaction.zraReceiptNumber == 'PENDING' ||
           widget.transaction.zraMarkId == null ||
           widget.transaction.zraMarkId == 'PENDING') {
-        await ref
+        final refreshed = await ref
             .read(digitaxInventoryServiceProvider)
             .refreshTransactionFiscalData(widget.transaction);
+        if (!refreshed) {
+          await ref
+              .read(digitaxInventoryServiceProvider)
+              .fiscalizeSaleTransaction(widget.transaction, items);
+        }
       }
 
       final printerService = ref.read(printerServiceProvider);

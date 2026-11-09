@@ -132,16 +132,109 @@ class DatabaseService {
         .statusEqualTo('OPEN')
         .findAll();
     CashShift? matchedShift;
+    // 1. Exact terminal and cashier match
     for (final shift in openShifts) {
-      final sameTerminal =
-          shift.terminalId.trim().toUpperCase() == normalizedTerminalId;
+      final sTerm = shift.terminalId.trim().toUpperCase();
+      final sameTerminal = sTerm == normalizedTerminalId;
       final sameCashier = cashierId == null || shift.cashierId == cashierId;
       if (sameTerminal && sameCashier) {
         matchedShift = shift;
         break;
       }
     }
+    // 2. Prefix/contains terminal match and cashier match (e.g. 'TILL-01' vs 'TILL-01 - MAIN COUNTER TILL 1')
+    if (matchedShift == null) {
+      for (final shift in openShifts) {
+        final sTerm = shift.terminalId.trim().toUpperCase();
+        final sameTerminal = sTerm == normalizedTerminalId ||
+            sTerm.startsWith('$normalizedTerminalId -') ||
+            sTerm.startsWith('$normalizedTerminalId ') ||
+            normalizedTerminalId.startsWith('$sTerm -') ||
+            normalizedTerminalId.startsWith('$sTerm ') ||
+            sTerm.contains(normalizedTerminalId) ||
+            normalizedTerminalId.contains(sTerm);
+        final sameCashier = cashierId == null || shift.cashierId == cashierId;
+        if (sameTerminal && sameCashier) {
+          matchedShift = shift;
+          break;
+        }
+      }
+    }
+    // 3. Exact terminal match without cashier constraint
+    matchedShift ??= findOpenShiftForTerminal(openShifts, terminalId);
+    // 4. Prefix terminal match without cashier constraint
+    if (matchedShift == null) {
+      for (final shift in openShifts) {
+        final sTerm = shift.terminalId.trim().toUpperCase();
+        if (sTerm.startsWith('$normalizedTerminalId -') ||
+            sTerm.startsWith('$normalizedTerminalId ') ||
+            normalizedTerminalId.startsWith('$sTerm -') ||
+            normalizedTerminalId.startsWith('$sTerm ') ||
+            sTerm.contains(normalizedTerminalId) ||
+            normalizedTerminalId.contains(sTerm)) {
+          matchedShift = shift;
+          break;
+        }
+      }
+    }
     return matchedShift;
+  }
+
+  /// Retrieves all transactions belonging to a specific shift.
+  /// Matches primarily by `cashShiftNumber`, with timestamp window and cashier fallback.
+  Future<List<SaleTransaction>> getTransactionsForShift(CashShift shift) async {
+    final shiftSales = await isar.saleTransactions
+        .filter()
+        .cashShiftNumberEqualTo(shift.shiftNumber)
+        .findAll();
+
+    if (shiftSales.isNotEmpty) {
+      for (final t in shiftSales) {
+        await t.items.load();
+      }
+      return shiftSales;
+    }
+
+    // Fallback: match by shift timeframe, terminal, and cashier
+    final start = shift.openingTime;
+    final end = shift.closingTime ?? DateTime.now().add(const Duration(minutes: 5));
+    final rangeSales = await isar.saleTransactions
+        .filter()
+        .timestampBetween(
+          start.subtract(const Duration(seconds: 2)),
+          end.add(const Duration(seconds: 2)),
+        )
+        .findAll();
+
+    final sTerm = shift.terminalId.trim().toUpperCase();
+    final results = <SaleTransaction>[];
+    for (final t in rangeSales) {
+      final matchCashier = shift.cashierId == null ||
+          shift.cashierId!.isEmpty ||
+          t.cashierId == shift.cashierId;
+      final tTerm = t.terminalName?.trim().toUpperCase();
+      final matchTerm = tTerm == null ||
+          tTerm.isEmpty ||
+          sTerm == tTerm ||
+          sTerm.contains(tTerm) ||
+          tTerm.contains(sTerm);
+      if (matchCashier && matchTerm) {
+        await t.items.load();
+        results.add(t);
+      }
+    }
+    return results;
+  }
+
+  /// Calculates total sales amount (gross) for a specific shift.
+  Future<double> getShiftTotalSales(CashShift shift) async {
+    final transactions = await getTransactionsForShift(shift);
+    return transactions.fold<double>(0.0, (double sum, SaleTransaction t) {
+      if (t.totalAmount.isNaN) return sum;
+      if (t.isCreditNote) return sum - t.totalAmount;
+      if (t.status == 'refunded') return sum;
+      return sum + t.totalAmount;
+    });
   }
 
   // Product methods
@@ -1046,10 +1139,12 @@ class DatabaseService {
     String terminalCode, {
     String? terminalName,
     String? cashierId,
+    String? shiftNumber,
+    DateTime? sinceTime,
   }) async {
     final now = DateTime.now();
-    final startOfToday = DateTime(now.year, now.month, now.day);
-    final endOfToday = startOfToday.add(const Duration(days: 1));
+    final startOfToday = sinceTime ?? DateTime(now.year, now.month, now.day);
+    final endOfToday = DateTime(now.year, now.month, now.day).add(const Duration(days: 1));
 
     final todaySales = await isar.saleTransactions
         .filter()
@@ -1061,6 +1156,10 @@ class DatabaseService {
 
     final results = <SaleTransaction>[];
     for (final t in todaySales) {
+      if (shiftNumber != null && shiftNumber.isNotEmpty) {
+        if (t.cashShiftNumber != shiftNumber) continue;
+      }
+
       final tTerm = t.terminalName?.trim().toUpperCase();
       bool matched = false;
 
@@ -1089,11 +1188,15 @@ class DatabaseService {
     String terminalCode, {
     String? terminalName,
     String? cashierId,
+    String? shiftNumber,
+    DateTime? sinceTime,
   }) async {
     final transactions = await getTodayTransactionsForTerminal(
       terminalCode,
       terminalName: terminalName,
       cashierId: cashierId,
+      shiftNumber: shiftNumber,
+      sinceTime: sinceTime,
     );
     return transactions.fold<double>(0.0, (double sum, SaleTransaction t) {
       if (t.totalAmount.isNaN) return sum;

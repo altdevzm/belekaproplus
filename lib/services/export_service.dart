@@ -1157,6 +1157,7 @@ class ExportService {
                   data: zraQrData,
                   width: 55,
                   height: 55,
+                  drawText: false,
                 ),
                 pw.SizedBox(height: 1),
                 pw.Text(
@@ -6969,7 +6970,9 @@ class ExportService {
           return [
             _buildDocumentHeader(
               config,
-              title: 'TILL FINANCIAL & HANDOVER REPORT',
+              title: currentShift != null
+                  ? 'TILL SHIFT FINANCIAL & HANDOVER REPORT'
+                  : 'TILL FINANCIAL & HANDOVER REPORT',
               brandColor: brandColor,
               logoImage: logoImage,
             ),
@@ -7067,7 +7070,9 @@ class ExportService {
                       crossAxisAlignment: pw.CrossAxisAlignment.start,
                       children: [
                         pw.Text(
-                          'TOTAL TILL SALES TODAY',
+                          currentShift != null
+                              ? 'TOTAL SHIFT SALES'
+                              : 'TOTAL TILL SALES TODAY',
                           style: pw.TextStyle(
                             fontSize: 8,
                             fontWeight: pw.FontWeight.bold,
