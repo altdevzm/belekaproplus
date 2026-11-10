@@ -1860,8 +1860,10 @@ class DigiTaxInventoryService {
       // PERMANENT GUARD: Check if the product or sale item is offline/private exempt.
       // 1. If the underlying product in the database has isDigitaxSyncEnabled == false, it is
       //    PERMANENTLY an offline product. It must NEVER be sent to DigiTax, even if forcePush is requested!
-      // 2. If the item was marked isDigitaxExempt at sale time and not explicitly force-pushed, it is also skipped.
-      final isOfflineProduct = localProd != null && !localProd.isDigitaxSyncEnabled;
+      // 2. If the product was never synced with DigiTax and has no usable DigiTax item ID, it is an offline product!
+      // 3. If the item was marked isDigitaxExempt at sale time and not explicitly force-pushed, it is also skipped.
+      final isOfflineProduct = (localProd != null && !localProd.isDigitaxSyncEnabled) ||
+          (localProd != null && !localProd.isSyncedWithDigitax && !localProd.hasUsableDigitaxItemId);
       if (isOfflineProduct || (!forcePush && item.isDigitaxExempt)) {
         debugPrint(
           'DIGITAX_EXEMPT_ITEM: ${item.productName} is an offline/private product. Permanently skipping from DigiTax payload.',
@@ -1984,95 +1986,14 @@ class DigiTaxInventoryService {
         }
       }
 
-      // If still not found, auto-register on DigiTax
-      if (digitaxItemId == null || digitaxItemId.isEmpty) {
-        try {
-          final vatCategoryCode = resolveCompliantVatCategoryCode(
-            zraTaxCode: localProd?.zraTaxCode,
-            taxRate: item.taxRateAtSale,
-            isTotBusiness: isTot,
-          );
-          final classCode = resolveCompliantItemClassCode(
-            explicitClsCode: localProd?.itemClsCd,
-            zraTaxCode: localProd?.zraTaxCode,
-            productName: item.productName,
-          );
-          final pkgUnit = _resolvePackageUnitCode(localProd?.unitOfMeasure);
-          final qtyUnit = _resolveQuantityUnitCode(localProd?.unitOfMeasure);
-
-          final registerPayload = {
-            "item_class_code": classCode,
-            "item_type_code": "2",
-            "item_name": item.productName.trim(),
-            "origin_nation_code": "ZM",
-            "package_unit_code": pkgUnit,
-            "quantity_unit_code": qtyUnit,
-            "vat_category_code": vatCategoryCode,
-            if (isTot) "tot_category_code": "TOT",
-            "default_unit_price": item.priceAtSale > 0 ? item.priceAtSale : 1.0,
-            "recommended_retail_price": item.priceAtSale > 0
-                ? item.priceAtSale
-                : 1.0,
-            "stock_quantity":
-                localProd?.stockLevel != null && localProd!.stockLevel > 0
-                ? localProd.stockLevel
-                : 0,
-            "is_stock_item": true,
-            "bar_code":
-                (localProd?.sku != null && localProd!.sku.trim().isNotEmpty)
-                ? localProd.sku.trim()
-                : "SKU-${item.productId}",
-          };
-
-          debugPrint(
-            'DIGITAX_SALES: Auto-registering "${item.productName}" on DigiTax (pkg: $pkgUnit, qty: $qtyUnit)...',
-          );
-          final regResp = await _dio.post(
-            '$digitaxZambiaApiBaseUrl/items',
-            data: registerPayload,
-            options: Options(headers: headers),
-          );
-
-          if ((regResp.statusCode == 200 || regResp.statusCode == 201) &&
-              regResp.data is Map) {
-            digitaxItemId = (regResp.data['id'] ?? regResp.data['item_id'])
-                ?.toString();
-            final prodToSave = localProd;
-            if (prodToSave != null &&
-                digitaxItemId != null &&
-                digitaxItemId.isNotEmpty) {
-              prodToSave.itemClsCd = digitaxItemId;
-              prodToSave.isSyncedWithDigitax = true;
-              await db.isar.writeTxn(() async {
-                await db.isar.products.put(prodToSave);
-              });
-              // Append to local memory cache so subsequent items/lookups hit memory
-              if (_remoteItemsCache != null) {
-                _remoteItemsCache!.add({
-                  'id': digitaxItemId,
-                  'item_id': digitaxItemId,
-                  'item_name': item.productName.trim(),
-                  'bar_code': (prodToSave.sku.trim().isNotEmpty)
-                      ? prodToSave.sku.trim()
-                      : "SKU-${item.productId}",
-                });
-              }
-            }
-          }
-        } on DioException catch (dioErr) {
-          debugPrint(
-            'DIGITAX_SALES: Item registration DioException [HTTP ${dioErr.response?.statusCode}]: ${dioErr.response?.data}',
-          );
-        } catch (e) {
-          debugPrint('DIGITAX_SALES: Item registration unexpected error: $e');
-        }
-      }
-
+      // If the item does not exist in the DigiTax catalog, it is an offline/unregistered item!
+      // NEVER auto-register products onto DigiTax during sales/checkout!
+      // Offline products must stay offline and be skipped from the fiscal payload.
       if (digitaxItemId == null || digitaxItemId.isEmpty) {
         debugPrint(
-          'DIGITAX_SALES_CRITICAL: Unable to obtain DigiTax item_id for "${item.productName}". Aborting sale submission to avoid 400 rejection.',
+          'DIGITAX_SALES: "${item.productName}" is not registered on DigiTax (offline product). Skipping from fiscal invoice payload.',
         );
-        return false;
+        continue;
       }
 
       final effectiveQty = (item.isWeighted && item.weight > 0)
