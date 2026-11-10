@@ -2837,44 +2837,6 @@ class _TransactionSyncButtonState
     }
   }
 
-  Future<void> _confirmPushLocalSale(BuildContext context) async {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: isDark ? const Color(0xFF151F32) : Colors.white,
-        title: Text(
-          'Push Local Sale to ZRA DigiTax?',
-          style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16),
-        ),
-        content: Text(
-          'Transaction #${widget.tx.id} was recorded as a local/private sale. Would you like to submit and fiscalize it with ZRA DigiTax now?',
-          style: GoogleFonts.inter(fontSize: 13),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF059669),
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Push to ZRA DigiTax'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true) {
-      _sync(forcePush: true);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     if (widget.isFiscalApproved) {

@@ -1264,36 +1264,6 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
     );
   }
 
-  Future<void> _confirmPushLocalSale(BuildContext context) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Push Local Sale to ZRA DigiTax?'),
-        content: Text(
-          'Transaction #${widget.transaction.id} was saved as a local/private sale. Would you like to submit and fiscalize it with ZRA DigiTax now?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF059669),
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Push to ZRA DigiTax'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true) {
-      _syncToDigitax(forcePush: true);
-    }
-  }
-
   Future<void> _syncToDigitax({bool forcePush = false}) async {
     if (_isSyncing) return;
     setState(() => _isSyncing = true);
