@@ -565,8 +565,11 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                 const SizedBox(height: 20),
                 _buildScaleSection(accentColor),
                 const SizedBox(height: 20),
-                _buildTaxSection(accentColor),
-                const SizedBox(height: 32),
+                if (_isDigitaxSyncEnabled) ...[
+                  _buildTaxSection(accentColor),
+                  const SizedBox(height: 20),
+                ],
+                const SizedBox(height: 12),
                 _buildDiscountSection(accentColor, currencySymbol),
                 const SizedBox(height: 40),
                 SizedBox(
