@@ -1091,41 +1091,31 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
 
     return Row(
       children: [
-        if (!isApproved && !isRefunded) ...[
+        if (!isApproved && !isRefunded && !isLocalOnly) ...[
           Expanded(
             child: SizedBox(
               height: 48,
               child: ElevatedButton(
-                onPressed: _isSyncing
-                    ? null
-                    : (isLocalOnly
-                        ? () => _confirmPushLocalSale(context)
-                        : _syncToDigitax),
+                onPressed: _isSyncing ? null : _syncToDigitax,
                 style: ElevatedButton.styleFrom(
                   backgroundColor:
-                      (isLocalOnly ? Colors.blueAccent : const Color(0xFFD97706))
-                          .withValues(alpha: 0.15),
-                  foregroundColor:
-                      isLocalOnly ? Colors.blueAccent : const Color(0xFFD97706),
+                      const Color(0xFFD97706).withValues(alpha: 0.15),
+                  foregroundColor: const Color(0xFFD97706),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                     side: BorderSide(
-                      color:
-                          (isLocalOnly ? Colors.blueAccent : const Color(0xFFD97706))
-                              .withValues(alpha: 0.5),
+                      color: const Color(0xFFD97706).withValues(alpha: 0.5),
                     ),
                   ),
                   elevation: 0,
                 ),
                 child: _isSyncing
-                    ? SizedBox(
+                    ? const SizedBox(
                         width: 18,
                         height: 18,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: isLocalOnly
-                              ? Colors.blueAccent
-                              : const Color(0xFFD97706),
+                          color: Color(0xFFD97706),
                         ),
                       )
                     : FittedBox(
@@ -1133,19 +1123,17 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(
-                              isLocalOnly
-                                  ? Icons.cloud_off_rounded
-                                  : Icons.cloud_upload_rounded,
+                            const Icon(
+                              Icons.cloud_upload_rounded,
                               size: 16,
                             ),
                             const SizedBox(width: 6),
                             Text(
-                              isLocalOnly ? 'PUSH TO ZRA' : 'SYNC ZRA',
+                              'SYNC ZRA',
                               style: GoogleFonts.manrope(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 1.5,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.5,
                               ),
                             ),
                           ],

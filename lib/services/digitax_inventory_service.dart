@@ -1857,11 +1857,14 @@ class DigiTaxInventoryService {
         localProd = allP.where((p) => p.name.trim().toLowerCase() == lowerItemName).firstOrNull;
       }
 
-      // If the product is marked as local-only (isDigitaxSyncEnabled == false) or the sale item is exempt,
-      // respect the user's choice: do NOT send to DigiTax or register on DigiTax UNLESS explicitly force pushed.
-      if (!forcePush && (item.isDigitaxExempt || (localProd != null && !localProd.isDigitaxSyncEnabled))) {
+      // PERMANENT GUARD: Check if the product or sale item is offline/private exempt.
+      // 1. If the underlying product in the database has isDigitaxSyncEnabled == false, it is
+      //    PERMANENTLY an offline product. It must NEVER be sent to DigiTax, even if forcePush is requested!
+      // 2. If the item was marked isDigitaxExempt at sale time and not explicitly force-pushed, it is also skipped.
+      final isOfflineProduct = localProd != null && !localProd.isDigitaxSyncEnabled;
+      if (isOfflineProduct || (!forcePush && item.isDigitaxExempt)) {
         debugPrint(
-          'DIGITAX_EXEMPT_ITEM: ${item.productName} is an offline/private product. Skipping from DigiTax payload.',
+          'DIGITAX_EXEMPT_ITEM: ${item.productName} is an offline/private product. Permanently skipping from DigiTax payload.',
         );
         continue;
       }
@@ -2098,8 +2101,8 @@ class DigiTaxInventoryService {
       });
     }
 
-    // If sale only contains offline/private products and not force-pushed, bypass DigiTax cloud submission completely
-    if (!forcePush && digitaxItemsPayload.isEmpty) {
+    // If sale only contains offline/private products, bypass DigiTax cloud submission completely
+    if (digitaxItemsPayload.isEmpty) {
       debugPrint(
         'DIGITAX_SALES_BYPASS: All items in sale #$invoiceNo are offline/private products. Skipping cloud fiscalization.',
       );

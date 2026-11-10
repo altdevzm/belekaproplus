@@ -467,7 +467,14 @@ class ApiService {
       await _db.saveTransaction(transaction, items);
 
       // Instantly fiscalize with DigiTax on Manager server if API Key present & not yet fiscalized
-      if (ref != null && (transaction.zraReceiptNumber == null || transaction.zraReceiptNumber!.isEmpty)) {
+      // Never attempt to fiscalize local/offline exempt transactions!
+      final isLocalOnly = transaction.zraStatus == 'LOCAL_EXEMPT' ||
+          transaction.zraStatus == 'OFFLINE_EXEMPT' ||
+          (items.isNotEmpty && items.every((i) => i.isDigitaxExempt));
+
+      if (ref != null &&
+          !isLocalOnly &&
+          (transaction.zraReceiptNumber == null || transaction.zraReceiptNumber!.isEmpty)) {
         try {
           final digitaxService = ref!.read(digitaxInventoryServiceProvider);
           await digitaxService.fiscalizeSaleTransaction(transaction, items);
@@ -532,8 +539,14 @@ class ApiService {
 
       await _db.saveTransaction(transaction, items);
 
-          // Instantly fiscalize with DigiTax on Manager server if needed
-          if (ref != null && (transaction.zraReceiptNumber == null || transaction.zraReceiptNumber!.isEmpty)) {
+          // Instantly fiscalize with DigiTax on Manager server if needed (skip local/offline exempt)
+          final isLocalOnly = transaction.zraStatus == 'LOCAL_EXEMPT' ||
+              transaction.zraStatus == 'OFFLINE_EXEMPT' ||
+              (items.isNotEmpty && items.every((i) => i.isDigitaxExempt));
+
+          if (ref != null &&
+              !isLocalOnly &&
+              (transaction.zraReceiptNumber == null || transaction.zraReceiptNumber!.isEmpty)) {
             try {
               final digitaxService = ref!.read(digitaxInventoryServiceProvider);
               await digitaxService.fiscalizeSaleTransaction(transaction, items);

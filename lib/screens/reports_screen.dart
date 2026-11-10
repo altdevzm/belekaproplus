@@ -2168,7 +2168,10 @@ class ReportsScreen extends ConsumerWidget {
               (t.zraMarkId != null &&
                   t.zraMarkId!.isNotEmpty &&
                   t.zraMarkId != 'PENDING'));
-      return !isApproved && t.status != 'refunded';
+      final isLocalExempt = t.zraStatus == 'LOCAL_EXEMPT' ||
+          t.zraStatus == 'OFFLINE_EXEMPT' ||
+          (t.items.isNotEmpty && t.items.every((i) => i.isDigitaxExempt));
+      return !isApproved && !isLocalExempt && t.status != 'refunded';
     }).toList();
     final pendingCount = unapprovedTransactions.length;
 
@@ -2910,14 +2913,14 @@ class _TransactionSyncButtonState
     }
 
     if (isLocal) {
-      return IconButton(
-        onPressed: () => _confirmPushLocalSale(context),
-        icon: const Icon(
-          Icons.cloud_off_rounded,
+      return const IconButton(
+        onPressed: null,
+        icon: Icon(
+          Icons.shield_outlined,
           size: 18,
           color: Colors.blueAccent,
         ),
-        tooltip: 'Local / Private Sale (Tap to push to ZRA DigiTax)',
+        tooltip: 'Local / Private Sale (Offline Exempt from ZRA)',
       );
     }
 
@@ -2974,7 +2977,7 @@ class _SyncAllPendingButtonState
 
       int count = await digitax.processPendingFiscalQueue();
 
-      // Also process any unapproved transactions in the current report view
+      // Also process any genuinely unapproved online transactions in the current report view
       for (final tx in widget.unapprovedTransactions) {
         final isApproved = (tx.zraStatus.toUpperCase() == 'APPROVED' ||
                 tx.zraStatus.toUpperCase() == 'FISCALIZED') &&
@@ -2986,13 +2989,18 @@ class _SyncAllPendingButtonState
                     tx.zraMarkId != 'PENDING'));
         if (isApproved) continue;
 
+        final isLocalExempt = tx.zraStatus == 'LOCAL_EXEMPT' ||
+            tx.zraStatus == 'OFFLINE_EXEMPT' ||
+            (tx.items.isNotEmpty && tx.items.every((i) => i.isDigitaxExempt));
+        if (isLocalExempt) continue;
+
         try {
           await tx.items.load();
           final items = tx.items.toList();
           final pushed = await digitax.fiscalizeSaleTransaction(
             tx,
             items,
-            forcePush: true,
+            forcePush: false,
           );
           if (pushed) count++;
         } catch (_) {}
