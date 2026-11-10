@@ -1082,31 +1082,41 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
 
     return Row(
       children: [
-        if (!isApproved && !isRefunded && !isLocalOnly) ...[
+        if (!isApproved && !isRefunded) ...[
           Expanded(
             child: SizedBox(
               height: 48,
               child: ElevatedButton(
-                onPressed: _isSyncing ? null : _syncToDigitax,
+                onPressed: _isSyncing
+                    ? null
+                    : (isLocalOnly
+                        ? () => _confirmPushLocalSale(context)
+                        : _syncToDigitax),
                 style: ElevatedButton.styleFrom(
                   backgroundColor:
-                      const Color(0xFFD97706).withValues(alpha: 0.15),
-                  foregroundColor: const Color(0xFFD97706),
+                      (isLocalOnly ? Colors.blueAccent : const Color(0xFFD97706))
+                          .withValues(alpha: 0.15),
+                  foregroundColor:
+                      isLocalOnly ? Colors.blueAccent : const Color(0xFFD97706),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                     side: BorderSide(
-                      color: const Color(0xFFD97706).withValues(alpha: 0.5),
+                      color:
+                          (isLocalOnly ? Colors.blueAccent : const Color(0xFFD97706))
+                              .withValues(alpha: 0.5),
                     ),
                   ),
                   elevation: 0,
                 ),
                 child: _isSyncing
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 18,
                         height: 18,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: Color(0xFFD97706),
+                          color: isLocalOnly
+                              ? Colors.blueAccent
+                              : const Color(0xFFD97706),
                         ),
                       )
                     : FittedBox(
@@ -1114,10 +1124,15 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(Icons.cloud_upload_rounded, size: 16),
+                            Icon(
+                              isLocalOnly
+                                  ? Icons.cloud_off_rounded
+                                  : Icons.cloud_upload_rounded,
+                              size: 16,
+                            ),
                             const SizedBox(width: 6),
                             Text(
-                              'SYNC ZRA',
+                              isLocalOnly ? 'PUSH TO ZRA' : 'SYNC ZRA',
                               style: GoogleFonts.manrope(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w900,
@@ -1252,7 +1267,37 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
     );
   }
 
-  Future<void> _syncToDigitax() async {
+  Future<void> _confirmPushLocalSale(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Push Local Sale to ZRA DigiTax?'),
+        content: Text(
+          'Transaction #${widget.transaction.id} was saved as a local/private sale. Would you like to submit and fiscalize it with ZRA DigiTax now?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF059669),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Push to ZRA DigiTax'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      _syncToDigitax(forcePush: true);
+    }
+  }
+
+  Future<void> _syncToDigitax({bool forcePush = false}) async {
     if (_isSyncing) return;
     setState(() => _isSyncing = true);
 
@@ -1297,6 +1342,7 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
       final pushed = await digitax.fiscalizeSaleTransaction(
         widget.transaction,
         items,
+        forcePush: forcePush,
       );
 
       if (mounted) {

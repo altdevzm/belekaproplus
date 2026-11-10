@@ -1799,8 +1799,9 @@ class DigiTaxInventoryService {
   /// Let DigiTax perform the official server-side tax calculations (TOT or VAT) and return official fiscal data.
   Future<bool> fiscalizeSaleTransaction(
     SaleTransaction transaction,
-    List<SaleItem> items,
-  ) async {
+    List<SaleItem> items, {
+    bool forcePush = false,
+  }) async {
     final db = ref.read(databaseServiceProvider);
     final config = ref.read(storeConfigProvider).value;
 
@@ -1857,8 +1858,8 @@ class DigiTaxInventoryService {
       }
 
       // If the product is marked as local-only (isDigitaxSyncEnabled == false) or the sale item is exempt,
-      // respect the user's choice: do NOT send to DigiTax or register on DigiTax.
-      if (item.isDigitaxExempt || (localProd != null && !localProd.isDigitaxSyncEnabled)) {
+      // respect the user's choice: do NOT send to DigiTax or register on DigiTax UNLESS explicitly force pushed.
+      if (!forcePush && (item.isDigitaxExempt || (localProd != null && !localProd.isDigitaxSyncEnabled))) {
         debugPrint(
           'DIGITAX_EXEMPT_ITEM: ${item.productName} is an offline/private product. Skipping from DigiTax payload.',
         );
@@ -2097,8 +2098,8 @@ class DigiTaxInventoryService {
       });
     }
 
-    // If sale only contains offline/private products, bypass DigiTax cloud submission completely
-    if (digitaxItemsPayload.isEmpty) {
+    // If sale only contains offline/private products and not force-pushed, bypass DigiTax cloud submission completely
+    if (!forcePush && digitaxItemsPayload.isEmpty) {
       debugPrint(
         'DIGITAX_SALES_BYPASS: All items in sale #$invoiceNo are offline/private products. Skipping cloud fiscalization.',
       );

@@ -349,7 +349,11 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
     _hasDiscount = widget.product?.discountPrice != null;
 
     _isTaxInclusive = widget.product?.isTaxInclusive ?? true;
-    _isDigitaxSyncEnabled = widget.product?.isDigitaxSyncEnabled ?? false;
+    final storeCfg = ref.read(storeConfigProvider).value;
+    final hasDigitax = storeCfg?.digitaxApiKey != null &&
+        storeCfg!.digitaxApiKey!.trim().isNotEmpty;
+    _isDigitaxSyncEnabled =
+        widget.product?.isDigitaxSyncEnabled ?? (hasDigitax ? true : false);
 
     // ZRA Tax Classification
     _selectedZraTaxCode = widget.product?.zraTaxCode ?? '';

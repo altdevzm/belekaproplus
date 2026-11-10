@@ -2159,12 +2159,7 @@ class ReportsScreen extends ConsumerWidget {
       );
     }
 
-    final pendingCount = transactions.where((t) {
-      final isLocal = t.zraStatus == 'LOCAL_EXEMPT' ||
-          t.zraStatus == 'OFFLINE_EXEMPT' ||
-          (t.items.isNotEmpty && t.items.every((i) => i.isDigitaxExempt));
-      if (isLocal) return false;
-
+    final unapprovedTransactions = transactions.where((t) {
       final isApproved = (t.zraStatus.toUpperCase() == 'APPROVED' ||
               t.zraStatus.toUpperCase() == 'FISCALIZED') &&
           ((t.zraReceiptNumber != null &&
@@ -2174,7 +2169,8 @@ class ReportsScreen extends ConsumerWidget {
                   t.zraMarkId!.isNotEmpty &&
                   t.zraMarkId != 'PENDING'));
       return !isApproved && t.status != 'refunded';
-    }).length;
+    }).toList();
+    final pendingCount = unapprovedTransactions.length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2196,10 +2192,11 @@ class ReportsScreen extends ConsumerWidget {
               ),
             ),
             const Spacer(),
-            if (pendingCount > 0) ...[
-              _SyncAllPendingButton(pendingCount: pendingCount),
-              const SizedBox(width: 12),
-            ],
+            _SyncAllPendingButton(
+              pendingCount: pendingCount,
+              unapprovedTransactions: unapprovedTransactions,
+            ),
+            const SizedBox(width: 12),
             Text(
               '${transactions.length} Total Records',
               style: GoogleFonts.inter(
@@ -2747,7 +2744,7 @@ class _TransactionSyncButtonState
     extends ConsumerState<_TransactionSyncButton> {
   bool _isSyncing = false;
 
-  Future<void> _sync() async {
+  Future<void> _sync({bool forcePush = false}) async {
     if (_isSyncing) return;
     setState(() => _isSyncing = true);
 
@@ -2794,6 +2791,7 @@ class _TransactionSyncButtonState
       final pushed = await digitax.fiscalizeSaleTransaction(
         widget.tx,
         items,
+        forcePush: forcePush,
       );
 
       if (pushed) {
@@ -2835,6 +2833,44 @@ class _TransactionSyncButtonState
     }
   }
 
+  Future<void> _confirmPushLocalSale(BuildContext context) async {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF151F32) : Colors.white,
+        title: Text(
+          'Push Local Sale to ZRA DigiTax?',
+          style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16),
+        ),
+        content: Text(
+          'Transaction #${widget.tx.id} was recorded as a local/private sale. Would you like to submit and fiscalize it with ZRA DigiTax now?',
+          style: GoogleFonts.inter(fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF059669),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Push to ZRA DigiTax'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      _sync(forcePush: true);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (widget.isFiscalApproved) {
@@ -2857,9 +2893,6 @@ class _TransactionSyncButtonState
         widget.tx.zraStatus == 'OFFLINE_EXEMPT' ||
         (widget.tx.items.isNotEmpty &&
             widget.tx.items.every((i) => i.isDigitaxExempt));
-    if (isLocal) {
-      return const SizedBox.shrink();
-    }
 
     if (_isSyncing) {
       return const Padding(
@@ -2872,6 +2905,18 @@ class _TransactionSyncButtonState
             color: Color(0xFFD97706),
           ),
         ),
+      );
+    }
+
+    if (isLocal) {
+      return IconButton(
+        onPressed: () => _confirmPushLocalSale(context),
+        icon: const Icon(
+          Icons.cloud_off_rounded,
+          size: 18,
+          color: Colors.blueAccent,
+        ),
+        tooltip: 'Local / Private Sale (Tap to push to ZRA DigiTax)',
       );
     }
 
@@ -2889,8 +2934,12 @@ class _TransactionSyncButtonState
 
 class _SyncAllPendingButton extends ConsumerStatefulWidget {
   final int pendingCount;
+  final List<SaleTransaction> unapprovedTransactions;
 
-  const _SyncAllPendingButton({required this.pendingCount});
+  const _SyncAllPendingButton({
+    required this.pendingCount,
+    this.unapprovedTransactions = const [],
+  });
 
   @override
   ConsumerState<_SyncAllPendingButton> createState() =>
@@ -2922,7 +2971,32 @@ class _SyncAllPendingButtonState
         return;
       }
 
-      final count = await digitax.processPendingFiscalQueue();
+      int count = await digitax.processPendingFiscalQueue();
+
+      // Also process any unapproved transactions in the current report view
+      for (final tx in widget.unapprovedTransactions) {
+        final isApproved = (tx.zraStatus.toUpperCase() == 'APPROVED' ||
+                tx.zraStatus.toUpperCase() == 'FISCALIZED') &&
+            ((tx.zraReceiptNumber != null &&
+                    tx.zraReceiptNumber!.isNotEmpty &&
+                    tx.zraReceiptNumber != 'PENDING') ||
+                (tx.zraMarkId != null &&
+                    tx.zraMarkId!.isNotEmpty &&
+                    tx.zraMarkId != 'PENDING'));
+        if (isApproved) continue;
+
+        try {
+          await tx.items.load();
+          final items = tx.items.toList();
+          final pushed = await digitax.fiscalizeSaleTransaction(
+            tx,
+            items,
+            forcePush: true,
+          );
+          if (pushed) count++;
+        } catch (_) {}
+      }
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -2953,6 +3027,7 @@ class _SyncAllPendingButtonState
 
   @override
   Widget build(BuildContext context) {
+    final hasPending = widget.pendingCount > 0;
     return SizedBox(
       height: 28,
       child: ElevatedButton.icon(
@@ -2966,11 +3041,16 @@ class _SyncAllPendingButtonState
                   color: Colors.white,
                 ),
               )
-            : const Icon(Icons.sync_rounded, size: 14),
+            : Icon(
+                hasPending ? Icons.sync_rounded : Icons.cloud_done_rounded,
+                size: 14,
+              ),
         label: Text(
           _isSyncingAll
               ? 'SYNCING...'
-              : 'SYNC PENDING (${widget.pendingCount})',
+              : (hasPending
+                  ? 'SYNC PENDING (${widget.pendingCount})'
+                  : 'ALL SYNCED'),
           style: GoogleFonts.inter(
             fontSize: 10,
             fontWeight: FontWeight.w800,
@@ -2978,7 +3058,9 @@ class _SyncAllPendingButtonState
           ),
         ),
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFFD97706),
+          backgroundColor: hasPending
+              ? const Color(0xFFD97706)
+              : const Color(0xFF059669),
           foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(horizontal: 10),
           shape: RoundedRectangleBorder(
