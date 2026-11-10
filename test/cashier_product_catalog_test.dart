@@ -58,8 +58,9 @@ class _NoFiscalDigiTaxService extends Fake implements DigiTaxInventoryService {
   @override
   Future<bool> fiscalizeSaleTransaction(
     SaleTransaction transaction,
-    List<SaleItem> items,
-  ) async {
+    List<SaleItem> items, {
+    bool forcePush = false,
+  }) async {
     fiscalizeCalls++;
     return false;
   }

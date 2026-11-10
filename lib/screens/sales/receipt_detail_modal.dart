@@ -645,10 +645,19 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
   }
 
   Widget _buildZraFiscalCard(StoreConfig? config) {
-    final isLocalOnly = widget.transaction.zraStatus == 'LOCAL_EXEMPT' ||
-        widget.transaction.zraStatus == 'OFFLINE_EXEMPT' ||
-        (widget.transaction.items.isNotEmpty &&
-            widget.transaction.items.every((i) => i.isDigitaxExempt));
+    // Check if the sale was force-pushed to DigiTax and subsequently approved.
+    // A sale that was originally local/private but then pushed to ZRA should
+    // display the full ZRA QR card, not the "Local / Private" card.
+    final isFiscalApproved = widget.transaction.zraStatus == 'APPROVED' ||
+        (widget.transaction.zraMarkId != null &&
+            widget.transaction.zraMarkId!.isNotEmpty &&
+            widget.transaction.zraMarkId != 'PENDING');
+
+    final isLocalOnly = !isFiscalApproved &&
+        (widget.transaction.zraStatus == 'LOCAL_EXEMPT' ||
+            widget.transaction.zraStatus == 'OFFLINE_EXEMPT' ||
+            (widget.transaction.items.isNotEmpty &&
+                widget.transaction.items.every((i) => i.isDigitaxExempt)));
 
     if (isLocalOnly) {
       return Container(

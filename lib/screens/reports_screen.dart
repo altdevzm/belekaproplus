@@ -2244,9 +2244,10 @@ class ReportsScreen extends ConsumerWidget {
                 tx.zraMarkId!.isNotEmpty &&
                 tx.zraMarkId != 'PENDING'));
 
-    final isLocalExempt = tx.zraStatus == 'LOCAL_EXEMPT' ||
-        tx.zraStatus == 'OFFLINE_EXEMPT' ||
-        (tx.items.isNotEmpty && tx.items.every((i) => i.isDigitaxExempt));
+    final isLocalExempt = !isFiscalApproved &&
+        (tx.zraStatus == 'LOCAL_EXEMPT' ||
+            tx.zraStatus == 'OFFLINE_EXEMPT' ||
+            (tx.items.isNotEmpty && tx.items.every((i) => i.isDigitaxExempt)));
 
     return Container(
       decoration: BoxDecoration(
@@ -2330,41 +2331,6 @@ class ReportsScreen extends ConsumerWidget {
                                 ),
                               ),
                             )
-                          else if (isLocalExempt)
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color:
-                                    Colors.blueAccent.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(4),
-                                border: Border.all(
-                                  color:
-                                      Colors.blueAccent.withValues(alpha: 0.35),
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(
-                                    Icons.lock_outline_rounded,
-                                    size: 11,
-                                    color: Colors.blueAccent,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    'LOCAL / PRIVATE',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 8.5,
-                                      fontWeight: FontWeight.w800,
-                                      color: Colors.blueAccent,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            )
                           else if (isFiscalApproved)
                             Container(
                               padding: const EdgeInsets.symmetric(
@@ -2395,6 +2361,41 @@ class ReportsScreen extends ConsumerWidget {
                                       fontSize: 8.5,
                                       fontWeight: FontWeight.w800,
                                       color: const Color(0xFF059669),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          else if (isLocalExempt)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color:
+                                    Colors.blueAccent.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(
+                                  color:
+                                      Colors.blueAccent.withValues(alpha: 0.35),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.lock_outline_rounded,
+                                    size: 11,
+                                    color: Colors.blueAccent,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'LOCAL / PRIVATE',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 8.5,
+                                      fontWeight: FontWeight.w800,
+                                      color: Colors.blueAccent,
                                     ),
                                   ),
                                 ],
