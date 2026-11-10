@@ -344,6 +344,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 activeConfig.digitaxApiKey = serverInfo['digitaxApiKey']
                     .toString();
               }
+              if (serverInfo['digitaxEnvironment'] != null &&
+                  (serverInfo['digitaxEnvironment'] as String).isNotEmpty) {
+                activeConfig.digitaxEnvironment = serverInfo['digitaxEnvironment']
+                    .toString();
+              }
               if (serverInfo['sdcId'] != null) {
                 activeConfig.sdcId = serverInfo['sdcId'].toString();
               }

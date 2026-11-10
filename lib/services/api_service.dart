@@ -992,6 +992,14 @@ class ApiService {
       'isArchived': p.isArchived,
       'imagePath': p.imagePath,
       'imageBase64': imageBase64,
+      'isDigitaxSyncEnabled': p.isDigitaxSyncEnabled,
+      'zraTaxCode': p.zraTaxCode,
+      'itemClsCd': p.itemClsCd,
+      'branchCode': p.branchCode,
+      'branchName': p.branchName,
+      'unitOfMeasure': p.unitOfMeasure,
+      'isWeighted': p.isWeighted,
+      'tareWeight': p.tareWeight,
     };
   }
 

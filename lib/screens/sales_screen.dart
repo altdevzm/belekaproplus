@@ -6343,6 +6343,32 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                 'ZRA receipt confirmed. The official receipt is ready.',
               );
             }
+          } else if (config?.isManagerMode == false) {
+            // Till has no direct internet to DigiTax, but is connected to the Master POS via LAN.
+            // Delegate fiscalization to Master POS instantly so official ZRA QR receipt prints!
+            debugPrint(
+              'DIGITAX_PREFLIGHT: DigiTax unreachable directly from till. Delegating to Master POS over LAN...',
+            );
+            try {
+              final synced = await syncService.trySyncTransaction(
+                transaction,
+                saleItems,
+              );
+              if (synced &&
+                  transaction.zraReceiptNumber != null &&
+                  transaction.zraReceiptNumber!.isNotEmpty &&
+                  transaction.zraReceiptNumber != 'PENDING') {
+                fiscalizedBeforePrint = true;
+                debugPrint(
+                  'DIGITAX_PREFLIGHT: Fiscalized via Master POS before print for tx ${transaction.transactionId}',
+                );
+                updateFiscalStatus(
+                  'ZRA receipt confirmed via Master POS. Official receipt is ready.',
+                );
+              }
+            } catch (e) {
+              debugPrint('PREFLIGHT_LAN_SYNC_NOTICE: $e');
+            }
           } else {
             debugPrint(
               'DIGITAX_PREFLIGHT: DigiTax unreachable – printing offline receipt and scheduling retry.',
@@ -6672,10 +6698,14 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         }
       }
 
-      try {
-        syncSuccess = await syncService.trySyncTransaction(tx, items);
-      } catch (e, stackTrace) {
-        debugPrint('SALE_BACKGROUND_SYNC_ERROR: $e\n$stackTrace');
+      if (!tx.isSynced) {
+        try {
+          syncSuccess = await syncService.trySyncTransaction(tx, items);
+        } catch (e, stackTrace) {
+          debugPrint('SALE_BACKGROUND_SYNC_ERROR: $e\n$stackTrace');
+        }
+      } else {
+        syncSuccess = true;
       }
 
       if (syncSuccess &&

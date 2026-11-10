@@ -34,13 +34,16 @@ final activeShiftsListProvider = FutureProvider<List<CashShift>>((ref) async {
   return await isar.cashShifts.filter().statusEqualTo('OPEN').findAll();
 });
 
-final activeShiftSalesStreamProvider =
-    StreamProvider<Map<String, double>>((ref) async* {
+final activeShiftSalesStreamProvider = StreamProvider<Map<String, double>>((
+  ref,
+) async* {
   final db = ref.watch(databaseServiceProvider);
 
   Future<Map<String, double>> loadSales() async {
-    final shifts =
-        await db.isar.cashShifts.filter().statusEqualTo('OPEN').findAll();
+    final shifts = await db.isar.cashShifts
+        .filter()
+        .statusEqualTo('OPEN')
+        .findAll();
     final Map<String, double> map = {};
     for (final s in shifts) {
       map[s.shiftNumber] = await db.getShiftTotalSales(s);
@@ -235,8 +238,7 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen>
     final branches = ref.watch(storeBranchesProvider).value ?? [];
     final users = ref.watch(allUsersProvider).value ?? [];
     final activeShifts = ref.watch(activeShiftsListProvider).value ?? [];
-    final shiftSalesMap =
-        ref.watch(activeShiftSalesStreamProvider).value ?? {};
+    final shiftSalesMap = ref.watch(activeShiftSalesStreamProvider).value ?? {};
 
     final activeTerminalsCount = terminals
         .where((t) => t.status == 'ACTIVE')
@@ -592,13 +594,14 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen>
                     final matchingShift = activeShifts
                         .where(
                           (s) =>
-                              (s.terminalId == '${t.terminalCode} - ${t.name}' ||
-                               s.terminalId == t.terminalCode ||
-                               s.terminalId == t.name ||
-                               s.terminalId.contains(t.terminalCode)) &&
+                              (s.terminalId ==
+                                      '${t.terminalCode} - ${t.name}' ||
+                                  s.terminalId == t.terminalCode ||
+                                  s.terminalId == t.name ||
+                                  s.terminalId.contains(t.terminalCode)) &&
                               (t.assignedCashierId == null ||
-                               t.assignedCashierId!.isEmpty ||
-                               s.cashierId == t.assignedCashierId),
+                                  t.assignedCashierId!.isEmpty ||
+                                  s.cashierId == t.assignedCashierId),
                         )
                         .lastOrNull;
                     final isShiftOpen = matchingShift != null;
@@ -997,8 +1000,9 @@ class _TerminalsScreenState extends ConsumerState<TerminalsScreen>
                                   Text(
                                     CurrencyFormatter.format(
                                       isShiftOpen
-                                          ? (shiftSalesMap[matchingShift.shiftNumber] ??
-                                              matchingShift.cashSales)
+                                          ? (shiftSalesMap[matchingShift
+                                                    .shiftNumber] ??
+                                                matchingShift.cashSales)
                                           : t.salesToday,
                                       currency,
                                     ),
@@ -3134,11 +3138,19 @@ class _AssignShiftModalState extends ConsumerState<_AssignShiftModal> {
     final now = DateTime.now();
     final picked = await showTimePicker(
       context: context,
-      initialTime: TimeOfDay.fromDateTime(isStart ? (now) : now.add(const Duration(hours: 8))),
+      initialTime: TimeOfDay.fromDateTime(
+        isStart ? (now) : now.add(const Duration(hours: 8)),
+      ),
       helpText: isStart ? 'Select Shift Start Time' : 'Select Shift End Time',
     );
     if (picked == null) return;
-    final dt = DateTime(now.year, now.month, now.day, picked.hour, picked.minute);
+    final dt = DateTime(
+      now.year,
+      now.month,
+      now.day,
+      picked.hour,
+      picked.minute,
+    );
     setState(() {
       if (isStart) {
         _shiftStartTime = dt;
@@ -3220,7 +3232,9 @@ class _AssignShiftModalState extends ConsumerState<_AssignShiftModal> {
       await isar.posTerminals.put(_currentTerminal);
     });
 
-    ref.read(apiServiceProvider).resetTerminalShiftSales(_currentTerminal.terminalCode);
+    ref
+        .read(apiServiceProvider)
+        .resetTerminalShiftSales(_currentTerminal.terminalCode);
 
     ref.invalidate(posTerminalsProvider);
     ref.invalidate(activeShiftProvider);
