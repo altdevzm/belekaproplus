@@ -513,6 +513,7 @@ class NetworkClient {
     'orgInvoiceNo': tx.orgInvoiceNo,
     'isCreditNote': tx.isCreditNote,
     'creditNoteReason': tx.creditNoteReason,
+    'timestamp': tx.timestamp.toIso8601String(),
   };
 
   static Map<String, dynamic> _saleItemToJson(SaleItem item) => {

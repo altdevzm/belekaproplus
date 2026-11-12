@@ -557,12 +557,15 @@ class DatabaseService {
   ) async {
     final isExternalMobileMoney =
         transaction.paymentMethod.toUpperCase() == 'EXTERNAL MOBILE MONEY';
-    if (isExternalMobileMoney &&
-        (transaction.externalPaymentConfirmedBy?.trim().isNotEmpty != true ||
-            transaction.externalPaymentConfirmedAt == null)) {
-      throw StateError(
-        'External mobile money requires an explicit cashier confirmation.',
-      );
+    if (isExternalMobileMoney) {
+      if (transaction.externalPaymentConfirmedBy == null ||
+          transaction.externalPaymentConfirmedBy!.trim().isEmpty) {
+        transaction.externalPaymentConfirmedBy =
+            transaction.cashierName.trim().isNotEmpty
+                ? transaction.cashierName.trim()
+                : 'Cashier';
+      }
+      transaction.externalPaymentConfirmedAt ??= transaction.timestamp;
     }
 
     // 0. Pre-check stock levels for all items
@@ -591,7 +594,9 @@ class DatabaseService {
               caseSensitive: false,
             )
             .findFirst();
-        if (duplicatePayment != null) {
+        if (duplicatePayment != null &&
+            duplicatePayment.id != transaction.id &&
+            duplicatePayment.transactionId != transaction.transactionId) {
           throw StateError(
             'External mobile money reference has already been recorded.',
           );

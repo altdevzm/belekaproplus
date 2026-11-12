@@ -1032,6 +1032,11 @@ class ApiService {
       cashierId: j['cashierId'] as String?,
       terminalName: j['terminalName'] as String?,
       transactionId: j['transactionId'] as String?,
+      externalPaymentReference: j['externalPaymentReference'] as String?,
+      externalPaymentConfirmedBy: j['externalPaymentConfirmedBy'] as String?,
+      externalPaymentConfirmedAt: j['externalPaymentConfirmedAt'] != null
+          ? DateTime.tryParse(j['externalPaymentConfirmedAt'].toString())
+          : null,
       customerTpin: j['customerTpin'] as String?,
       customerBusinessName: j['customerBusinessName'] as String?,
       customerAddress: j['customerAddress'] as String?,
@@ -1046,6 +1051,10 @@ class ApiService {
       isCreditNote: j['isCreditNote'] as bool? ?? false,
       creditNoteReason: j['creditNoteReason'] as String?,
     );
+    if (j['timestamp'] != null) {
+      final parsedDate = DateTime.tryParse(j['timestamp'].toString());
+      if (parsedDate != null) tx.timestamp = parsedDate;
+    }
     tx.cashShiftNumber = j['cashShiftNumber'] as String?;
     return tx;
   }

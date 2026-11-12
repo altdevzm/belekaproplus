@@ -157,6 +157,7 @@ class SyncService {
           'orgInvoiceNo': tx.orgInvoiceNo,
           'isCreditNote': tx.isCreditNote,
           'creditNoteReason': tx.creditNoteReason,
+          'timestamp': tx.timestamp.toIso8601String(),
         },
         'items': items
             .map(
