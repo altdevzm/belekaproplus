@@ -85,13 +85,31 @@ final reportStatsProvider = Provider<Map<String, double>>((ref) {
   final double totalExpenses = expenses.fold(0.0, (sum, e) => sum + e.amount);
   final double netProfit = profit - totalExpenses;
 
-  final Map<String, double> paymentBreakdown = {};
+  double cashTotal = 0.0;
+  double cardTotal = 0.0;
+  double momoTotal = 0.0;
+
   for (var t in transactions) {
     if (t.status == 'refunded' && !t.isCreditNote) continue;
     final factor = t.isCreditNote ? -1.0 : 1.0;
     final amount = (t.totalAmount.isNaN ? 0.0 : t.totalAmount) * factor;
-    final method = t.paymentMethod.toLowerCase().replaceAll(' ', '_');
-    paymentBreakdown[method] = (paymentBreakdown[method] ?? 0) + amount;
+    final method = t.paymentMethod.toLowerCase();
+
+    if (method.contains('cash')) {
+      cashTotal += amount;
+    } else if (method.contains('card') || method.contains('bank')) {
+      cardTotal += amount;
+    } else if (method.contains('momo') ||
+        method.contains('mobile') ||
+        method.contains('money') ||
+        method.contains('lenco') ||
+        method.contains('airtel') ||
+        method.contains('mtn') ||
+        method.contains('zamtel')) {
+      momoTotal += amount;
+    } else {
+      cashTotal += amount;
+    }
   }
 
   final completedCount = transactions
@@ -107,13 +125,11 @@ final reportStatsProvider = Provider<Map<String, double>>((ref) {
     'expenses': totalExpenses,
     'net_profit': netProfit,
     'count': activeCount.toDouble(),
-    'cash': paymentBreakdown['cash'] ?? 0.0,
-    'card': paymentBreakdown['card'] ?? 0.0,
-    'mobile_money': paymentBreakdown['mobile_money'] ?? 0.0,
-    'lenco_mobile_money':
-        (paymentBreakdown['lenco_mobile_money'] ?? 0.0) +
-        (paymentBreakdown['mobile_money'] ?? 0.0),
-    'external_mobile_money': paymentBreakdown['external_mobile_money'] ?? 0.0,
+    'cash': cashTotal,
+    'card': cardTotal,
+    'mobile_money': momoTotal,
+    'lenco_mobile_money': momoTotal,
+    'external_mobile_money': momoTotal,
   };
 });
 
@@ -1905,24 +1921,11 @@ class ReportsScreen extends ConsumerWidget {
                 const SizedBox(width: 12),
                 _buildPaymentMethodItem(
                   context,
-                  'Lenco',
-                  stats['lenco_mobile_money'] ?? 0.0,
+                  'Mobile Money',
+                  stats['mobile_money'] ?? 0.0,
                   currency,
                   const Color(0xFFD97706),
                 ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                _buildPaymentMethodItem(
-                  context,
-                  'External MoMo',
-                  stats['external_mobile_money'] ?? 0.0,
-                  currency,
-                  const Color(0xFF7C3AED),
-                ),
-                const Spacer(),
               ],
             ),
           ] else ...[
@@ -1946,18 +1949,10 @@ class ReportsScreen extends ConsumerWidget {
                 _buildVerticalDivider(context),
                 _buildPaymentMethodItem(
                   context,
-                  'Lenco MoMo',
-                  stats['lenco_mobile_money'] ?? 0.0,
+                  'Mobile Money',
+                  stats['mobile_money'] ?? 0.0,
                   currency,
                   const Color(0xFFD97706),
-                ),
-                _buildVerticalDivider(context),
-                _buildPaymentMethodItem(
-                  context,
-                  'External MoMo',
-                  stats['external_mobile_money'] ?? 0.0,
-                  currency,
-                  const Color(0xFF7C3AED),
                 ),
               ],
             ),

@@ -293,36 +293,120 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
 
   Future<void> _confirmExternalMobileMoneyPayment(double total) async {
     final referenceController = TextEditingController();
+    String selectedOperator = 'airtel';
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Confirm external mobile money'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Confirm only after verifying that ${CurrencyFormatter.format(total, ref.read(storeConfigProvider).value?.currencySymbol ?? 'K')} was received on the external device.',
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: Row(
+            children: const [
+              Icon(Icons.phone_android_rounded, color: Color(0xFFD97706), size: 22),
+              SizedBox(width: 8),
+              Text('External Mobile Money'),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Confirm only after verifying that ${CurrencyFormatter.format(total, ref.read(storeConfigProvider).value?.currencySymbol ?? 'K')} was received on the external device.',
+                  style: const TextStyle(fontSize: 13),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Choose Network Provider',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ChoiceChip(
+                        label: const Center(child: Text('Airtel')),
+                        selected: selectedOperator == 'airtel',
+                        selectedColor: const Color(0xFFDC2626).withValues(alpha: 0.2),
+                        labelStyle: TextStyle(
+                          color: selectedOperator == 'airtel'
+                              ? const Color(0xFFDC2626)
+                              : null,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                        ),
+                        onSelected: (selected) {
+                          if (selected) {
+                            setDialogState(() => selectedOperator = 'airtel');
+                          }
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: ChoiceChip(
+                        label: const Center(child: Text('MTN')),
+                        selected: selectedOperator == 'mtn',
+                        selectedColor: const Color(0xFFD97706).withValues(alpha: 0.2),
+                        labelStyle: TextStyle(
+                          color: selectedOperator == 'mtn'
+                              ? const Color(0xFFD97706)
+                              : null,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                        ),
+                        onSelected: (selected) {
+                          if (selected) {
+                            setDialogState(() => selectedOperator = 'mtn');
+                          }
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: ChoiceChip(
+                        label: const Center(child: Text('Zamtel')),
+                        selected: selectedOperator == 'zamtel',
+                        selectedColor: const Color(0xFF059669).withValues(alpha: 0.2),
+                        labelStyle: TextStyle(
+                          color: selectedOperator == 'zamtel'
+                              ? const Color(0xFF059669)
+                              : null,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                        ),
+                        onSelected: (selected) {
+                          if (selected) {
+                            setDialogState(() => selectedOperator = 'zamtel');
+                          }
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: referenceController,
+                  decoration: const InputDecoration(
+                    labelText: 'External transaction reference (optional)',
+                    hintText: 'e.g. MP260312345',
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: referenceController,
-              decoration: const InputDecoration(
-                labelText: 'External transaction reference (optional)',
-              ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Payment received'),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Payment received'),
-          ),
-        ],
       ),
     );
     final reference = referenceController.text.trim();
@@ -330,8 +414,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
 
     if (confirmed != true || !mounted) return;
     final cashier = ref.read(authProvider);
+    final opName = selectedOperator.toUpperCase();
+    final combinedRef = reference.isNotEmpty ? '$opName - $reference' : opName;
     setState(() {
-      _externalPaymentReference = reference.isEmpty ? null : reference;
+      _externalPaymentReference = combinedRef;
       _externalPaymentConfirmedBy = cashier?.name ?? 'Cashier';
       _externalPaymentConfirmedAt = DateTime.now();
       _selectedPaymentMethod = 'EXTERNAL MOBILE MONEY';
