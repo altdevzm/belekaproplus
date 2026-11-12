@@ -782,10 +782,6 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
         ? widget.transaction.zraInternalData!
         : (config?.mrcNo?.isNotEmpty == true ? config!.mrcNo! : 'PENDING');
 
-    final hasQr = widget.transaction.zraQrCode != null &&
-        widget.transaction.zraQrCode!.trim().isNotEmpty &&
-        widget.transaction.zraQrCode!.trim() != 'PENDING';
-
     final isApproved = hasQr ||
         widget.transaction.zraStatus == 'APPROVED' ||
         widget.transaction.zraStatus == 'FISCALIZED' ||
