@@ -648,7 +648,13 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
     // Check if the sale was force-pushed to DigiTax and subsequently approved.
     // A sale that was originally local/private but then pushed to ZRA should
     // display the full ZRA QR card, not the "Local / Private" card.
-    final isFiscalApproved = widget.transaction.zraStatus == 'APPROVED' ||
+    final hasQr = widget.transaction.zraQrCode != null &&
+        widget.transaction.zraQrCode!.trim().isNotEmpty &&
+        widget.transaction.zraQrCode!.trim() != 'PENDING';
+
+    final isFiscalApproved = hasQr ||
+        widget.transaction.zraStatus == 'APPROVED' ||
+        widget.transaction.zraStatus == 'FISCALIZED' ||
         (widget.transaction.zraMarkId != null &&
             widget.transaction.zraMarkId!.isNotEmpty &&
             widget.transaction.zraMarkId != 'PENDING');
@@ -776,7 +782,11 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
         ? widget.transaction.zraInternalData!
         : (config?.mrcNo?.isNotEmpty == true ? config!.mrcNo! : 'PENDING');
 
-    final isApproved =
+    final hasQr = widget.transaction.zraQrCode != null &&
+        widget.transaction.zraQrCode!.trim().isNotEmpty &&
+        widget.transaction.zraQrCode!.trim() != 'PENDING';
+
+    final isApproved = hasQr ||
         widget.transaction.zraStatus == 'APPROVED' ||
         widget.transaction.zraStatus == 'FISCALIZED' ||
         _isRealZraSig(signatureRaw);
@@ -1833,18 +1843,32 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
         return;
       }
 
-      if (widget.transaction.zraReceiptNumber == null ||
-          widget.transaction.zraReceiptNumber!.isEmpty ||
-          widget.transaction.zraReceiptNumber == 'PENDING' ||
-          widget.transaction.zraMarkId == null ||
-          widget.transaction.zraMarkId == 'PENDING') {
+      final hasRealQr = widget.transaction.zraQrCode != null &&
+          widget.transaction.zraQrCode!.trim().isNotEmpty &&
+          widget.transaction.zraQrCode!.trim() != 'PENDING';
+      final hasRealReceiptNo = widget.transaction.zraReceiptNumber != null &&
+          widget.transaction.zraReceiptNumber!.trim().isNotEmpty &&
+          widget.transaction.zraReceiptNumber!.trim() != 'PENDING';
+      final isAlreadyFiscalized = hasRealQr ||
+          hasRealReceiptNo ||
+          widget.transaction.zraStatus.toUpperCase() == 'APPROVED' ||
+          widget.transaction.zraStatus.toUpperCase() == 'FISCALIZED';
+
+      if (!isAlreadyFiscalized) {
         final refreshed = await ref
             .read(digitaxInventoryServiceProvider)
             .refreshTransactionFiscalData(widget.transaction);
         if (!refreshed) {
-          await ref
-              .read(digitaxInventoryServiceProvider)
-              .fiscalizeSaleTransaction(widget.transaction, items);
+          final isLocalOnly = widget.transaction.zraStatus == 'LOCAL_EXEMPT' ||
+              widget.transaction.zraStatus == 'OFFLINE_EXEMPT' ||
+              (items.isNotEmpty && items.every((i) => i.isDigitaxExempt));
+          final hasDigitax = config?.digitaxApiKey != null &&
+              config!.digitaxApiKey!.trim().isNotEmpty;
+          if (!isLocalOnly && hasDigitax) {
+            await ref
+                .read(digitaxInventoryServiceProvider)
+                .fiscalizeSaleTransaction(widget.transaction, items);
+          }
         }
       }
 

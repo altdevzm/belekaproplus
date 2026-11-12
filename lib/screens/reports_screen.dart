@@ -2160,14 +2160,18 @@ class ReportsScreen extends ConsumerWidget {
     }
 
     final unapprovedTransactions = transactions.where((t) {
-      final isApproved = (t.zraStatus.toUpperCase() == 'APPROVED' ||
-              t.zraStatus.toUpperCase() == 'FISCALIZED') &&
-          ((t.zraReceiptNumber != null &&
-                  t.zraReceiptNumber!.isNotEmpty &&
-                  t.zraReceiptNumber != 'PENDING') ||
-              (t.zraMarkId != null &&
-                  t.zraMarkId!.isNotEmpty &&
-                  t.zraMarkId != 'PENDING'));
+      final hasQr = t.zraQrCode != null &&
+          t.zraQrCode!.trim().isNotEmpty &&
+          t.zraQrCode!.trim() != 'PENDING';
+      final isApproved = hasQr ||
+          ((t.zraStatus.toUpperCase() == 'APPROVED' ||
+                  t.zraStatus.toUpperCase() == 'FISCALIZED') &&
+              ((t.zraReceiptNumber != null &&
+                      t.zraReceiptNumber!.isNotEmpty &&
+                      t.zraReceiptNumber != 'PENDING') ||
+                  (t.zraMarkId != null &&
+                      t.zraMarkId!.isNotEmpty &&
+                      t.zraMarkId != 'PENDING')));
       final isLocalExempt = t.zraStatus == 'LOCAL_EXEMPT' ||
           t.zraStatus == 'OFFLINE_EXEMPT' ||
           (t.items.isNotEmpty && t.items.every((i) => i.isDigitaxExempt));
@@ -2238,14 +2242,19 @@ class ReportsScreen extends ConsumerWidget {
         .map((i) => '${i.quantity}x ${i.productName}')
         .join(', ');
 
-    final isFiscalApproved = (tx.zraStatus.toUpperCase() == 'APPROVED' ||
-            tx.zraStatus.toUpperCase() == 'FISCALIZED') &&
-        ((tx.zraReceiptNumber != null &&
-                tx.zraReceiptNumber!.isNotEmpty &&
-                tx.zraReceiptNumber != 'PENDING') ||
-            (tx.zraMarkId != null &&
-                tx.zraMarkId!.isNotEmpty &&
-                tx.zraMarkId != 'PENDING'));
+    final hasQr = tx.zraQrCode != null &&
+        tx.zraQrCode!.trim().isNotEmpty &&
+        tx.zraQrCode!.trim() != 'PENDING';
+
+    final isFiscalApproved = hasQr ||
+        ((tx.zraStatus.toUpperCase() == 'APPROVED' ||
+                tx.zraStatus.toUpperCase() == 'FISCALIZED') &&
+            ((tx.zraReceiptNumber != null &&
+                    tx.zraReceiptNumber!.isNotEmpty &&
+                    tx.zraReceiptNumber != 'PENDING') ||
+                (tx.zraMarkId != null &&
+                    tx.zraMarkId!.isNotEmpty &&
+                    tx.zraMarkId != 'PENDING')));
 
     final isLocalExempt = !isFiscalApproved &&
         (tx.zraStatus == 'LOCAL_EXEMPT' ||
@@ -2941,14 +2950,18 @@ class _SyncAllPendingButtonState
 
       // Also process any genuinely unapproved online transactions in the current report view
       for (final tx in widget.unapprovedTransactions) {
-        final isApproved = (tx.zraStatus.toUpperCase() == 'APPROVED' ||
-                tx.zraStatus.toUpperCase() == 'FISCALIZED') &&
-            ((tx.zraReceiptNumber != null &&
-                    tx.zraReceiptNumber!.isNotEmpty &&
-                    tx.zraReceiptNumber != 'PENDING') ||
-                (tx.zraMarkId != null &&
-                    tx.zraMarkId!.isNotEmpty &&
-                    tx.zraMarkId != 'PENDING'));
+        final hasQr = tx.zraQrCode != null &&
+            tx.zraQrCode!.trim().isNotEmpty &&
+            tx.zraQrCode!.trim() != 'PENDING';
+        final isApproved = hasQr ||
+            ((tx.zraStatus.toUpperCase() == 'APPROVED' ||
+                    tx.zraStatus.toUpperCase() == 'FISCALIZED') &&
+                ((tx.zraReceiptNumber != null &&
+                        tx.zraReceiptNumber!.isNotEmpty &&
+                        tx.zraReceiptNumber != 'PENDING') ||
+                    (tx.zraMarkId != null &&
+                        tx.zraMarkId!.isNotEmpty &&
+                        tx.zraMarkId != 'PENDING')));
         if (isApproved) continue;
 
         final isLocalExempt = tx.zraStatus == 'LOCAL_EXEMPT' ||

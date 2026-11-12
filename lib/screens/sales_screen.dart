@@ -6597,8 +6597,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                   OutlinedButton.icon(
                     onPressed: () async {
                       try {
+                        final latestTx = await db.isar.saleTransactions.get(transaction.id) ?? transaction;
                         await printer.printReceipt(
-                          transaction,
+                          latestTx,
                           saleItems,
                           config: config,
                         );

@@ -610,7 +610,7 @@ class PrinterService {
   /// Guaranteed to print cleanly on all generic ESC/POS thermal printers regardless of hardware QR support.
   List<int> _qrToRasterEscPos(
     String data, {
-    int scale = 4,
+    int scale = 3,
     PosAlign align = PosAlign.center,
   }) {
     try {
@@ -643,24 +643,27 @@ class PrinterService {
       final int yH = heightPx ~/ 256;
       bytes.addAll([0x1D, 0x76, 0x30, 0x00, xL, xH, yL, yH]);
 
-      for (int y = 0; y < heightPx; y++) {
-        final int moduleY = (y ~/ scale) - margin;
+      // Optimized raster generator: generate each module row once, then repeat scale times
+      for (int mY = 0; mY < totalModules; mY++) {
+        final int moduleY = mY - margin;
+        final List<int> rowBytes = List<int>.filled(widthBytes, 0);
         for (int byteX = 0; byteX < widthBytes; byteX++) {
           int currentByte = 0;
           for (int bit = 0; bit < 8; bit++) {
             final int x = byteX * 8 + bit;
             if (x < widthPx) {
               final int moduleX = (x ~/ scale) - margin;
-              bool isDark = false;
               if (moduleY >= 0 && moduleY < moduleCount && moduleX >= 0 && moduleX < moduleCount) {
-                isDark = qrImage.isDark(moduleY, moduleX);
-              }
-              if (isDark) {
-                currentByte |= (0x80 >> bit);
+                if (qrImage.isDark(moduleY, moduleX)) {
+                  currentByte |= (0x80 >> bit);
+                }
               }
             }
           }
-          bytes.add(currentByte);
+          rowBytes[byteX] = currentByte;
+        }
+        for (int s = 0; s < scale; s++) {
+          bytes.addAll(rowBytes);
         }
       }
 
@@ -671,6 +674,33 @@ class PrinterService {
       debugPrint('ESC/POS QR rasterization notice: $e');
       return [];
     }
+  }
+
+  /// Unified check to determine if a transaction has approved ZRA fiscal data / QR verification code
+  bool isFiscalApproved(SaleTransaction transaction) {
+    // 1. If live or generated ZRA QR Code is present and non-empty, fiscal verification data exists
+    final hasQr = transaction.zraQrCode != null &&
+        transaction.zraQrCode!.trim().isNotEmpty &&
+        transaction.zraQrCode!.trim() != 'PENDING';
+    if (hasQr) return true;
+
+    final statusUpper = transaction.zraStatus.toUpperCase();
+    final isApprovedStatus = statusUpper == 'APPROVED' || statusUpper == 'FISCALIZED';
+
+    final hasReceiptNo = transaction.zraReceiptNumber != null &&
+        transaction.zraReceiptNumber!.trim().isNotEmpty &&
+        transaction.zraReceiptNumber!.trim() != 'PENDING';
+
+    final hasSignature = transaction.zraMarkId != null &&
+        transaction.zraMarkId!.trim().isNotEmpty &&
+        transaction.zraMarkId!.trim() != 'PENDING' &&
+        !transaction.zraMarkId!.startsWith('sale_') &&
+        !transaction.zraMarkId!.startsWith('SALE_');
+
+    if (isApprovedStatus && (hasReceiptNo || hasSignature)) return true;
+    if (hasReceiptNo && hasSignature) return true;
+
+    return false;
   }
 
   /// Master Method to Print High-Fidelity Designed Thermal Receipt
@@ -780,9 +810,7 @@ class PrinterService {
         bytes += generator.text('TPIN: ${config.tpin!}', styles: const PosStyles(align: PosAlign.center, bold: true));
       }
 
-      final isFiscalApproved = (transaction.zraStatus.toUpperCase() == 'APPROVED' || transaction.zraStatus.toUpperCase() == 'FISCALIZED') &&
-                               ((transaction.zraReceiptNumber != null && transaction.zraReceiptNumber!.isNotEmpty && transaction.zraReceiptNumber != 'PENDING') ||
-                                (transaction.zraMarkId != null && transaction.zraMarkId!.isNotEmpty && transaction.zraMarkId != 'PENDING'));
+      final isFiscalApproved = this.isFiscalApproved(transaction);
 
       final receiptTitle = transaction.isCreditNote
           ? 'ZRA FISCAL CREDIT NOTE'
@@ -997,7 +1025,7 @@ class PrinterService {
         try {
           final qrRasterBytes = _qrToRasterEscPos(
             zraQrData,
-            scale: is58 ? 4 : 5,
+            scale: is58 ? 3 : 4,
             align: PosAlign.center,
           );
           if (qrRasterBytes.isNotEmpty) {
@@ -1566,8 +1594,8 @@ class PrinterService {
       try {
         return await _printerManager
             .send(type: _activeType!, bytes: bytes)
-            .timeout(const Duration(seconds: 3), onTimeout: () {
-          debugPrint('PrinterManager Bluetooth/USB send timed out after 3 seconds.');
+            .timeout(const Duration(seconds: 10), onTimeout: () {
+          debugPrint('PrinterManager Bluetooth/USB send timed out after 10 seconds.');
           return false;
         });
       } catch (e) {
@@ -1632,9 +1660,7 @@ class PrinterService {
     commands.appendEmphasis(false);
     if (config?.address != null && config!.address!.isNotEmpty) commands.append('${config.address!}\n');
     if (config?.contactNumber != null && config!.contactNumber!.isNotEmpty) commands.append('Tel: ${config.contactNumber!}\n');
-    final isFiscalApproved = (transaction.zraStatus.toUpperCase() == 'APPROVED' || transaction.zraStatus.toUpperCase() == 'FISCALIZED') &&
-                             ((transaction.zraReceiptNumber != null && transaction.zraReceiptNumber!.isNotEmpty && transaction.zraReceiptNumber != 'PENDING') ||
-                              (transaction.zraMarkId != null && transaction.zraMarkId!.isNotEmpty && transaction.zraMarkId != 'PENDING'));
+    final isFiscalApproved = this.isFiscalApproved(transaction);
 
     final receiptTitle = transaction.isCreditNote
         ? 'ZRA FISCAL CREDIT NOTE'
@@ -1750,9 +1776,40 @@ class PrinterService {
           ? transaction.zraQrCode!
           : 'https://smartinvoice.zra.org.zm/verify?tpin=${config?.tpin ?? "1000000000"}&sdc=$sdcIdStr&rcpt=$sdcInvNoStr';
 
-      commands.appendAlignment(star.StarAlignmentPosition.Center);
-      commands.append('Scan QR Code to Verify on ZRA Portal\n');
-      commands.append('$zraQrData\n\n');
+      try {
+        final qrCode = QrCode.fromData(
+          data: zraQrData,
+          errorCorrectLevel: QrErrorCorrectLevel.M,
+        );
+        final qrImage = QrImage(qrCode);
+        final int moduleCount = qrImage.moduleCount;
+        const int margin = 2;
+        final int totalModules = moduleCount + (margin * 2);
+        const int scale = 3;
+        final int sizePx = totalModules * scale;
+        final img.Image qrBitmap = img.Image(width: sizePx, height: sizePx);
+        img.fill(qrBitmap, color: img.ColorRgb8(255, 255, 255));
+        for (int mY = 0; mY < moduleCount; mY++) {
+          for (int mX = 0; mX < moduleCount; mX++) {
+            if (qrImage.isDark(mY, mX)) {
+              for (int dy = 0; dy < scale; dy++) {
+                for (int dx = 0; dx < scale; dx++) {
+                  qrBitmap.setPixelRgb((mX + margin) * scale + dx, (mY + margin) * scale + dy, 0, 0, 0);
+                }
+              }
+            }
+          }
+        }
+        final Uint8List qrPngBytes = Uint8List.fromList(img.encodePng(qrBitmap));
+        commands.appendAlignment(star.StarAlignmentPosition.Center);
+        commands.appendBitmapByte(byteData: qrPngBytes, diffusion: false, width: sizePx);
+        commands.append('\nScan QR Code to Verify on ZRA Portal\n\n');
+      } catch (e) {
+        debugPrint('Star QR print notice: $e');
+        commands.appendAlignment(star.StarAlignmentPosition.Center);
+        commands.append('Scan QR Code to Verify on ZRA Portal\n');
+        commands.append('$zraQrData\n\n');
+      }
     } else {
       final isLocalOnly = transaction.zraStatus == 'LOCAL_EXEMPT' ||
           transaction.zraStatus == 'OFFLINE_EXEMPT';
@@ -1850,9 +1907,7 @@ class PrinterService {
           ? transaction.zraQrCode!
           : 'https://smartinvoice.zra.org.zm/verify?tpin=${config?.tpin ?? "1000000000"}&sdc=$sdcIdStr&rcpt=$sdcInvNoStr';
 
-      final isFiscalApproved = (transaction.zraStatus.toUpperCase() == 'APPROVED' || transaction.zraStatus.toUpperCase() == 'FISCALIZED') &&
-                               ((transaction.zraReceiptNumber != null && transaction.zraReceiptNumber!.isNotEmpty && transaction.zraReceiptNumber != 'PENDING') ||
-                                (transaction.zraMarkId != null && transaction.zraMarkId!.isNotEmpty && transaction.zraMarkId != 'PENDING'));
+      final isFiscalApproved = this.isFiscalApproved(transaction);
       final receiptTitle = transaction.isCreditNote
           ? 'ZRA FISCAL CREDIT NOTE'
           : (isFiscalApproved ? 'TAX INVOICE / OFFICIAL RECEIPT' : 'CUSTOMER SALES SLIP');

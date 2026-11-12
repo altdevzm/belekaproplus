@@ -117,12 +117,12 @@ class DigiTaxInventoryService {
   List<Map<String, dynamic>>? _remoteItemsCache;
   DateTime? _remoteItemsCacheTime;
 
-  /// Quick reachability probe: resolves `api.digitax.tech` via DNS with a 4 s
+  /// Quick reachability probe: resolves `api.digitax.tech` via DNS with a 2 s
   /// timeout. Returns false only when offline or the host is unreachable.
   static Future<bool> canReachDigiTax() async {
     try {
       final result = await InternetAddress.lookup('api.digitax.tech')
-          .timeout(const Duration(seconds: 4));
+          .timeout(const Duration(seconds: 2));
       return result.isNotEmpty && result.first.rawAddress.isNotEmpty;
     } catch (_) {
       // If DNS probe times out or fails due to local resolver/hotspot issues,
@@ -2127,11 +2127,12 @@ class DigiTaxInventoryService {
 
         String? liveSignature = extractSig(saleData);
 
-        // If not immediately signed (DigiTax async ZRA VSDC sync), poll for up to 15 seconds
-        // DigiTax POSTs the sale to ZRA VSDC asynchronously — typical completion is 1–4 seconds.
+        // If not immediately signed (DigiTax async ZRA VSDC sync), poll with progressive fast-intervals
+        // Typical completion is 500ms–1.5s; fast polling returns as soon as signed without artificial lag.
         if (liveSignature == null || liveSignature.isEmpty) {
-          for (int attempt = 1; attempt <= 15; attempt++) {
-            await Future.delayed(const Duration(milliseconds: 1000));
+          for (int attempt = 1; attempt <= 12; attempt++) {
+            final pollDelayMs = attempt <= 2 ? 300 : (attempt <= 5 ? 500 : 750);
+            await Future.delayed(Duration(milliseconds: pollDelayMs));
             try {
               // Always prefer GET /sales/{id} when we have the DigiTax sale ID
               final pollResp = (saleId != null && saleId.isNotEmpty)

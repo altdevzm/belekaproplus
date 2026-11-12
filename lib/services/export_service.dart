@@ -674,17 +674,21 @@ class ExportService {
         ? transaction.zraQrCode!
         : 'https://smartinvoice.zra.org.zm/verify?tpin=${config?.tpin ?? "1000000000"}&sdc=$sdcIdStr&rcpt=$sdcInvNoStr';
 
-    final isFiscalApproved =
-        (transaction.zraStatus.toUpperCase() == 'APPROVED' ||
-            transaction.zraStatus.toUpperCase() == 'FISCALIZED') &&
-        ((transaction.zraReceiptNumber != null &&
-                transaction.zraReceiptNumber!.isNotEmpty &&
-                transaction.zraReceiptNumber != 'PENDING') ||
-            (transaction.zraMarkId != null &&
-                transaction.zraMarkId!.isNotEmpty &&
-                transaction.zraMarkId != 'PENDING' &&
-                !transaction.zraMarkId!.startsWith('sale_') &&
-                !transaction.zraMarkId!.startsWith('SALE_')));
+    final hasQr = transaction.zraQrCode != null &&
+        transaction.zraQrCode!.trim().isNotEmpty &&
+        transaction.zraQrCode!.trim() != 'PENDING';
+
+    final isFiscalApproved = hasQr ||
+        ((transaction.zraStatus.toUpperCase() == 'APPROVED' ||
+                transaction.zraStatus.toUpperCase() == 'FISCALIZED') &&
+            ((transaction.zraReceiptNumber != null &&
+                    transaction.zraReceiptNumber!.isNotEmpty &&
+                    transaction.zraReceiptNumber != 'PENDING') ||
+                (transaction.zraMarkId != null &&
+                    transaction.zraMarkId!.isNotEmpty &&
+                    transaction.zraMarkId != 'PENDING' &&
+                    !transaction.zraMarkId!.startsWith('sale_') &&
+                    !transaction.zraMarkId!.startsWith('SALE_'))));
     final receiptTitle = transaction.isCreditNote
         ? 'ZRA FISCAL CREDIT NOTE'
         : (isFiscalApproved
