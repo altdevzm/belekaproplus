@@ -15,6 +15,7 @@ import 'package:beleka_pos/screens/dashboard_screen.dart';
 import 'package:beleka_pos/screens/sales_screen.dart';
 import 'package:beleka_pos/screens/terminals_screen.dart';
 import 'package:beleka_pos/screens/reports_screen.dart';
+import 'package:beleka_pos/screens/sales/product_exchange_modal.dart';
 
 class ReceiptDetailModal extends ConsumerStatefulWidget {
   final SaleTransaction transaction;
@@ -1151,6 +1152,53 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
           const SizedBox(width: 8),
         ],
         if (!isRefunded) ...[
+          Expanded(
+            child: SizedBox(
+              height: 48,
+              child: ElevatedButton(
+                onPressed: () {
+                  final navigatorContext = Navigator.of(context).context;
+                  Navigator.pop(context);
+                  showDialog(
+                    context: navigatorContext,
+                    builder: (_) => ProductExchangeModal(
+                      initialInvoice: widget.transaction,
+                    ),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF3B82F6).withValues(alpha: 0.14),
+                  foregroundColor: const Color(0xFF60A5FA),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(
+                      color: const Color(0xFF3B82F6).withValues(alpha: 0.45),
+                    ),
+                  ),
+                  elevation: 0,
+                ),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.swap_horiz_rounded, size: 16),
+                      const SizedBox(width: 6),
+                      Text(
+                        'EXCHANGE',
+                        style: GoogleFonts.manrope(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
           Expanded(
             child: SizedBox(
               height: 48,

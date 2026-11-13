@@ -18,6 +18,7 @@ import 'package:beleka_pos/services/digitax_inventory_service.dart';
 import 'package:beleka_pos/services/lenco_payment_service.dart';
 import 'package:beleka_pos/services/network_client.dart';
 import 'package:beleka_pos/screens/sales/weight_scale_modal.dart';
+import 'package:beleka_pos/screens/sales/product_exchange_modal.dart';
 import 'package:beleka_pos/widgets/camera_barcode_scanner_modal.dart';
 import 'package:beleka_pos/widgets/product_image_widget.dart';
 import 'package:beleka_pos/utils/formatters.dart';
@@ -914,6 +915,51 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                           ),
                         ),
                         const SizedBox(width: 6),
+                        // Product Exchange Button
+                        Tooltip(
+                          message: 'Product Exchange (Return & Replace)',
+                          child: InkWell(
+                            onTap: () {
+                              showDialog(
+                                context: context,
+                                builder: (_) => const ProductExchangeModal(),
+                              );
+                            },
+                            borderRadius: BorderRadius.circular(8),
+                            child: Container(
+                              height: 34,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isDark
+                                    ? const Color(0xFF293548)
+                                    : const Color(0xFFF1F5F9),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.swap_horiz_rounded,
+                                    size: 16,
+                                    color: primaryColor,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'EXCHANGE',
+                                    style: GoogleFonts.inter(
+                                      color: theme.colorScheme.onSurface,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
                         // Quick Cash Drawer button
                         Tooltip(
                           message: 'Open Cash Drawer',
@@ -1636,6 +1682,51 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                                   const SizedBox(width: 6),
                                   Text(
                                     'SCAN',
+                                    style: GoogleFonts.inter(
+                                      color: theme.colorScheme.onSurface,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        // Product Exchange Button
+                        Tooltip(
+                          message: 'Product Exchange (Return & Replace)',
+                          child: InkWell(
+                            onTap: () {
+                              showDialog(
+                                context: context,
+                                builder: (_) => const ProductExchangeModal(),
+                              );
+                            },
+                            borderRadius: BorderRadius.circular(8),
+                            child: Container(
+                              height: 34,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isDark
+                                    ? const Color(0xFF293548)
+                                    : const Color(0xFFF1F5F9),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.swap_horiz_rounded,
+                                    size: 16,
+                                    color: primaryColor,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'EXCHANGE',
                                     style: GoogleFonts.inter(
                                       color: theme.colorScheme.onSurface,
                                       fontSize: 11,

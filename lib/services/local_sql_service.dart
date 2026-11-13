@@ -440,6 +440,82 @@ class LocalSqlService {
       );
     ''');
 
+    // 22. Product Exchanges Table
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS product_exchanges (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        exchange_number TEXT UNIQUE NOT NULL,
+        original_sale_id INTEGER NOT NULL,
+        original_invoice_no TEXT NOT NULL,
+        credit_note_sale_id INTEGER,
+        replacement_sale_id INTEGER,
+        customer_id INTEGER,
+        customer_name TEXT,
+        customer_phone TEXT,
+        customer_tpin TEXT,
+        branch_code TEXT DEFAULT '00',
+        branch_name TEXT DEFAULT 'Main Branch (HQ)',
+        returned_value REAL NOT NULL DEFAULT 0.0,
+        returned_tax REAL NOT NULL DEFAULT 0.0,
+        replacement_value REAL NOT NULL DEFAULT 0.0,
+        replacement_discount REAL NOT NULL DEFAULT 0.0,
+        replacement_tax REAL NOT NULL DEFAULT 0.0,
+        difference_amount REAL NOT NULL DEFAULT 0.0,
+        scenario_type TEXT NOT NULL,
+        settlement_mode TEXT NOT NULL,
+        payment_method TEXT NOT NULL,
+        additional_paid REAL NOT NULL DEFAULT 0.0,
+        refunded_amount REAL NOT NULL DEFAULT 0.0,
+        credit_retained REAL NOT NULL DEFAULT 0.0,
+        reason TEXT NOT NULL,
+        cashier_id TEXT,
+        cashier_name TEXT NOT NULL,
+        approving_manager_id TEXT,
+        approving_manager_name TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+    ''');
+
+    // 23. Product Exchange Items Table
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS product_exchange_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        exchange_id INTEGER NOT NULL REFERENCES product_exchanges(id) ON DELETE CASCADE,
+        exchange_number TEXT NOT NULL,
+        original_sale_id INTEGER NOT NULL,
+        original_sale_item_id INTEGER,
+        direction TEXT NOT NULL,
+        product_id INTEGER NOT NULL,
+        product_name TEXT NOT NULL,
+        sku TEXT NOT NULL,
+        quantity INTEGER NOT NULL,
+        unit_price REAL NOT NULL,
+        discount_amount REAL NOT NULL DEFAULT 0.0,
+        tax_rate REAL NOT NULL DEFAULT 16.0,
+        line_total REAL NOT NULL,
+        condition_status TEXT DEFAULT 'RESALABLE',
+        restocked INTEGER DEFAULT 1,
+        stock_movement_id INTEGER
+      );
+    ''');
+
+    // 24. Customer Credit Ledger Table (for retained exchange credit)
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS customer_credit_ledger (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        customer_id INTEGER,
+        customer_name TEXT NOT NULL,
+        customer_phone TEXT,
+        exchange_number TEXT,
+        credit_type TEXT NOT NULL,
+        amount REAL NOT NULL,
+        remaining_balance REAL NOT NULL,
+        branch_code TEXT DEFAULT '00',
+        notes TEXT,
+        created_at TEXT NOT NULL
+      );
+    ''');
+
     // Create SQL Indexes for high performance
     await db.execute('CREATE INDEX IF NOT EXISTS idx_products_sku ON products(sku);');
     await db.execute('CREATE INDEX IF NOT EXISTS idx_sales_synced ON sale_transactions(is_synced);');
@@ -447,6 +523,11 @@ class LocalSqlService {
     await db.execute('CREATE INDEX IF NOT EXISTS idx_stock_movements_prod ON stock_movements(product_id);');
     await db.execute('CREATE INDEX IF NOT EXISTS idx_stock_movements_branch ON stock_movements(branch_code);');
     await db.execute('CREATE INDEX IF NOT EXISTS idx_stock_movements_time ON stock_movements(timestamp);');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_exchanges_orig_sale ON product_exchanges(original_sale_id);');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_exchanges_branch ON product_exchanges(branch_code);');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_exchange_items_exg ON product_exchange_items(exchange_id);');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_exchange_items_orig ON product_exchange_items(original_sale_id);');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_cust_credit_phone ON customer_credit_ledger(customer_phone);');
   }
 
   // --- SQL HELPER METHODS ---

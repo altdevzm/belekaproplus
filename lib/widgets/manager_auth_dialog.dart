@@ -53,7 +53,12 @@ class _ManagerAuthDialogState extends ConsumerState<ManagerAuthDialog> {
       // hashPin is available in database_service.dart
       final hashedPin = hashPin(_pin);
       for (final user in users) {
-        if ((user.role == 'manager' || user.role == 'admin') && user.passwordHash == hashedPin) {
+        final r = user.role.toLowerCase();
+        if ((r == 'owner' ||
+                r == 'branch_manager' ||
+                r == 'manager' ||
+                r == 'admin') &&
+            user.passwordHash == hashedPin) {
           authorizedUser = user;
           break;
         }

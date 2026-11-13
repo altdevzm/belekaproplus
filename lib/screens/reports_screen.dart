@@ -12,6 +12,7 @@ import 'package:beleka_pos/services/digitax_inventory_service.dart';
 import 'package:beleka_pos/services/printer_service.dart';
 import 'package:beleka_pos/services/postgres_sync_service.dart';
 import 'package:beleka_pos/screens/reports/tot_report_screen.dart';
+import 'package:beleka_pos/screens/reports/exchange_report_section.dart';
 import 'package:beleka_pos/utils/product_sales_report.dart';
 
 enum ReportPeriod { daily, weekly, monthly, yearly, custom }
@@ -290,6 +291,8 @@ class ReportsScreen extends ConsumerWidget {
                         _buildTopProductsSection(context, topProducts),
                         const SizedBox(height: 24),
                       ],
+                      ExchangeReportSection(range: range, currency: currency),
+                      const SizedBox(height: 24),
                       transactionsAsync.when(
                         data: (transactions) => SizedBox(
                           height: 500,
