@@ -5729,6 +5729,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     );
     bool isVerifying = false;
     bool isVerified = false;
+    bool tpinFormatValid = false; // 10-digit format OK but not ZRA-verified
     String? verifyError;
 
     showDialog(
@@ -5823,9 +5824,11 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                               verifyError = null;
                             });
                           } else {
+                            // TPIN not in DigiTax/ZRA system — format is valid,
+                            // let cashier enter name manually without blocking.
                             setModalState(() {
-                              verifyError =
-                                  'TPIN not found. Enter business name manually.';
+                              tpinFormatValid = true;
+                              verifyError = null;
                               isVerified = false;
                             });
                           }
@@ -5845,9 +5848,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                           final clean = val.trim();
                           if (clean.length == 10) {
                             doVerify();
-                          } else if (isVerified || verifyError != null) {
+                          } else if (isVerified || tpinFormatValid || verifyError != null) {
                             setModalState(() {
                               isVerified = false;
+                              tpinFormatValid = false;
                               verifyError = null;
                             });
                           }
@@ -5859,6 +5863,8 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                           filled: true,
                           fillColor: isVerified
                               ? const Color(0xFFECFDF5)
+                              : tpinFormatValid
+                              ? const Color(0xFFFFFBEB)
                               : fieldBg,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
@@ -5869,6 +5875,8 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                             borderSide: BorderSide(
                               color: isVerified
                                   ? const Color(0xFF059669)
+                                  : tpinFormatValid
+                                  ? const Color(0xFFD97706)
                                   : verifyError != null
                                   ? const Color(0xFFDC2626)
                                   : borderColor,
@@ -5879,6 +5887,8 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                             borderSide: BorderSide(
                               color: isVerified
                                   ? const Color(0xFF059669)
+                                  : tpinFormatValid
+                                  ? const Color(0xFFD97706)
                                   : primaryAccent,
                               width: 1.5,
                             ),
@@ -5901,6 +5911,15 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                                   child: Icon(
                                     Icons.verified_rounded,
                                     color: Color(0xFF059669),
+                                    size: 22,
+                                  ),
+                                )
+                              : tpinFormatValid
+                              ? const Padding(
+                                  padding: EdgeInsets.all(12),
+                                  child: Icon(
+                                    Icons.edit_note_rounded,
+                                    color: Color(0xFFD97706),
                                     size: 22,
                                   ),
                                 )
@@ -5943,7 +5962,33 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                       ),
                     ),
 
-                  // Error message
+                  // Format-valid but not in ZRA registry — amber hint, not an error
+                  if (tpinFormatValid && !isVerified)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8, left: 2),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.edit_note_rounded,
+                            color: Color(0xFFD97706),
+                            size: 14,
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              'TPIN accepted — please type the business name below.',
+                              style: GoogleFonts.inter(
+                                fontSize: 11,
+                                color: const Color(0xFFD97706),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                  // Error message (only for real errors like bad format / auth failure)
                   if (verifyError != null)
                     Padding(
                       padding: const EdgeInsets.only(top: 8, left: 2),
