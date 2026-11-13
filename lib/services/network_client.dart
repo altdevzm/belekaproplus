@@ -447,6 +447,48 @@ class NetworkClient {
     }
   }
 
+  /// Query the Manager POS over LAN to verify a 10-digit TPIN using the Manager's
+  /// local DB and DigiTax credentials.
+  Future<Map<String, dynamic>?> lookupTaxpayerTpin(String tpin) async {
+    try {
+      final response = await _dio.get(
+        '/taxpayers/${tpin.trim()}',
+        options: Options(validateStatus: (s) => s != null && s < 500),
+      );
+      if (response.statusCode == 200 && response.data != null) {
+        final data = response.data is String
+            ? jsonDecode(response.data as String)
+            : response.data;
+        if (data is Map) {
+          return Map<String, dynamic>.from(data);
+        }
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Sync a verified or manually entered customer TPIN + business name to the Manager POS.
+  Future<void> saveTaxpayerTpin({
+    required String tpin,
+    required String name,
+    String? address,
+  }) async {
+    try {
+      await _dio.post(
+        '/taxpayers',
+        data: {
+          'tpin': tpin.trim(),
+          'taxpayer_name': name.trim(),
+          if (address != null && address.trim().isNotEmpty)
+            'physical_address': address.trim(),
+        },
+        options: Options(validateStatus: (s) => s != null && s < 500),
+      );
+    } catch (_) {}
+  }
+
   // ─── JSON Helpers ─────────────────────────────────────────────
 
   static Product _jsonToProduct(Map<String, dynamic> j) {

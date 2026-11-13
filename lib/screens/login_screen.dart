@@ -287,6 +287,28 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               rethrow;
             }
           }
+
+          // Also refresh DigiTax API credentials from Master POS on local Cashier login
+          try {
+            final serverInfo = await networkClient.getServerInfo();
+            if (serverInfo != null) {
+              final remoteKey = serverInfo['digitaxApiKey']?.toString().trim();
+              if (remoteKey != null && remoteKey.isNotEmpty) {
+                config.digitaxApiKey = remoteKey;
+              }
+              final remoteEnv = serverInfo['digitaxEnvironment']?.toString().trim();
+              if (remoteEnv != null && remoteEnv.isNotEmpty) {
+                config.digitaxEnvironment = remoteEnv;
+              }
+              final remoteTpin = serverInfo['tpin']?.toString().trim();
+              if (remoteTpin != null && remoteTpin.isNotEmpty) {
+                config.tpin = remoteTpin;
+              }
+              await db.isar.writeTxn(() async {
+                await db.isar.storeConfigs.put(config);
+              });
+            }
+          } catch (_) {}
         }
       }
 

@@ -162,12 +162,34 @@ class ApiService {
     router.get('/users', _handleGetUsers);
     router.post('/users', _handleCreateUser);
     router.delete('/users/<id>', _handleDeleteUser);
+
+    // Taxpayer TPIN lookup & caching for Cashier terminals over LAN
+    router.get('/taxpayers/<tpin>', _handleLookupTaxpayer);
+    router.post('/taxpayers', _handleSaveTaxpayer);
+  }
+
+  Future<String> _resolveEffectiveDigitaxApiKey(StoreConfig? config) async {
+    final direct = config?.digitaxApiKey?.trim();
+    if (direct != null && direct.isNotEmpty) {
+      return direct;
+    }
+    try {
+      final branches = await _db.isar.storeBranchs.where().findAll();
+      for (final b in branches) {
+        final bKey = b.digitaxApiKey?.trim();
+        if (bKey != null && bKey.isNotEmpty) {
+          return bKey;
+        }
+      }
+    } catch (_) {}
+    return '';
   }
 
   // ─── Handlers ─────────────────────────────────────────────────
 
   Future<Response> _handleStatus(Request request) async {
     final config = await _db.getStoreConfig();
+    final effectiveApiKey = await _resolveEffectiveDigitaxApiKey(config);
     
     // Auto-discover and register till if terminal code/name was supplied in query or header
     final paramCode = request.url.queryParameters['terminalCode'] ??
@@ -217,7 +239,7 @@ class ApiService {
         'currencySymbol': config?.currencySymbol ?? 'ZK',
         'tpin': config?.tpin ?? '',
         'businessTaxType': config?.businessTaxType ?? 'TURNOVER_TAX',
-        'digitaxApiKey': config?.digitaxApiKey ?? '',
+        'digitaxApiKey': effectiveApiKey,
         'digitaxEnvironment': config?.digitaxEnvironment ?? 'sandbox',
         'sdcId': config?.sdcId ?? '',
         'maxTills': 3,
@@ -363,6 +385,7 @@ class ApiService {
       }
 
       final config = await _db.getStoreConfig();
+      final effectiveApiKey = await _resolveEffectiveDigitaxApiKey(config);
 
       return Response.ok(
         jsonEncode({
@@ -379,7 +402,7 @@ class ApiService {
             'bhfId': (config?.bhfId != null && config!.bhfId.isNotEmpty) ? config.bhfId : '00',
             'tpin': config?.tpin ?? '',
             'businessTaxType': config?.businessTaxType ?? 'TURNOVER_TAX',
-            'digitaxApiKey': config?.digitaxApiKey ?? '',
+            'digitaxApiKey': effectiveApiKey,
             'digitaxEnvironment': config?.digitaxEnvironment ?? 'sandbox',
             'sdcId': config?.sdcId ?? '',
           }
@@ -746,6 +769,8 @@ class ApiService {
       }
       regSchedStart ??= openShift?.openingTime.toIso8601String();
 
+      final effectiveApiKey = await _resolveEffectiveDigitaxApiKey(config);
+
       return Response.ok(
         jsonEncode({
           'success': true,
@@ -764,7 +789,7 @@ class ApiService {
             'bhfId': (config?.bhfId != null && config!.bhfId.isNotEmpty) ? config.bhfId : '00',
             'tpin': config?.tpin ?? '',
             'businessTaxType': config?.businessTaxType ?? 'TURNOVER_TAX',
-            'digitaxApiKey': config?.digitaxApiKey ?? '',
+            'digitaxApiKey': effectiveApiKey,
             'digitaxEnvironment': config?.digitaxEnvironment ?? 'sandbox',
             'sdcId': config?.sdcId ?? '',
           }
@@ -965,6 +990,61 @@ class ApiService {
     } catch (e) {
       return Response.internalServerError(
           body: jsonEncode({'error': '$e'}), headers: _jsonHeaders);
+    }
+  }
+
+  Future<Response> _handleLookupTaxpayer(Request request) async {
+    try {
+      final tpin = request.params['tpin']?.trim() ?? '';
+      if (tpin.length != 10) {
+        return Response(
+          400,
+          body: jsonEncode({'error': 'TPIN must be 10 digits'}),
+          headers: _jsonHeaders,
+        );
+      }
+      if (ref != null) {
+        final res = await ref!
+            .read(digitaxInventoryServiceProvider)
+            .lookupTaxpayerTpin(tpin);
+        if (res != null) {
+          return Response.ok(jsonEncode(res), headers: _jsonHeaders);
+        }
+      }
+      return Response(
+        404,
+        body: jsonEncode({'found': false}),
+        headers: _jsonHeaders,
+      );
+    } catch (e) {
+      return Response.internalServerError(
+        body: jsonEncode({'error': '$e'}),
+        headers: _jsonHeaders,
+      );
+    }
+  }
+
+  Future<Response> _handleSaveTaxpayer(Request request) async {
+    try {
+      final body = jsonDecode(await request.readAsString());
+      final tpin = (body['tpin'] ?? '').toString().trim();
+      final name = (body['taxpayer_name'] ?? body['name'] ?? '').toString().trim();
+      final address = (body['physical_address'] ?? body['address'] ?? '').toString().trim();
+      if (tpin.length == 10 && name.isNotEmpty && ref != null) {
+        await ref!
+            .read(digitaxInventoryServiceProvider)
+            .saveVerifiedCustomerTpin(
+              tpin: tpin,
+              name: name,
+              address: address,
+            );
+      }
+      return Response.ok(jsonEncode({'success': true}), headers: _jsonHeaders);
+    } catch (e) {
+      return Response.internalServerError(
+        body: jsonEncode({'error': '$e'}),
+        headers: _jsonHeaders,
+      );
     }
   }
 

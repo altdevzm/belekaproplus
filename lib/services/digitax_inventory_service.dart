@@ -7,6 +7,7 @@ import 'package:isar/isar.dart';
 import 'package:beleka_pos/models/models.dart';
 import 'package:beleka_pos/services/database_service.dart';
 import 'package:beleka_pos/services/local_sql_service.dart';
+import 'package:beleka_pos/services/network_client.dart';
 import 'package:beleka_pos/providers/store_provider.dart';
 import 'package:beleka_pos/providers/auth_provider.dart';
 
@@ -3447,8 +3448,21 @@ class DigiTaxInventoryService {
       address: cleanAddr,
     );
 
+    // If running on a Cashier terminal, also sync the customer TPIN to the Manager POS over LAN
     try {
-      final apiKey = await resolveBranchApiKey(null);
+      final client = ref.read(networkClientProvider);
+      if (client != null) {
+        await client.saveTaxpayerTpin(
+          tpin: cleanTpin,
+          name: cleanName,
+          address: cleanAddr,
+        );
+      }
+    } catch (_) {}
+
+    try {
+      final currentUser = ref.read(authProvider);
+      final apiKey = await resolveBranchApiKey(currentUser?.branchCode);
       if (apiKey == null || apiKey.isEmpty) {
         return;
       }
@@ -3576,8 +3590,45 @@ class DigiTaxInventoryService {
       }
     }
 
-    // Collect all configured DigiTax API keys (active store + branches)
+    // 5b. If running on a Cashier terminal over LAN, ask the Manager POS first
+    // (Manager POS has the master supplier/customer DB and branch DigiTax keys)
+    if (config?.isManagerMode == false) {
+      try {
+        final client = ref.read(networkClientProvider);
+        if (client != null) {
+          final lanRes = await client.lookupTaxpayerTpin(cleanTpin);
+          if (lanRes != null) {
+            final lName = (lanRes['taxpayer_name'] ?? lanRes['name'] ?? '')
+                .toString()
+                .trim();
+            final lAddr =
+                (lanRes['physical_address'] ?? lanRes['address'] ?? '')
+                    .toString()
+                    .trim();
+            if (_isValidTaxpayerName(lName)) {
+              await _cacheTaxpayerLocally(
+                tpin: cleanTpin,
+                name: lName,
+                address: lAddr,
+              );
+              return {
+                'tpin': cleanTpin,
+                'taxpayer_name': lName,
+                'physical_address': lAddr,
+              };
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    // Collect all configured DigiTax API keys (cashier's branch + active store + all branches)
     final apiKeys = <String>{};
+    final currentUser = ref.read(authProvider);
+    final cashierBranchKey = await resolveBranchApiKey(currentUser?.branchCode);
+    if (cashierBranchKey != null && cashierBranchKey.trim().isNotEmpty) {
+      apiKeys.add(cashierBranchKey.trim());
+    }
     final resolvedKey = await resolveBranchApiKey(null);
     if (resolvedKey != null && resolvedKey.trim().isNotEmpty) {
       apiKeys.add(resolvedKey.trim());
@@ -3595,6 +3646,26 @@ class DigiTaxInventoryService {
         }
       }
     } catch (_) {}
+
+    // If Cashier terminal still has no DigiTax API key locally, pull it from Manager POS over LAN
+    if (apiKeys.isEmpty && config?.isManagerMode == false) {
+      try {
+        final client = ref.read(networkClientProvider);
+        if (client != null) {
+          final serverInfo = await client.getServerInfo();
+          final remoteKey = serverInfo?['digitaxApiKey']?.toString().trim();
+          if (remoteKey != null && remoteKey.isNotEmpty) {
+            apiKeys.add(remoteKey);
+            if (config != null) {
+              config.digitaxApiKey = remoteKey;
+              await db.isar.writeTxn(() async {
+                await db.isar.storeConfigs.put(config);
+              });
+            }
+          }
+        }
+      } catch (_) {}
+    }
 
     if (apiKeys.isEmpty) {
       return null;
