@@ -5862,9 +5862,13 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                           counterText: '',
                           filled: true,
                           fillColor: isVerified
-                              ? const Color(0xFFECFDF5)
+                              ? (isDark
+                                    ? const Color(0xFF064E3B).withValues(alpha: 0.35)
+                                    : const Color(0xFFECFDF5))
                               : tpinFormatValid
-                              ? const Color(0xFFFFFBEB)
+                              ? (isDark
+                                    ? const Color(0xFF78350F).withValues(alpha: 0.35)
+                                    : const Color(0xFFFFFBEB))
                               : fieldBg,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
@@ -6090,6 +6094,15 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                     businessName: name.isNotEmpty ? name : null,
                     address: addr.isNotEmpty ? addr : null,
                   );
+                  if (tpin.length == 10 && name.isNotEmpty) {
+                    ref
+                        .read(digitaxInventoryServiceProvider)
+                        .saveVerifiedCustomerTpin(
+                          tpin: tpin,
+                          name: name,
+                          address: addr,
+                        );
+                  }
                   Navigator.pop(dialogCtx);
                 },
                 style: ElevatedButton.styleFrom(
