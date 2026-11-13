@@ -3385,7 +3385,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                                   ),
                                   const SizedBox(width: 2),
                                   Text(
-                                    product.unitOfMeasure.toUpperCase(),
+                                    product.displayUnitOfMeasure.toUpperCase(),
                                     style: GoogleFonts.inter(
                                       fontSize: 8.5,
                                       fontWeight: FontWeight.w800,
@@ -3524,7 +3524,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                                     ),
                                   ),
                                   Text(
-                                    '${CurrencyFormatter.format(product.discountPrice!, currency)}${(product.unitOfMeasure.isNotEmpty && product.unitOfMeasure.toLowerCase() != 'unit' && product.unitOfMeasure.toLowerCase() != 'pcs') ? "/${product.unitOfMeasure}" : (product.isWeighted ? "/kg" : "")}',
+                                    '${CurrencyFormatter.format(product.discountPrice!, currency)}${(product.displayUnitOfMeasure.isNotEmpty && product.displayUnitOfMeasure.toLowerCase() != 'unit' && product.displayUnitOfMeasure.toLowerCase() != 'pcs' && product.displayUnitOfMeasure.toLowerCase() != 'nt') ? "/${product.displayUnitOfMeasure}" : (product.isWeighted ? "/kg" : "")}',
                                     style: GoogleFonts.inter(
                                       fontSize: 13,
                                       fontWeight: FontWeight.w800,
@@ -3534,7 +3534,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                                   ),
                                 ] else ...[
                                   Text(
-                                    '${CurrencyFormatter.format(product.price, currency)}${(product.unitOfMeasure.isNotEmpty && product.unitOfMeasure.toLowerCase() != 'unit' && product.unitOfMeasure.toLowerCase() != 'pcs') ? "/${product.unitOfMeasure}" : (product.isWeighted ? "/kg" : "")}',
+                                    '${CurrencyFormatter.format(product.price, currency)}${(product.displayUnitOfMeasure.isNotEmpty && product.displayUnitOfMeasure.toLowerCase() != 'unit' && product.displayUnitOfMeasure.toLowerCase() != 'pcs' && product.displayUnitOfMeasure.toLowerCase() != 'nt') ? "/${product.displayUnitOfMeasure}" : (product.isWeighted ? "/kg" : "")}',
                                     style: GoogleFonts.inter(
                                       fontSize: 13,
                                       fontWeight: FontWeight.w800,
@@ -5329,7 +5329,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     final isDark = theme.brightness == Brightness.dark;
     final primaryColor = theme.colorScheme.primary;
 
-    final unit = item.product.unitOfMeasure.toLowerCase().trim();
+    final unit = item.product.displayUnitOfMeasure.toLowerCase().trim();
     final unitLabel = unit.isEmpty ? 'kg' : unit;
 
     return Container(
@@ -6540,7 +6540,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
               isTaxInclusiveAtSale: item.product.isTaxInclusive,
               weight: item.isWeighted ? item.weight : 0.0,
               isWeighted: item.isWeighted,
-              unitOfMeasure: item.product.unitOfMeasure,
+              unitOfMeasure: item.product.displayUnitOfMeasure,
               isDigitaxExempt: item.product.isDigitaxSyncEnabled == false ||
                   (!item.product.isSyncedWithDigitax &&
                       !item.product.hasUsableDigitaxItemId),

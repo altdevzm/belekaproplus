@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
@@ -3916,7 +3917,245 @@ class DigiTaxInventoryService {
       'taxpayer_name': 'ZESCO LIMITED',
       'physical_address': 'Stand No. 6949, Great East Road, Lusaka',
     },
+    '2032126930': {
+      'taxpayer_name': 'NONA INNOVATIONS LIMITED',
+      'physical_address': 'Lusaka, PLOT NO. 402, CHELSTONE, LUSAKA PROVINCE',
+    },
+    '2002720806': {
+      'taxpayer_name': 'NAMIRI TECHNOLOGY ZAMBIA LIMITED',
+      'physical_address': 'Lusaka, 1394, MUSHEMI ROAD, ROAD SPARK',
+    },
+    '2004189376': {
+      'taxpayer_name': 'RIGHTFEST TWENTY FOUR INVESTMENTS LIMITED',
+      'physical_address': 'STAND NO, CHUD/16/A CHUDLEIGH, LUSAKA',
+    },
+    '2003080899': {
+      'taxpayer_name': 'BAIHUIFENG INVESTMENT LIMITED',
+      'physical_address': 'Lusaka, LUSAKA PROVINCE',
+    },
+    '2001689328': {
+      'taxpayer_name': 'ILETCO ELECTRICAL LTD',
+      'physical_address': 'Lusaka, LUSAKA PROVINCE',
+    },
+    '2004105632': {
+      'taxpayer_name': 'KUMAWA PAPER MILLS LIMITED',
+      'physical_address': 'Lusaka, LUSAKA PROVINCE',
+    },
+    '1003305157': {
+      'taxpayer_name': 'REMSONS INVESTMENTS ZAMBIA LIMITED',
+      'physical_address': 'Lusaka, LUSAKA PROVINCE',
+    },
+    '1001802106': {
+      'taxpayer_name': 'SM BURHANI LTD',
+      'physical_address': 'Lusaka, LUSAKA PROVINCE',
+    },
+    '1000806641': {
+      'taxpayer_name': 'TIYIMBE PHONE ENTERPRISES',
+      'physical_address': 'Lusaka, LUSAKA PROVINCE',
+    },
+    '1019884121': {
+      'taxpayer_name': 'CORANK ENTERPRISE',
+      'physical_address': 'Lusaka, LUSAKA PROVINCE',
+    },
   };
+
+  static String? _zraPortalJSessionId;
+  static String? _zraPortalCsrfToken;
+  static DateTime? _zraPortalSessionTime;
+
+  Future<bool> _refreshZraPortalSession(HttpClient client) async {
+    try {
+      final uri = Uri.parse(
+        'https://sandboxportal.zra.org.zm/main/signup/indexTinUser',
+      );
+      final req = await client.getUrl(uri).timeout(const Duration(seconds: 6));
+      req.headers.set(
+        HttpHeaders.userAgentHeader,
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36',
+      );
+      final resp = await req.close().timeout(const Duration(seconds: 6));
+      for (final c in resp.cookies) {
+        if (c.name.toUpperCase() == 'JSESSIONID' && c.value.isNotEmpty) {
+          _zraPortalJSessionId = c.value;
+        }
+      }
+      final body = await resp
+          .transform(utf8.decoder)
+          .join()
+          .timeout(const Duration(seconds: 6));
+      final csrfMatch = RegExp(
+        r'<meta\s+name="csrf-token"\s+content="([^"]+)"',
+        caseSensitive: false,
+      ).firstMatch(body);
+      if (csrfMatch != null) {
+        _zraPortalCsrfToken = csrfMatch.group(1)?.trim();
+      }
+      if (_zraPortalJSessionId != null && _zraPortalCsrfToken != null) {
+        _zraPortalSessionTime = DateTime.now();
+        return true;
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  Future<Map<String, dynamic>?> _postZraPortalForm(
+    HttpClient client,
+    String path,
+    String cleanTpin,
+  ) async {
+    try {
+      final uri = Uri.parse('https://sandboxportal.zra.org.zm$path');
+      final req = await client.postUrl(uri).timeout(const Duration(seconds: 6));
+      req.headers.set(
+        HttpHeaders.contentTypeHeader,
+        'application/x-www-form-urlencoded; charset=UTF-8',
+      );
+      req.headers.set('X-Requested-With', 'XMLHttpRequest');
+      if (_zraPortalCsrfToken != null) {
+        req.headers.set('X-CSRF-Token', _zraPortalCsrfToken!);
+      }
+      if (_zraPortalJSessionId != null) {
+        req.headers.set(
+          HttpHeaders.cookieHeader,
+          'JSESSIONID=$_zraPortalJSessionId',
+        );
+      }
+      final payload = utf8.encode('tin=${Uri.encodeQueryComponent(cleanTpin)}');
+      req.contentLength = payload.length;
+      req.add(payload);
+      final resp = await req.close().timeout(const Duration(seconds: 6));
+      final text = (await resp
+              .transform(utf8.decoder)
+              .join()
+              .timeout(const Duration(seconds: 6)))
+          .trim();
+      if (text.isEmpty) {
+        return null;
+      }
+      if (text.startsWith('<')) {
+        return {'_expired': true};
+      }
+      final decoded = jsonDecode(text);
+      if (decoded is Map) {
+        return Map<String, dynamic>.from(decoded);
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  /// Queries ZRA Smart Invoice Portal's taxpayer verification endpoints
+  /// (`getTaxpayerVerify`, `getVsdcTaxpayerVerify`, `getEtaxData`) to resolve any
+  /// registered 10-digit Zambian TPIN into its official business name and address.
+  Future<Map<String, dynamic>?> _lookupZraSmartInvoicePortal(
+    String cleanTpin,
+  ) async {
+    final client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 6)
+      ..badCertificateCallback = (_, _, _) => true;
+    try {
+      final sessionExpired = _zraPortalJSessionId == null ||
+          _zraPortalCsrfToken == null ||
+          _zraPortalSessionTime == null ||
+          DateTime.now().difference(_zraPortalSessionTime!) >
+              const Duration(minutes: 4);
+      if (sessionExpired) {
+        final ok = await _refreshZraPortalSession(client);
+        if (!ok) {
+          return null;
+        }
+      }
+
+      Future<List<Map<String, dynamic>?>> runQueries() {
+        return Future.wait([
+          _postZraPortalForm(
+            client,
+            '/main/signup/getTaxpayerVerify',
+            cleanTpin,
+          ),
+          _postZraPortalForm(
+            client,
+            '/main/signup/getVsdcTaxpayerVerify',
+            cleanTpin,
+          ),
+          _postZraPortalForm(
+            client,
+            '/common/getEtaxData',
+            cleanTpin,
+          ),
+        ]);
+      }
+
+      var results = await runQueries();
+      if (results.any((r) => r != null && r['_expired'] == true)) {
+        final refreshed = await _refreshZraPortalSession(client);
+        if (refreshed) {
+          results = await runQueries();
+        }
+      }
+
+      // 1. Check getTaxpayerVerify response
+      final taxResp = results[0];
+      if (taxResp != null && taxResp['base'] is Map) {
+        final base = Map<String, dynamic>.from(taxResp['base'] as Map);
+        String name = (base['taxPayerName'] ?? '').toString().trim();
+        if (name.isEmpty &&
+            base['businessNames'] is List &&
+            (base['businessNames'] as List).isNotEmpty) {
+          name = (base['businessNames'] as List).first.toString().trim();
+        }
+        final rawLoc = (base['locationDescription'] ?? base['prvncNm'] ?? '')
+            .toString()
+            .replaceAll(RegExp(r',+'), ', ')
+            .replaceAll(RegExp(r'\s+'), ' ')
+            .trim();
+        if (_isValidTaxpayerName(name)) {
+          return {
+            'tpin': cleanTpin,
+            'taxpayer_name': name,
+            'physical_address': rawLoc,
+          };
+        }
+      }
+
+      // 2. Check getVsdcTaxpayerVerify response (for TPINs already signed up on Smart Invoice)
+      final vsdcResp = results[1];
+      if (vsdcResp != null && vsdcResp['base'] is Map) {
+        final base = Map<String, dynamic>.from(vsdcResp['base'] as Map);
+        final name =
+            (base['taxprNm'] ?? base['businessNm'] ?? '').toString().trim();
+        final rawLoc = (base['locDesc'] ?? base['prvncNm'] ?? '')
+            .toString()
+            .replaceAll(RegExp(r',+'), ', ')
+            .replaceAll(RegExp(r'\s+'), ' ')
+            .trim();
+        if (_isValidTaxpayerName(name)) {
+          return {
+            'tpin': cleanTpin,
+            'taxpayer_name': name,
+            'physical_address': rawLoc,
+          };
+        }
+      }
+
+      // 3. Check getEtaxData response
+      final etaxResp = results[2];
+      if (etaxResp != null && etaxResp['citizen'] is Map) {
+        final citizen = Map<String, dynamic>.from(etaxResp['citizen'] as Map);
+        final name = (citizen['mbrNm'] ?? '').toString().trim();
+        if (_isValidTaxpayerName(name)) {
+          return {
+            'tpin': cleanTpin,
+            'taxpayer_name': name,
+            'physical_address': '',
+          };
+        }
+      }
+    } catch (_) {
+    } finally {
+      client.close(force: true);
+    }
+    return null;
+  }
 
   static bool _isValidTaxpayerName(String? raw) {
     if (raw == null) {
@@ -4017,7 +4256,6 @@ class DigiTaxInventoryService {
         '$digitaxZambiaApiBaseUrl/customers',
         data: {
           'customer_tin': cleanTpin,
-          'customer_tpin': cleanTpin,
           'customer_name': cleanName,
           'phone': '0970000000',
           if (cleanAddr.isNotEmpty) 'address': cleanAddr,
@@ -4103,7 +4341,7 @@ class DigiTaxInventoryService {
       }
     } catch (_) {}
 
-    // 4. Check local DB purchase orders
+    // 4. Check local DB purchase orders and customers
     try {
       final pastPo = await db.isar.purchaseOrders
           .filter()
@@ -4113,6 +4351,17 @@ class DigiTaxInventoryService {
         return {
           'tpin': cleanTpin,
           'taxpayer_name': pastPo.supplierName.trim(),
+          'physical_address': '',
+        };
+      }
+      final localCustomer = await db.isar.customers
+          .filter()
+          .phoneNumberEqualTo(cleanTpin)
+          .findFirst();
+      if (localCustomer != null && _isValidTaxpayerName(localCustomer.name)) {
+        return {
+          'tpin': cleanTpin,
+          'taxpayer_name': localCustomer.name.trim(),
           'physical_address': '',
         };
       }
@@ -4168,6 +4417,34 @@ class DigiTaxInventoryService {
         }
       } catch (_) {}
     }
+
+    // 5c. Live ZRA Smart Invoice Portal verification (resolves any registered 10-digit Zambian TPIN)
+    try {
+      final zraLive = await _lookupZraSmartInvoicePortal(cleanTpin);
+      if (zraLive != null) {
+        final zName = (zraLive['taxpayer_name'] ?? '').toString().trim();
+        final zAddr = (zraLive['physical_address'] ?? '').toString().trim();
+        if (_isValidTaxpayerName(zName)) {
+          await _cacheTaxpayerLocally(
+            tpin: cleanTpin,
+            name: zName,
+            address: zAddr,
+          );
+          unawaited(
+            saveVerifiedCustomerTpin(
+              tpin: cleanTpin,
+              name: zName,
+              address: zAddr,
+            ),
+          );
+          return {
+            'tpin': cleanTpin,
+            'taxpayer_name': zName,
+            'physical_address': zAddr,
+          };
+        }
+      }
+    } catch (_) {}
 
     // Collect all configured DigiTax API keys (cashier's branch + active store + all branches)
     final apiKeys = <String>{};

@@ -460,7 +460,7 @@ class CloudDatabaseService {
               'quantity': item.quantity,
               'weight': item.weight,
               'is_weighted': item.isWeighted,
-              'unit_of_measure': item.unitOfMeasure,
+              'unit_of_measure': item.unitOfMeasure.split('\n').first.trim(),
               'tax_rate_at_sale': item.taxRateAtSale,
               'is_tax_inclusive_at_sale': item.isTaxInclusiveAtSale,
               'is_digitax_exempt': item.isDigitaxExempt,
@@ -520,27 +520,27 @@ class CloudDatabaseService {
                 'is_archived': product.isArchived,
                 'discount_price': product.discountPrice,
                 'package_unit_code':
-                    (product.unitOfMeasure.toLowerCase().contains('box') ||
-                        product.unitOfMeasure.toLowerCase().contains('bx') ||
-                        product.unitOfMeasure.toLowerCase().contains('tab') ||
-                        product.unitOfMeasure.toLowerCase().contains('stp'))
+                    (product.displayUnitOfMeasure.toLowerCase().contains('box') ||
+                        product.displayUnitOfMeasure.toLowerCase().contains('bx') ||
+                        product.displayUnitOfMeasure.toLowerCase().contains('tab') ||
+                        product.displayUnitOfMeasure.toLowerCase().contains('stp'))
                     ? 'BX'
-                    : (product.unitOfMeasure.toLowerCase().contains('btl') ||
-                          product.unitOfMeasure.toLowerCase().contains(
+                    : (product.displayUnitOfMeasure.toLowerCase().contains('btl') ||
+                          product.displayUnitOfMeasure.toLowerCase().contains(
                             'bottle',
                           ))
                     ? 'BO'
-                    : (product.unitOfMeasure.toLowerCase().contains('pkt') ||
-                          product.unitOfMeasure.toLowerCase().contains('pack'))
+                    : (product.displayUnitOfMeasure.toLowerCase().contains('pkt') ||
+                          product.displayUnitOfMeasure.toLowerCase().contains('pack'))
                     ? 'PA'
-                    : (product.unitOfMeasure.toLowerCase().contains('can'))
+                    : (product.displayUnitOfMeasure.toLowerCase().contains('can'))
                     ? 'CA'
-                    : (product.unitOfMeasure.toLowerCase().contains('carton') ||
-                          product.unitOfMeasure.toLowerCase() == 'ctn' ||
-                          product.unitOfMeasure.toLowerCase() == 'crt')
+                    : (product.displayUnitOfMeasure.toLowerCase().contains('carton') ||
+                          product.displayUnitOfMeasure.toLowerCase() == 'ctn' ||
+                          product.displayUnitOfMeasure.toLowerCase() == 'crt')
                     ? 'CT'
-                    : (product.unitOfMeasure.toLowerCase().contains('bag') ||
-                          product.unitOfMeasure.toLowerCase() == 'bg')
+                    : (product.displayUnitOfMeasure.toLowerCase().contains('bag') ||
+                          product.displayUnitOfMeasure.toLowerCase() == 'bg')
                     ? 'BG'
                     : 'NT',
                 'unit_of_measure': product.unitOfMeasure,

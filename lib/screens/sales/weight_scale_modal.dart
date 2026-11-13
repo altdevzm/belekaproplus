@@ -122,7 +122,7 @@ class _WeightScaleModalState extends ConsumerState<WeightScaleModal> {
     final innerBg = isDark ? const Color(0xFF0B1220) : const Color(0xFFF8FAFC);
     const primaryAccent = Color(0xFF1D4ED8);
 
-    final unit = widget.product.unitOfMeasure.toLowerCase().trim();
+    final unit = widget.product.displayUnitOfMeasure.toLowerCase().trim();
     final unitLabel = unit.isEmpty ? 'kg' : unit;
     final unitPrice = widget.product.price;
     final totalComputedPrice = _currentNetWeight * unitPrice;

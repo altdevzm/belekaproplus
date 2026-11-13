@@ -342,7 +342,7 @@ class _StockAdjustmentModalState extends ConsumerState<StockAdjustmentModal> {
                 // Quantity Input
                 Text(
                   widget.product.isWeighted
-                      ? 'Quantity (${widget.product.unitOfMeasure.toUpperCase()})*'
+                      ? 'Quantity (${widget.product.displayUnitOfMeasure.toUpperCase()})*'
                       : 'Quantity*',
                   style: GoogleFonts.inter(
                     fontSize: 13,
@@ -367,7 +367,7 @@ class _StockAdjustmentModalState extends ConsumerState<StockAdjustmentModal> {
                       border: InputBorder.none,
                       hintText: widget.product.isWeighted ? 'e.g. 100 or 300' : 'Enter quantity',
                       hintStyle: const TextStyle(color: Colors.white24, fontSize: 13),
-                      suffixText: widget.product.isWeighted ? widget.product.unitOfMeasure.toUpperCase() : null,
+                      suffixText: widget.product.isWeighted ? widget.product.displayUnitOfMeasure.toUpperCase() : null,
                       suffixStyle: const TextStyle(color: Colors.white54, fontWeight: FontWeight.bold),
                     ),
                     validator: (v) {
@@ -389,7 +389,7 @@ class _StockAdjustmentModalState extends ConsumerState<StockAdjustmentModal> {
                   children: [
                     Text(
                       widget.product.isWeighted
-                          ? 'Current quantity: $currentStock ${widget.product.unitOfMeasure.toUpperCase()}'
+                          ? 'Current quantity: $currentStock ${widget.product.displayUnitOfMeasure.toUpperCase()}'
                           : 'Current quantity: $currentStock',
                       style: GoogleFonts.inter(
                         fontSize: 13,
@@ -462,7 +462,7 @@ class _StockAdjustmentModalState extends ConsumerState<StockAdjustmentModal> {
                             const SizedBox(width: 4),
                             Text(
                               widget.product.isWeighted
-                                  ? 'DigiTax Cloud: $_digitaxCloudStock ${widget.product.unitOfMeasure.toUpperCase()}'
+                                  ? 'DigiTax Cloud: $_digitaxCloudStock ${widget.product.displayUnitOfMeasure.toUpperCase()}'
                                   : 'DigiTax Cloud: $_digitaxCloudStock',
                               style: GoogleFonts.ibmPlexMono(
                                 fontSize: 11,
@@ -486,7 +486,7 @@ class _StockAdjustmentModalState extends ConsumerState<StockAdjustmentModal> {
                   child: Center(
                     child: Text(
                       widget.product.isWeighted
-                          ? 'Quantity after adjustment $afterStock ${widget.product.unitOfMeasure.toUpperCase()}'
+                          ? 'Quantity after adjustment $afterStock ${widget.product.displayUnitOfMeasure.toUpperCase()}'
                           : 'Quantity after adjustment $afterStock',
                       style: GoogleFonts.inter(
                         fontSize: 13,
@@ -521,7 +521,7 @@ class _StockAdjustmentModalState extends ConsumerState<StockAdjustmentModal> {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text('Batch Valuation ($qtyInput ${widget.product.unitOfMeasure.toUpperCase()}):', style: const TextStyle(color: Color(0xFFC1F11D), fontSize: 11, fontWeight: FontWeight.bold)),
+                                Text('Batch Valuation ($qtyInput ${widget.product.displayUnitOfMeasure.toUpperCase()}):', style: const TextStyle(color: Color(0xFFC1F11D), fontSize: 11, fontWeight: FontWeight.bold)),
                                 Text('Cost: $currency${costPerUnit.toStringAsFixed(2)} | Sell: $currency${pricePerUnit.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white60, fontSize: 10.5)),
                               ],
                             ),
@@ -535,7 +535,7 @@ class _StockAdjustmentModalState extends ConsumerState<StockAdjustmentModal> {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              'Expected Profit: +$currency${batchProfit.toStringAsFixed(2)} (+$currency${profitPerUnit.toStringAsFixed(2)} / ${widget.product.unitOfMeasure})',
+                              'Expected Profit: +$currency${batchProfit.toStringAsFixed(2)} (+$currency${profitPerUnit.toStringAsFixed(2)} / ${widget.product.displayUnitOfMeasure})',
                               style: const TextStyle(color: Color(0xFF4ADE80), fontWeight: FontWeight.bold, fontSize: 11),
                             ),
                           ],

@@ -175,7 +175,7 @@ class Product {
   set digitaxRemotePrice(double? value) {
     _setMetaTag(
       'DT_PRICE:',
-      value != null ? value.toStringAsFixed(4) : null,
+      value?.toStringAsFixed(4),
     );
   }
 
@@ -216,6 +216,8 @@ class Product {
   // Electronic Scale & Unit of Measure
   bool isWeighted = false; // true = Sold by weight / requires scale
   String unitOfMeasure = 'kg'; // 'kg', 'g', 'pcs', 'unit', 'ltr', 'lb'
+  @ignore
+  String get displayUnitOfMeasure => unitOfMeasure.split('\n').first.trim();
   double tareWeight = 0.0; // Default container / tray tare weight in kg
   String? scalePlu; // In-store PLU code for embedded weight barcodes
 
