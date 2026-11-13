@@ -509,6 +509,7 @@ class NetworkClient {
           j['isDigitaxSyncEnabled'] as bool? ??
           j['is_digitax_sync_enabled'] as bool? ??
           true,
+      isSyncedWithDigitax: j['isSyncedWithDigitax'] as bool? ?? false,
       taxRate: (j['taxRate'] as num?)?.toDouble() ?? 16.0,
       zraTaxCode: j['zraTaxCode'] as String? ?? 'A',
       itemClsCd: j['itemClsCd'] as String? ?? '10101501',
@@ -519,6 +520,7 @@ class NetworkClient {
       tareWeight: (j['tareWeight'] as num?)?.toDouble() ?? 0.0,
       isArchived: j['isArchived'] as bool? ?? false,
       imagePath: img,
+      colors: (j['colors'] as List?)?.map((e) => e.toString()).toList(),
     )..id = j['id'] as int;
   }
 

@@ -25,6 +25,9 @@ final showArchivedProvider = StateProvider<bool>((ref) => false);
 final inventorySearchProvider = StateProvider<String>((ref) => '');
 final inventoryCategoryFilterProvider = StateProvider<int?>((ref) => null);
 final inventoryBranchFilterProvider = StateProvider<String?>((ref) => null);
+final inventoryDigitaxStatusFilterProvider = StateProvider<String?>(
+  (ref) => null,
+);
 
 final inventoryProductsProvider = StreamProvider<List<Product>>((ref) {
   final db = ref.watch(databaseServiceProvider);
@@ -68,10 +71,81 @@ class InventoryScreen extends ConsumerStatefulWidget {
 class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   final TextEditingController _searchController = TextEditingController();
   bool _isSyncingDigitax = false;
+  final Set<int> _checkingProductIds = <int>{};
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(digitaxInventoryServiceProvider).pollPendingAndMismatchedItems();
+    });
+  }
+
+  Future<void> _checkSingleProductDigitaxStatus(Product product) async {
+    if (_checkingProductIds.contains(product.id)) {
+      return;
+    }
+    setState(() {
+      _checkingProductIds.add(product.id);
+    });
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final status = await ref
+          .read(digitaxInventoryServiceProvider)
+          .checkSingleProductDigitaxStatus(product);
+      ref.invalidate(inventoryProductsProvider);
+      if (!mounted) {
+        return;
+      }
+      if (status == 'COMPLETED') {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              '${product.name}: Approved & Synced with DigiTax/ZRA!',
+            ),
+            backgroundColor: const Color(0xFF10B981),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      } else if (status == 'PENDING') {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              '${product.name}: Still PENDING ZRA VSDC approval. Will auto-update live.',
+            ),
+            backgroundColor: const Color(0xFFD97706),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      } else if (status == 'FAILED') {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              '${product.name}: Rejected by DigiTax/ZRA — ${product.digitaxSyncError ?? "Check ZRA Classification Code"}',
+            ),
+            backgroundColor: const Color(0xFFEF4444),
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('${product.name}: DigiTax check failed — $e'),
+          backgroundColor: const Color(0xFFEF4444),
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _checkingProductIds.remove(product.id);
+        });
+      }
+    }
   }
 
   Future<void> _performInstantDigiTaxSync() async {
@@ -309,12 +383,13 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     final search = ref.watch(inventorySearchProvider);
     final categoryFilter = ref.watch(inventoryCategoryFilterProvider);
     final branchFilter = ref.watch(inventoryBranchFilterProvider);
+    final digitaxStatusFilter = ref.watch(inventoryDigitaxStatusFilterProvider);
     final user = ref.watch(authProvider);
     final storeConfig = ref.watch(storeConfigProvider).value;
     final totalProducts = productsAsync.value ?? [];
     final categories = categoriesAsync.value ?? [];
 
-    // Filter products based on search, category, and multi-branch store isolation
+    // Filter products based on search, category, DigiTax status, and multi-branch store isolation
     final filteredProducts = totalProducts.where((p) {
       final normalizedRole = normalizeUserRole(user?.role);
       if (normalizedRole == 'branch_manager' || normalizedRole == 'cashier') {
@@ -330,7 +405,32 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
           return false;
         }
       } else if (branchFilter != null) {
-        if (p.branchCode != branchFilter) return false;
+        if (p.branchCode != branchFilter) {
+          return false;
+        }
+      }
+
+      if (digitaxStatusFilter != null) {
+        final status = p.digitaxSyncStatus;
+        if (digitaxStatusFilter == 'COMPLETED') {
+          if (status != 'COMPLETED' || p.hasDigitaxPriceMismatch) {
+            return false;
+          }
+        } else if (digitaxStatusFilter == 'PENDING') {
+          if (status != 'PENDING') {
+            return false;
+          }
+        } else if (digitaxStatusFilter == 'ATTENTION') {
+          if (status != 'FAILED' &&
+              status != 'UNSYNCED' &&
+              !p.hasDigitaxPriceMismatch) {
+            return false;
+          }
+        } else if (digitaxStatusFilter == 'OFFLINE') {
+          if (status != 'OFFLINE') {
+            return false;
+          }
+        }
       }
 
       final query = search.toLowerCase();
@@ -1731,6 +1831,96 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     );
   }
 
+  Widget _buildDigitaxStatusBadge(BuildContext context, Product product) {
+    final isChecking = _checkingProductIds.contains(product.id);
+    final status = product.digitaxSyncStatus;
+    final hasPriceMismatch = product.hasDigitaxPriceMismatch;
+    final err = product.digitaxSyncError;
+
+    String label;
+    Color color;
+    IconData icon;
+    bool clickable = false;
+
+    if (isChecking) {
+      label = 'Checking DigiTax...';
+      color = const Color(0xFF0284C7);
+      icon = Icons.sync_rounded;
+    } else if (status == 'OFFLINE') {
+      label = 'Offline (Exempt)';
+      color = const Color(0xFF0284C7);
+      icon = Icons.shield_outlined;
+    } else if (status == 'COMPLETED' && !hasPriceMismatch) {
+      label = 'ZRA Approved (Synced)';
+      color = const Color(0xFF059669);
+      icon = Icons.verified_rounded;
+    } else if (status == 'COMPLETED' && hasPriceMismatch) {
+      final remoteP = product.digitaxRemotePrice?.toStringAsFixed(2) ?? '?';
+      label = 'Price Mismatch (DigiTax: $remoteP • Tap to Sync)';
+      color = const Color(0xFFD97706);
+      icon = Icons.price_change_rounded;
+      clickable = true;
+    } else if (status == 'PENDING') {
+      label = 'ZRA Pending Approval • Tap to Check';
+      color = const Color(0xFFD97706);
+      icon = Icons.hourglass_top_rounded;
+      clickable = true;
+    } else if (status == 'FAILED') {
+      label = err != null && err.isNotEmpty
+          ? 'ZRA Rejected: $err • Tap to Retry'
+          : 'ZRA Rejected • Tap to Retry';
+      color = const Color(0xFFDC2626);
+      icon = Icons.error_outline_rounded;
+      clickable = true;
+    } else {
+      label = 'Not Uploaded to DigiTax • Tap to Push';
+      color = const Color(0xFFD97706);
+      icon = Icons.cloud_upload_outlined;
+      clickable = true;
+    }
+
+    final badge = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: color.withValues(alpha: 0.3), width: 0.8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 11, color: color),
+          const SizedBox(width: 4),
+          Flexible(
+            child: Text(
+              label,
+              style: GoogleFonts.inter(
+                fontSize: 9.5,
+                fontWeight: FontWeight.w700,
+                color: color,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (!clickable) {
+      return badge;
+    }
+
+    return InkWell(
+      onTap: () => _checkSingleProductDigitaxStatus(product),
+      borderRadius: BorderRadius.circular(4),
+      child: Tooltip(
+        message: err ?? 'Tap to check live ZRA status or retry DigiTax sync',
+        child: badge,
+      ),
+    );
+  }
+
   Widget _buildCategoryFilterBar(
     BuildContext context,
     WidgetRef ref,
@@ -1738,7 +1928,29 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     List<Category> categories,
   ) {
     final activeFilter = ref.watch(inventoryCategoryFilterProvider);
+    final activeStatusFilter = ref.watch(inventoryDigitaxStatusFilterProvider);
     final primaryColor = Theme.of(context).colorScheme.primary;
+
+    final approvedCount = products
+        .where(
+          (p) =>
+              p.digitaxSyncStatus == 'COMPLETED' && !p.hasDigitaxPriceMismatch,
+        )
+        .length;
+    final pendingCount = products
+        .where((p) => p.digitaxSyncStatus == 'PENDING')
+        .length;
+    final attentionCount = products
+        .where(
+          (p) =>
+              p.digitaxSyncStatus == 'FAILED' ||
+              p.digitaxSyncStatus == 'UNSYNCED' ||
+              p.hasDigitaxPriceMismatch,
+        )
+        .length;
+    final offlineCount = products
+        .where((p) => p.digitaxSyncStatus == 'OFFLINE')
+        .length;
 
     return SizedBox(
       height: 36,
@@ -1750,12 +1962,67 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
             context,
             label: 'ALL PRODUCTS',
             count: products.length,
-            isSelected: activeFilter == null,
+            isSelected: activeFilter == null && activeStatusFilter == null,
             color: primaryColor,
-            onTap: () =>
-                ref.read(inventoryCategoryFilterProvider.notifier).state = null,
+            onTap: () {
+              ref.read(inventoryCategoryFilterProvider.notifier).state = null;
+              ref.read(inventoryDigitaxStatusFilterProvider.notifier).state =
+                  null;
+            },
           ),
           const SizedBox(width: 8),
+
+          // 3-Stage DigiTax Live Status Filter Chips
+          _buildCategoryFilterChip(
+            context,
+            label: 'ZRA APPROVED',
+            count: approvedCount,
+            isSelected: activeStatusFilter == 'COMPLETED',
+            color: const Color(0xFF059669),
+            onTap: () {
+              ref.read(inventoryDigitaxStatusFilterProvider.notifier).state =
+                  activeStatusFilter == 'COMPLETED' ? null : 'COMPLETED';
+            },
+          ),
+          const SizedBox(width: 8),
+          _buildCategoryFilterChip(
+            context,
+            label: 'ZRA PENDING',
+            count: pendingCount,
+            isSelected: activeStatusFilter == 'PENDING',
+            color: const Color(0xFFD97706),
+            onTap: () {
+              ref.read(inventoryDigitaxStatusFilterProvider.notifier).state =
+                  activeStatusFilter == 'PENDING' ? null : 'PENDING';
+            },
+          ),
+          const SizedBox(width: 8),
+          _buildCategoryFilterChip(
+            context,
+            label: 'REJECTED / MISMATCH',
+            count: attentionCount,
+            isSelected: activeStatusFilter == 'ATTENTION',
+            color: const Color(0xFFDC2626),
+            onTap: () {
+              ref.read(inventoryDigitaxStatusFilterProvider.notifier).state =
+                  activeStatusFilter == 'ATTENTION' ? null : 'ATTENTION';
+            },
+          ),
+          const SizedBox(width: 8),
+          if (offlineCount > 0) ...[
+            _buildCategoryFilterChip(
+              context,
+              label: 'OFFLINE EXEMPT',
+              count: offlineCount,
+              isSelected: activeStatusFilter == 'OFFLINE',
+              color: const Color(0xFF0284C7),
+              onTap: () {
+                ref.read(inventoryDigitaxStatusFilterProvider.notifier).state =
+                    activeStatusFilter == 'OFFLINE' ? null : 'OFFLINE';
+              },
+            ),
+            const SizedBox(width: 8),
+          ],
 
           // Chips for each category
           ...categories.map((cat) {
@@ -2086,22 +2353,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                         ),
                       ),
                     ),
-                    Text(
-                      !product.isDigitaxSyncEnabled
-                          ? 'Offline (Exempt)'
-                          : (product.isSyncedWithDigitax
-                                ? 'DigiTax Synced'
-                                : 'Pending Sync'),
-                      style: GoogleFonts.inter(
-                        fontSize: 9.5,
-                        fontWeight: FontWeight.w600,
-                        color: !product.isDigitaxSyncEnabled
-                            ? const Color(0xFF0284C7)
-                            : (product.isSyncedWithDigitax
-                                  ? const Color(0xFF059669)
-                                  : const Color(0xFFD97706)),
-                      ),
-                    ),
+                    _buildDigitaxStatusBadge(context, product),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -2619,20 +2871,10 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                               ),
                             ),
                             const SizedBox(width: 6),
-                            Text(
-                              !product.isDigitaxSyncEnabled
-                                  ? 'Offline (Exempt)'
-                                  : (product.isSyncedWithDigitax
-                                        ? 'DigiTax Synced'
-                                        : 'Pending Sync'),
-                              style: GoogleFonts.inter(
-                                fontSize: 9.5,
-                                fontWeight: FontWeight.w600,
-                                color: !product.isDigitaxSyncEnabled
-                                    ? const Color(0xFF0284C7)
-                                    : (product.isSyncedWithDigitax
-                                          ? const Color(0xFF059669)
-                                          : const Color(0xFFD97706)),
+                            Flexible(
+                              child: _buildDigitaxStatusBadge(
+                                context,
+                                product,
                               ),
                             ),
                           ],

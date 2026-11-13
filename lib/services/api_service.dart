@@ -1086,6 +1086,7 @@ class ApiService {
       'imagePath': p.imagePath,
       'imageBase64': imageBase64,
       'isDigitaxSyncEnabled': p.isDigitaxSyncEnabled,
+      'isSyncedWithDigitax': p.isSyncedWithDigitax,
       'zraTaxCode': p.zraTaxCode,
       'itemClsCd': p.itemClsCd,
       'branchCode': p.branchCode,
@@ -1093,6 +1094,7 @@ class ApiService {
       'unitOfMeasure': p.unitOfMeasure,
       'isWeighted': p.isWeighted,
       'tareWeight': p.tareWeight,
+      'colors': p.colors,
     };
   }
 

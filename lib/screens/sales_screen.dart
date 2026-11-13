@@ -481,6 +481,43 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     final config = ref.read(storeConfigProvider).value;
     final currency = config?.currencySymbol ?? 'ZK';
 
+    // If product is PENDING, FAILED, or has a price mismatch on DigiTax,
+    // trigger a live status/price check against DigiTax immediately.
+    if (product.isDigitaxSyncEnabled &&
+        (product.digitaxSyncStatus == 'PENDING' ||
+            product.digitaxSyncStatus == 'FAILED' ||
+            product.hasDigitaxPriceMismatch)) {
+      ref
+          .read(digitaxInventoryServiceProvider)
+          .checkSingleProductDigitaxStatus(product)
+          .then((newStatus) {
+            if (mounted && newStatus == 'FAILED') {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'ZRA Notice: "${product.name}" was rejected by ZRA (${product.digitaxSyncError ?? "Check ZRA Class Code"}). Fiscal receipt may be held until fixed in Inventory.',
+                  ),
+                  backgroundColor: const Color(0xFFDC2626),
+                  behavior: SnackBarBehavior.floating,
+                  duration: const Duration(seconds: 4),
+                ),
+              );
+            } else if (mounted && newStatus == 'PENDING') {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'ZRA Notice: "${product.name}" is still PENDING ZRA approval on DigiTax.',
+                  ),
+                  backgroundColor: const Color(0xFFD97706),
+                  behavior: SnackBarBehavior.floating,
+                  duration: const Duration(seconds: 3),
+                ),
+              );
+            }
+          })
+          .catchError((_) {});
+    }
+
     if (product.isWeighted) {
       final double? weight = await showDialog<double>(
         context: context,
@@ -3329,6 +3366,46 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                                     ),
                                   ),
                                 ],
+                              ),
+                            )
+                          else if (product.isDigitaxSyncEnabled &&
+                              product.digitaxSyncStatus == 'FAILED')
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFDC2626),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                'ZRA REJECTED',
+                                style: GoogleFonts.inter(
+                                  fontSize: 8,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            )
+                          else if (product.isDigitaxSyncEnabled &&
+                              product.digitaxSyncStatus == 'PENDING')
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFD97706),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                'ZRA PENDING',
+                                style: GoogleFonts.inter(
+                                  fontSize: 8,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
+                                ),
                               ),
                             )
                           else if (hasDiscount)

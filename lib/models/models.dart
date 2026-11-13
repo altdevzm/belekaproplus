@@ -88,12 +88,129 @@ class Product {
 
   bool get hasUsableDigitaxItemId {
     final value = itemClsCd.trim();
-    if (value.isEmpty) return false;
+    if (value.isEmpty) {
+      return false;
+    }
     // Pure 8-digit numbers are ZRA UNSPSC classification codes, NOT DigiTax item IDs
-    if (RegExp(r'^\d{8}$').hasMatch(value)) return false;
-    if (value == '10101501' || value == '56101530') return false;
+    if (RegExp(r'^\d{8}$').hasMatch(value)) {
+      return false;
+    }
+    if (value == '10101501' || value == '56101530') {
+      return false;
+    }
     // Any valid non-UNSPSC identifier is a DigiTax item ID (item_*, itm_*, UUIDs, CUIDs, or numeric IDs)
     return true;
+  }
+
+  String? _getMetaTag(String prefix) {
+    final list = colors;
+    if (list == null) {
+      return null;
+    }
+    for (final entry in list) {
+      if (entry.startsWith(prefix)) {
+        return entry.substring(prefix.length);
+      }
+    }
+    return null;
+  }
+
+  void _setMetaTag(String prefix, String? value) {
+    final updated = <String>[
+      ...(colors ?? const <String>[]).where((e) => !e.startsWith(prefix)),
+    ];
+    if (value != null && value.trim().isNotEmpty) {
+      updated.add('$prefix${value.trim()}');
+    }
+    colors = updated.isEmpty ? null : updated;
+  }
+
+  /// Live ZRA DigiTax Item Status:
+  /// - 'OFFLINE': Exempt / Local-only item (`!isDigitaxSyncEnabled`)
+  /// - 'COMPLETED': Approved by ZRA VSDC and ready for fiscal sales
+  /// - 'PENDING': Uploaded to DigiTax, waiting for ZRA VSDC approval
+  /// - 'FAILED': Rejected by ZRA VSDC or failed DigiTax validation
+  /// - 'UNSYNCED': Not yet uploaded to DigiTax
+  @ignore
+  String get digitaxSyncStatus {
+    if (!isDigitaxSyncEnabled) {
+      return 'OFFLINE';
+    }
+    final explicit = _getMetaTag('DT_STATUS:')?.toUpperCase();
+    if (explicit == 'PENDING' ||
+        explicit == 'FAILED' ||
+        explicit == 'COMPLETED') {
+      return explicit!;
+    }
+    if (isSyncedWithDigitax && hasUsableDigitaxItemId) {
+      return 'COMPLETED';
+    }
+    return 'UNSYNCED';
+  }
+
+  set digitaxSyncStatus(String value) {
+    final upper = value.trim().toUpperCase();
+    _setMetaTag('DT_STATUS:', upper);
+    isSyncedWithDigitax = (upper == 'COMPLETED');
+  }
+
+  /// Rejection reason or pending notice from DigiTax / ZRA VSDC
+  @ignore
+  String? get digitaxSyncError => _getMetaTag('DT_ERR:');
+
+  set digitaxSyncError(String? value) {
+    _setMetaTag('DT_ERR:', value);
+  }
+
+  /// Last confirmed unit price registered on DigiTax (`default_unit_price`)
+  @ignore
+  double? get digitaxRemotePrice {
+    final raw = _getMetaTag('DT_PRICE:');
+    if (raw == null) {
+      return null;
+    }
+    return double.tryParse(raw);
+  }
+
+  set digitaxRemotePrice(double? value) {
+    _setMetaTag(
+      'DT_PRICE:',
+      value != null ? value.toStringAsFixed(4) : null,
+    );
+  }
+
+  /// True when the local selling price differs from the price currently registered in DigiTax
+  @ignore
+  bool get hasDigitaxPriceMismatch {
+    if (!isDigitaxSyncEnabled || !hasUsableDigitaxItemId) {
+      return false;
+    }
+    final remote = digitaxRemotePrice;
+    if (remote == null || remote <= 0) {
+      return false;
+    }
+    return (price - remote).abs() > 0.01;
+  }
+
+  /// Preserves the 8-digit ZRA UNSPSC classification code even after `itemClsCd` stores `item_...`
+  @ignore
+  String get zraUnspscClassCode {
+    final stored = _getMetaTag('DT_CLS:');
+    if (stored != null && RegExp(r'^\d{8}$').hasMatch(stored)) {
+      return stored;
+    }
+    if (RegExp(r'^\d{8}$').hasMatch(itemClsCd.trim())) {
+      return itemClsCd.trim();
+    }
+    return zraTaxCode == 'B'
+        ? '50202301'
+        : (zraTaxCode == 'C' ? '42141501' : '52151501');
+  }
+
+  set zraUnspscClassCode(String? value) {
+    if (value != null && RegExp(r'^\d{8}$').hasMatch(value.trim())) {
+      _setMetaTag('DT_CLS:', value.trim());
+    }
   }
 
   // Electronic Scale & Unit of Measure

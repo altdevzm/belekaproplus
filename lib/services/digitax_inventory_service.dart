@@ -112,7 +112,9 @@ class DigiTaxInventoryService {
 
   bool _isSyncRunning = false;
   bool _isProcessingFiscalQueue = false;
+  bool _isPollingItemStatus = false;
   Timer? _fiscalQueueTimer;
+  Timer? _itemStatusPollTimer;
 
   // In-memory cache for remote catalogue items to avoid redundant pagination on every sale
   List<Map<String, dynamic>>? _remoteItemsCache;
@@ -501,18 +503,135 @@ class DigiTaxInventoryService {
   }
 
   String? _extractRemoteItemId(dynamic value) {
-    if (value is! Map) return null;
+    if (value is! Map) {
+      return null;
+    }
 
     for (final key in const ['id', 'item_id']) {
       final id = value[key]?.toString().trim();
-      if (id != null && id.isNotEmpty && id != 'null') return id;
+      if (id != null && id.isNotEmpty && id != 'null') {
+        return id;
+      }
     }
 
     for (final key in const ['item', 'data', 'product']) {
       final id = _extractRemoteItemId(value[key]);
-      if (id != null) return id;
+      if (id != null) {
+        return id;
+      }
     }
     return null;
+  }
+
+  Map<String, dynamic> _extractRemoteItemMap(dynamic value) {
+    if (value is Map) {
+      for (final key in const ['item', 'data', 'product']) {
+        final inner = value[key];
+        if (inner is Map &&
+            (inner.containsKey('id') ||
+                inner.containsKey('item_id') ||
+                inner.containsKey('status') ||
+                inner.containsKey('item_name'))) {
+          return Map<String, dynamic>.from(inner);
+        }
+      }
+      return Map<String, dynamic>.from(value);
+    }
+    return <String, dynamic>{};
+  }
+
+  String? _extractItemStatusReason(Map<String, dynamic> remoteItem) {
+    for (final key in const [
+      'status_message',
+      'error_message',
+      'rejection_reason',
+      'vsdc_message',
+      'zra_message',
+      'reason',
+      'error',
+      'message',
+      'description',
+    ]) {
+      final val = remoteItem[key]?.toString().trim();
+      if (val != null && val.isNotEmpty && val != 'null') {
+        return val;
+      }
+    }
+    return null;
+  }
+
+  /// Applies the 3-stage DigiTax/ZRA item status (`PENDING`, `COMPLETED`, `FAILED`),
+  /// remote unit price (`default_unit_price`), and ZRA classification code to [product].
+  void _applyRemoteItemStatusToProduct(
+    Product product,
+    Map<String, dynamic> remoteItem, {
+    bool updateRemotePrice = true,
+  }) {
+    final rId =
+        (remoteItem['id'] ??
+                remoteItem['item_id'] ??
+                remoteItem['itemId'] ??
+                '')
+            .toString()
+            .trim();
+    if (rId.isNotEmpty && rId != 'null') {
+      product.itemClsCd = rId;
+    }
+
+    final rClass =
+        (remoteItem['item_class_code'] ??
+                remoteItem['itemClsCd'] ??
+                remoteItem['item_cls_cd'] ??
+                '')
+            .toString()
+            .trim();
+    if (RegExp(r'^\d{8}$').hasMatch(rClass)) {
+      product.zraUnspscClassCode = rClass;
+    }
+
+    if (updateRemotePrice) {
+      final rPrice =
+          double.tryParse(
+            (remoteItem['default_unit_price'] ??
+                    remoteItem['dftPrc'] ??
+                    remoteItem['price'] ??
+                    '')
+                .toString(),
+          ) ??
+          0.0;
+      if (rPrice > 0) {
+        product.digitaxRemotePrice = rPrice;
+      }
+    }
+
+    final rawStatus =
+        (remoteItem['status'] ??
+                remoteItem['zra_status'] ??
+                remoteItem['sync_status'] ??
+                'COMPLETED')
+            .toString()
+            .trim()
+            .toUpperCase();
+    final reason = _extractItemStatusReason(remoteItem);
+
+    if (rawStatus == 'PENDING' ||
+        rawStatus == 'QUEUED' ||
+        rawStatus == 'PROCESSING') {
+      product.digitaxSyncStatus = 'PENDING';
+      product.digitaxSyncError =
+          reason ?? 'Waiting for ZRA VSDC approval (Pending)';
+    } else if (rawStatus == 'FAILED' ||
+        rawStatus == 'REJECTED' ||
+        rawStatus == 'ERROR') {
+      product.digitaxSyncStatus = 'FAILED';
+      product.digitaxSyncError =
+          reason ??
+          'Rejected by ZRA VSDC — check ZRA Classification Code & Tax Type';
+    } else {
+      product.digitaxSyncStatus = 'COMPLETED';
+      product.digitaxSyncError = null;
+    }
+    product.lastDigitaxSyncDate = DateTime.now();
   }
 
   void _startPeriodicFiscalWorker() {
@@ -532,11 +651,233 @@ class DigiTaxInventoryService {
         debugPrint('DIGITAX_QUEUE_WORKER_ERROR: $e');
       }
     });
+
+    _itemStatusPollTimer?.cancel();
+    _itemStatusPollTimer = Timer.periodic(
+      const Duration(seconds: 15),
+      (_) async {
+        try {
+          await pollPendingAndMismatchedItems();
+        } catch (e) {
+          debugPrint('DIGITAX_ITEM_STATUS_POLL_ERROR: $e');
+        }
+      },
+    );
   }
 
   void dispose() {
     _fiscalQueueTimer?.cancel();
     _fiscalQueueTimer = null;
+    _itemStatusPollTimer?.cancel();
+    _itemStatusPollTimer = null;
+  }
+
+  /// Background live listener that polls DigiTax for any items in `PENDING` state
+  /// or with a local vs. DigiTax price mismatch, updating Isar in real time so UI
+  /// streams (`db.watchAllProducts()`) reflect `COMPLETED` or `FAILED` status live.
+  Future<int> pollPendingAndMismatchedItems() async {
+    if (_isPollingItemStatus || _isSyncRunning) {
+      return 0;
+    }
+    _isPollingItemStatus = true;
+    int updatedCount = 0;
+
+    try {
+      final db = ref.read(databaseServiceProvider);
+      final allProducts = await db.isar.products
+          .filter()
+          .isArchivedEqualTo(false)
+          .and()
+          .isDigitaxSyncEnabledEqualTo(true)
+          .findAll();
+
+      final candidates = allProducts.where((p) {
+        if (!p.hasUsableDigitaxItemId) {
+          return false;
+        }
+        return p.digitaxSyncStatus == 'PENDING' || p.hasDigitaxPriceMismatch;
+      }).toList();
+
+      if (candidates.isEmpty) {
+        return 0;
+      }
+
+      if (!await canReachDigiTax()) {
+        return 0;
+      }
+
+      for (final p in candidates.take(15)) {
+        final itemId = p.itemClsCd.trim();
+        final branchCode = p.branchCode.trim().isNotEmpty
+            ? p.branchCode.trim()
+            : '00';
+        final apiKey = await resolveBranchApiKey(branchCode);
+        if (apiKey == null || apiKey.isEmpty) {
+          continue;
+        }
+
+        final headers = {
+          'Authorization': 'Bearer $apiKey',
+          'X-API-Key': apiKey,
+          'Content-Type': 'application/json',
+        };
+
+        try {
+          final resp = await _backgroundDio.get(
+            '$digitaxZambiaApiBaseUrl/items/$itemId',
+            options: Options(
+              headers: headers,
+              validateStatus: (s) => s != null && s < 500,
+            ),
+          );
+
+          if (resp.statusCode == 200 && resp.data is Map) {
+            final remoteMap = _extractRemoteItemMap(resp.data);
+            final previousStatus = p.digitaxSyncStatus;
+            final previousRemotePrice = p.digitaxRemotePrice;
+
+            _applyRemoteItemStatusToProduct(p, remoteMap);
+
+            // If item just transitioned from PENDING -> COMPLETED, push initial stock if remote stock is 0
+            if (previousStatus == 'PENDING' &&
+                p.digitaxSyncStatus == 'COMPLETED' &&
+                p.stockLevel > 0) {
+              final rawRemoteStock =
+                  remoteMap['stock_quantity'] ??
+                  remoteMap['stock'] ??
+                  remoteMap['quantity'] ??
+                  0;
+              final remoteStock = rawRemoteStock is num
+                  ? rawRemoteStock.toInt()
+                  : (int.tryParse(rawRemoteStock.toString()) ?? 0);
+              if (remoteStock == 0) {
+                try {
+                  await _backgroundDio.put(
+                    '$digitaxZambiaApiBaseUrl/stock/adjust',
+                    data: {
+                      "item_id": itemId,
+                      "quantity": p.stockLevel.abs(),
+                      "action": "ADD",
+                      "movement_type": "01",
+                    },
+                    options: Options(headers: headers),
+                  );
+                } catch (_) {}
+              }
+            }
+
+            // If local price differs from DigiTax price and item is not FAILED, push local price to DigiTax
+            if (p.hasDigitaxPriceMismatch &&
+                p.price > 0 &&
+                p.digitaxSyncStatus != 'FAILED') {
+              try {
+                final putResp = await _backgroundDio.put(
+                  '$digitaxZambiaApiBaseUrl/items/$itemId',
+                  data: {
+                    "item_name": p.name.trim(),
+                    "default_unit_price": p.price,
+                    "recommended_retail_price": p.price,
+                  },
+                  options: Options(
+                    headers: headers,
+                    validateStatus: (s) => s != null && s < 500,
+                  ),
+                );
+                if (putResp.statusCode == 200 || putResp.statusCode == 201) {
+                  final putMap = _extractRemoteItemMap(putResp.data);
+                  _applyRemoteItemStatusToProduct(
+                    p,
+                    putMap,
+                    updateRemotePrice: false,
+                  );
+                  p.digitaxRemotePrice = p.price;
+                }
+              } catch (e) {
+                debugPrint('DIGITAX_LIVE_PRICE_SYNC_NOTE: $e');
+              }
+            }
+
+            if (p.digitaxSyncStatus != previousStatus ||
+                p.digitaxRemotePrice != previousRemotePrice) {
+              await db.isar.writeTxn(() async {
+                await db.isar.products.put(p);
+              });
+              updatedCount++;
+            }
+          }
+        } catch (e) {
+          debugPrint('DIGITAX_POLL_ITEM_NOTE ($itemId): $e');
+        }
+      }
+    } finally {
+      _isPollingItemStatus = false;
+    }
+    return updatedCount;
+  }
+
+  /// Explicitly checks or retries DigiTax synchronization for a single [product] on user demand.
+  /// Returns the resulting `digitaxSyncStatus` (`COMPLETED`, `PENDING`, `FAILED`, or `OFFLINE`).
+  Future<String> checkSingleProductDigitaxStatus(Product product) async {
+    if (!product.isDigitaxSyncEnabled) {
+      return 'OFFLINE';
+    }
+    final db = ref.read(databaseServiceProvider);
+    final branchCode = product.branchCode.trim().isNotEmpty
+        ? product.branchCode.trim()
+        : '00';
+    final apiKey = await resolveBranchApiKey(branchCode);
+    if (apiKey == null || apiKey.isEmpty) {
+      throw 'DigiTax API Key is missing for branch $branchCode.';
+    }
+
+    final headers = {
+      'Authorization': 'Bearer $apiKey',
+      'X-API-Key': apiKey,
+      'Content-Type': 'application/json',
+    };
+
+    if (product.hasUsableDigitaxItemId &&
+        product.digitaxSyncStatus != 'FAILED') {
+      final itemId = product.itemClsCd.trim();
+      final resp = await _dio.get(
+        '$digitaxZambiaApiBaseUrl/items/$itemId',
+        options: Options(
+          headers: headers,
+          validateStatus: (s) => s != null && s < 500,
+        ),
+      );
+      if (resp.statusCode == 200 && resp.data is Map) {
+        final remoteMap = _extractRemoteItemMap(resp.data);
+        _applyRemoteItemStatusToProduct(product, remoteMap);
+
+        if (product.hasDigitaxPriceMismatch && product.price > 0) {
+          final putResp = await _dio.put(
+            '$digitaxZambiaApiBaseUrl/items/$itemId',
+            data: {
+              "item_name": product.name.trim(),
+              "default_unit_price": product.price,
+              "recommended_retail_price": product.price,
+            },
+            options: Options(
+              headers: headers,
+              validateStatus: (s) => s != null && s < 500,
+            ),
+          );
+          if (putResp.statusCode == 200 || putResp.statusCode == 201) {
+            product.digitaxRemotePrice = product.price;
+          }
+        }
+
+        await db.isar.writeTxn(() async {
+          await db.isar.products.put(product);
+        });
+        return product.digitaxSyncStatus;
+      }
+    }
+
+    // If item was FAILED, UNSYNCED, or not found by ID, re-run full single-product registration/update
+    await syncSingleProductToDigitax(product, throwOnError: true);
+    return product.digitaxSyncStatus;
   }
 
   // --------------------------------------------------------------------------
@@ -1027,19 +1368,17 @@ class DigiTaxInventoryService {
 
         if (existing != null) {
           existing.branchCode = bhfId;
-          if (existing.price != rPrice && rPrice > 0) {
+          final hadLocalPriceChange =
+              existing.digitaxRemotePrice != null &&
+              (existing.price - existing.digitaxRemotePrice!).abs() > 0.01 &&
+              (existing.price - rPrice).abs() > 0.01;
+          if (!hadLocalPriceChange && existing.price != rPrice && rPrice > 0) {
             existing.price = rPrice;
           }
           if (existing.stockLevel != remoteStock) {
             existing.stockLevel = remoteStock;
           }
-          if (rId.isNotEmpty && existing.itemClsCd != rId) {
-            existing.itemClsCd = rId;
-          }
-          if (!existing.isSyncedWithDigitax) {
-            existing.isSyncedWithDigitax = true;
-          }
-          existing.lastDigitaxSyncDate = DateTime.now();
+          _applyRemoteItemStatusToProduct(existing, r);
           await db.isar.writeTxn(() async {
             await db.isar.products.put(existing);
           });
@@ -1054,10 +1393,11 @@ class DigiTaxInventoryService {
             itemClsCd: rId.isNotEmpty ? rId : '10101501',
             branchCode: bhfId,
             branchName: config?.branchName,
-            isSyncedWithDigitax: true,
+            isSyncedWithDigitax: false,
             isDigitaxSyncEnabled: true,
             lastDigitaxSyncDate: DateTime.now(),
           );
+          _applyRemoteItemStatusToProduct(imported, r);
           await db.isar.writeTxn(() async {
             await db.isar.products.put(imported);
           });
@@ -1087,10 +1427,9 @@ class DigiTaxInventoryService {
           final candidatePool = codeCandidates.isNotEmpty
               ? codeCandidates
               : nameCandidates;
-          final localClass = p.itemClsCd.trim().toLowerCase();
+          final localClass = p.zraUnspscClassCode.trim().toLowerCase();
           final hasSpecificClass =
               localClass.isNotEmpty &&
-              !p.hasUsableDigitaxItemId &&
               localClass != '10101501' &&
               localClass != '56101530';
           final classCandidates = hasSpecificClass
@@ -1106,11 +1445,17 @@ class DigiTaxInventoryService {
                   return code == localClass;
                 }).toList()
               : candidatePool;
-          final existingRemote = storedItemId.isNotEmpty
-              ? remoteById[storedItemId]
-              : classCandidates.length == 1
-              ? classCandidates.single
-              : null;
+
+          Map<String, dynamic>? existingRemote;
+          if (storedItemId.isNotEmpty) {
+            existingRemote = remoteById[storedItemId];
+          } else if (codeCandidates.length == 1) {
+            existingRemote = codeCandidates.single;
+          } else if (nameCandidates.length == 1) {
+            existingRemote = nameCandidates.single;
+          } else if (classCandidates.length == 1) {
+            existingRemote = classCandidates.single;
+          }
 
           if (storedItemId.isNotEmpty && existingRemote == null) {
             errors.add(
@@ -1119,44 +1464,55 @@ class DigiTaxInventoryService {
             continue;
           }
           if (storedItemId.isEmpty &&
-              (classCandidates.length > 1 ||
-                  (candidatePool.isNotEmpty && classCandidates.isEmpty))) {
+              existingRemote == null &&
+              candidatePool.isNotEmpty) {
             errors.add(
-              'Skipped "${p.name}": DigiTax match is ambiguous or has a different item classification.',
+              'Skipped "${p.name}": DigiTax match is ambiguous across multiple remote items.',
             );
             continue;
           }
 
           if (existingRemote != null) {
-            final remoteId = (existingRemote['id'] ?? '').toString();
+            final remoteId = (existingRemote['id'] ?? '').toString().trim();
             final remotePrice =
                 double.tryParse(
                   (existingRemote['default_unit_price'] ?? '0').toString(),
                 ) ??
                 0.0;
 
+            _applyRemoteItemStatusToProduct(p, existingRemote);
+
             if (remoteId.isNotEmpty) {
               p.itemClsCd = remoteId;
 
-              // Branches may link an existing master item, but must not change
-              // the shared catalog's name or price.
-              if (bhfId == '00' &&
-                  p.price > 0 &&
-                  (p.price - remotePrice).abs() > 0.01) {
+              if (p.price > 0 && (p.price - remotePrice).abs() > 0.01) {
                 try {
-                  await _dio.put(
+                  final putResp = await _dio.put(
                     '$digitaxZambiaApiBaseUrl/items/$remoteId',
                     data: {
                       "item_name": p.name.trim(),
                       "default_unit_price": p.price,
+                      "recommended_retail_price": p.price,
                     },
                     options: Options(headers: headers),
                   );
-                } catch (_) {}
+                  if (putResp.statusCode == 200 || putResp.statusCode == 201) {
+                    final putMap = _extractRemoteItemMap(putResp.data);
+                    _applyRemoteItemStatusToProduct(
+                      p,
+                      putMap,
+                      updateRemotePrice: false,
+                    );
+                    p.digitaxRemotePrice = p.price;
+                  }
+                } catch (putErr) {
+                  debugPrint(
+                    'DIGITAX_SYNC_PRICE_UPDATE_ERROR (${p.name}): $putErr',
+                  );
+                }
               }
             }
 
-            p.isSyncedWithDigitax = true;
             p.lastDigitaxSyncDate = DateTime.now();
             await db.isar.writeTxn(() async {
               await db.isar.products.put(p);
@@ -1171,7 +1527,7 @@ class DigiTaxInventoryService {
               isTotBusiness: isTot,
             );
             final classCode = resolveCompliantItemClassCode(
-              explicitClsCode: p.itemClsCd,
+              explicitClsCode: p.zraUnspscClassCode,
               zraTaxCode: p.zraTaxCode,
               productName: p.name,
             );
@@ -1199,10 +1555,16 @@ class DigiTaxInventoryService {
             );
 
             if (resp.statusCode == 200 || resp.statusCode == 201) {
+              final remoteMap = _extractRemoteItemMap(resp.data);
               final itemId = _extractRemoteItemId(resp.data);
-              if (itemId != null) p.itemClsCd = itemId;
-              p.isSyncedWithDigitax = true;
-              p.lastDigitaxSyncDate = DateTime.now();
+              if (itemId != null) {
+                p.itemClsCd = itemId;
+              }
+              p.zraUnspscClassCode = classCode;
+              _applyRemoteItemStatusToProduct(p, remoteMap);
+              if (p.digitaxRemotePrice == null && p.price > 0) {
+                p.digitaxRemotePrice = p.price;
+              }
 
               // The catalogue snapshot was fetched before this upload. Add this item
               // to it so another local copy in the same sync run links to this record.
@@ -1212,8 +1574,12 @@ class DigiTaxInventoryService {
                 'item_code': p.sku.trim(),
                 'bar_code': p.sku.trim(),
                 'item_class_code': classCode,
+                'status': p.digitaxSyncStatus,
+                'default_unit_price': p.price,
               };
-              if (itemId != null) remoteById[itemId] = createdRemoteItem;
+              if (itemId != null) {
+                remoteById[itemId] = createdRemoteItem;
+              }
               remoteByName
                   .putIfAbsent(p.name.trim().toLowerCase(), () => [])
                   .add(createdRemoteItem);
@@ -1223,7 +1589,9 @@ class DigiTaxInventoryService {
                     .add(createdRemoteItem);
               }
 
-              if (p.stockLevel > 0 && p.itemClsCd.isNotEmpty) {
+              if (p.digitaxSyncStatus == 'COMPLETED' &&
+                  p.stockLevel > 0 &&
+                  p.itemClsCd.isNotEmpty) {
                 try {
                   await _dio.put(
                     '$digitaxZambiaApiBaseUrl/stock/adjust',
@@ -1246,7 +1614,7 @@ class DigiTaxInventoryService {
                 await localSql.db.update(
                   'products',
                   {
-                    'is_synced_with_digitax': 1,
+                    'is_synced_with_digitax': p.isSyncedWithDigitax ? 1 : 0,
                     'last_digitax_sync_date': DateTime.now().toIso8601String(),
                   },
                   where: 'id = ?',
@@ -1256,11 +1624,16 @@ class DigiTaxInventoryService {
 
               pushedCount++;
               debugPrint(
-                'DIGITAX_PUSH_SUCCESS: Registered item "${p.name}" on DigiTax (Tax: ${isTot ? "TOT" : "VAT"})',
+                'DIGITAX_PUSH_SUCCESS: Uploaded item "${p.name}" on DigiTax [Status: ${p.digitaxSyncStatus}] (Tax: ${isTot ? "TOT" : "VAT"})',
               );
             }
           }
         } on DioException catch (dioErr) {
+          final serverMsg = dioErr.response?.data is Map
+              ? (dioErr.response?.data['message'] ??
+                    dioErr.response?.data['error'] ??
+                    dioErr.response?.data.toString())
+              : (dioErr.response?.data?.toString() ?? dioErr.message);
           if (dioErr.response?.statusCode == 409 ||
               (dioErr.response?.statusCode == 400 &&
                   dioErr.response?.data.toString().contains('already exists') ==
@@ -1269,12 +1642,17 @@ class DigiTaxInventoryService {
               'DigiTax reports "${p.name}" already exists, but its item ID could not be matched. Sync again after refreshing the catalogue; no duplicate was created.',
             );
           } else {
+            p.digitaxSyncStatus = 'FAILED';
+            p.digitaxSyncError =
+                'HTTP ${dioErr.response?.statusCode ?? "ERR"}: $serverMsg';
+            await db.isar.writeTxn(() async {
+              await db.isar.products.put(p);
+            });
             errors.add(
-              'Failed to push "${p.name}" to DigiTax [HTTP ${dioErr.response?.statusCode}]: ${dioErr.response?.data ?? dioErr.message}',
+              'Failed to push "${p.name}" to DigiTax [HTTP ${dioErr.response?.statusCode}]: $serverMsg',
             );
           }
         } catch (e) {
-          errors.add('Failed pushing "${p.name}": $e');
           errors.add('Failed to push "${p.name}" to DigiTax: $e');
         }
       }
@@ -1361,7 +1739,7 @@ class DigiTaxInventoryService {
           final remoteItems = await _fetchAllRemoteItems(headers);
           final normName = product.name.trim().toLowerCase();
           final normSku = product.sku.trim().toLowerCase();
-          final localClass = product.itemClsCd.trim().toLowerCase();
+          final localClass = product.zraUnspscClassCode.trim().toLowerCase();
           final hasSpecificClass =
               localClass.isNotEmpty &&
               localClass != '10101501' &&
@@ -1402,36 +1780,44 @@ class DigiTaxInventoryService {
               );
               return false;
             }
-            if (codeMatchesProduct) codeMatches.add(item);
-            if (nameMatchesProduct) nameMatches.add(item);
+            if (codeMatchesProduct) {
+              codeMatches.add(item);
+            }
+            if (nameMatchesProduct) {
+              nameMatches.add(item);
+            }
             if (hasSpecificClass && rClass == localClass) {
               classMatches.add(item);
             }
           }
 
-          final baseMatches = codeMatches.isNotEmpty
-              ? codeMatches
-              : nameMatches;
-          final matches = hasSpecificClass
-              ? classMatches
-                    .where(
-                      (item) =>
-                          codeMatches.contains(item) ||
-                          nameMatches.contains(item),
-                    )
-                    .toList()
-              : baseMatches;
-
-          if (matches.length > 1 ||
-              (matches.isEmpty && baseMatches.isNotEmpty)) {
-            debugPrint(
-              'DIGITAX_SINGLE_PUSH_ABORT: Multiple DigiTax products match "${product.name}" / "${product.sku}", or their classification does not match "${product.itemClsCd}".',
-            );
-            return false;
+          Map<String, dynamic>? matchedItem;
+          if (codeMatches.length == 1) {
+            matchedItem = codeMatches.single;
+          } else if (nameMatches.length == 1) {
+            matchedItem = nameMatches.single;
+          } else {
+            final baseMatches = codeMatches.isNotEmpty
+                ? codeMatches
+                : nameMatches;
+            final filtered = hasSpecificClass
+                ? classMatches
+                      .where(
+                        (item) =>
+                            codeMatches.contains(item) ||
+                            nameMatches.contains(item),
+                      )
+                      .toList()
+                : baseMatches;
+            if (filtered.length == 1) {
+              matchedItem = filtered.single;
+            } else if (baseMatches.isNotEmpty) {
+              matchedItem = baseMatches.first;
+            }
           }
-          if (matches.length == 1) {
-            final match = matches.single;
-            digitaxItemId = (match['id'] ?? match['item_id'] ?? '')
+
+          if (matchedItem != null) {
+            digitaxItemId = (matchedItem['id'] ?? matchedItem['item_id'] ?? '')
                 .toString()
                 .trim();
             if (digitaxItemId.isEmpty) {
@@ -1440,10 +1826,11 @@ class DigiTaxInventoryService {
               );
               return false;
             }
+            _applyRemoteItemStatusToProduct(product, matchedItem);
             final rawSt =
-                match['stock_quantity'] ??
-                match['stock'] ??
-                match['quantity'] ??
+                matchedItem['stock_quantity'] ??
+                matchedItem['stock'] ??
+                matchedItem['quantity'] ??
                 0;
             remoteStock = rawSt is num
                 ? rawSt.toInt()
@@ -1451,29 +1838,65 @@ class DigiTaxInventoryService {
           }
         } catch (e) {
           debugPrint('DIGITAX_FETCH_REMOTE_NOTE: $e');
-          if (throwOnError) rethrow;
+          if (throwOnError) {
+            rethrow;
+          }
           return false;
         }
       }
 
       if (digitaxItemId != null && digitaxItemId.isNotEmpty) {
+        final targetPrice = product.price > 0 ? product.price : 1.0;
         try {
-          await _dio.put(
+          final putResp = await _dio.put(
             '$digitaxZambiaApiBaseUrl/items/$digitaxItemId',
             data: {
               "item_name": product.name.trim(),
-              "default_unit_price": product.price > 0 ? product.price : 1.0,
+              "default_unit_price": targetPrice,
+              "recommended_retail_price": targetPrice,
             },
             options: Options(headers: headers),
           );
+          if (putResp.statusCode == 200 || putResp.statusCode == 201) {
+            final putMap = _extractRemoteItemMap(putResp.data);
+            _applyRemoteItemStatusToProduct(
+              product,
+              putMap,
+              updateRemotePrice: false,
+            );
+            product.digitaxRemotePrice = targetPrice;
+          }
         } catch (e) {
           debugPrint('DIGITAX_UPDATE_PRICE_NOTE: $e');
+          product.digitaxSyncError = 'Price update failed on DigiTax: $e';
+          await db.isar.writeTxn(() async {
+            await db.isar.products.put(product);
+          });
+          if (throwOnError) {
+            rethrow;
+          }
         }
 
-        // 2. Adjust Stock Quantity on DigiTax (PUT /stock/adjust)
+        // Also fetch latest item record from DigiTax to confirm live ZRA status (PENDING / COMPLETED / FAILED)
+        try {
+          final statusResp = await _dio.get(
+            '$digitaxZambiaApiBaseUrl/items/$digitaxItemId',
+            options: Options(
+              headers: headers,
+              validateStatus: (s) => s != null && s < 500,
+            ),
+          );
+          if (statusResp.statusCode == 200 && statusResp.data is Map) {
+            final statusMap = _extractRemoteItemMap(statusResp.data);
+            _applyRemoteItemStatusToProduct(product, statusMap);
+            product.digitaxRemotePrice = targetPrice;
+          }
+        } catch (_) {}
+
+        // 2. Adjust Stock Quantity on DigiTax (PUT /stock/adjust) when COMPLETED
         final baseStock = previousStock ?? remoteStock;
         final stockDiff = product.stockLevel - baseStock;
-        if (stockDiff != 0) {
+        if (stockDiff != 0 && product.digitaxSyncStatus == 'COMPLETED') {
           try {
             final effectiveMovementType =
                 movementType ?? (stockDiff > 0 ? "06" : "16");
@@ -1514,12 +1937,17 @@ class DigiTaxInventoryService {
         }
 
         product.itemClsCd = digitaxItemId;
-        product.isSyncedWithDigitax = true;
         product.lastDigitaxSyncDate = DateTime.now();
         await db.isar.writeTxn(() async {
           await db.isar.products.put(product);
         });
-        return true;
+        if (product.digitaxSyncStatus == 'PENDING') {
+          Future.delayed(
+            const Duration(seconds: 4),
+            () => pollPendingAndMismatchedItems(),
+          );
+        }
+        return product.digitaxSyncStatus == 'COMPLETED';
       } else {
         // 3. Register as completely new product on DigiTax per Company Tax System
         final isTot = config?.businessTaxType == 'TURNOVER_TAX';
@@ -1529,10 +1957,11 @@ class DigiTaxInventoryService {
           isTotBusiness: isTot,
         );
         final classCode = resolveCompliantItemClassCode(
-          explicitClsCode: product.itemClsCd,
+          explicitClsCode: product.zraUnspscClassCode,
           zraTaxCode: product.zraTaxCode,
           productName: product.name,
         );
+        final targetPrice = product.price > 0 ? product.price : 1.0;
 
         final payload = {
           "item_class_code": classCode,
@@ -1543,8 +1972,8 @@ class DigiTaxInventoryService {
           "quantity_unit_code": _resolveQuantityUnitCode(product.unitOfMeasure),
           "vat_category_code": vatCategoryCode,
           if (isTot) "tot_category_code": "TOT",
-          "default_unit_price": product.price > 0 ? product.price : 1.0,
-          "recommended_retail_price": product.price > 0 ? product.price : 1.0,
+          "default_unit_price": targetPrice,
+          "recommended_retail_price": targetPrice,
           "stock_quantity": product.stockLevel > 0 ? product.stockLevel : 0,
           "is_stock_item": true,
           if (product.sku.isNotEmpty) "bar_code": product.sku.trim(),
@@ -1557,28 +1986,53 @@ class DigiTaxInventoryService {
         );
 
         if (resp.statusCode == 200 || resp.statusCode == 201) {
-          final data = resp.data;
-          String? newId;
-          if (data is Map) {
-            newId =
-                data['id']?.toString() ??
-                data['item_id']?.toString() ??
-                (data['data'] is Map ? data['data']['id']?.toString() : null) ??
-                (data['item'] is Map ? data['item']['id']?.toString() : null);
-          }
+          final remoteMap = _extractRemoteItemMap(resp.data);
+          final newId = _extractRemoteItemId(resp.data);
           if (newId != null && newId.isNotEmpty) {
             product.itemClsCd = newId;
           }
-          product.isSyncedWithDigitax = true;
-          product.lastDigitaxSyncDate = DateTime.now();
+          product.zraUnspscClassCode = classCode;
+          _applyRemoteItemStatusToProduct(product, remoteMap);
+          product.digitaxRemotePrice = targetPrice;
           await db.isar.writeTxn(() async {
             await db.isar.products.put(product);
           });
+
+          // If DigiTax returned PENDING, poll briefly (up to 2 attempts, 1.5s apart)
+          // so fast ZRA VSDC approvals flip to COMPLETED immediately.
+          if (product.digitaxSyncStatus == 'PENDING' &&
+              product.hasUsableDigitaxItemId) {
+            for (int attempt = 1; attempt <= 2; attempt++) {
+              await Future.delayed(const Duration(milliseconds: 1500));
+              try {
+                final checkResp = await _dio.get(
+                  '$digitaxZambiaApiBaseUrl/items/${product.itemClsCd}',
+                  options: Options(
+                    headers: headers,
+                    validateStatus: (s) => s != null && s < 500,
+                  ),
+                );
+                if (checkResp.statusCode == 200 && checkResp.data is Map) {
+                  final checkMap = _extractRemoteItemMap(checkResp.data);
+                  _applyRemoteItemStatusToProduct(product, checkMap);
+                  await db.isar.writeTxn(() async {
+                    await db.isar.products.put(product);
+                  });
+                  if (product.digitaxSyncStatus != 'PENDING') {
+                    break;
+                  }
+                }
+              } catch (_) {}
+            }
+          }
+
           debugPrint(
-            'DIGITAX_SINGLE_PUSH: Registered new item "${product.name}" on DigiTax [ID: ${product.itemClsCd}] (Tax: ${isTot ? "TOT" : "VAT"}, Stock: ${product.stockLevel})',
+            'DIGITAX_SINGLE_PUSH: Registered new item "${product.name}" on DigiTax [ID: ${product.itemClsCd}, Status: ${product.digitaxSyncStatus}] (Tax: ${isTot ? "TOT" : "VAT"}, Stock: ${product.stockLevel})',
           );
 
-          if (product.stockLevel > 0 && product.itemClsCd.isNotEmpty) {
+          if (product.digitaxSyncStatus == 'COMPLETED' &&
+              product.stockLevel > 0 &&
+              product.itemClsCd.isNotEmpty) {
             try {
               final adjResp = await _dio.put(
                 '$digitaxZambiaApiBaseUrl/stock/adjust',
@@ -1596,44 +2050,64 @@ class DigiTaxInventoryService {
             } catch (adjErr) {
               debugPrint('DIGITAX_STOCK_ADJUST_INIT_ERROR: $adjErr');
             }
+          } else if (product.digitaxSyncStatus == 'PENDING') {
+            Future.delayed(
+              const Duration(seconds: 4),
+              () => pollPendingAndMismatchedItems(),
+            );
           }
 
-          return true;
+          return product.digitaxSyncStatus == 'COMPLETED';
         } else {
           final serverMsg = resp.data is Map
               ? (resp.data['message'] ??
                     resp.data['error'] ??
                     resp.data.toString())
               : resp.data.toString();
+          product.digitaxSyncStatus = 'FAILED';
+          product.digitaxSyncError =
+              'HTTP ${resp.statusCode}: $serverMsg';
+          await db.isar.writeTxn(() async {
+            await db.isar.products.put(product);
+          });
           if (throwOnError) {
             throw 'DigiTax HTTP ${resp.statusCode}: $serverMsg';
           }
         }
       }
     } on DioException catch (dioErr) {
+      final serverMsg = dioErr.response?.data is Map
+          ? (dioErr.response?.data['message'] ??
+                dioErr.response?.data['error'] ??
+                dioErr.response?.data.toString())
+          : (dioErr.response?.data?.toString() ?? dioErr.message);
       if (dioErr.response?.statusCode == 409 ||
           (dioErr.response?.statusCode == 400 &&
               dioErr.response?.data.toString().contains('already exists') ==
                   true)) {
-        product.isSyncedWithDigitax = true;
+        product.digitaxSyncError =
+            'Item already exists on DigiTax — run Sync to link its item ID.';
         product.lastDigitaxSyncDate = DateTime.now();
         await db.isar.writeTxn(() async {
           await db.isar.products.put(product);
         });
-        return true;
+        return false;
       }
+      product.digitaxSyncStatus = 'FAILED';
+      product.digitaxSyncError =
+          'HTTP ${dioErr.response?.statusCode ?? "ERR"}: $serverMsg';
+      await db.isar.writeTxn(() async {
+        await db.isar.products.put(product);
+      });
       debugPrint('DIGITAX_SINGLE_PUSH_DIO_ERROR: $dioErr');
       if (throwOnError) {
-        final serverMsg = dioErr.response?.data is Map
-            ? (dioErr.response?.data['message'] ??
-                  dioErr.response?.data['error'] ??
-                  dioErr.response?.data.toString())
-            : (dioErr.response?.data?.toString() ?? dioErr.message);
         throw 'DigiTax HTTP ${dioErr.response?.statusCode ?? 'ERR'}: $serverMsg';
       }
     } catch (e) {
       debugPrint('DIGITAX_SINGLE_PUSH_ERROR: $e');
-      if (throwOnError) rethrow;
+      if (throwOnError) {
+        rethrow;
+      }
     }
     return false;
   }
@@ -1970,7 +2444,13 @@ class DigiTaxInventoryService {
             final prodToSave = localProd;
             if (prodToSave != null) {
               prodToSave.itemClsCd = digitaxItemId;
-              prodToSave.isSyncedWithDigitax = true;
+              final matchedMap = remoteItems.firstWhere(
+                (r) =>
+                    (r['id'] ?? r['item_id'] ?? '').toString().trim() ==
+                    digitaxItemId,
+                orElse: () => <String, dynamic>{'id': digitaxItemId},
+              );
+              _applyRemoteItemStatusToProduct(prodToSave, matchedMap);
               await db.isar.writeTxn(() async {
                 await db.isar.products.put(prodToSave);
               });
@@ -1983,10 +2463,11 @@ class DigiTaxInventoryService {
                   'bar_code': (prodToSave.sku.trim().isNotEmpty)
                       ? prodToSave.sku.trim()
                       : "SKU-${item.productId}",
+                  'status': prodToSave.digitaxSyncStatus,
                 });
               }
               debugPrint(
-                'DIGITAX_SALES: Linked "${item.productName}" to existing DigiTax item ID "$digitaxItemId".',
+                'DIGITAX_SALES: Linked "${item.productName}" to existing DigiTax item ID "$digitaxItemId" [Status: ${prodToSave.digitaxSyncStatus}].',
               );
             }
           }
@@ -2004,6 +2485,72 @@ class DigiTaxInventoryService {
           'DIGITAX_SALES: "${item.productName}" is not registered on DigiTax (offline product). Skipping from fiscal invoice payload.',
         );
         continue;
+      }
+
+      // Live pre-sale verification: if the product was marked PENDING/FAILED or has a price mismatch,
+      // query DigiTax live and push any updated unit price before submitting the sale!
+      if (localProd != null) {
+        if (localProd.digitaxSyncStatus == 'PENDING' ||
+            localProd.digitaxSyncStatus == 'FAILED' ||
+            localProd.hasDigitaxPriceMismatch) {
+          try {
+            final itemCheckResp = await _dio.get(
+              '$digitaxZambiaApiBaseUrl/items/$digitaxItemId',
+              options: Options(
+                headers: headers,
+                validateStatus: (s) => s != null && s < 500,
+              ),
+            );
+            if (itemCheckResp.statusCode == 200 &&
+                itemCheckResp.data is Map) {
+              final remoteMap = _extractRemoteItemMap(itemCheckResp.data);
+              _applyRemoteItemStatusToProduct(localProd, remoteMap);
+              await db.isar.writeTxn(() async {
+                await db.isar.products.put(localProd!);
+              });
+            }
+          } catch (_) {}
+        }
+
+        if (localProd.digitaxSyncStatus == 'PENDING' ||
+            localProd.digitaxSyncStatus == 'FAILED') {
+          debugPrint(
+            'DIGITAX_SALES_HOLD: Item "${localProd.name}" ($digitaxItemId) has DigiTax status ${localProd.digitaxSyncStatus}. Holding fiscal submission until COMPLETED.',
+          );
+          await persistFiscalStatus(
+            'HOLD_ITEM_${localProd.digitaxSyncStatus}: ${localProd.name} (${localProd.digitaxSyncError ?? "Not yet approved by ZRA"})',
+          );
+          return false;
+        }
+
+        final remotePrice = localProd.digitaxRemotePrice;
+        if (item.priceAtSale > 0 &&
+            ((remotePrice != null &&
+                    (item.priceAtSale - remotePrice).abs() > 0.01) ||
+                localProd.hasDigitaxPriceMismatch)) {
+          try {
+            final putResp = await _dio.put(
+              '$digitaxZambiaApiBaseUrl/items/$digitaxItemId',
+              data: {
+                "item_name": localProd.name.trim(),
+                "default_unit_price": item.priceAtSale,
+                "recommended_retail_price": item.priceAtSale,
+              },
+              options: Options(
+                headers: headers,
+                validateStatus: (s) => s != null && s < 500,
+              ),
+            );
+            if (putResp.statusCode == 200 || putResp.statusCode == 201) {
+              localProd.digitaxRemotePrice = item.priceAtSale;
+              await db.isar.writeTxn(() async {
+                await db.isar.products.put(localProd!);
+              });
+            }
+          } catch (e) {
+            debugPrint('DIGITAX_SALES_PRICE_SYNC_NOTE: $e');
+          }
+        }
       }
 
       final effectiveQty = (item.isWeighted && item.weight > 0)

@@ -373,7 +373,7 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
     );
 
     // ZRA UNSPSC Item Classification
-    final rawCls = widget.product?.itemClsCd.trim() ?? '';
+    final rawCls = widget.product?.zraUnspscClassCode.trim() ?? '';
     if (RegExp(r'^\d{8}$').hasMatch(rawCls) &&
         rawCls != '50000000' &&
         rawCls != '52000000' &&
@@ -2975,6 +2975,10 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
 
       final previousStock = targetProduct?.stockLevel;
 
+      if (targetProduct == null) {
+        product.zraUnspscClassCode = effectiveCls;
+      }
+
       if (targetProduct != null) {
         product.name = _nameController.text.trim();
         product.sku = _skuController.text.trim();
@@ -2995,8 +2999,9 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
         product.isTaxInclusive = _isTaxInclusive;
         product.taxRate = parsedTaxRate;
         product.zraTaxCode = zraTaxCode;
-        if (!targetProduct.itemClsCd.startsWith('item_') ||
-            _selectedItemClsCode != targetProduct.itemClsCd) {
+        product.zraUnspscClassCode = effectiveCls;
+        // Never overwrite an active DigiTax item_... ID with an 8-digit UNSPSC code
+        if (!targetProduct.hasUsableDigitaxItemId) {
           product.itemClsCd = effectiveCls;
         }
         product.isDigitaxSyncEnabled = _isDigitaxSyncEnabled;
@@ -3130,7 +3135,38 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
               throwOnError: true,
             )
             .then((digitaxSynced) {
-              if (digitaxSynced) {
+              final status = product.digitaxSyncStatus;
+              if (status == 'COMPLETED') {
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      '${product.name} approved & synced with DigiTax/ZRA!',
+                    ),
+                    backgroundColor: const Color(0xFF10B981),
+                    duration: const Duration(seconds: 3),
+                  ),
+                );
+              } else if (status == 'PENDING') {
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      '${product.name} uploaded to DigiTax — waiting for ZRA approval (Pending). Status will update live.',
+                    ),
+                    backgroundColor: const Color(0xFFD97706),
+                    duration: const Duration(seconds: 4),
+                  ),
+                );
+              } else if (status == 'FAILED') {
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      '${product.name} rejected by DigiTax/ZRA: ${product.digitaxSyncError ?? "Check ZRA classification"}',
+                    ),
+                    backgroundColor: const Color(0xFFEF4444),
+                    duration: const Duration(seconds: 5),
+                  ),
+                );
+              } else if (digitaxSynced) {
                 messenger.showSnackBar(
                   SnackBar(
                     content: Text(
