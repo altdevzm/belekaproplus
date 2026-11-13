@@ -438,8 +438,10 @@ class DigiTaxInventoryService {
     final List<Map<String, dynamic>> allItems = [];
     String? nextCursor;
     int pageCount = 0;
+    const int maxPages = 1000;
+    final Set<String> seenCursors = {};
 
-    while (pageCount < 50) {
+    while (pageCount < maxPages) {
       pageCount++;
       try {
         final resp = await _dio.get(
@@ -455,6 +457,10 @@ class DigiTaxInventoryService {
         if (resp.statusCode != 200 ||
             resp.data == null ||
             !_hasItemListPayload(resp.data)) {
+          if (allItems.isNotEmpty) {
+            // Keep already fetched items rather than failing the entire catalogue
+            break;
+          }
           throw StateError(
             'Unexpected DigiTax item catalogue response on page $pageCount.',
           );
@@ -469,12 +475,11 @@ class DigiTaxInventoryService {
 
         if (resp.data is Map && resp.data['pagination'] is Map) {
           final next = resp.data['pagination']['next']?.toString();
-          if (next != null && next.isNotEmpty && next != nextCursor) {
-            if (pageCount == 50) {
-              throw StateError(
-                'DigiTax item catalogue exceeded the 50-page safety limit.',
-              );
-            }
+          if (next != null &&
+              next.isNotEmpty &&
+              next != nextCursor &&
+              !seenCursors.contains(next)) {
+            seenCursors.add(next);
             nextCursor = next;
             continue;
           }
@@ -482,6 +487,10 @@ class DigiTaxInventoryService {
         break;
       } catch (e) {
         debugPrint('DIGITAX_PAGINATION_FETCH_NOTE: Page $pageCount: $e');
+        if (allItems.isNotEmpty) {
+          // Keep accumulated items if a later page has an issue
+          break;
+        }
         rethrow;
       }
     }
@@ -3312,7 +3321,19 @@ class DigiTaxInventoryService {
       return {'error': 'TPIN must be exactly 10 digits'};
     }
 
-    // 1. Check local DB cache first for instant response
+    // 1. Check if it matches the store/seller's own configured TPIN
+    if (config?.tpin != null && cleanTpin == config!.tpin!.trim()) {
+      final name = config.businessName.trim();
+      if (name.isNotEmpty) {
+        return {
+          'tpin': cleanTpin,
+          'taxpayer_name': name,
+          'physical_address': config.branchName.trim(),
+        };
+      }
+    }
+
+    // 2. Check local DB past transactions for instant cache response
     try {
       final pastTx = await db.isar.saleTransactions
           .filter()
@@ -3320,28 +3341,45 @@ class DigiTaxInventoryService {
           .findFirst();
       if (pastTx != null &&
           (pastTx.customerBusinessName?.isNotEmpty ?? false)) {
-        debugPrint(
-          'DIGITAX_TPIN_LOOKUP: Found locally cached taxpayer in past transactions: ${pastTx.customerBusinessName}',
-        );
+        return {
+          'tpin': cleanTpin,
+          'taxpayer_name': pastTx.customerBusinessName!,
+          'physical_address': pastTx.customerAddress ?? '',
+        };
+      }
+    } catch (_) {}
+
+    // 3. Check local DB suppliers
+    try {
+      final localSupplier = await db.isar.suppliers
+          .filter()
+          .tpinEqualTo(cleanTpin)
+          .findFirst();
+      if (localSupplier != null && localSupplier.name.trim().isNotEmpty) {
+        return {
+          'tpin': cleanTpin,
+          'taxpayer_name': localSupplier.name.trim(),
+          'physical_address': localSupplier.address ?? '',
+        };
+      }
+    } catch (_) {}
+
+    // 4. Check local DB purchase orders
+    try {
+      final pastPo = await db.isar.purchaseOrders
+          .filter()
+          .supplierTpinEqualTo(cleanTpin)
+          .findFirst();
+      if (pastPo != null && pastPo.supplierName.trim().isNotEmpty) {
+        return {
+          'tpin': cleanTpin,
+          'taxpayer_name': pastPo.supplierName.trim(),
+          'physical_address': '',
+        };
       }
     } catch (_) {}
 
     if (apiKey == null || apiKey.isEmpty) {
-      // If no API key, check if we have local cache
-      try {
-        final pastTx = await db.isar.saleTransactions
-            .filter()
-            .customerTpinEqualTo(cleanTpin)
-            .findFirst();
-        if (pastTx != null &&
-            (pastTx.customerBusinessName?.isNotEmpty ?? false)) {
-          return {
-            'tpin': cleanTpin,
-            'taxpayer_name': pastTx.customerBusinessName!,
-            'physical_address': pastTx.customerAddress ?? '',
-          };
-        }
-      } catch (_) {}
       return {
         'error':
             'DigiTax API key not configured. Enter business name manually.',
@@ -3354,45 +3392,149 @@ class DigiTaxInventoryService {
       'Content-Type': 'application/json',
     };
 
-    // Query /customers list endpoint per DigiTax OpenAPI specification
+    // 5. Query /info endpoint (returns registered business name & TPIN)
     try {
-      final custResp = await _dio.get(
-        '$digitaxZambiaApiBaseUrl/customers',
-        queryParameters: {'page_size': 100},
+      final infoResp = await _dio.get(
+        '$digitaxZambiaApiBaseUrl/info',
         options: Options(
           headers: headers,
           validateStatus: (s) => s != null && s < 500,
         ),
       );
-      if (custResp.statusCode == 200 && custResp.data != null) {
-        List cList = [];
-        if (custResp.data is List) {
-          cList = custResp.data;
-        } else if (custResp.data is Map && custResp.data['data'] is List) {
-          cList = custResp.data['data'];
+      if (infoResp.statusCode == 200 && infoResp.data is Map) {
+        final iData = Map<String, dynamic>.from(infoResp.data as Map);
+        final infoTpin = (iData['tax_pin'] ?? '').toString().trim();
+        if (infoTpin == cleanTpin) {
+          final bName = (iData['branch_office_name'] ??
+                  config?.businessName ??
+                  '')
+              .toString()
+              .trim();
+          final bAddr = (iData['location_description'] ??
+                  iData['province_name'] ??
+                  '')
+              .toString()
+              .trim();
+          return {
+            'tpin': cleanTpin,
+            'taxpayer_name': bName.isNotEmpty ? bName : 'Registered Taxpayer',
+            'physical_address': bAddr,
+          };
         }
-        for (final c in cList) {
-          if (c is Map) {
-            final cTpin = (c['customer_tpin'] ?? c['tpin'] ?? '')
-                .toString()
-                .trim();
-            if (cTpin == cleanTpin) {
-              final cName = (c['customer_name'] ?? c['name'] ?? '')
+      }
+    } catch (_) {}
+
+    // 6. Query /customers list endpoint (page_size max 20 per DigiTax OpenAPI spec)
+    try {
+      String? custCursor;
+      for (int page = 0; page < 5; page++) {
+        final custResp = await _dio.get(
+          '$digitaxZambiaApiBaseUrl/customers',
+          queryParameters: {
+            'page_size': 20,
+            if (custCursor != null && custCursor.isNotEmpty)
+              'after': custCursor,
+          },
+          options: Options(
+            headers: headers,
+            validateStatus: (s) => s != null && s < 500,
+          ),
+        );
+        if (custResp.statusCode == 200 && custResp.data != null) {
+          List cList = [];
+          if (custResp.data is List) {
+            cList = custResp.data;
+          } else if (custResp.data is Map && custResp.data['data'] is List) {
+            cList = custResp.data['data'];
+          }
+          for (final c in cList) {
+            if (c is Map) {
+              final cTpin = (c['customer_tpin'] ?? c['tpin'] ?? '')
                   .toString()
                   .trim();
-              final cAddr = (c['address'] ?? c['physical_address'] ?? '')
-                  .toString()
-                  .trim();
-              if (cName.isNotEmpty) {
-                return {
-                  'tpin': cleanTpin,
-                  'taxpayer_name': cName,
-                  'physical_address': cAddr,
-                };
+              if (cTpin == cleanTpin) {
+                final cName = (c['customer_name'] ?? c['name'] ?? '')
+                    .toString()
+                    .trim();
+                final cAddr = (c['address'] ?? c['physical_address'] ?? '')
+                    .toString()
+                    .trim();
+                if (cName.isNotEmpty) {
+                  return {
+                    'tpin': cleanTpin,
+                    'taxpayer_name': cName,
+                    'physical_address': cAddr,
+                  };
+                }
               }
             }
           }
+          if (custResp.data is Map && custResp.data['pagination'] is Map) {
+            final next = custResp.data['pagination']['next']?.toString();
+            if (next != null && next.isNotEmpty && next != custCursor) {
+              custCursor = next;
+              continue;
+            }
+          }
         }
+        break;
+      }
+    } catch (_) {}
+
+    // 7. Query /suppliers list endpoint (sellers/vendors)
+    try {
+      String? supCursor;
+      for (int page = 0; page < 5; page++) {
+        final supResp = await _dio.get(
+          '$digitaxZambiaApiBaseUrl/suppliers',
+          queryParameters: {
+            'page_size': 20,
+            if (supCursor != null && supCursor.isNotEmpty)
+              'after': supCursor,
+          },
+          options: Options(
+            headers: headers,
+            validateStatus: (s) => s != null && s < 500,
+          ),
+        );
+        if (supResp.statusCode == 200 && supResp.data != null) {
+          List sList = [];
+          if (supResp.data is List) {
+            sList = supResp.data;
+          } else if (supResp.data is Map && supResp.data['data'] is List) {
+            sList = supResp.data['data'];
+          }
+          for (final s in sList) {
+            if (s is Map) {
+              final sTpin = (s['supplier_tpin'] ?? s['tpin'] ?? '')
+                  .toString()
+                  .trim();
+              if (sTpin == cleanTpin) {
+                final sName = (s['supplier_name'] ?? s['name'] ?? '')
+                    .toString()
+                    .trim();
+                final sAddr = (s['address'] ?? s['email'] ?? '')
+                    .toString()
+                    .trim();
+                if (sName.isNotEmpty) {
+                  return {
+                    'tpin': cleanTpin,
+                    'taxpayer_name': sName,
+                    'physical_address': sAddr,
+                  };
+                }
+              }
+            }
+          }
+          if (supResp.data is Map && supResp.data['pagination'] is Map) {
+            final next = supResp.data['pagination']['next']?.toString();
+            if (next != null && next.isNotEmpty && next != supCursor) {
+              supCursor = next;
+              continue;
+            }
+          }
+        }
+        break;
       }
     } catch (_) {}
 
