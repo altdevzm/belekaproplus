@@ -263,6 +263,10 @@ class DatabaseService {
                     .or()
                     .branchCodeEqualTo('000')
                     .or()
+                    .branchCodeEqualTo('001')
+                    .or()
+                    .branchCodeEqualTo('01')
+                    .or()
                     .branchCodeEqualTo(''),
               )
               .findAll();
@@ -274,6 +278,10 @@ class DatabaseService {
                     .branchCodeEqualTo('00')
                     .or()
                     .branchCodeEqualTo('000')
+                    .or()
+                    .branchCodeEqualTo('001')
+                    .or()
+                    .branchCodeEqualTo('01')
                     .or()
                     .branchCodeEqualTo(''),
               )
@@ -356,6 +364,10 @@ class DatabaseService {
                     .or()
                     .branchCodeEqualTo('000')
                     .or()
+                    .branchCodeEqualTo('001')
+                    .or()
+                    .branchCodeEqualTo('01')
+                    .or()
                     .branchCodeEqualTo(''),
               )
               .build()
@@ -368,6 +380,10 @@ class DatabaseService {
                     .branchCodeEqualTo('00')
                     .or()
                     .branchCodeEqualTo('000')
+                    .or()
+                    .branchCodeEqualTo('001')
+                    .or()
+                    .branchCodeEqualTo('01')
                     .or()
                     .branchCodeEqualTo(''),
               )

@@ -435,7 +435,7 @@ class DigiTaxInventoryService {
         _remoteItemsCache != null &&
         _remoteItemsCacheTime != null &&
         DateTime.now().difference(_remoteItemsCacheTime!) <
-            const Duration(minutes: 10)) {
+            const Duration(seconds: 5)) {
       return _remoteItemsCache!;
     }
 
@@ -673,9 +673,83 @@ class DigiTaxInventoryService {
     _itemStatusPollTimer = null;
   }
 
-  /// Background live listener that polls DigiTax for any items in `PENDING` state
-  /// or with a local vs. DigiTax price mismatch, updating Isar in real time so UI
-  /// streams (`db.watchAllProducts()`) reflect `COMPLETED` or `FAILED` status live.
+  bool _belongsToTargetBranch(
+    String productBranch,
+    String targetBhfId,
+    String configuredBhfId,
+    bool isCurrentHq,
+  ) {
+    final normProd = productBranch.trim();
+    if (normProd == targetBhfId) {
+      return true;
+    }
+    if (isCurrentHq) {
+      const hqCodes = {'', '0', '00', '000', '01', '001'};
+      if (hqCodes.contains(normProd) || normProd == configuredBhfId) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  Product? _findMatchingLocalProductForRemoteItem({
+    required List<Product> branchProducts,
+    required String rId,
+    required String rBarcode,
+    required String rItemCode,
+    required String rName,
+  }) {
+    // 1. Exact DigiTax item ID match (including archived so we don't resurrect deleted items)
+    for (final p in branchProducts) {
+      if (p.itemClsCd.trim() == rId) {
+        return p;
+      }
+    }
+
+    final normBarcode = rBarcode.trim().toLowerCase();
+    final normItemCode = rItemCode.trim().toLowerCase();
+    final normName = rName.trim().toLowerCase();
+
+    // 2. Match active product by barcode / SKU if it doesn't belong to a different DigiTax item ID
+    if (normBarcode.isNotEmpty || normItemCode.isNotEmpty) {
+      for (final p in branchProducts) {
+        if (p.isArchived) {
+          continue;
+        }
+        final pSku = p.sku.trim().toLowerCase();
+        if (pSku.isEmpty) {
+          continue;
+        }
+        if ((normBarcode.isNotEmpty && pSku == normBarcode) ||
+            (normItemCode.isNotEmpty && pSku == normItemCode)) {
+          if (!p.hasUsableDigitaxItemId || p.itemClsCd.trim() == rId) {
+            return p;
+          }
+        }
+      }
+    }
+
+    // 3. Match active product by exact name if it doesn't belong to a different DigiTax item ID
+    if (normName.isNotEmpty) {
+      for (final p in branchProducts) {
+        if (p.isArchived) {
+          continue;
+        }
+        if (p.name.trim().toLowerCase() == normName) {
+          if (!p.hasUsableDigitaxItemId || p.itemClsCd.trim() == rId) {
+            return p;
+          }
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /// Background live listener that polls DigiTax for new remote items, any items in
+  /// `PENDING` state, or items with a local vs. DigiTax price mismatch, updating Isar
+  /// in real time so UI streams (`db.watchAllProducts()`) reflect `COMPLETED`, `PENDING`,
+  /// `FAILED`, and newly added DigiTax items live.
   Future<int> pollPendingAndMismatchedItems() async {
     if (_isPollingItemStatus || _isSyncRunning) {
       return 0;
@@ -684,7 +758,225 @@ class DigiTaxInventoryService {
     int updatedCount = 0;
 
     try {
+      if (!await canReachDigiTax()) {
+        return 0;
+      }
+
       final db = ref.read(databaseServiceProvider);
+      final config = await db.isar.storeConfigs.where().findFirst();
+      final isOwner = ref.read(isOwnerProvider);
+      final currentUser = ref.read(authProvider);
+      final configuredBhfId = config?.bhfId.trim().isNotEmpty == true
+          ? config!.bhfId.trim()
+          : '00';
+      final String bhfId = (!isOwner &&
+              currentUser?.branchCode != null &&
+              currentUser!.branchCode!.trim().isNotEmpty)
+          ? currentUser.branchCode!.trim()
+          : configuredBhfId;
+      final isCurrentHq = isOwner ||
+          bhfId == configuredBhfId ||
+          const {'00', '000', '01', '001'}.contains(bhfId);
+
+      final branchApiKey = await resolveBranchApiKey(bhfId);
+      final Set<String> updatedItemIds = {};
+
+      if (branchApiKey != null && branchApiKey.isNotEmpty) {
+        final branchHeaders = {
+          'Authorization': 'Bearer $branchApiKey',
+          'X-API-Key': branchApiKey,
+          'Content-Type': 'application/json',
+        };
+
+        try {
+          final remoteList = await _fetchAllRemoteItems(
+            branchHeaders,
+            forceRefresh: true,
+          );
+          final allLocal = await db.isar.products.where().findAll();
+          final branchProducts = allLocal
+              .where(
+                (p) => _belongsToTargetBranch(
+                  p.branchCode,
+                  bhfId,
+                  configuredBhfId,
+                  isCurrentHq,
+                ),
+              )
+              .toList();
+
+          for (final r in remoteList) {
+            final rId =
+                (r['id'] ?? r['item_id'] ?? r['itemId'] ?? '').toString().trim();
+            final rItemCode =
+                (r['item_code'] ?? r['itemCd'] ?? r['itemCode'] ?? '')
+                    .toString()
+                    .trim();
+            final rBarcode =
+                (r['bar_code'] ?? r['barcode'] ?? r['sku'] ?? '')
+                    .toString()
+                    .trim();
+            final rName = (r['item_name'] ??
+                    r['itemNm'] ??
+                    r['itemName'] ??
+                    r['name'] ??
+                    '')
+                .toString()
+                .trim();
+            final rPrice =
+                double.tryParse(
+                  (r['default_unit_price'] ?? r['dftPrc'] ?? r['price'] ?? '0')
+                      .toString(),
+                ) ??
+                0.0;
+            final rawStock =
+                r['stock_quantity'] ??
+                r['stockQuantity'] ??
+                r['stock_qty'] ??
+                r['current_stock'] ??
+                r['stock_level'] ??
+                r['quantity'] ??
+                r['qty'] ??
+                0;
+            final remoteStock = rawStock is num
+                ? rawStock.toInt()
+                : (int.tryParse(rawStock.toString()) ?? 0);
+
+            if (rName.isEmpty || rId.isEmpty) {
+              continue;
+            }
+
+            final existing = _findMatchingLocalProductForRemoteItem(
+              branchProducts: branchProducts,
+              rId: rId,
+              rBarcode: rBarcode,
+              rItemCode: rItemCode,
+              rName: rName,
+            );
+
+            if (existing != null) {
+              if (existing.isArchived || !existing.isDigitaxSyncEnabled) {
+                continue;
+              }
+              updatedItemIds.add(rId);
+              final prevStatus = existing.digitaxSyncStatus;
+              final prevRemotePrice = existing.digitaxRemotePrice;
+              final prevError = existing.digitaxSyncError;
+              final prevItemCls = existing.itemClsCd;
+              final prevPrice = existing.price;
+              final prevStock = existing.stockLevel;
+
+              final hadLocalPriceChange =
+                  existing.digitaxRemotePrice != null &&
+                  (existing.price - existing.digitaxRemotePrice!).abs() >
+                      0.01 &&
+                  (existing.price - rPrice).abs() > 0.01;
+
+              _applyRemoteItemStatusToProduct(existing, r);
+
+              if (!hadLocalPriceChange &&
+                  rPrice > 0 &&
+                  (existing.price - rPrice).abs() > 0.01) {
+                existing.price = rPrice;
+              }
+              if (existing.stockLevel == 0 && remoteStock > 0) {
+                existing.stockLevel = remoteStock;
+              }
+
+              // If item just transitioned from PENDING -> COMPLETED, push initial stock if remote stock is 0
+              if (prevStatus == 'PENDING' &&
+                  existing.digitaxSyncStatus == 'COMPLETED' &&
+                  existing.stockLevel > 0 &&
+                  remoteStock == 0) {
+                try {
+                  await _backgroundDio.put(
+                    '$digitaxZambiaApiBaseUrl/stock/adjust',
+                    data: {
+                      "item_id": rId,
+                      "quantity": existing.stockLevel.abs(),
+                      "action": "ADD",
+                      "movement_type": "01",
+                    },
+                    options: Options(headers: branchHeaders),
+                  );
+                } catch (_) {}
+              }
+
+              // If local price was edited by user, push local price to DigiTax
+              if (existing.hasDigitaxPriceMismatch &&
+                  existing.price > 0 &&
+                  existing.digitaxSyncStatus != 'FAILED') {
+                try {
+                  final putResp = await _backgroundDio.put(
+                    '$digitaxZambiaApiBaseUrl/items/$rId',
+                    data: {
+                      "item_name": existing.name.trim(),
+                      "default_unit_price": existing.price,
+                      "recommended_retail_price": existing.price,
+                    },
+                    options: Options(
+                      headers: branchHeaders,
+                      validateStatus: (s) => s != null && s < 500,
+                    ),
+                  );
+                  if (putResp.statusCode == 200 || putResp.statusCode == 201) {
+                    final putMap = _extractRemoteItemMap(putResp.data);
+                    _applyRemoteItemStatusToProduct(
+                      existing,
+                      putMap,
+                      updateRemotePrice: false,
+                    );
+                    existing.digitaxRemotePrice = existing.price;
+                  }
+                } catch (_) {}
+              }
+
+              if (existing.digitaxSyncStatus != prevStatus ||
+                  existing.digitaxRemotePrice != prevRemotePrice ||
+                  existing.digitaxSyncError != prevError ||
+                  existing.itemClsCd != prevItemCls ||
+                  existing.price != prevPrice ||
+                  existing.stockLevel != prevStock) {
+                await db.isar.writeTxn(() async {
+                  await db.isar.products.put(existing);
+                });
+                updatedCount++;
+              }
+            } else {
+              // New item created directly in DigiTax Dashboard — import into local inventory!
+              final remoteSku = rBarcode.isNotEmpty
+                  ? rBarcode
+                  : (rItemCode.isNotEmpty ? rItemCode : rId);
+              final imported = Product(
+                name: rName,
+                sku: remoteSku.isNotEmpty ? remoteSku : rName,
+                price: rPrice,
+                stockLevel: remoteStock,
+                categoryId: 0,
+                itemClsCd: rId,
+                branchCode: bhfId,
+                branchName: config?.branchName,
+                isSyncedWithDigitax: false,
+                isDigitaxSyncEnabled: true,
+                lastDigitaxSyncDate: DateTime.now(),
+              );
+              _applyRemoteItemStatusToProduct(imported, r);
+              await db.isar.writeTxn(() async {
+                await db.isar.products.put(imported);
+              });
+              branchProducts.add(imported);
+              updatedItemIds.add(rId);
+              updatedCount++;
+              debugPrint(
+                'DIGITAX_LIVE_IMPORT: Pulled new DigiTax item "${imported.name}" [ID: $rId, Status: ${imported.digitaxSyncStatus}]',
+              );
+            }
+          }
+        } catch (e) {
+          debugPrint('DIGITAX_LIVE_CATALOG_POLL_NOTE: $e');
+        }
+      }
+
       final allProducts = await db.isar.products
           .filter()
           .isArchivedEqualTo(false)
@@ -696,16 +988,11 @@ class DigiTaxInventoryService {
         if (!p.hasUsableDigitaxItemId) {
           return false;
         }
+        if (updatedItemIds.contains(p.itemClsCd.trim())) {
+          return false;
+        }
         return p.digitaxSyncStatus == 'PENDING' || p.hasDigitaxPriceMismatch;
       }).toList();
-
-      if (candidates.isEmpty) {
-        return 0;
-      }
-
-      if (!await canReachDigiTax()) {
-        return 0;
-      }
 
       for (final p in candidates.take(15)) {
         final itemId = p.itemClsCd.trim();
@@ -809,6 +1096,10 @@ class DigiTaxInventoryService {
         } catch (e) {
           debugPrint('DIGITAX_POLL_ITEM_NOTE ($itemId): $e');
         }
+      }
+
+      if (updatedCount > 0) {
+        await deduplicateLocalProducts();
       }
     } finally {
       _isPollingItemStatus = false;
@@ -938,30 +1229,74 @@ class DigiTaxInventoryService {
     return null;
   }
 
-  /// Purge all duplicate products in the local database, keeping only one unique entry per name/SKU per branch
+  /// Purge all duplicate products in the local database, keeping only one unique entry per DigiTax ID or name/SKU per branch
   Future<int> deduplicateLocalProducts({String? branchCode}) async {
     final db = ref.read(databaseServiceProvider);
     final localSql = ref.read(localSqlServiceProvider);
-    final config = ref.read(storeConfigProvider).value;
+    final config =
+        ref.read(storeConfigProvider).value ??
+        await db.isar.storeConfigs.where().findFirst();
     final configuredBhfId = config?.bhfId.trim().isNotEmpty == true
         ? config!.bhfId.trim()
         : '00';
     final isar = db.isar;
 
+    String canonicalBranchBucket(String? rawBranch) {
+      final norm = normalizeBranchCode(
+        rawBranch,
+        defaultBhfId: configuredBhfId,
+      );
+      if (norm == '00' ||
+          norm == '000' ||
+          norm == '001' ||
+          norm == '01' ||
+          norm == configuredBhfId) {
+        return configuredBhfId;
+      }
+      return norm;
+    }
+
     final targetBranch = branchCode != null
-        ? normalizeBranchCode(branchCode, defaultBhfId: configuredBhfId)
+        ? canonicalBranchBucket(branchCode)
         : null;
     final allProducts = await isar.products.where().findAll();
 
-    final Map<String, Product> canonicalMap = {};
+    // Sort so records with a valid DigiTax item_ ID and COMPLETED status come first as canonical
+    allProducts.sort((a, b) {
+      final aHasId = a.hasUsableDigitaxItemId ? 0 : 1;
+      final bHasId = b.hasUsableDigitaxItemId ? 0 : 1;
+      if (aHasId != bHasId) {
+        return aHasId.compareTo(bHasId);
+      }
+      int statusRank(String s) {
+        switch (s.toUpperCase()) {
+          case 'COMPLETED':
+            return 0;
+          case 'PENDING':
+            return 1;
+          case 'FAILED':
+            return 2;
+          default:
+            return 3;
+        }
+      }
+
+      final aRank = statusRank(a.digitaxSyncStatus);
+      final bRank = statusRank(b.digitaxSyncStatus);
+      if (aRank != bRank) {
+        return aRank.compareTo(bRank);
+      }
+      return a.id.compareTo(b.id);
+    });
+
+    final Map<String, Product> canonicalByDtId = {};
+    final Map<String, Product> canonicalByNameAndSku = {};
+    final Map<String, Product> canonicalByName = {};
     final List<Id> duplicateIdsToDelete = [];
     final List<Product> productsToUpdate = [];
 
     for (final p in allProducts) {
-      final normBranch = normalizeBranchCode(
-        p.branchCode,
-        defaultBhfId: configuredBhfId,
-      );
+      final normBranch = canonicalBranchBucket(p.branchCode);
       if (p.branchCode != normBranch) {
         p.branchCode = normBranch;
         if (!productsToUpdate.contains(p)) {
@@ -969,17 +1304,56 @@ class DigiTaxInventoryService {
         }
       }
 
+      if (p.isArchived) {
+        continue;
+      }
+
       // If filtering for a specific branch, only deduplicate that branch
       if (targetBranch != null && normBranch != targetBranch) {
         continue;
       }
 
-      final dtItemId = p.itemClsCd.trim();
+      final dtItemId = p.hasUsableDigitaxItemId ? p.itemClsCd.trim() : '';
+      final nameKey = p.name.trim().toLowerCase();
+      final skuKey = p.sku.trim().toLowerCase();
 
-      if (!dtItemId.startsWith('item_')) continue;
+      final dtKey = dtItemId.isNotEmpty ? '${normBranch}_dt_$dtItemId' : '';
+      final nameSkuKey = nameKey.isNotEmpty
+          ? '${normBranch}_ns_${nameKey}_$skuKey'
+          : '';
+      final branchNameKey = nameKey.isNotEmpty
+          ? '${normBranch}_n_$nameKey'
+          : '';
 
-      final dtKey = '${normBranch}_dt_$dtItemId';
-      final existingMatch = canonicalMap[dtKey];
+      Product? existingMatch;
+      if (dtKey.isNotEmpty) {
+        existingMatch = canonicalByDtId[dtKey];
+      }
+      if (existingMatch == null && nameSkuKey.isNotEmpty) {
+        final candidate = canonicalByNameAndSku[nameSkuKey];
+        if (candidate != null) {
+          final cDtId = candidate.hasUsableDigitaxItemId
+              ? candidate.itemClsCd.trim()
+              : '';
+          if (dtItemId.isEmpty || cDtId.isEmpty || dtItemId == cDtId) {
+            existingMatch = candidate;
+          }
+        }
+      }
+      if (existingMatch == null && branchNameKey.isNotEmpty) {
+        final candidate = canonicalByName[branchNameKey];
+        if (candidate != null) {
+          final cDtId = candidate.hasUsableDigitaxItemId
+              ? candidate.itemClsCd.trim()
+              : '';
+          // Merge by name when one record is the pulled DigiTax item (with item_... as SKU or ID)
+          // and the other is the local record created without a DigiTax item_ ID
+          if ((dtItemId.isEmpty && cDtId.isNotEmpty) ||
+              (dtItemId.isNotEmpty && cDtId.isEmpty)) {
+            existingMatch = candidate;
+          }
+        }
+      }
 
       if (existingMatch != null && existingMatch.id != p.id) {
         bool modified = false;
@@ -1000,9 +1374,34 @@ class DigiTaxInventoryService {
           modified = true;
         }
 
+        // Prefer real barcode/SKU over auto-generated item_... SKU
+        if (existingMatch.sku.trim().startsWith('item_') &&
+            p.sku.trim().isNotEmpty &&
+            !p.sku.trim().startsWith('item_')) {
+          existingMatch.sku = p.sku.trim();
+          modified = true;
+        }
+
         // Keep specific category if existing is default
         if (p.categoryId != 0 && existingMatch.categoryId == 0) {
           existingMatch.categoryId = p.categoryId;
+          modified = true;
+        }
+
+        // Keep DigiTax item ID and UNSPSC class code
+        if (p.hasUsableDigitaxItemId && !existingMatch.hasUsableDigitaxItemId) {
+          if (!existingMatch.itemClsCd.startsWith('item_') &&
+              existingMatch.itemClsCd.trim().length >= 8) {
+            existingMatch.zraUnspscClassCode = existingMatch.itemClsCd.trim();
+          }
+          existingMatch.itemClsCd = p.itemClsCd.trim();
+          modified = true;
+        }
+        if ((existingMatch.zraUnspscClassCode.isEmpty ||
+                existingMatch.zraUnspscClassCode == '10101501') &&
+            p.zraUnspscClassCode.isNotEmpty &&
+            p.zraUnspscClassCode != '10101501') {
+          existingMatch.zraUnspscClassCode = p.zraUnspscClassCode;
           modified = true;
         }
 
@@ -1013,11 +1412,12 @@ class DigiTaxInventoryService {
               p.lastDigitaxSyncDate ?? DateTime.now();
           modified = true;
         }
-
-        // Keep DigiTax item ID
-        if (p.itemClsCd.isNotEmpty &&
-            !existingMatch.itemClsCd.startsWith('item_')) {
-          existingMatch.itemClsCd = p.itemClsCd;
+        if (existingMatch.digitaxSyncStatus == 'UNSYNCED' &&
+            p.digitaxSyncStatus != 'UNSYNCED') {
+          existingMatch.digitaxSyncStatus = p.digitaxSyncStatus;
+          existingMatch.digitaxSyncError = p.digitaxSyncError;
+          existingMatch.digitaxRemotePrice =
+              p.digitaxRemotePrice ?? existingMatch.digitaxRemotePrice;
           modified = true;
         }
 
@@ -1034,9 +1434,22 @@ class DigiTaxInventoryService {
           productsToUpdate.add(existingMatch);
         }
 
+        if (existingMatch.hasUsableDigitaxItemId) {
+          canonicalByDtId['${normBranch}_dt_${existingMatch.itemClsCd.trim()}'] =
+              existingMatch;
+        }
+        productsToUpdate.remove(p);
         duplicateIdsToDelete.add(p.id);
       } else {
-        canonicalMap[dtKey] = p;
+        if (dtKey.isNotEmpty) {
+          canonicalByDtId[dtKey] = p;
+        }
+        if (nameSkuKey.isNotEmpty) {
+          canonicalByNameAndSku[nameSkuKey] = p;
+        }
+        if (branchNameKey.isNotEmpty) {
+          canonicalByName[branchNameKey] = p;
+        }
       }
     }
 
@@ -1260,10 +1673,15 @@ class DigiTaxInventoryService {
       int pulledCount = 0;
       final List<String> errors = [];
 
+      // 1. Deduplicate existing local products first so we start with a clean catalog
+      try {
+        await deduplicateLocalProducts(branchCode: bhfId);
+      } catch (_) {}
+
       // Do not continue to imports or uploads unless the remote catalogue was read.
       List<Map<String, dynamic>> remoteList;
       try {
-        remoteList = await _fetchAllRemoteItems(headers);
+        remoteList = await _fetchAllRemoteItems(headers, forceRefresh: true);
       } catch (e) {
         return DigiTaxSyncResult(
           success: false,
@@ -1293,7 +1711,9 @@ class DigiTaxInventoryService {
                     '')
                 .toString()
                 .trim();
-        if (id.isNotEmpty) remoteById[id] = item;
+        if (id.isNotEmpty) {
+          remoteById[id] = item;
+        }
         if (name.isNotEmpty) {
           remoteByName.putIfAbsent(name, () => []).add(item);
         }
@@ -1305,12 +1725,27 @@ class DigiTaxInventoryService {
       // ──────────────────────────────────────────────────────────────────────────
       // 3. Pull — Branch-Isolated Sync
       // ──────────────────────────────────────────────────────────────────────────
+      final allLocalProducts = await db.isar.products.where().findAll();
+      final branchProducts = allLocalProducts
+          .where(
+            (p) => _belongsToTargetBranch(
+              p.branchCode,
+              bhfId,
+              configuredBhfId,
+              isCurrentHq,
+            ),
+          )
+          .toList();
       for (final r in remoteList) {
-        final rId = (r['id'] ?? r['item_id'] ?? r['itemId'] ?? '').toString();
+        final rId = (r['id'] ?? r['item_id'] ?? r['itemId'] ?? '')
+            .toString()
+            .trim();
         final rItemCode = (r['item_code'] ?? r['itemCd'] ?? r['itemCode'] ?? '')
-            .toString();
+            .toString()
+            .trim();
         final rBarcode = (r['bar_code'] ?? r['barcode'] ?? r['sku'] ?? '')
-            .toString();
+            .toString()
+            .trim();
         final rName =
             (r['item_name'] ?? r['itemNm'] ?? r['itemName'] ?? r['name'] ?? '')
                 .toString()
@@ -1334,7 +1769,9 @@ class DigiTaxInventoryService {
             ? rawStock.toInt()
             : (int.tryParse(rawStock.toString()) ?? 0);
 
-        if (rName.isEmpty) continue;
+        if (rName.isEmpty) {
+          continue;
+        }
         if (rId.isEmpty) {
           debugPrint(
             'DIGITAX_PULL_SKIP: Remote item "$rName" has no stable DigiTax ID; refusing to match by name or SKU.',
@@ -1345,30 +1782,24 @@ class DigiTaxInventoryService {
         final remoteSku = rBarcode.isNotEmpty
             ? rBarcode
             : (rItemCode.isNotEmpty ? rItemCode : rId);
-        final existing = await db.isar.products
-            .filter()
-            .group(
-              (q) => isCurrentHq
-                  ? q
-                        .branchCodeEqualTo(bhfId)
-                        .or()
-                        .branchCodeEqualTo(configuredBhfId)
-                        .or()
-                        .branchCodeEqualTo('00')
-                        .or()
-                        .branchCodeEqualTo('000')
-                        .or()
-                        .branchCodeEqualTo('')
-                  : q.branchCodeEqualTo(bhfId),
-            )
-            .and()
-            .isDigitaxSyncEnabledEqualTo(true)
-            .and()
-            .itemClsCdEqualTo(rId)
-            .findFirst();
+        final existing = _findMatchingLocalProductForRemoteItem(
+          branchProducts: branchProducts,
+          rId: rId,
+          rBarcode: rBarcode,
+          rItemCode: rItemCode,
+          rName: rName,
+        );
 
         if (existing != null) {
+          if (existing.isArchived) {
+            continue;
+          }
           existing.branchCode = bhfId;
+          if (!existing.itemClsCd.startsWith('item_') &&
+              existing.itemClsCd.trim().length >= 8) {
+            existing.zraUnspscClassCode = existing.itemClsCd.trim();
+          }
+          existing.itemClsCd = rId;
           final hadLocalPriceChange =
               existing.digitaxRemotePrice != null &&
               (existing.price - existing.digitaxRemotePrice!).abs() > 0.01 &&
@@ -1376,7 +1807,7 @@ class DigiTaxInventoryService {
           if (!hadLocalPriceChange && existing.price != rPrice && rPrice > 0) {
             existing.price = rPrice;
           }
-          if (existing.stockLevel != remoteStock) {
+          if (existing.stockLevel != remoteStock && remoteStock > 0) {
             existing.stockLevel = remoteStock;
           }
           _applyRemoteItemStatusToProduct(existing, r);
@@ -1402,6 +1833,7 @@ class DigiTaxInventoryService {
           await db.isar.writeTxn(() async {
             await db.isar.products.put(imported);
           });
+          branchProducts.add(imported);
           pulledCount++;
         }
       }
@@ -1657,6 +2089,10 @@ class DigiTaxInventoryService {
           errors.add('Failed to push "${p.name}" to DigiTax: $e');
         }
       }
+
+      try {
+        await deduplicateLocalProducts(branchCode: bhfId);
+      } catch (_) {}
 
       final successMsg =
           'DigiTax Equilibrium Sync: Pulled $pulledCount, Pushed/Updated $pushedCount items.';

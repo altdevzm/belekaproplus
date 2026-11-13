@@ -1072,3 +1072,4 @@ class _PoleDisplaySettingsModalState
     );
   }
 }
+

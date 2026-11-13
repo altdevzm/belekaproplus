@@ -26,7 +26,7 @@ class WeightScaleModal extends ConsumerStatefulWidget {
 class _WeightScaleModalState extends ConsumerState<WeightScaleModal> {
   late TextEditingController _manualWeightController;
   StreamSubscription<ScaleWeightReading>? _scaleSubscription;
-  
+
   double _currentNetWeight = 0.0;
   double _currentTareWeight = 0.0;
   bool _isScaleStable = true;
@@ -45,9 +45,11 @@ class _WeightScaleModalState extends ConsumerState<WeightScaleModal> {
     // Subscribe to live hardware scale readings
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final scaleService = ref.read(scaleServiceProvider);
-      
+
       _isScaleConnected = scaleService.isConnected;
-      if (!_isManualInput && scaleService.isConnected && scaleService.currentReading.netWeight > 0) {
+      if (!_isManualInput &&
+          scaleService.isConnected &&
+          scaleService.currentReading.netWeight > 0) {
         setState(() {
           _currentNetWeight = scaleService.currentReading.netWeight;
           _isScaleStable = scaleService.currentReading.isStable;
@@ -62,7 +64,9 @@ class _WeightScaleModalState extends ConsumerState<WeightScaleModal> {
             _currentNetWeight = reading.netWeight;
             _isScaleStable = reading.isStable;
             _isScaleConnected = reading.isConnected;
-            _manualWeightController.text = _currentNetWeight > 0 ? _currentNetWeight.toStringAsFixed(3) : '';
+            _manualWeightController.text = _currentNetWeight > 0
+                ? _currentNetWeight.toStringAsFixed(3)
+                : '';
           });
         }
       });
@@ -98,11 +102,17 @@ class _WeightScaleModalState extends ConsumerState<WeightScaleModal> {
     if (key == 'C') {
       current = '';
     } else if (key == '⌫') {
-      if (current.isNotEmpty) current = current.substring(0, current.length - 1);
+      if (current.isNotEmpty) {
+        current = current.substring(0, current.length - 1);
+      }
     } else if (key == '.') {
-      if (!current.contains('.')) current = current.isEmpty ? '0.' : '$current.';
+      if (!current.contains('.')) {
+        current = current.isEmpty ? '0.' : '$current.';
+      }
     } else {
-      if (current == '0') current = '';
+      if (current == '0') {
+        current = '';
+      }
       current = '$current$key';
     }
 
@@ -118,7 +128,9 @@ class _WeightScaleModalState extends ConsumerState<WeightScaleModal> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final dialogBg = isDark ? const Color(0xFF151F32) : Colors.white;
-    final borderColor = isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0);
+    final borderColor = isDark
+        ? const Color(0xFF293548)
+        : const Color(0xFFE2E8F0);
     final innerBg = isDark ? const Color(0xFF0B1220) : const Color(0xFFF8FAFC);
     const primaryAccent = Color(0xFF1D4ED8);
 
@@ -162,7 +174,11 @@ class _WeightScaleModalState extends ConsumerState<WeightScaleModal> {
                           color: primaryAccent.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: const Icon(Icons.scale_rounded, color: primaryAccent, size: 22),
+                        child: const Icon(
+                          Icons.scale_rounded,
+                          color: primaryAccent,
+                          size: 22,
+                        ),
                       ),
                       const SizedBox(width: 14),
                       Column(
@@ -189,7 +205,10 @@ class _WeightScaleModalState extends ConsumerState<WeightScaleModal> {
                   ),
                   IconButton(
                     onPressed: () => Navigator.pop(context),
-                    icon: Icon(Icons.close_rounded, color: theme.colorScheme.onSurfaceVariant),
+                    icon: Icon(
+                      Icons.close_rounded,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ],
               ),
@@ -198,12 +217,17 @@ class _WeightScaleModalState extends ConsumerState<WeightScaleModal> {
 
               // Digital Scale LED Display Box
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 16,
+                ),
                 decoration: BoxDecoration(
                   color: innerBg,
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
-                    color: _isScaleStable ? const Color(0xFF059669) : const Color(0xFFD97706),
+                    color: _isScaleStable
+                        ? const Color(0xFF059669)
+                        : const Color(0xFFD97706),
                     width: 1.5,
                   ),
                 ),
@@ -219,21 +243,27 @@ class _WeightScaleModalState extends ConsumerState<WeightScaleModal> {
                               height: 8,
                               decoration: BoxDecoration(
                                 color: _isScaleConnected
-                                    ? (_isScaleStable ? const Color(0xFF059669) : const Color(0xFFD97706))
+                                    ? (_isScaleStable
+                                          ? const Color(0xFF059669)
+                                          : const Color(0xFFD97706))
                                     : const Color(0xFF94A3B8),
                                 shape: BoxShape.circle,
                               ),
                             ),
                             const SizedBox(width: 6),
                             Text(
-                              _isScaleConnected 
-                                  ? (_isScaleStable ? 'LIVE SCALE • STABLE' : 'LIVE SCALE • STABILIZING...') 
+                              _isScaleConnected
+                                  ? (_isScaleStable
+                                        ? 'LIVE SCALE • STABLE'
+                                        : 'LIVE SCALE • STABILIZING...')
                                   : 'MANUAL WEIGHT / NO HARDWARE SCALE',
                               style: GoogleFonts.jetBrainsMono(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w800,
                                 color: _isScaleConnected
-                                    ? (_isScaleStable ? const Color(0xFF059669) : const Color(0xFFD97706))
+                                    ? (_isScaleStable
+                                          ? const Color(0xFF059669)
+                                          : const Color(0xFFD97706))
                                     : theme.colorScheme.onSurfaceVariant,
                                 letterSpacing: 1.0,
                               ),
@@ -242,14 +272,21 @@ class _WeightScaleModalState extends ConsumerState<WeightScaleModal> {
                         ),
                         if (_currentTareWeight > 0)
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
                               color: primaryAccent.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
                               'TARE: ${_currentTareWeight.toStringAsFixed(3)} $unitLabel',
-                              style: GoogleFonts.jetBrainsMono(fontSize: 10, color: primaryAccent, fontWeight: FontWeight.w800),
+                              style: GoogleFonts.jetBrainsMono(
+                                fontSize: 10,
+                                color: primaryAccent,
+                                fontWeight: FontWeight.w800,
+                              ),
                             ),
                           ),
                       ],
@@ -312,12 +349,19 @@ class _WeightScaleModalState extends ConsumerState<WeightScaleModal> {
                         const SizedBox(height: 4),
                         Text(
                           '${_currentNetWeight.toStringAsFixed(3)} $unitLabel × ${CurrencyFormatter.format(unitPrice, widget.currency)}',
-                          style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurface, fontWeight: FontWeight.w600),
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            color: theme.colorScheme.onSurface,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ],
                     ),
                     Text(
-                      CurrencyFormatter.format(totalComputedPrice, widget.currency),
+                      CurrencyFormatter.format(
+                        totalComputedPrice,
+                        widget.currency,
+                      ),
                       style: GoogleFonts.inter(
                         fontSize: 22,
                         fontWeight: FontWeight.w900,
@@ -338,23 +382,55 @@ class _WeightScaleModalState extends ConsumerState<WeightScaleModal> {
                       scrollDirection: Axis.horizontal,
                       child: Row(
                         children: [
-                          _buildTareButton(context, 'Zero', () => _setTare(0.0)),
+                          _buildTareButton(
+                            context,
+                            'Zero',
+                            () => _setTare(0.0),
+                          ),
                           const SizedBox(width: 6),
-                          _buildTareButton(context, 'Bag (15g)', () => _setTare(0.015)),
+                          _buildTareButton(
+                            context,
+                            'Bag (15g)',
+                            () => _setTare(0.015),
+                          ),
                           const SizedBox(width: 6),
-                          _buildTareButton(context, 'Tray (50g)', () => _setTare(0.050)),
+                          _buildTareButton(
+                            context,
+                            'Tray (50g)',
+                            () => _setTare(0.050),
+                          ),
                           const SizedBox(width: 10),
                           Container(width: 1, height: 24, color: borderColor),
                           const SizedBox(width: 10),
-                          _buildPresetButton(context, '0.25 $unitLabel', () => _setManualWeight(0.25)),
+                          _buildPresetButton(
+                            context,
+                            '0.25 $unitLabel',
+                            () => _setManualWeight(0.25),
+                          ),
                           const SizedBox(width: 6),
-                          _buildPresetButton(context, '0.50 $unitLabel', () => _setManualWeight(0.50)),
+                          _buildPresetButton(
+                            context,
+                            '0.50 $unitLabel',
+                            () => _setManualWeight(0.50),
+                          ),
                           const SizedBox(width: 6),
-                          _buildPresetButton(context, '1.00 $unitLabel', () => _setManualWeight(1.00)),
+                          _buildPresetButton(
+                            context,
+                            '1.00 $unitLabel',
+                            () => _setManualWeight(1.00),
+                          ),
                           const SizedBox(width: 6),
-                          _buildPresetButton(context, '2.00 $unitLabel', () => _setManualWeight(2.00)),
+                          _buildPresetButton(
+                            context,
+                            '2.00 $unitLabel',
+                            () => _setManualWeight(2.00),
+                          ),
                           const SizedBox(width: 6),
-                          _buildPresetButton(context, '5.00 $unitLabel', () => _setManualWeight(5.00)),
+                          _buildPresetButton(
+                            context,
+                            '5.00 $unitLabel',
+                            () => _setManualWeight(5.00),
+                          ),
                         ],
                       ),
                     ),
@@ -379,7 +455,11 @@ class _WeightScaleModalState extends ConsumerState<WeightScaleModal> {
                         _buildKeypadKey(context, '1'),
                         _buildKeypadKey(context, '2'),
                         _buildKeypadKey(context, '3'),
-                        _buildKeypadKey(context, 'C', color: const Color(0xFFD97706)),
+                        _buildKeypadKey(
+                          context,
+                          'C',
+                          color: const Color(0xFFD97706),
+                        ),
                       ],
                     ),
                     Row(
@@ -387,7 +467,11 @@ class _WeightScaleModalState extends ConsumerState<WeightScaleModal> {
                         _buildKeypadKey(context, '4'),
                         _buildKeypadKey(context, '5'),
                         _buildKeypadKey(context, '6'),
-                        _buildKeypadKey(context, '⌫', color: const Color(0xFFDC2626)),
+                        _buildKeypadKey(
+                          context,
+                          '⌫',
+                          color: const Color(0xFFDC2626),
+                        ),
                       ],
                     ),
                     Row(
@@ -424,14 +508,22 @@ class _WeightScaleModalState extends ConsumerState<WeightScaleModal> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: primaryAccent,
                     foregroundColor: Colors.white,
-                    disabledBackgroundColor: isDark ? const Color(0xFF1C283D) : const Color(0xFFE2E8F0),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    disabledBackgroundColor: isDark
+                        ? const Color(0xFF1C283D)
+                        : const Color(0xFFE2E8F0),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                     elevation: 0,
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.add_shopping_cart_rounded, size: 18, color: Colors.white),
+                      const Icon(
+                        Icons.add_shopping_cart_rounded,
+                        size: 18,
+                        color: Colors.white,
+                      ),
                       const SizedBox(width: 10),
                       Text(
                         _currentNetWeight > 0
@@ -455,7 +547,11 @@ class _WeightScaleModalState extends ConsumerState<WeightScaleModal> {
     );
   }
 
-  Widget _buildTareButton(BuildContext context, String label, VoidCallback onTap) {
+  Widget _buildTareButton(
+    BuildContext context,
+    String label,
+    VoidCallback onTap,
+  ) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
@@ -473,13 +569,21 @@ class _WeightScaleModalState extends ConsumerState<WeightScaleModal> {
         ),
         child: Text(
           label,
-          style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurface),
+          style: GoogleFonts.inter(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: theme.colorScheme.onSurface,
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildPresetButton(BuildContext context, String label, VoidCallback onTap) {
+  Widget _buildPresetButton(
+    BuildContext context,
+    String label,
+    VoidCallback onTap,
+  ) {
     const primaryAccent = Color(0xFF1D4ED8);
 
     return InkWell(
@@ -497,17 +601,28 @@ class _WeightScaleModalState extends ConsumerState<WeightScaleModal> {
         ),
         child: Text(
           label,
-          style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: primaryAccent),
+          style: GoogleFonts.inter(
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            color: primaryAccent,
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildKeypadKey(BuildContext context, String key, {int flex = 1, Color? color}) {
+  Widget _buildKeypadKey(
+    BuildContext context,
+    String key, {
+    int flex = 1,
+    Color? color,
+  }) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final itemBg = isDark ? const Color(0xFF151F32) : Colors.white;
-    final borderColor = isDark ? const Color(0xFF293548) : const Color(0xFFE2E8F0);
+    final borderColor = isDark
+        ? const Color(0xFF293548)
+        : const Color(0xFFE2E8F0);
 
     return Expanded(
       flex: flex,
@@ -559,7 +674,8 @@ class _WeightScaleModalState extends ConsumerState<WeightScaleModal> {
                   _currentNetWeight = reading.netWeight;
                   _isScaleStable = reading.isStable;
                   _isScaleConnected = true;
-                  _manualWeightController.text = reading.netWeight.toStringAsFixed(3);
+                  _manualWeightController.text = reading.netWeight
+                      .toStringAsFixed(3);
                 });
               }
             } else {
@@ -577,7 +693,11 @@ class _WeightScaleModalState extends ConsumerState<WeightScaleModal> {
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: primaryAccent.withValues(alpha: 0.3)),
             ),
-            child: const Icon(Icons.refresh_rounded, color: primaryAccent, size: 20),
+            child: const Icon(
+              Icons.refresh_rounded,
+              color: primaryAccent,
+              size: 20,
+            ),
           ),
         ),
       ),
