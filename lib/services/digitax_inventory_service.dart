@@ -3424,6 +3424,42 @@ class DigiTaxInventoryService {
       }
     } catch (_) {}
 
+    // 5b. Try GET /customers with direct tpin query filter
+    try {
+      for (final filterParam in ['tpin', 'customer_tpin', 'search', 'q']) {
+        final r = await _dio.get(
+          '$digitaxZambiaApiBaseUrl/customers',
+          queryParameters: {'page_size': 20, filterParam: cleanTpin},
+          options: Options(
+            headers: headers,
+            validateStatus: (s) => s != null && s < 500,
+          ),
+        );
+        if (r.statusCode == 200 && r.data != null) {
+          List items = [];
+          if (r.data is List) {
+            items = r.data;
+          } else if (r.data is Map && r.data['data'] is List) {
+            items = r.data['data'];
+          } else if (r.data is Map && r.data['customers'] is List) {
+            items = r.data['customers'];
+          }
+          for (final c in items) {
+            if (c is Map) {
+              final cTpin = (c['customer_tpin'] ?? c['tpin'] ?? c['tax_pin'] ?? '').toString().trim();
+              if (cTpin == cleanTpin) {
+                final cName = (c['customer_name'] ?? c['name'] ?? c['business_name'] ?? '').toString().trim();
+                final cAddr = (c['address'] ?? c['physical_address'] ?? '').toString().trim();
+                if (cName.isNotEmpty) {
+                  return {'tpin': cleanTpin, 'taxpayer_name': cName, 'physical_address': cAddr};
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch (_) {}
+
     // 6. Query /customers list endpoint (page_size max 20 per DigiTax OpenAPI spec)
     try {
       String? custCursor;
@@ -3538,7 +3574,98 @@ class DigiTaxInventoryService {
       }
     } catch (_) {}
 
-    // Try multiple endpoint patterns used across DigiTax and ZRA Smart Invoice APIs
+    // 8. POST /customers — register/validate the TPIN with DigiTax/ZRA.
+    // DigiTax proxies this to ZRA Smart Invoice which validates the TPIN
+    // and returns the registered taxpayer name even for first-time customers.
+    try {
+      final sellerTpin = config?.tpin?.trim() ?? '';
+      final bhfId = config?.bhfId.trim().padLeft(2, '0') ?? '00';
+      final postResp = await _dio.post(
+        '$digitaxZambiaApiBaseUrl/customers',
+        data: {
+          'customer_tpin': cleanTpin,
+          'tpin': sellerTpin.isNotEmpty ? sellerTpin : cleanTpin,
+          'bhf_id': bhfId,
+          'customer_name': 'Lookup',
+        },
+        options: Options(
+          headers: headers,
+          validateStatus: (s) => s != null && s < 500,
+        ),
+      );
+      if ((postResp.statusCode == 200 || postResp.statusCode == 201) &&
+          postResp.data != null) {
+        Map<String, dynamic>? record;
+        if (postResp.data is Map) {
+          record = Map<String, dynamic>.from(postResp.data as Map);
+          if (record.containsKey('data') && record['data'] is Map) {
+            record = Map<String, dynamic>.from(record['data'] as Map);
+          }
+        }
+        if (record != null) {
+          final pName = (record['customer_name'] ??
+                  record['taxpayer_name'] ??
+                  record['name'] ??
+                  '')
+              .toString()
+              .trim();
+          final pAddr =
+              (record['address'] ?? record['physical_address'] ?? '')
+                  .toString()
+                  .trim();
+          final pTpin =
+              (record['customer_tpin'] ?? record['tpin'] ?? '').toString().trim();
+          // Accept if TPIN matches and name is real (not our placeholder)
+          if ((pTpin == cleanTpin || pTpin.isEmpty) &&
+              pName.isNotEmpty &&
+              pName != 'Lookup') {
+            debugPrint('DIGITAX_TPIN_POST_LOOKUP: $cleanTpin → $pName');
+            return {
+              'tpin': cleanTpin,
+              'taxpayer_name': pName,
+              'physical_address': pAddr,
+            };
+          }
+        }
+      }
+      // Even if POST didn't return a name, now try fetching the customer
+      // record DigiTax may have created/updated from the POST above
+      try {
+        final getResp = await _dio.get(
+          '$digitaxZambiaApiBaseUrl/customers',
+          queryParameters: {'page_size': 20, 'tpin': cleanTpin},
+          options: Options(
+            headers: headers,
+            validateStatus: (s) => s != null && s < 500,
+          ),
+        );
+        if (getResp.statusCode == 200 && getResp.data != null) {
+          List items = [];
+          if (getResp.data is List) {
+            items = getResp.data;
+          } else if (getResp.data is Map && getResp.data['data'] is List) {
+            items = getResp.data['data'];
+          }
+          for (final c in items) {
+            if (c is Map) {
+              final cTpin = (c['customer_tpin'] ?? c['tpin'] ?? '').toString().trim();
+              if (cTpin == cleanTpin) {
+                final cName = (c['customer_name'] ?? c['name'] ?? '').toString().trim();
+                if (cName.isNotEmpty && cName != 'Lookup') {
+                  return {
+                    'tpin': cleanTpin,
+                    'taxpayer_name': cName,
+                    'physical_address': (c['address'] ?? '').toString().trim(),
+                  };
+                }
+              }
+            }
+          }
+        }
+      } catch (_) {}
+    } catch (_) {}
+
+    // 9. Try multiple endpoint patterns used across DigiTax and ZRA Smart Invoice APIs
     final endpoints = [
       '$digitaxZambiaApiBaseUrl/taxpayers/$cleanTpin',
       '$digitaxZambiaApiBaseUrl/taxpayers?tpin=$cleanTpin',
