@@ -10,6 +10,8 @@ import 'package:beleka_pos/services/database_service.dart';
 import 'package:beleka_pos/services/printer_service.dart';
 import 'package:beleka_pos/services/barcode_service.dart';
 import 'package:beleka_pos/services/scale_service.dart';
+import 'package:beleka_pos/services/pole_display_service.dart';
+import 'package:beleka_pos/screens/settings/pole_display_settings_modal.dart';
 import 'package:beleka_pos/services/sync_service.dart';
 import 'package:beleka_pos/services/postgres_sync_service.dart';
 import 'package:beleka_pos/services/digitax_inventory_service.dart';
@@ -533,6 +535,13 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         );
         if (mounted && success) {
           HapticFeedback.mediumImpact();
+          ref.read(poleDisplayServiceProvider).showItemAndTotal(
+            itemName: product.name,
+            itemUnitPrice: product.price * weight,
+            quantity: 1,
+            totalPayable: cartNotifier.total,
+            currency: currency,
+          );
         }
       }
       return;
@@ -553,8 +562,25 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         );
       } else {
         HapticFeedback.lightImpact();
+        ref.read(poleDisplayServiceProvider).showItemAndTotal(
+          itemName: product.name,
+          itemUnitPrice: product.price,
+          quantity: 1,
+          totalPayable: cartNotifier.total,
+          currency: currency,
+        );
       }
     }
+  }
+
+  void _syncTenderToPoleDisplay() {
+    final total = ref.read(cartProvider.notifier).total;
+    final currency = ref.read(storeConfigProvider).value?.currencySymbol ?? 'K';
+    ref.read(poleDisplayServiceProvider).showTenderAndChange(
+      totalPayable: total,
+      amountTendered: _tenderedAmount,
+      currency: currency,
+    );
   }
 
   Future<void> _lookupProduct(
@@ -1778,6 +1804,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                _buildPoleDisplayLiveBanner(context),
                 _buildPaymentMethodSelector(context),
                 const SizedBox(height: 14),
 
@@ -4033,6 +4060,102 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     );
   }
 
+  Widget _buildPoleDisplayLiveBanner(BuildContext context) {
+    final poleService = ref.watch(poleDisplayServiceProvider);
+    final cfg = poleService.config;
+    if (!cfg.enabled || !cfg.showOnScreenPreview) {
+      return const SizedBox.shrink();
+    }
+    final frame =
+        ref.watch(livePoleDisplayFrameProvider).value ??
+        poleService.currentFrame;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: InkWell(
+        onTap: () => showDialog(
+          context: context,
+          builder: (context) => const PoleDisplaySettingsModal(),
+        ),
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: const Color(0xFF071318),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: const Color(0xFF00E5FF).withValues(alpha: 0.35),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF00E676),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'CUSTOMER POLE DISPLAY (${cfg.port})',
+                        style: GoogleFonts.jetBrainsMono(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF64FFDA),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Icon(
+                    Icons.settings_outlined,
+                    size: 12,
+                    color: Color(0xFF64FFDA),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  frame.line1,
+                  style: GoogleFonts.jetBrainsMono(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF00F5D4),
+                    letterSpacing: 1.2,
+                  ),
+                ),
+              ),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  frame.line2,
+                  style: GoogleFonts.jetBrainsMono(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF00F5D4),
+                    letterSpacing: 1.2,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildNumericKeypad(BuildContext context) {
     return Column(
       children: [
@@ -4101,11 +4224,16 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
               String digits = _tenderedAmount
                   .toStringAsFixed(2)
                   .replaceAll('.', '');
-              if (digits == '000') digits = '';
+              if (digits == '000') {
+                digits = '';
+              }
               digits += label;
-              if (digits.length > 10) return;
+              if (digits.length > 10) {
+                return;
+              }
               _tenderedAmount = double.parse(digits) / 100;
             });
+            _syncTenderToPoleDisplay();
           },
           borderRadius: BorderRadius.circular(8),
           child: Center(
@@ -4129,8 +4257,14 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         color: const Color(0xFFFEF2F2),
         borderRadius: BorderRadius.circular(8),
         child: InkWell(
-          onTap: () => setState(() => _tenderedAmount = 0),
-          onLongPress: () => setState(() => _tenderedAmount = 0),
+          onTap: () {
+            setState(() => _tenderedAmount = 0);
+            _syncTenderToPoleDisplay();
+          },
+          onLongPress: () {
+            setState(() => _tenderedAmount = 0);
+            _syncTenderToPoleDisplay();
+          },
           borderRadius: BorderRadius.circular(8),
           child: const Center(
             child: Icon(
@@ -4156,7 +4290,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       color: primaryColor.withValues(alpha: 0.12),
       borderRadius: BorderRadius.circular(8),
       child: InkWell(
-        onTap: () => setState(() => _tenderedAmount = cartNotifier.total),
+        onTap: () {
+          setState(() => _tenderedAmount = cartNotifier.total);
+          _syncTenderToPoleDisplay();
+        },
         borderRadius: BorderRadius.circular(8),
         child: Container(
           alignment: Alignment.center,
@@ -5163,7 +5300,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       color: isDark ? const Color(0xFF151F32) : const Color(0xFFFFFFFF),
       borderRadius: BorderRadius.circular(8),
       child: InkWell(
-        onTap: () => setState(() => _tenderedAmount += amount),
+        onTap: () {
+          setState(() => _tenderedAmount += amount);
+          _syncTenderToPoleDisplay();
+        },
         borderRadius: BorderRadius.circular(8),
         child: Center(
           child: Text(
@@ -6472,6 +6612,19 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
               '[SalesScreen Sync Warning] Cloud VPS push queued offline for tx ${transaction.transactionId}: $e',
             );
           });
+
+      // Update Customer Pole Display with Final Tendered Amount, Change & Thank You
+      final effectiveTenderedForPole = _tenderedAmount > 0
+          ? _tenderedAmount
+          : total;
+      final effectiveChangeForPole =
+          (_selectedPaymentMethod == 'CASH' && change > 0) ? change : 0.0;
+      ref.read(poleDisplayServiceProvider).showTransactionComplete(
+        totalPayable: total,
+        amountTendered: effectiveTenderedForPole,
+        changeDue: effectiveChangeForPole,
+        currency: config?.currencySymbol ?? 'K',
+      );
 
       // Clear cart & reset payment state immediately so sale is marked done and cart is ready for next sale
       cartNotifier.clear();

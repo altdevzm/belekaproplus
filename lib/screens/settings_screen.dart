@@ -13,6 +13,7 @@ import 'package:beleka_pos/screens/settings/network_sync_modal.dart';
 import 'package:beleka_pos/widgets/cloud_database_modal.dart';
 import 'package:beleka_pos/widgets/zra_tax_config_modal.dart';
 import 'package:beleka_pos/screens/settings/scale_settings_modal.dart';
+import 'package:beleka_pos/screens/settings/pole_display_settings_modal.dart';
 import 'package:beleka_pos/screens/settings/company_account_delete_modal.dart';
 import 'package:beleka_pos/screens/settings/software_update_modal.dart';
 import 'package:beleka_pos/screens/settings/lenco_settings_modal.dart';
@@ -164,6 +165,19 @@ class SettingsScreen extends ConsumerWidget {
                         builder: (context) => const ScaleSettingsModal(),
                       ),
                       buttonLabel: 'Configure Scale',
+                    ),
+                    // Customer Display / Pole Display (Accessible to Cashiers & Managers)
+                    _buildSettingsCard(
+                      context,
+                      'Customer Display (Pole Display)',
+                      'Shows customer total amount payable, amount tendered, change due & item details on VFD/LED pole displays',
+                      Icons.tv_rounded,
+                      const Color(0xFF0284C7),
+                      onPressed: () => showDialog(
+                        context: context,
+                        builder: (context) => const PoleDisplaySettingsModal(),
+                      ),
+                      buttonLabel: 'Configure Display',
                     ),
                     // Software Updates (Accessible to all users / managers / owners)
                     _buildSettingsCard(
