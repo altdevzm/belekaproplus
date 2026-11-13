@@ -3328,7 +3328,7 @@ class DigiTaxInventoryService {
         return {
           'tpin': cleanTpin,
           'taxpayer_name': name,
-          'physical_address': config.branchName.trim(),
+          'physical_address': (config.branchName ?? config.address ?? '').trim(),
         };
       }
     }
