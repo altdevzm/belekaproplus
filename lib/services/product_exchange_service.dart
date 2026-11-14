@@ -1006,6 +1006,7 @@ class ProductExchangeService {
         items: creditNoteItems,
         originalSdcInvoiceNo: origInvoiceNo,
         reason: reason,
+        originalSale: originalInvoice,
       );
     } catch (e) {
       debugPrint('EXCHANGE_DIGITAX_CN_NOTE: $e');

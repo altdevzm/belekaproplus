@@ -1645,6 +1645,7 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
                 items: refundedItems,
                 originalSdcInvoiceNo: origTraderInvNo,
                 reason: reason,
+                originalSale: widget.transaction,
               );
         } catch (e) {
           debugPrint('DIGITAX_CN_SUBMIT_ERROR: $e');
