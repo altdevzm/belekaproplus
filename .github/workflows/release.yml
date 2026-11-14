@@ -156,15 +156,17 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Free Disk Space
+      - name: Free Disk Space & Add Swap Memory
         run: |
           sudo rm -rf /usr/share/dotnet
           sudo rm -rf /opt/ghc
           sudo rm -rf /usr/local/share/boost
           sudo rm -rf /usr/local/lib/android/sdk/ndk/25* /usr/local/lib/android/sdk/ndk/26* 2>/dev/null || true
           sudo docker image prune --all --force 2>/dev/null || true
-          echo "Disk space freed:"
+          sudo fallocate -l 4G /swapfile_ci && sudo chmod 600 /swapfile_ci && sudo mkswap /swapfile_ci && sudo swapon /swapfile_ci || true
+          echo "Disk & memory ready:"
           df -h /
+          free -h
 
       - name: Checkout
         uses: actions/checkout@v4
