@@ -2244,15 +2244,20 @@ class ReportsScreen extends ConsumerWidget {
         tx.zraQrCode!.trim().isNotEmpty &&
         tx.zraQrCode!.trim() != 'PENDING';
 
-    final isFiscalApproved = hasQr ||
-        ((tx.zraStatus.toUpperCase() == 'APPROVED' ||
-                tx.zraStatus.toUpperCase() == 'FISCALIZED') &&
-            ((tx.zraReceiptNumber != null &&
-                    tx.zraReceiptNumber!.isNotEmpty &&
-                    tx.zraReceiptNumber != 'PENDING') ||
-                (tx.zraMarkId != null &&
-                    tx.zraMarkId!.isNotEmpty &&
-                    tx.zraMarkId != 'PENDING')));
+    final txStatusUpper = tx.zraStatus.toUpperCase();
+    final isFiscalFailed = txStatusUpper.startsWith('FAILED');
+    final isFiscalApproved = !isFiscalFailed &&
+        (hasQr ||
+            ((txStatusUpper == 'APPROVED' ||
+                    txStatusUpper == 'COMPLETED' ||
+                    txStatusUpper == 'FISCALIZED') &&
+                ((tx.zraReceiptNumber != null &&
+                        tx.zraReceiptNumber!.isNotEmpty &&
+                        tx.zraReceiptNumber != 'PENDING') ||
+                    (tx.zraMarkId != null &&
+                        tx.zraMarkId!.isNotEmpty &&
+                        tx.zraMarkId != 'PENDING' &&
+                        !tx.zraMarkId!.startsWith('sale_')))));
 
     final isLocalExempt = !isFiscalApproved &&
         (tx.zraStatus == 'LOCAL_EXEMPT' ||
@@ -2313,7 +2318,7 @@ class ReportsScreen extends ConsumerWidget {
                         runSpacing: 4,
                         children: [
                           Text(
-                            '#${tx.id}',
+                            tx.isCreditNote ? 'CN-#${tx.id}' : '#${tx.id}',
                             style: GoogleFonts.inter(
                               fontSize: 13,
                               fontWeight: FontWeight.w700,
@@ -2333,119 +2338,155 @@ class ReportsScreen extends ConsumerWidget {
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
-                                'REFUNDED',
+                                tx.isCreditNote ? 'CREDIT NOTE' : 'REFUNDED',
                                 style: GoogleFonts.inter(
                                   fontSize: 9,
                                   fontWeight: FontWeight.bold,
                                   color: const Color(0xFFDC2626),
                                 ),
                               ),
-                            )
-                          else if (isFiscalApproved)
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF059669)
-                                    .withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(4),
-                                border: Border.all(
+                            ),
+                          if (tx.status != 'refunded' || tx.isCreditNote)
+                            if (isFiscalApproved)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
                                   color: const Color(0xFF059669)
-                                      .withValues(alpha: 0.35),
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(
-                                    Icons.qr_code_2_rounded,
-                                    size: 11,
-                                    color: Color(0xFF059669),
+                                      .withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(
+                                    color: const Color(0xFF059669)
+                                        .withValues(alpha: 0.35),
                                   ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    'COMPLETE (ZRA QR)',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 8.5,
-                                      fontWeight: FontWeight.w800,
-                                      color: const Color(0xFF059669),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(
+                                      Icons.qr_code_2_rounded,
+                                      size: 11,
+                                      color: Color(0xFF059669),
                                     ),
-                                  ),
-                                ],
-                              ),
-                            )
-                          else if (isLocalExempt)
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color:
-                                    Colors.blueAccent.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(4),
-                                border: Border.all(
-                                  color:
-                                      Colors.blueAccent.withValues(alpha: 0.35),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'COMPLETED (ZRA QR)',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 8.5,
+                                        fontWeight: FontWeight.w800,
+                                        color: const Color(0xFF059669),
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(
-                                    Icons.lock_outline_rounded,
-                                    size: 11,
-                                    color: Colors.blueAccent,
+                              )
+                            else if (isLocalExempt)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color:
+                                      Colors.blueAccent.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(
+                                    color:
+                                        Colors.blueAccent.withValues(alpha: 0.35),
                                   ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    'LOCAL / PRIVATE',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 8.5,
-                                      fontWeight: FontWeight.w800,
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(
+                                      Icons.lock_outline_rounded,
+                                      size: 11,
                                       color: Colors.blueAccent,
                                     ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'LOCAL / PRIVATE',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 8.5,
+                                        fontWeight: FontWeight.w800,
+                                        color: Colors.blueAccent,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            else if (isFiscalFailed)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFEF4444)
+                                      .withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(
+                                    color: const Color(0xFFEF4444)
+                                        .withValues(alpha: 0.35),
                                   ),
-                                ],
-                              ),
-                            )
-                          else
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFD97706)
-                                    .withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(4),
-                                border: Border.all(
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(
+                                      Icons.error_outline_rounded,
+                                      size: 11,
+                                      color: Color(0xFFEF4444),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'FAILED (ZRA REJECTED)',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 8.5,
+                                        fontWeight: FontWeight.w800,
+                                        color: const Color(0xFFEF4444),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            else
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
                                   color: const Color(0xFFD97706)
-                                      .withValues(alpha: 0.35),
+                                      .withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(
+                                    color: const Color(0xFFD97706)
+                                        .withValues(alpha: 0.35),
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(
+                                      Icons.hourglass_top_rounded,
+                                      size: 11,
+                                      color: Color(0xFFD97706),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'PENDING (SYNCING ZRA)',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 8.5,
+                                        fontWeight: FontWeight.w800,
+                                        color: const Color(0xFFD97706),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(
-                                    Icons.cloud_off_rounded,
-                                    size: 11,
-                                    color: Color(0xFFD97706),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    'OFFLINE / PENDING',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 8.5,
-                                      fontWeight: FontWeight.w800,
-                                      color: const Color(0xFFD97706),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
                           Text(
                             '•  ${DateFormat('dd MMM yyyy, HH:mm').format(tx.timestamp)}',
                             style: GoogleFonts.inter(
@@ -2810,7 +2851,7 @@ class _TransactionSyncButtonState
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                'Tx #${widget.tx.id} successfully pushed to ZRA DigiTax! QR Code generated.',
+                '✓ Completed: Tx #${widget.tx.id} accepted by ZRA · Smart Invoice issued.',
               ),
               backgroundColor: const Color(0xFF059669),
             ),
@@ -2818,12 +2859,17 @@ class _TransactionSyncButtonState
         }
       } else {
         if (mounted) {
+          final isFailed = widget.tx.zraStatus.toUpperCase().startsWith('FAILED');
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                'Failed to push Tx #${widget.tx.id} to DigiTax. ZRA status: ${widget.tx.zraStatus}',
+                isFailed
+                    ? '✗ Failed: ZRA rejected Tx #${widget.tx.id} · needs attention (${widget.tx.zraStatus}).'
+                    : '⏳ Pending: Tx #${widget.tx.id} recorded in DigiTax · still syncing with ZRA.',
               ),
-              backgroundColor: const Color(0xFFDC2626),
+              backgroundColor: isFailed
+                  ? const Color(0xFFDC2626)
+                  : Colors.amber.shade700,
             ),
           );
         }
@@ -2858,7 +2904,7 @@ class _TransactionSyncButtonState
       );
     }
 
-    if (widget.tx.status == 'refunded') {
+    if (widget.tx.status == 'refunded' && !widget.tx.isCreditNote) {
       return const SizedBox.shrink();
     }
 

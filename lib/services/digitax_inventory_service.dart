@@ -2732,6 +2732,16 @@ class DigiTaxInventoryService {
       );
     }
 
+    // If this sale was ALREADY recorded in DigiTax (has a sale_01... ID) and is
+    // currently PENDING ZRA sync, poll GET /sales/{sale_id} instead of re-POSTing
+    // a duplicate trader_invoice_number (which DigiTax would reject with HTTP 400).
+    if (!forcePush &&
+        transaction.zraMarkId != null &&
+        transaction.zraMarkId!.trim().startsWith('sale_') &&
+        !transaction.zraStatus.toUpperCase().startsWith('FAILED')) {
+      return await refreshTransactionFiscalData(transaction);
+    }
+
     final db = ref.read(databaseServiceProvider);
     final config = ref.read(storeConfigProvider).value;
 
@@ -3438,6 +3448,33 @@ class DigiTaxInventoryService {
     final db = ref.read(databaseServiceProvider);
     final config = ref.read(storeConfigProvider).value;
 
+    // If this Credit Note is ALREADY recorded in DigiTax (has a sale_01... ID)
+    // and is in PENDING state (syncing with ZRA), do NOT POST /credit-notes again
+    // (which would fail with duplicate trader_invoice_number). Poll GET /sales/{id} instead.
+    if (refundTx.zraMarkId != null &&
+        refundTx.zraMarkId!.trim().startsWith('sale_') &&
+        !refundTx.zraStatus.toUpperCase().startsWith('FAILED')) {
+      return await refreshTransactionFiscalData(refundTx);
+    }
+
+    // Even if zraMarkId was not saved yet (or if a previous duplicate POST marked it FAILED),
+    // check GET /credit-notes first to see if DigiTax already recorded this Credit Note.
+    if (refundTx.transactionId != null &&
+        refundTx.transactionId!.trim().isNotEmpty) {
+      final alreadyCompleted = await refreshTransactionFiscalData(
+        refundTx,
+        useShortTimeout: true,
+      );
+      if (alreadyCompleted) {
+        return true;
+      }
+      if (refundTx.zraMarkId != null &&
+          refundTx.zraMarkId!.trim().startsWith('sale_') &&
+          refundTx.zraStatus.toUpperCase() == 'PENDING') {
+        return false;
+      }
+    }
+
     Future<void> persistCreditNoteStatus(String status) async {
       refundTx
         ..isCreditNote = true
@@ -3472,12 +3509,6 @@ class DigiTaxInventoryService {
       'Content-Type': 'application/json',
     };
 
-    final saleDate = refundTx.timestamp
-        .toIso8601String()
-        .replaceAll('T', ' ')
-        .substring(0, 19);
-    final bhfId = resolvedBhfId;
-
     final effectiveItems = <SaleItem>[];
     if (items != null && items.isNotEmpty) {
       effectiveItems.addAll(items);
@@ -3500,49 +3531,9 @@ class DigiTaxInventoryService {
       return true;
     }
 
-    // Map payment method to DigiTax payment_type_code
-    String paymentTypeCode;
-    switch (refundTx.paymentMethod.toUpperCase()) {
-      case 'MOBILE MONEY':
-        paymentTypeCode = '06';
-        break;
-      case 'CARD':
-        paymentTypeCode = '05';
-        break;
-      case 'CREDIT':
-        paymentTypeCode = '02';
-        break;
-      default:
-        paymentTypeCode = '01'; // CASH
-    }
-
-    // Build items array per DigiTax items spec
-    final digitaxItemsPayload = <Map<String, dynamic>>[];
-    for (final item in effectiveItems) {
-      final effectiveQty = (item.isWeighted && item.weight > 0)
-          ? item.weight
-          : item.quantity.toDouble();
-      final lineTotal = (effectiveQty * item.priceAtSale).abs();
-      final taxRate = item.taxRateAtSale;
-      final vatCode = item.taxRateAtSale == 0 ? 'D' : 'A'; // A=16%, D=0% Exempt
-
-      digitaxItemsPayload.add({
-        'item_name': item.productName,
-        'item_code': 'SKU-${item.productId}',
-        'quantity': effectiveQty.abs(),
-        'unit_price': item.priceAtSale,
-        'package_unit_quantity': 1,
-        'tax_rate': taxRate,
-        'discount_rate': 0,
-        'discount_amount': 0,
-        'total_amount': lineTotal,
-        'vat_category_code': vatCode,
-      });
-    }
-
     // trader_invoice_number must be unique across sales, credit notes, and debit notes (including failed attempts)
     final isRetryAttempt =
-        refundTx.zraStatus.toUpperCase() == 'FAILED' ||
+        refundTx.zraStatus.toUpperCase().startsWith('FAILED') ||
         refundTx.zraStatus.toUpperCase() == 'RECONCILIATION_REQUIRED';
     final traderInvNo =
         (!isRetryAttempt &&
@@ -3553,11 +3544,6 @@ class DigiTaxInventoryService {
               ? 'CN-${refundTx.id}-${DateTime.now().millisecondsSinceEpoch % 100000}'
               : 'CN-${DateTime.now().millisecondsSinceEpoch.toString().substring(4)}');
     refundTx.transactionId = traderInvNo;
-
-    // invoice_number must be a numeric representation
-    final invoiceNumber = refundTx.id > 0
-        ? refundTx.id
-        : DateTime.now().millisecondsSinceEpoch % 1000000000;
 
     final origTraderInvNo = refundTx.orgInvoiceNo?.isNotEmpty == true
         ? refundTx.orgInvoiceNo!
@@ -3954,6 +3940,23 @@ class DigiTaxInventoryService {
 
           final cnSaleId = saleData['id']?.toString().trim();
 
+          // Immediately persist Stage 1 (PENDING — Recorded in DigiTax · still syncing with ZRA)
+          // with the DigiTax sale_01... ID before polling, so any concurrent UI or queue
+          // worker knows it is already recorded in DigiTax and never re-POSTs it.
+          if (cnSaleId != null && cnSaleId.isNotEmpty) {
+            refundTx
+              ..isCreditNote = true
+              ..orgInvoiceNo = origTraderInvNo
+              ..creditNoteReason = reason
+              ..zraReceiptNumber = 'PENDING'
+              ..zraMarkId = cnSaleId
+              ..zraInvoiceType = 'Credit Note (R)'
+              ..zraStatus = 'PENDING';
+            await db.isar.writeTxn(() async {
+              await db.isar.saleTransactions.put(refundTx);
+            });
+          }
+
           String? extractCnSig(Map<String, dynamic> m) {
             final s =
                 m['receipt_signature'] ??
@@ -3977,12 +3980,13 @@ class DigiTaxInventoryService {
 
           String? liveSignature = extractCnSig(saleData);
 
-          // Poll GET /sales/{cnSaleId} for ZRA VSDC signature (async signing takes ~0.5s - 2s)
+          // Poll GET /sales/{cnSaleId} briefly (up to 6 attempts ~ 2.5s); if still pending,
+          // return cleanly as PENDING so UI & background poller track it without blocking.
           if ((liveSignature == null || liveSignature.isEmpty) &&
               cnSaleId != null &&
               cnSaleId.isNotEmpty) {
-            for (int attempt = 1; attempt <= 12; attempt++) {
-              final delayMs = attempt <= 2 ? 300 : (attempt <= 5 ? 500 : 750);
+            for (int attempt = 1; attempt <= 6; attempt++) {
+              final delayMs = attempt <= 2 ? 300 : 500;
               await Future.delayed(Duration(milliseconds: delayMs));
               try {
                 final pollResp = await _dio.get(
@@ -4148,13 +4152,36 @@ class DigiTaxInventoryService {
             'DIGITAX_DEDICATED_CN_SUCCESS ✓ CN: ${refundTx.zraReceiptNumber} (DigiTax ID: $cnSaleId, Status: ${refundTx.zraStatus})',
           );
           return true;
-        } else if (dedicatedResp.statusCode != 404 &&
-            dedicatedResp.statusCode != 405) {
+        } else {
+          // Before marking FAILED, check if DigiTax already recorded this Credit Note in GET /credit-notes
+          final recoveredAfterPost = await refreshTransactionFiscalData(
+            refundTx,
+            useShortTimeout: true,
+          );
+          if (recoveredAfterPost) {
+            return true;
+          }
+          if (refundTx.zraMarkId != null &&
+              refundTx.zraMarkId!.trim().startsWith('sale_') &&
+              refundTx.zraStatus.toUpperCase() == 'PENDING') {
+            return false;
+          }
+
+          String errDetail = '';
+          if (dedicatedResp.data is Map) {
+            errDetail =
+                (dedicatedResp.data['message'] ??
+                        dedicatedResp.data['error'] ??
+                        '')
+                    .toString()
+                    .trim();
+          }
           final status =
               dedicatedResp.statusCode == 409 ||
-                  dedicatedResp.statusCode! >= 500
-              ? 'RECONCILIATION_REQUIRED'
-              : 'FAILED';
+                  (dedicatedResp.statusCode != null &&
+                      dedicatedResp.statusCode! >= 500)
+              ? 'PENDING'
+              : (errDetail.isNotEmpty ? 'FAILED: $errDetail' : 'FAILED');
           await persistCreditNoteStatus(status);
           debugPrint(
             'DIGITAX_CREDIT_NOTE_REJECTED: HTTP ${dedicatedResp.statusCode} - ${dedicatedResp.data}',
@@ -4162,207 +4189,27 @@ class DigiTaxInventoryService {
           return false;
         }
       } else {
+        // Original sale is still syncing to DigiTax or item IDs are pending; keep Credit Note in PENDING state
         debugPrint(
-          'DIGITAX_CN_LOOKUP_WARN: origSaleId=$origSaleId, allItemsHaveId=$allItemsHaveId, itemsCount=${creditNoteItemsList.length}',
+          'DIGITAX_CN_LOOKUP_PENDING: origSaleId=$origSaleId, allItemsHaveId=$allItemsHaveId, itemsCount=${creditNoteItemsList.length} -> keeping PENDING',
         );
-      }
-    } catch (strategy1Err) {
-      await persistCreditNoteStatus('RECONCILIATION_REQUIRED');
-      debugPrint('DIGITAX_STRATEGY1_RECONCILIATION_REQUIRED: $strategy1Err');
-      return false;
-    }
-
-    // Strategy 2: Universal POST /sales endpoint with kind='CREDIT_NOTE' and receipt_type_code='R'
-    final creditNotePayload = <String, dynamic>{
-      'kind': 'CREDIT_NOTE',
-      'trader_invoice_number': traderInvNo,
-      'original_trader_invoice_number': origTraderInvNo,
-      'original_invoice_number': origTraderInvNo,
-      'invoice_number': invoiceNumber,
-      'receipt_type_code': 'R', // R = Credit Note per DigiTax spec
-      'invoice_status_code': '01', // 01 = Wait for Approval
-      'reason_code': refundReasonCode,
-      'payment_type_code': paymentTypeCode,
-      'sale_date': saleDate,
-      'currency_code': 'ZMW',
-      'bhf_id': bhfId,
-      'remark': reason, // reason for credit note
-      'customer_name': refundTx.customerBusinessName ?? 'General Customer',
-      if (refundTx.customerTpin?.isNotEmpty == true)
-        'customer_tpin': refundTx.customerTpin,
-      'items': digitaxItemsPayload,
-    };
-
-    try {
-      debugPrint('DIGITAX_CREDIT_NOTE_POST → $digitaxZambiaApiBaseUrl/sales');
-      debugPrint('DIGITAX_CREDIT_NOTE_PAYLOAD: $creditNotePayload');
-
-      final resp = await _dio.post(
-        '$digitaxZambiaApiBaseUrl/sales',
-        data: creditNotePayload,
-        options: Options(
-          headers: headers,
-          validateStatus: (s) => s != null && s < 600,
-        ),
-      );
-
-      debugPrint(
-        'DIGITAX_CREDIT_NOTE_RESPONSE: [HTTP ${resp.statusCode}] ${resp.data}',
-      );
-
-      if (resp.statusCode == 200 || resp.statusCode == 201) {
-        final data = resp.data;
-        Map<String, dynamic> saleData = {};
-        if (data is Map) saleData = Map<String, dynamic>.from(data);
-
-        final saleId = saleData['id']?.toString();
-
-        // Poll for receipt_signature if not immediately available
-        if ((saleData['receipt_signature'] ?? '').toString().trim().isEmpty) {
-          for (int attempt = 1; attempt <= 4; attempt++) {
-            await Future.delayed(const Duration(milliseconds: 1200));
-            try {
-              final pollResp = (saleId?.isNotEmpty == true)
-                  ? await _dio.get(
-                      '$digitaxZambiaApiBaseUrl/sales/$saleId',
-                      options: Options(headers: headers),
-                    )
-                  : await _dio.get(
-                      '$digitaxZambiaApiBaseUrl/sales',
-                      queryParameters: {'trader_invoice_number': traderInvNo},
-                      options: Options(headers: headers),
-                    );
-
-              if (pollResp.statusCode == 200 && pollResp.data != null) {
-                dynamic pData = pollResp.data;
-                if (pData is Map) {
-                  final list =
-                      pData['sales'] ??
-                      pData['data'] ??
-                      pData['items'] ??
-                      pData['results'];
-                  if (list is List && list.isNotEmpty) pData = list.first;
-                  if (pData is Map) {
-                    final sig =
-                        (pData['receipt_signature'] ??
-                                pData['vsdcMarkId'] ??
-                                pData['zra_mark_id'])
-                            ?.toString();
-                    if (sig != null && sig.trim().isNotEmpty) {
-                      saleData = Map<String, dynamic>.from(pData);
-                      break;
-                    }
-                  }
-                }
-              }
-            } catch (_) {}
-          }
-        }
-
-        final liveSignature =
-            (saleData['receipt_signature'] ??
-                    saleData['vsdcMarkId'] ??
-                    saleData['zra_mark_id'])
-                ?.toString()
-                .trim();
-        final rcptNumberRaw =
-            saleData['receipt_number'] ?? saleData['zra_receipt_number'];
-        final sdcRcptNo = rcptNumberRaw?.toString().trim() ?? '';
-        if (sdcRcptNo.isEmpty ||
-            liveSignature == null ||
-            liveSignature.isEmpty) {
-          refundTx
-            ..zraReceiptNumber = null
-            ..zraMarkId = null
-            ..zraQrCode = null;
-          await persistCreditNoteStatus('RECONCILIATION_REQUIRED');
-          debugPrint(
-            'DIGITAX_CREDIT_NOTE_RECONCILIATION_REQUIRED: DigiTax accepted the request without confirmed receipt metadata for $traderInvNo.',
-          );
-          return false;
-        }
-        final internalData =
-            saleData['internal_data']?.toString() ?? (config?.mrcNo ?? '');
-        final sdcId =
-            saleData['sdc_id']?.toString() ??
-            saleData['serial_number']?.toString() ??
-            (config?.sdcId ?? '');
-        final qrUrl = (saleData['receipt_url']?.toString().isNotEmpty == true)
-            ? saleData['receipt_url'].toString()
-            : sdcId.isNotEmpty
-            ? 'https://smartinvoice.zra.org.zm/verify?tpin=${config?.tpin}&sdc=$sdcId&rcpt=$sdcRcptNo'
-            : '';
-
         refundTx
           ..isCreditNote = true
           ..orgInvoiceNo = origTraderInvNo
           ..creditNoteReason = reason
-          ..zraSdcId = sdcId
-          ..zraReceiptNumber = sdcRcptNo
-          ..zraMarkId = liveSignature
-          ..zraInternalData = internalData
-          ..zraQrCode = qrUrl
+          ..zraReceiptNumber = 'PENDING'
           ..zraInvoiceType = 'Credit Note (R)'
-          ..zraStatus = 'APPROVED';
-
-        // Cache updated SDC ID
-        if (sdcId.isNotEmpty && config != null && config.sdcId != sdcId) {
-          config.sdcId = sdcId;
-          try {
-            await db.isar.writeTxn(() async {
-              await db.isar.storeConfigs.put(config);
-            });
-          } catch (_) {}
-        }
-
+          ..zraStatus = 'PENDING';
         await db.isar.writeTxn(() async {
           await db.isar.saleTransactions.put(refundTx);
         });
-
-        // Automatically push stock movement (ZRA SAR 11: Return from Customer) to DigiTax cloud inventory!
-        for (final item in effectiveItems) {
-          try {
-            final product = await db.isar.products.get(item.productId);
-            if (product != null && product.isDigitaxSyncEnabled) {
-              final int restoreQty = (item.isWeighted && item.weight > 0)
-                  ? item.weight.ceil()
-                  : item.quantity;
-              await pushStockMovementAdjustment(
-                product: product,
-                action: 'ADD',
-                movementType: '11',
-                quantity: restoreQty,
-                remarks: 'Restocked via Credit Note for Tx #${refundTx.id}',
-              );
-            }
-          } catch (e) {
-            debugPrint('DIGITAX_RESTOCK_PUSH_ERROR: $e');
-          }
-        }
-
-        debugPrint(
-          'DIGITAX_CREDIT_NOTE_SUCCESS ✓ CN: ${refundTx.zraReceiptNumber} | Status: ${refundTx.zraStatus}',
-        );
-        return true;
-      } else {
-        final status = resp.statusCode == 409 || resp.statusCode! >= 500
-            ? 'RECONCILIATION_REQUIRED'
-            : 'FAILED';
-        await persistCreditNoteStatus(status);
-        debugPrint(
-          'DIGITAX_CREDIT_NOTE_REJECTED [HTTP ${resp.statusCode}]: ${resp.data}',
-        );
+        return false;
       }
-    } on DioException catch (dioErr) {
-      await persistCreditNoteStatus('RECONCILIATION_REQUIRED');
-      debugPrint(
-        'DIGITAX_CN_RECONCILIATION_REQUIRED: [HTTP ${dioErr.response?.statusCode}] ${dioErr.response?.data ?? dioErr.message}',
-      );
-    } catch (e, st) {
-      await persistCreditNoteStatus('RECONCILIATION_REQUIRED');
-      debugPrint('DIGITAX_CN_RECONCILIATION_REQUIRED: $e\n$st');
+    } catch (strategy1Err) {
+      await persistCreditNoteStatus('PENDING');
+      debugPrint('DIGITAX_CN_NETWORK_PENDING: $strategy1Err');
+      return false;
     }
-    return false;
   }
 
   /// Submits a standalone manual refund voucher directly to DigiTax VSDC as an official credit adjustment
@@ -4679,6 +4526,18 @@ class DigiTaxInventoryService {
           fiscalizedCount++;
           debugPrint(
             'DIGITAX_QUEUE_WORKER: Tx #${tx.id} (${tx.transactionId}) resolved via live fiscal refresh!',
+          );
+          continue;
+        }
+
+        // If the transaction is ALREADY recorded in DigiTax (has a sale_01... ID)
+        // and is in PENDING state (still syncing with ZRA), do NOT re-POST it to
+        // /sales or /credit-notes! We will poll it again on the next queue cycle.
+        if (tx.zraMarkId != null &&
+            tx.zraMarkId!.trim().startsWith('sale_') &&
+            !tx.zraStatus.toUpperCase().startsWith('FAILED')) {
+          debugPrint(
+            'DIGITAX_QUEUE_WORKER: Tx #${tx.id} (DigiTax ID: ${tx.zraMarkId}) is recorded in DigiTax and still syncing with ZRA (PENDING).',
           );
           continue;
         }
@@ -5688,65 +5547,97 @@ class DigiTaxInventoryService {
       final listEndpoint = transaction.isCreditNote
           ? '$digitaxZambiaApiBaseUrl/credit-notes'
           : '$digitaxZambiaApiBaseUrl/sales';
-      final resp = (directSaleId != null)
-          ? await dio.get(
-              '$digitaxZambiaApiBaseUrl/sales/$directSaleId',
-              options: Options(headers: headers),
-            )
-          : await dio.get(
-              listEndpoint,
-              queryParameters: {'page_size': 20},
-              options: Options(headers: headers),
-            );
 
-      if (resp.statusCode == 200 && resp.data != null) {
-        dynamic matchData = resp.data;
-        if (resp.data is Map) {
-          final list =
-              resp.data['sales'] ??
-              resp.data['data'] ??
-              resp.data['items'] ??
-              resp.data['results'];
-          if (list is List && list.isNotEmpty) {
-            // Find the exact matching transaction rather than blindly taking list.first
-            final found = list.firstWhere(
-              (s) =>
-                  s is Map &&
-                  (s['trader_invoice_number']?.toString().trim() ==
-                          traderInvoice ||
-                      s['trader_invoice_number']?.toString().trim() ==
-                          'CN-${transaction.id}' ||
-                      s['id']?.toString().trim() == traderInvoice),
-              orElse: () => directSaleId != null ? list.first : null,
-            );
-            if (found != null && found is Map) {
-              matchData = found;
-            } else {
-              if (transaction.isCreditNote &&
-                  transaction.zraStatus != 'APPROVED') {
-                return await submitCreditNoteToDigitax(
-                  transaction,
-                  originalSdcInvoiceNo: transaction.orgInvoiceNo ?? '',
-                  reason: transaction.creditNoteReason ?? 'Product Exchange / Return',
-                );
-              }
-              debugPrint(
-                'DIGITAX_REFRESH_NOTICE: Invoice $traderInvoice not found in current page of sales.',
-              );
-              return false;
-            }
-          } else if (transaction.isCreditNote &&
-              transaction.zraStatus != 'APPROVED') {
-            return await submitCreditNoteToDigitax(
-              transaction,
-              originalSdcInvoiceNo: transaction.orgInvoiceNo ?? '',
-              reason: transaction.creditNoteReason ?? 'Product Exchange / Return',
-            );
+      Map<String, dynamic>? matchData;
+
+      if (directSaleId != null) {
+        // Per DigiTax OpenAPI spec: GET /sales/{sale_id} returns a single Sale object
+        // (including credit notes, debit notes, LPO sales, and normal sales).
+        final resp = await dio.get(
+          '$digitaxZambiaApiBaseUrl/sales/$directSaleId',
+          options: Options(
+            headers: headers,
+            validateStatus: (s) => s != null && s < 500,
+          ),
+        );
+        if (resp.statusCode == 200 && resp.data is Map) {
+          var singleMap = Map<String, dynamic>.from(resp.data as Map);
+          if (singleMap['sale'] is Map) {
+            singleMap = Map<String, dynamic>.from(singleMap['sale'] as Map);
+          } else if (singleMap['data'] is Map) {
+            singleMap = Map<String, dynamic>.from(singleMap['data'] as Map);
+          }
+          if (singleMap['id'] != null) {
+            matchData = singleMap;
           }
         }
+      }
 
-        if (matchData is! Map) return false;
+      if (matchData == null) {
+        // Paginate GET /credit-notes or GET /sales (up to 3 pages) to find the transaction
+        String? afterCursor;
+        for (int page = 0; page < 3; page++) {
+          final qp = <String, dynamic>{'page_size': 20};
+          if (afterCursor != null && afterCursor.isNotEmpty) {
+            qp['after'] = afterCursor;
+          }
+          final resp = await dio.get(
+            listEndpoint,
+            queryParameters: qp,
+            options: Options(
+              headers: headers,
+              validateStatus: (s) => s != null && s < 500,
+            ),
+          );
+          if (resp.statusCode != 200 || resp.data is! Map) {
+            break;
+          }
+          final bodyMap = Map<String, dynamic>.from(resp.data as Map);
+          final list =
+              bodyMap['data'] ??
+              bodyMap['sales'] ??
+              bodyMap['items'] ??
+              bodyMap['results'];
+          if (list is! List || list.isEmpty) {
+            break;
+          }
+          for (final s in list) {
+            if (s is! Map) {
+              continue;
+            }
+            final sTrader = s['trader_invoice_number']?.toString().trim() ?? '';
+            final sId = s['id']?.toString().trim() ?? '';
+            final bool isMatch =
+                sTrader == traderInvoice ||
+                sId == traderInvoice ||
+                (transaction.isCreditNote &&
+                    transaction.id > 0 &&
+                    (sTrader == 'CN-${transaction.id}' ||
+                        sTrader.startsWith('CN-${transaction.id}-'))) ||
+                (!transaction.isCreditNote &&
+                    transaction.id > 0 &&
+                    (sTrader == 'INV-${transaction.id}' ||
+                        sTrader.startsWith('INV-${transaction.id}-')));
+            if (isMatch) {
+              matchData = Map<String, dynamic>.from(s);
+              break;
+            }
+          }
+          if (matchData != null) {
+            break;
+          }
+          final pagination = bodyMap['pagination'];
+          final nextCursor = (pagination is Map)
+              ? pagination['next']?.toString().trim()
+              : null;
+          if (nextCursor == null || nextCursor.isEmpty) {
+            break;
+          }
+          afterCursor = nextCursor;
+        }
+      }
 
+      if (matchData != null) {
         final remoteStatusUpper =
             (matchData['status'] ?? '').toString().trim().toUpperCase();
         final matchedDigiTaxId = matchData['id']?.toString().trim();

@@ -58,7 +58,7 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _pollLiveFiscalStatus();
+      _pollLiveFiscalStatus(initialCheck: true);
       _liveFiscalPollTimer = Timer.periodic(
         const Duration(seconds: 4),
         (_) => _pollLiveFiscalStatus(),
@@ -66,7 +66,7 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
     });
   }
 
-  Future<void> _pollLiveFiscalStatus() async {
+  Future<void> _pollLiveFiscalStatus({bool initialCheck = false}) async {
     if (!mounted) {
       return;
     }
@@ -78,7 +78,13 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
         st == 'LOCAL_EXEMPT' ||
         st == 'OFFLINE_EXEMPT' ||
         _isRealZraSig(widget.transaction.zraMarkId);
-    if (isAlreadyCompleted || st.startsWith('FAILED')) {
+    if (isAlreadyCompleted) {
+      _liveFiscalPollTimer?.cancel();
+      return;
+    }
+    // On initialCheck, always check DigiTax once even if locally marked FAILED,
+    // so any Credit Note/Sale that is actually 'pending' or 'completed' on DigiTax heals immediately.
+    if (!initialCheck && st.startsWith('FAILED')) {
       _liveFiscalPollTimer?.cancel();
       return;
     }
@@ -1426,7 +1432,7 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                'Verified! Transaction was already accepted by ZRA DigiTax (SDC Inv: ${widget.transaction.zraReceiptNumber ?? "Approved"}).',
+                '✓ Completed: Accepted by ZRA · Smart Invoice issued (${widget.transaction.zraReceiptNumber ?? "Approved"}).',
               ),
               backgroundColor: const Color(0xFF059669),
             ),
@@ -1435,7 +1441,28 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
         return;
       }
 
-      // 2. If not on DigiTax yet, push the sale now
+      // 1b. If already recorded in DigiTax (sale_01...) and still syncing with ZRA (PENDING),
+      // do NOT re-POST a duplicate; inform the user it is in Stage 1 (Pending).
+      final mark = widget.transaction.zraMarkId ?? '';
+      final curSt = widget.transaction.zraStatus.toUpperCase();
+      if (!forcePush &&
+          mark.startsWith('sale_') &&
+          !curSt.startsWith('FAILED')) {
+        if (mounted) {
+          setState(() {});
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text(
+                '⏳ Pending: Recorded in DigiTax · still syncing with ZRA.',
+              ),
+              backgroundColor: Colors.amber.shade700,
+            ),
+          );
+        }
+        return;
+      }
+
+      // 2. If not on DigiTax yet (or retrying a failed submission), push now
       await widget.transaction.items.load();
       final items = widget.transaction.items.toList();
       final pushed = await digitax.fiscalizeSaleTransaction(
@@ -1446,20 +1473,31 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
 
       if (mounted) {
         setState(() {});
+        final stAfter = widget.transaction.zraStatus.toUpperCase();
+        final isFailedAfter = stAfter.startsWith('FAILED');
         if (pushed) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                'Successfully pushed to ZRA DigiTax! Receipt: ${widget.transaction.zraReceiptNumber ?? "Approved"}',
+                '✓ Completed: Accepted by ZRA · Smart Invoice issued (${widget.transaction.zraReceiptNumber ?? "Approved"}).',
               ),
               backgroundColor: const Color(0xFF059669),
+            ),
+          );
+        } else if (!isFailedAfter) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text(
+                '⏳ Pending: Recorded in DigiTax · still syncing with ZRA.',
+              ),
+              backgroundColor: Colors.amber.shade700,
             ),
           );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                'Could not sync to DigiTax. Status: ${widget.transaction.zraStatus}',
+                '✗ Failed: ZRA rejected the submission · needs attention (${widget.transaction.zraStatus}).',
               ),
               backgroundColor: const Color(0xFFDC2626),
             ),
@@ -1761,20 +1799,25 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
         ref.invalidate(productsProvider);
         ref.invalidate(reportTransactionsProvider);
 
+        final latestRefundTx =
+            await db.isar.saleTransactions.get(refundTx.id) ?? refundTx;
+
         if (context.mounted) {
-          final cnStatusUpper = refundTx.zraStatus.toUpperCase();
+          final cnStatusUpper = latestRefundTx.zraStatus.toUpperCase();
           final isCnFailed = cnStatusUpper.startsWith('FAILED');
           final String statusMsg = digitaxSuccess
-              ? '✓ Completed: Credit Note accepted by ZRA · Smart Invoice issued (${refundTx.zraReceiptNumber ?? "Approved"}).'
+              ? '✓ Completed: Credit Note accepted by ZRA · Smart Invoice issued (${latestRefundTx.zraReceiptNumber ?? "Approved"}).'
               : (isCnFailed
-                    ? '✗ Failed: ZRA rejected the Credit Note submission · needs attention (${refundTx.zraStatus}).'
+                    ? '✗ Failed: ZRA rejected the Credit Note submission · needs attention (${latestRefundTx.zraStatus}).'
                     : '⏳ Pending: Credit Note recorded in DigiTax · still syncing with ZRA.');
           final Color statusBg = digitaxSuccess
               ? const Color(0xFF10B981)
               : (isCnFailed
                     ? const Color(0xFFEF4444)
                     : Colors.amber.shade700);
-          Navigator.pop(context);
+          final rootNav = Navigator.of(context);
+          final navContext = rootNav.context;
+          rootNav.pop();
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(statusMsg),
@@ -1782,6 +1825,14 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
               duration: const Duration(seconds: 5),
             ),
           );
+          // Immediately open the newly created Credit Note receipt modal so the user
+          // sees the live 3-stage ZRA status (Pending / Completed / Failed) and auto-poller.
+          if (navContext.mounted) {
+            showDialog(
+              context: navContext,
+              builder: (_) => ReceiptDetailModal(transaction: latestRefundTx),
+            );
+          }
         }
       } catch (e) {
         if (context.mounted) {
