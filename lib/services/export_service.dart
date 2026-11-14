@@ -612,8 +612,6 @@ class ExportService {
     final pdf = pw.Document();
     final logoImage = await _loadLogoImage(config);
     final currency = config?.currencySymbol ?? 'K';
-    final dateOnlyStr = DateFormat('dd/MM/yyyy').format(transaction.timestamp);
-    final timeOnlyStr = DateFormat('HH:mm:ss').format(transaction.timestamp);
 
     String formatZraInvoiceNo(String? raw, {String? sdcId}) {
       if (raw == null ||
@@ -701,127 +699,214 @@ class ExportService {
     final receiptTitle = transaction.isCreditNote
         ? 'ZRA FISCAL CREDIT NOTE'
         : (isFiscalApproved
-              ? 'TAX INVOICE / OFFICIAL RECEIPT'
+              ? 'TAX INVOICE / RECEIPT'
               : 'CUSTOMER SALES SLIP');
+
+    final int rollMm = (config?.paperWidthMm != null && config!.paperWidthMm > 0)
+        ? config.paperWidthMm
+        : 80;
+    final bool isNarrow = rollMm <= 58;
+    final bool isWide = rollMm >= 110;
+    final double titleFont = isNarrow ? 8.5 : (isWide ? 10.5 : 9.5);
+    final double subHeaderFont = isNarrow ? 7.0 : (isWide ? 8.5 : 7.5);
+    final double bodyFont = isNarrow ? 6.5 : (isWide ? 8.0 : 7.0);
+    final double smallFont = isNarrow ? 5.8 : (isWide ? 7.0 : 6.2);
+    final double marginMm = rollMm <= 55 ? 2.0 : (isNarrow ? 2.5 : 3.5);
+    final shortDateTimeStr = DateFormat('dd/MM/yy HH:mm').format(transaction.timestamp);
+    final rcptNo = transaction.isCreditNote
+        ? 'CN#${transaction.id.toString().padLeft(6, '0')}'
+        : '#${transaction.id.toString().padLeft(6, '0')}';
+
+    pw.Widget pdfRow2(
+      String left,
+      String right, {
+      double? fSize,
+      bool boldLeft = false,
+      bool boldRight = false,
+      int leftFlex = 5,
+      int rightFlex = 5,
+    }) {
+      final sz = fSize ?? bodyFont;
+      return pw.Padding(
+        padding: const pw.EdgeInsets.symmetric(vertical: 0.4),
+        child: pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Expanded(
+              flex: leftFlex,
+              child: pw.Text(
+                left,
+                maxLines: 1,
+                overflow: pw.TextOverflow.clip,
+                style: pw.TextStyle(
+                  fontSize: sz,
+                  fontWeight: boldLeft ? pw.FontWeight.bold : pw.FontWeight.normal,
+                ),
+              ),
+            ),
+            pw.SizedBox(width: 3),
+            pw.Expanded(
+              flex: rightFlex,
+              child: pw.Text(
+                right,
+                textAlign: pw.TextAlign.right,
+                maxLines: 1,
+                overflow: pw.TextOverflow.clip,
+                style: pw.TextStyle(
+                  fontSize: sz,
+                  fontWeight: boldRight ? pw.FontWeight.bold : pw.FontWeight.normal,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
     pdf.addPage(
       pw.Page(
-        pageFormat: const PdfPageFormat(
-          80 * PdfPageFormat.mm,
+        pageFormat: PdfPageFormat(
+          rollMm * PdfPageFormat.mm,
           double.infinity,
-          marginAll: 4 * PdfPageFormat.mm,
+          marginAll: marginMm * PdfPageFormat.mm,
         ),
         build: (pw.Context context) {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.center,
             children: [
               if (logoImage != null)
-                pw.Container(height: 35, child: pw.Image(logoImage)),
-              pw.SizedBox(height: 3),
+                pw.Container(
+                  height: (isNarrow ? 10 : 13) * PdfPageFormat.mm,
+                  child: pw.Image(logoImage),
+                ),
               pw.Text(
                 (config != null && config.businessName.isNotEmpty)
                     ? config.businessName.toUpperCase()
                     : 'BELEKA POS',
                 style: pw.TextStyle(
                   fontWeight: pw.FontWeight.bold,
-                  fontSize: 11,
+                  fontSize: titleFont,
                 ),
                 textAlign: pw.TextAlign.center,
               ),
               if (config?.branchName != null && config!.branchName!.isNotEmpty)
                 pw.Text(
                   'Branch: ${config.branchName}',
-                  style: const pw.TextStyle(fontSize: 8),
+                  style: pw.TextStyle(fontSize: bodyFont, fontWeight: pw.FontWeight.bold),
                 ),
               if (config?.address != null && config!.address!.isNotEmpty)
                 pw.Text(
                   config.address!,
-                  style: const pw.TextStyle(fontSize: 7.5),
+                  style: pw.TextStyle(fontSize: smallFont),
                   textAlign: pw.TextAlign.center,
                 ),
               if (config?.contactNumber != null &&
                   config!.contactNumber!.isNotEmpty)
                 pw.Text(
                   'Tel: ${config.contactNumber}',
-                  style: const pw.TextStyle(fontSize: 7.5),
+                  style: pw.TextStyle(fontSize: smallFont),
                 ),
               if (config?.tpin != null && config!.tpin!.isNotEmpty)
                 pw.Text(
                   'TPIN: ${config.tpin}',
                   style: pw.TextStyle(
-                    fontSize: 8,
+                    fontSize: bodyFont,
                     fontWeight: pw.FontWeight.bold,
                   ),
                 ),
 
-              pw.SizedBox(height: 4),
-              pw.Text('================================'),
+              pw.Divider(thickness: 0.7, height: 4),
               pw.Text(
                 receiptTitle,
                 style: pw.TextStyle(
                   fontWeight: pw.FontWeight.bold,
-                  fontSize: 9,
+                  fontSize: subHeaderFont,
                 ),
               ),
-              pw.Text('================================'),
+              pw.Divider(thickness: 0.5, height: 4),
 
+              pdfRow2('RCPT $rcptNo', shortDateTimeStr, boldLeft: true),
+              pdfRow2(
+                'Staff: ${transaction.cashierName}',
+                transaction.terminalName ?? config?.terminalName ?? 'POS-01',
+              ),
+              pw.Divider(thickness: 0.5, height: 4),
+
+              // Line Items Header
               pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
-                  pw.Text(
-                    'RECEIPT: #${transaction.id.toString().padLeft(8, '0')}',
-                    style: pw.TextStyle(
-                      fontWeight: pw.FontWeight.bold,
-                      fontSize: 8,
+                  pw.Expanded(
+                    flex: 6,
+                    child: pw.Text(
+                      'ITEM',
+                      style: pw.TextStyle(
+                        fontSize: smallFont,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
                     ),
                   ),
-                  pw.Text(
-                    '$dateOnlyStr $timeOnlyStr',
-                    style: const pw.TextStyle(fontSize: 8),
+                  pw.Expanded(
+                    flex: 2,
+                    child: pw.Text(
+                      'QTY',
+                      style: pw.TextStyle(
+                        fontSize: smallFont,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                      textAlign: pw.TextAlign.center,
+                    ),
+                  ),
+                  pw.Expanded(
+                    flex: 4,
+                    child: pw.Text(
+                      'TOTAL',
+                      style: pw.TextStyle(
+                        fontSize: smallFont,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                      textAlign: pw.TextAlign.right,
+                    ),
                   ),
                 ],
               ),
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Text(
-                    'Cashier: ${transaction.cashierName}',
-                    style: const pw.TextStyle(fontSize: 8),
-                  ),
-                  pw.Text(
-                    'Terminal: ${transaction.terminalName ?? config?.terminalName ?? "POS-01"}',
-                    style: const pw.TextStyle(fontSize: 8),
-                  ),
-                ],
-              ),
-              pw.Divider(thickness: 0.5),
+              pw.Divider(thickness: 0.4, height: 3),
 
               // Line Items
               ...items.map((i) {
+                final effectiveQty = (i.isWeighted && i.weight > 0)
+                    ? i.weight
+                    : i.quantity.toDouble();
+                final qtyStr = (i.isWeighted && i.weight > 0)
+                    ? '${i.weight.toStringAsFixed(2)}${i.unitOfMeasure.isNotEmpty ? i.unitOfMeasure : "kg"}'
+                    : '${i.quantity}x';
                 return pw.Padding(
-                  padding: const pw.EdgeInsets.symmetric(vertical: 1),
+                  padding: const pw.EdgeInsets.symmetric(vertical: 0.5),
                   child: pw.Row(
                     children: [
                       pw.Expanded(
-                        flex: 5,
+                        flex: 6,
                         child: pw.Text(
                           i.productName.toUpperCase(),
-                          style: const pw.TextStyle(fontSize: 7.5),
+                          maxLines: 1,
+                          overflow: pw.TextOverflow.clip,
+                          style: pw.TextStyle(fontSize: bodyFont),
                         ),
                       ),
                       pw.Expanded(
                         flex: 2,
                         child: pw.Text(
-                          '${i.quantity}x',
-                          style: const pw.TextStyle(fontSize: 7.5),
+                          qtyStr,
+                          maxLines: 1,
+                          style: pw.TextStyle(fontSize: bodyFont),
                           textAlign: pw.TextAlign.center,
                         ),
                       ),
                       pw.Expanded(
                         flex: 4,
                         child: pw.Text(
-                          '$currency${(i.priceAtSale * i.quantity).toStringAsFixed(2)}',
-                          style: const pw.TextStyle(fontSize: 7.5),
+                          '$currency${(i.priceAtSale * effectiveQty).toStringAsFixed(2)}',
+                          maxLines: 1,
+                          style: pw.TextStyle(fontSize: bodyFont),
                           textAlign: pw.TextAlign.right,
                         ),
                       ),
@@ -829,179 +914,70 @@ class ExportService {
                   ),
                 );
               }),
-              pw.Divider(thickness: 0.5),
+              pw.Divider(thickness: 0.5, height: 4),
 
               // Totals Breakdown
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Text(
-                    'SUBTOTAL (NET):',
-                    style: const pw.TextStyle(fontSize: 8),
-                  ),
-                  pw.Text(
-                    '$currency${transaction.subtotal.toStringAsFixed(2)}',
-                    style: const pw.TextStyle(fontSize: 8),
-                  ),
-                ],
+              pdfRow2(
+                'SUBTOTAL:',
+                '$currency${transaction.subtotal.toStringAsFixed(2)}',
               ),
               if (transaction.discountAmount > 0)
-                pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Text(
-                      'DISCOUNT:',
-                      style: const pw.TextStyle(fontSize: 8),
-                    ),
-                    pw.Text(
-                      '-$currency${transaction.discountAmount.toStringAsFixed(2)}',
-                      style: const pw.TextStyle(fontSize: 8),
-                    ),
-                  ],
+                pdfRow2(
+                  'DISCOUNT:',
+                  '-$currency${transaction.discountAmount.toStringAsFixed(2)}',
                 ),
               if (transaction.taxAmount > 0)
-                pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Text(
-                      (config?.businessTaxType == 'TURNOVER_TAX')
-                          ? 'TURNOVER TAX:'
-                          : 'TOTAL VAT (INCL):',
-                      style: const pw.TextStyle(fontSize: 8),
-                    ),
-                    pw.Text(
-                      '$currency${transaction.taxAmount.toStringAsFixed(2)}',
-                      style: const pw.TextStyle(fontSize: 8),
-                    ),
-                  ],
+                pdfRow2(
+                  (config?.businessTaxType == 'TURNOVER_TAX')
+                      ? 'TURNOVER TAX:'
+                      : 'VAT (INCL):',
+                  '$currency${transaction.taxAmount.toStringAsFixed(2)}',
                 ),
               if (transaction.serviceChargeAmount > 0)
-                pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Text(
-                      'SERVICE CHARGE (${transaction.serviceChargeRate.toStringAsFixed(0)}% UNTAXED):',
-                      style: const pw.TextStyle(fontSize: 8),
-                    ),
-                    pw.Text(
-                      '$currency${transaction.serviceChargeAmount.toStringAsFixed(2)}',
-                      style: const pw.TextStyle(fontSize: 8),
-                    ),
-                  ],
+                pdfRow2(
+                  'SVC CHG (${transaction.serviceChargeRate.toStringAsFixed(0)}%):',
+                  '$currency${transaction.serviceChargeAmount.toStringAsFixed(2)}',
                 ),
-              pw.Divider(thickness: 1),
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Text(
-                    'TOTAL DUE:',
-                    style: pw.TextStyle(
-                      fontWeight: pw.FontWeight.bold,
-                      fontSize: 10,
-                    ),
-                  ),
-                  pw.Text(
-                    '$currency${transaction.totalAmount.toStringAsFixed(2)}',
-                    style: pw.TextStyle(
-                      fontWeight: pw.FontWeight.bold,
-                      fontSize: 10,
-                    ),
-                  ),
-                ],
+              pw.Divider(thickness: 0.8, height: 4),
+              pdfRow2(
+                'TOTAL DUE:',
+                '$currency${transaction.totalAmount.toStringAsFixed(2)}',
+                fSize: subHeaderFont + 0.5,
+                boldLeft: true,
+                boldRight: true,
               ),
-              pw.Divider(thickness: 1),
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Text(
-                    'Payment Method:',
-                    style: const pw.TextStyle(fontSize: 7.5),
-                  ),
-                  pw.Text(
-                    transaction.paymentMethod.toUpperCase(),
-                    style: pw.TextStyle(
-                      fontSize: 7.5,
-                      fontWeight: pw.FontWeight.bold,
-                    ),
-                  ),
-                ],
+              pw.Divider(thickness: 0.8, height: 4),
+              pdfRow2(
+                'Paid Via:',
+                transaction.paymentMethod.toUpperCase(),
+                fSize: smallFont,
+                boldRight: true,
               ),
               if (transaction.paymentMethod.toUpperCase() == 'CASH') ...[
-                pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Text(
-                      'Cash Tendered:',
-                      style: const pw.TextStyle(fontSize: 7.5),
-                    ),
-                    pw.Text(
-                      '$currency${(transaction.tenderedAmount > 0 ? transaction.tenderedAmount : transaction.totalAmount).toStringAsFixed(2)}',
-                      style: const pw.TextStyle(fontSize: 7.5),
-                    ),
-                  ],
+                pdfRow2(
+                  'Tendered:',
+                  '$currency${(transaction.tenderedAmount > 0 ? transaction.tenderedAmount : transaction.totalAmount).toStringAsFixed(2)}',
+                  fSize: smallFont,
                 ),
                 if (transaction.changeAmount > 0)
-                  pw.Row(
-                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                    children: [
-                      pw.Text(
-                        'Change:',
-                        style: pw.TextStyle(
-                          fontWeight: pw.FontWeight.bold,
-                          fontSize: 7.5,
-                        ),
-                      ),
-                      pw.Text(
-                        '$currency${transaction.changeAmount.toStringAsFixed(2)}',
-                        style: pw.TextStyle(
-                          fontWeight: pw.FontWeight.bold,
-                          fontSize: 7.5,
-                        ),
-                      ),
-                    ],
+                  pdfRow2(
+                    'Change:',
+                    '$currency${transaction.changeAmount.toStringAsFixed(2)}',
+                    fSize: smallFont,
+                    boldLeft: true,
+                    boldRight: true,
                   ),
               ],
 
-              pw.SizedBox(height: 3),
-              pw.Text(
-                'TAX SUMMARY BREAKDOWN',
-                style: pw.TextStyle(
-                  fontWeight: pw.FontWeight.bold,
-                  fontSize: 7.5,
-                ),
-              ),
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Text(
-                    'CODE / RATE',
-                    style: pw.TextStyle(
-                      fontWeight: pw.FontWeight.bold,
-                      fontSize: 7,
-                    ),
-                  ),
-                  pw.Text(
-                    'TAX AMT',
-                    style: pw.TextStyle(
-                      fontWeight: pw.FontWeight.bold,
-                      fontSize: 7,
-                    ),
-                  ),
-                  pw.Text(
-                    'TOTAL',
-                    style: pw.TextStyle(
-                      fontWeight: pw.FontWeight.bold,
-                      fontSize: 7,
-                    ),
-                  ),
-                ],
-              ),
               ...(() {
                 final Map<double, Map<String, double>> exportBreakdown = {};
                 for (var item in items) {
                   final rate = item.taxRateAtSale;
+                  final effectiveQty = (item.isWeighted && item.weight > 0)
+                      ? item.weight
+                      : item.quantity.toDouble();
                   final total = double.parse(
-                    (item.priceAtSale * item.quantity).toStringAsFixed(2),
+                    (item.priceAtSale * effectiveQty).toStringAsFixed(2),
                   );
                   double vat = 0;
                   if (item.isTaxInclusiveAtSale) {
@@ -1039,188 +1015,91 @@ class ExportService {
                   final totFormatted =
                       '$currency${entry.value['total']!.toStringAsFixed(2)}';
                   return pw.Row(
-                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                     children: [
-                      pw.Text(
-                        '$letter (${entry.key.toStringAsFixed(0)}%)',
-                        style: const pw.TextStyle(fontSize: 7),
+                      pw.Expanded(
+                        flex: 4,
+                        child: pw.Text(
+                          'TAX $letter (${entry.key.toStringAsFixed(0)}%)',
+                          style: pw.TextStyle(fontSize: smallFont),
+                        ),
                       ),
-                      pw.Text(
-                        vatFormatted,
-                        style: const pw.TextStyle(fontSize: 7),
+                      pw.Expanded(
+                        flex: 4,
+                        child: pw.Text(
+                          vatFormatted,
+                          style: pw.TextStyle(fontSize: smallFont),
+                          textAlign: pw.TextAlign.center,
+                        ),
                       ),
-                      pw.Text(
-                        totFormatted,
-                        style: const pw.TextStyle(fontSize: 7),
+                      pw.Expanded(
+                        flex: 4,
+                        child: pw.Text(
+                          totFormatted,
+                          style: pw.TextStyle(fontSize: smallFont),
+                          textAlign: pw.TextAlign.right,
+                        ),
                       ),
                     ],
                   );
                 }).toList();
               })(),
 
-              pw.SizedBox(height: 3),
-              pw.Text('--------------------------------'),
+              pw.Divider(thickness: 0.5, height: 4),
               if (isFiscalApproved) ...[
                 pw.Text(
-                  '*** ZRA FISCAL CONTROL DATA ***',
+                  'ZRA FISCAL CONTROL DATA',
                   style: pw.TextStyle(
                     fontWeight: pw.FontWeight.bold,
-                    fontSize: 8,
+                    fontSize: bodyFont,
                   ),
                 ),
-                pw.Text('--------------------------------'),
-                pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Text('Date:', style: const pw.TextStyle(fontSize: 7)),
-                    pw.Text(
-                      dateOnlyStr,
-                      style: pw.TextStyle(
-                        fontWeight: pw.FontWeight.bold,
-                        fontSize: 7,
-                      ),
-                    ),
-                  ],
-                ),
-                pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Text('Time:', style: const pw.TextStyle(fontSize: 7)),
-                    pw.Text(
-                      timeOnlyStr,
-                      style: pw.TextStyle(
-                        fontWeight: pw.FontWeight.bold,
-                        fontSize: 7,
-                      ),
-                    ),
-                  ],
-                ),
-                pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Text('SDC Id:', style: const pw.TextStyle(fontSize: 7)),
-                    pw.Text(
-                      sdcIdStr,
-                      style: pw.TextStyle(
-                        fontWeight: pw.FontWeight.bold,
-                        fontSize: 7,
-                      ),
-                    ),
-                  ],
-                ),
-                pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Text(
-                      'SDC Invoice No:',
-                      style: const pw.TextStyle(fontSize: 7),
-                    ),
-                    pw.Text(
-                      sdcInvNoStr,
-                      style: pw.TextStyle(
-                        fontWeight: pw.FontWeight.bold,
-                        fontSize: 7,
-                      ),
-                    ),
-                  ],
-                ),
-                pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Text(
-                      'Signature:',
-                      style: const pw.TextStyle(fontSize: 7),
-                    ),
-                    pw.Text(
-                      signatureStr,
-                      style: const pw.TextStyle(fontSize: 6.5),
-                    ),
-                  ],
-                ),
-                pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Text(
-                      'Internal Data:',
-                      style: const pw.TextStyle(fontSize: 7),
-                    ),
-                    pw.Text(
-                      internalDataStr,
-                      style: const pw.TextStyle(fontSize: 6.5),
-                    ),
-                  ],
-                ),
-                pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Text(
-                      'Invoice Type:',
-                      style: const pw.TextStyle(fontSize: 7),
-                    ),
-                    pw.Text(
-                      transaction.zraInvoiceType ?? 'Normal Sale',
-                      style: const pw.TextStyle(fontSize: 6.5),
-                    ),
-                  ],
-                ),
+                pdfRow2('Date/Time:', shortDateTimeStr, fSize: smallFont, boldRight: true, leftFlex: 4, rightFlex: 6),
+                pdfRow2('SDC ID:', sdcIdStr, fSize: smallFont, boldRight: true, leftFlex: 3, rightFlex: 7),
+                pdfRow2('SDC Inv:', sdcInvNoStr, fSize: smallFont, boldRight: true, leftFlex: 3, rightFlex: 7),
+                pdfRow2('Sig:', signatureStr, fSize: smallFont, leftFlex: 3, rightFlex: 7),
+                pdfRow2('Int Data:', internalDataStr, fSize: smallFont, leftFlex: 3, rightFlex: 7),
+                pdfRow2('Type:', transaction.zraInvoiceType ?? 'Normal Sale', fSize: smallFont, leftFlex: 4, rightFlex: 6),
 
-                pw.SizedBox(height: 2),
+                pw.SizedBox(height: 1 * PdfPageFormat.mm),
                 pw.BarcodeWidget(
                   barcode: pw.Barcode.qrCode(),
                   data: zraQrData,
-                  width: 55,
-                  height: 55,
+                  width: isNarrow ? 38 : 46,
+                  height: isNarrow ? 38 : 46,
                   drawText: false,
                 ),
-                pw.SizedBox(height: 1),
+                pw.SizedBox(height: 0.5 * PdfPageFormat.mm),
                 pw.Text(
-                  'Scan QR Code to Verify on ZRA Portal',
+                  'Scan QR to Verify on ZRA Portal',
                   style: pw.TextStyle(
                     fontWeight: pw.FontWeight.bold,
-                    fontSize: 6.5,
+                    fontSize: smallFont,
                   ),
                 ),
               ] else ...[
                 pw.Text(
-                  '*** OFFLINE TRANSACTION - FISCAL PENDING ***',
+                  'OFFLINE - ZRA FISCAL PENDING',
                   style: pw.TextStyle(
                     fontWeight: pw.FontWeight.bold,
-                    fontSize: 7.5,
+                    fontSize: bodyFont,
                   ),
                 ),
-                pw.Text(
-                  'Official ZRA Smart Invoice will sync automatically',
-                  style: const pw.TextStyle(fontSize: 6.5),
-                ),
-                pw.Text('--------------------------------'),
               ],
 
-              pw.SizedBox(height: 3),
-              pw.Text('================================'),
+              pw.Divider(thickness: 0.7, height: 4),
               pw.Text(
                 'THANK YOU FOR SHOPPING WITH US!',
                 style: pw.TextStyle(
-                  fontSize: 8,
+                  fontSize: bodyFont,
                   fontWeight: pw.FontWeight.bold,
                 ),
                 textAlign: pw.TextAlign.center,
               ),
               pw.Text(
-                'PLEASE VISIT US AGAIN',
-                style: const pw.TextStyle(fontSize: 7),
+                'Goods returnable within 7 days with receipt',
+                style: pw.TextStyle(fontSize: smallFont),
                 textAlign: pw.TextAlign.center,
               ),
-              if (config?.contactNumber != null &&
-                  config!.contactNumber!.isNotEmpty)
-                pw.Text(
-                  'Helpline: ${config.contactNumber!}',
-                  style: const pw.TextStyle(fontSize: 6),
-                ),
-              pw.Text(
-                '*** BELEKA POS RETAIL OS ***',
-                style: const pw.TextStyle(fontSize: 6),
-              ),
-              pw.Text('================================'),
             ],
           );
         },

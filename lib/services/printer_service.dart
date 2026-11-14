@@ -6,7 +6,6 @@ import 'package:esc_pos_utils_plus/esc_pos_utils.dart';
 import 'package:flutter_star_prnt/flutter_star_prnt.dart' as star;
 import 'package:beleka_pos/models/models.dart';
 import 'package:intl/intl.dart';
-import 'package:flutter/services.dart';
 import 'package:image/image.dart' as img;
 import 'package:qr/qr.dart';
 import 'package:printing/printing.dart' as pnt;
@@ -43,20 +42,29 @@ class ThermalPaperPreset {
 
   static const List<ThermalPaperPreset> presets = [
     ThermalPaperPreset(
+      widthMm: 55,
+      label: '55 mm',
+      description: 'Compact mini POS, handheld & mobile thermal rolls',
+      columnCount: 28,
+      logoPixelWidth: 180,
+      escPosSize: PaperSize.mm58,
+      qrSize: QRSize.Size3,
+    ),
+    ThermalPaperPreset(
       widthMm: 58,
       label: '58 mm',
       description: 'Small POS, kiosks, mobile/small receipts',
-      columnCount: 32,
-      logoPixelWidth: 240,
+      columnCount: 30,
+      logoPixelWidth: 200,
       escPosSize: PaperSize.mm58,
       qrSize: QRSize.Size3,
     ),
     ThermalPaperPreset(
       widthMm: 76,
       label: '76 mm',
-      description: 'Less common, some older/business POS',
-      columnCount: 40,
-      logoPixelWidth: 300,
+      description: 'Medium business POS thermal rolls',
+      columnCount: 38,
+      logoPixelWidth: 260,
       escPosSize: PaperSize.mm80,
       qrSize: QRSize.Size3,
     ),
@@ -64,35 +72,44 @@ class ThermalPaperPreset {
       widthMm: 80,
       label: '80 mm',
       description: 'Standard retail POS, supermarkets, restaurants',
-      columnCount: 48,
-      logoPixelWidth: 384,
+      columnCount: 42,
+      logoPixelWidth: 300,
       escPosSize: PaperSize.mm80,
       qrSize: QRSize.Size4,
     ),
     ThermalPaperPreset(
       widthMm: 110,
       label: '110 mm',
-      description: 'Specialized thermal printing',
-      columnCount: 64,
-      logoPixelWidth: 512,
+      description: 'Wide thermal printing',
+      columnCount: 56,
+      logoPixelWidth: 400,
       escPosSize: PaperSize.mm80,
-      qrSize: QRSize.Size5,
+      qrSize: QRSize.Size4,
     ),
     ThermalPaperPreset(
       widthMm: 112,
       label: '112 mm',
-      description: 'Larger receipts/labels, specialized POS',
-      columnCount: 68,
-      logoPixelWidth: 540,
+      description: 'Extra-wide receipts/labels, specialized POS',
+      columnCount: 60,
+      logoPixelWidth: 420,
       escPosSize: PaperSize.mm80,
-      qrSize: QRSize.Size5,
+      qrSize: QRSize.Size4,
     ),
   ];
 
   static ThermalPaperPreset fromWidth(int mm) {
+    if (mm <= 55) {
+      return presets[0]; // 55mm
+    }
+    if (mm <= 58) {
+      return presets[1]; // 58mm
+    }
+    if (mm <= 76) {
+      return presets[2]; // 76mm
+    }
     return presets.firstWhere(
       (p) => p.widthMm == mm,
-      orElse: () => presets[2], // 80mm default
+      orElse: () => presets[3], // 80mm default
     );
   }
 }
@@ -621,8 +638,8 @@ class PrinterService {
       final qrImage = QrImage(qrCode);
       final int moduleCount = qrImage.moduleCount;
 
-      // Add quiet zone margin (2 modules on each side)
-      const int margin = 2;
+      // Add compact quiet zone margin (1 module on each side)
+      const int margin = 1;
       final int totalModules = moduleCount + (margin * 2);
       final int widthPx = totalModules * scale;
       final int heightPx = widthPx;
@@ -718,13 +735,17 @@ class PrinterService {
     return false;
   }
 
-  /// Master Method to Print High-Fidelity Designed Thermal Receipt
+  /// Master Method to Print High-Fidelity Compact Thermal Receipt (55mm, 58mm, 76mm, 80mm, 110mm, 112mm)
   Future<bool> printReceipt(
     SaleTransaction transaction, 
     List<SaleItem> items, {
     StoreConfig? config,
     Customer? customer,
   }) async {
+    if (config?.paperWidthMm != null && config!.paperWidthMm > 0) {
+      _paperWidthMm = config.paperWidthMm;
+    }
+
     if (!_isConnected) {
       // Auto-fallback: attempt quick connection to system printer
       final ok = await autoConnect(config: config);
@@ -743,14 +764,15 @@ class PrinterService {
 
     try {
       final preset = activePreset;
-      final is58 = preset.widthMm <= 58;
+      final isNarrow = preset.widthMm <= 58;
       final colCount = preset.columnCount;
       final profile = await CapabilityProfile.load();
       final generator = Generator(preset.escPosSize, profile);
       List<int> bytes = [];
 
-      // 0. Hardware Reset Init Command (ESC @)
+      // 0. Hardware Reset Init Command (ESC @) + Compact Line Spacing (ESC 3 20)
       bytes += generator.reset();
+      bytes += [0x1B, 0x33, 20];
 
       // Hardware Drawer Kick Pulse (if auto-kick is enabled in config)
       if (config?.autoOpenCashDrawer != false) {
@@ -767,7 +789,7 @@ class PrinterService {
 
       final currency = config?.currencySymbol ?? 'K';
 
-      // 1. Store Logo — Rendered via universal 1-bit ESC/POS GS v 0 raster
+      // 1. Store Logo — Rendered via compact universal 1-bit ESC/POS GS v 0 raster
       final String? customLogoPath = config?.logoPath;
       if (customLogoPath != null && File(customLogoPath).existsSync()) {
         try {
@@ -776,12 +798,11 @@ class PrinterService {
           if (baseImage != null) {
             final rasterLogo = _imageToRasterEscPos(
               baseImage,
-              targetWidth: preset.logoPixelWidth,
+              targetWidth: (preset.logoPixelWidth * 0.75).round(),
               align: PosAlign.center,
             );
             if (rasterLogo.isNotEmpty) {
               bytes += rasterLogo;
-              bytes += generator.feed(1);
             }
           }
         } catch (e) {
@@ -789,7 +810,7 @@ class PrinterService {
         }
       }
 
-      // 2. Company Name & Branch Header
+      // 2. Compact Company Name & Branch Header (normal size bold so it never wraps into giant multi-line blocks)
       final companyName = (config?.businessName != null && config!.businessName.isNotEmpty 
           ? config.businessName 
           : 'BELEKA POS').toUpperCase();
@@ -802,90 +823,113 @@ class PrinterService {
         styles: const PosStyles(
           align: PosAlign.center,
           bold: true,
-          height: PosTextSize.size2,
-          width: PosTextSize.size2,
         ),
       );
 
-      bytes += generator.text(
-        'BRANCH: $branchName',
-        styles: const PosStyles(
-          align: PosAlign.center,
-          bold: true,
-        ),
-      );
-
+      final headerMetaParts = <String>['BRANCH: $branchName'];
+      if (config?.tpin != null && config!.tpin!.isNotEmpty) {
+        headerMetaParts.add('TPIN: ${config.tpin!}');
+      }
+      for (final part in headerMetaParts) {
+        bytes += generator.text(
+          part,
+          styles: const PosStyles(align: PosAlign.center, bold: true),
+        );
+      }
       if (config?.address != null && config!.address!.isNotEmpty) {
-        bytes += generator.text(config.address!, styles: const PosStyles(align: PosAlign.center));
+        bytes += generator.text(
+          config.address!,
+          styles: const PosStyles(align: PosAlign.center, fontType: PosFontType.fontB),
+        );
       }
       if (config?.contactNumber != null && config!.contactNumber!.isNotEmpty) {
-        bytes += generator.text('Tel: ${config.contactNumber!}', styles: const PosStyles(align: PosAlign.center));
-      }
-      if (config?.tpin != null && config!.tpin!.isNotEmpty) {
-        bytes += generator.text('TPIN: ${config.tpin!}', styles: const PosStyles(align: PosAlign.center, bold: true));
+        bytes += generator.text(
+          'Tel: ${config.contactNumber!}',
+          styles: const PosStyles(align: PosAlign.center, fontType: PosFontType.fontB),
+        );
       }
 
       final isFiscalApproved = this.isFiscalApproved(transaction);
 
       final receiptTitle = transaction.isCreditNote
           ? 'ZRA FISCAL CREDIT NOTE'
-          : (isFiscalApproved ? 'TAX INVOICE / OFFICIAL RECEIPT' : 'CUSTOMER SALES SLIP');
+          : (isFiscalApproved ? 'TAX INVOICE / RECEIPT' : 'CUSTOMER SALES SLIP');
 
-      bytes += generator.feed(1);
       bytes += generator.text(preset.doubleDivider);
       bytes += generator.text(
         receiptTitle,
         styles: const PosStyles(align: PosAlign.center, bold: true),
       );
       if (transaction.isCreditNote && transaction.orgInvoiceNo != null) {
-        bytes += generator.text('ORIGINAL SDC INV: ${transaction.orgInvoiceNo}', styles: const PosStyles(align: PosAlign.center, bold: true));
-        if (transaction.creditNoteReason != null) {
-          bytes += generator.text('REASON: ${transaction.creditNoteReason}', styles: const PosStyles(align: PosAlign.center));
+        bytes += generator.text(
+          _formatRow2('ORIG INV:', transaction.orgInvoiceNo!, colCount),
+          styles: const PosStyles(bold: true),
+        );
+        if (transaction.creditNoteReason != null && transaction.creditNoteReason!.isNotEmpty) {
+          bytes += generator.text(
+            _formatRow2('REASON:', transaction.creditNoteReason!, colCount),
+          );
         }
       }
-      bytes += generator.text(preset.doubleDivider);
+      bytes += generator.text(preset.singleDivider);
 
-      // 3. Receipt Metadata & Attended By
-      final dateOnlyStr = DateFormat('dd/MM/yyyy').format(transaction.timestamp);
-      final timeOnlyStr = DateFormat('HH:mm:ss').format(transaction.timestamp);
-      final receiptNo = transaction.isCreditNote ? 'CN-#${transaction.id.toString().padLeft(8, '0')}' : '#${transaction.id.toString().padLeft(8, '0')}';
+      // 3. Compact Receipt Metadata (fits strictly within colCount on 55mm/58mm/80mm)
+      final shortDateTimeStr = DateFormat('dd/MM/yy HH:mm').format(transaction.timestamp);
+      final receiptNo = transaction.isCreditNote
+          ? 'CN#${transaction.id.toString().padLeft(6, '0')}'
+          : '#${transaction.id.toString().padLeft(6, '0')}';
       final cashier = transaction.cashierName.isNotEmpty ? transaction.cashierName : 'Staff';
-      
-      bytes += generator.text(_formatRow2('RECEIPT: $receiptNo', '$dateOnlyStr $timeOnlyStr', colCount), styles: const PosStyles(bold: true));
-      bytes += generator.text(_formatRow2('Cashier: $cashier', 'Terminal: ${transaction.terminalName ?? config?.terminalName ?? "POS-01"}', colCount));
+      final termName = transaction.terminalName ?? config?.terminalName ?? 'POS-01';
+
+      bytes += generator.text(
+        _formatRow2('RCPT $receiptNo', shortDateTimeStr, colCount),
+        styles: const PosStyles(bold: true),
+      );
+      bytes += generator.text(
+        _formatRow2('Staff: $cashier', termName, colCount),
+      );
       if (transaction.isCreditNote &&
           transaction.externalPaymentConfirmedBy != null &&
           transaction.externalPaymentConfirmedBy!.trim().isNotEmpty) {
         bytes += generator.text(
-          _formatRow2(
-            'Approved By:',
-            transaction.externalPaymentConfirmedBy!.trim(),
-            colCount,
-          ),
+          _formatRow2('Appr By:', transaction.externalPaymentConfirmedBy!.trim(), colCount),
           styles: const PosStyles(bold: true),
         );
       }
 
       if (transaction.customerTpin != null && transaction.customerTpin!.isNotEmpty) {
-        bytes += generator.text(_formatRow2('BUYER TPIN: ${transaction.customerTpin}', '', colCount), styles: const PosStyles(bold: true));
+        bytes += generator.text(
+          _formatRow2('BUYER TPIN:', transaction.customerTpin!, colCount),
+          styles: const PosStyles(bold: true),
+        );
         if (transaction.customerBusinessName != null && transaction.customerBusinessName!.isNotEmpty) {
-          bytes += generator.text(_formatRow2('BUYER NAME: ${transaction.customerBusinessName}', '', colCount));
+          bytes += generator.text(
+            _formatRow2('BUYER:', transaction.customerBusinessName!, colCount),
+          );
         }
       } else if (customer != null) {
-        bytes += generator.text(_formatRow2('Customer: ${customer.name}', customer.phoneNumber, colCount));
+        bytes += generator.text(
+          _formatRow2('Cust: ${customer.name}', customer.phoneNumber, colCount),
+        );
       }
 
       bytes += generator.text(preset.singleDivider);
 
-      // 4. Line Items Table Header
-      if (is58) {
-        bytes += generator.text(_formatRow3('ITEM', 'QTY', 'TOTAL', colCount), styles: const PosStyles(bold: true));
+      // 4. Line Items Table Header & Compact Single-Line Rows
+      if (isNarrow) {
+        bytes += generator.text(
+          _formatRow3('ITEM', 'QTY', 'TOTAL', colCount),
+          styles: const PosStyles(bold: true),
+        );
       } else {
-        bytes += generator.text(_formatRow4('ITEM DESCRIPTION', 'QTY', 'PRICE', 'TOTAL', colCount), styles: const PosStyles(bold: true));
+        bytes += generator.text(
+          _formatRow4('ITEM', 'QTY', 'PRICE', 'TOTAL', colCount),
+          styles: const PosStyles(bold: true),
+        );
       }
       bytes += generator.text(preset.singleDivider);
 
-      // 5. Line Items Rows
+      // 5. Line Items Rows (1 clean aligned line per item across all paper sizes)
       final isTot = config?.businessTaxType == 'TURNOVER_TAX';
       for (var item in items) {
         final taxLetter = isTot ? 'E' : _getTaxLetter(item.taxRateAtSale);
@@ -893,117 +937,129 @@ class PrinterService {
             ? item.weight
             : item.quantity.toDouble();
         final qtyStr = (item.isWeighted && item.weight > 0)
-            ? '${item.weight.toStringAsFixed(3)}${item.unitOfMeasure.isNotEmpty ? item.unitOfMeasure : "kg"}'
-            : '${item.quantity}';
+            ? '${item.weight.toStringAsFixed(2)}${item.unitOfMeasure.isNotEmpty ? item.unitOfMeasure : "kg"}'
+            : '${item.quantity}x';
         final itemTotal = item.priceAtSale * effectiveQty;
         final totalFormatted = CurrencyFormatter.format(itemTotal, currency);
 
-        if (is58) {
-          bytes += generator.text(item.productName.toUpperCase(), styles: const PosStyles(bold: true));
-          bytes += generator.text(_formatRow3(
-            '  @ ${CurrencyFormatter.format(item.priceAtSale, currency)}',
-            (item.isWeighted ? qtyStr : '${item.quantity}x'),
-            '$totalFormatted $taxLetter',
-            colCount,
-          ));
+        if (isNarrow) {
+          bytes += generator.text(
+            _formatRow3(
+              item.productName.toUpperCase(),
+              qtyStr,
+              '$totalFormatted$taxLetter',
+              colCount,
+            ),
+          );
         } else {
-          bytes += generator.text(_formatRow4(
-            item.productName.toUpperCase(),
-            qtyStr,
-            CurrencyFormatter.format(item.priceAtSale, currency),
-            '$totalFormatted $taxLetter',
-            colCount,
-          ));
-        }
-      }
-
-      bytes += generator.text(preset.singleDivider);
-
-      // 6. Financial Summary
-      bytes += generator.text(_formatRow2('SUBTOTAL (NET)', CurrencyFormatter.format(transaction.subtotal, currency), colCount));
-
-      if (transaction.discountAmount > 0) {
-        bytes += generator.text(_formatRow2('DISCOUNT', '-${CurrencyFormatter.format(transaction.discountAmount, currency)}', colCount));
-      }
-
-      if (transaction.taxAmount > 0 && !isTot) {
-        bytes += generator.text(_formatRow2('TOTAL VAT (INCLUDED)', CurrencyFormatter.format(transaction.taxAmount, currency), colCount));
-      }
-
-      if (transaction.serviceChargeAmount > 0) {
-        final scLabel = 'SERVICE CHG (${transaction.serviceChargeRate.toStringAsFixed(0)}% UNTAXED)';
-        bytes += generator.text(_formatRow2(scLabel, CurrencyFormatter.format(transaction.serviceChargeAmount, currency), colCount));
-      }
-
-      bytes += generator.feed(1);
-      bytes += generator.text(preset.doubleDivider);
-
-      // Grand Total Highlight
-      bytes += generator.text(
-        _formatRow2('TOTAL DUE', CurrencyFormatter.format(transaction.totalAmount, currency), (colCount / 2).floor()),
-        styles: const PosStyles(bold: true, height: PosTextSize.size2, width: PosTextSize.size2),
-      );
-
-      bytes += generator.text(preset.doubleDivider);
-
-      // 7. Payment Tender Details
-      bytes += generator.text(_formatRow2('PAYMENT METHOD', transaction.paymentMethod.toUpperCase(), colCount), styles: const PosStyles(bold: true));
-
-      if (transaction.paymentMethod.toUpperCase() == 'CASH') {
-        bytes += generator.text(_formatRow2('Cash Tendered', CurrencyFormatter.format(transaction.tenderedAmount > 0 ? transaction.tenderedAmount : transaction.totalAmount, currency), colCount));
-        bytes += generator.text(_formatRow2('Change Returned', CurrencyFormatter.format(transaction.changeAmount, currency), colCount), styles: const PosStyles(bold: true));
-      }
-
-      // Print external mobile money reference and confirming cashier details on receipt
-      if (transaction.paymentMethod.toUpperCase().contains('EXTERNAL MOBILE MONEY')) {
-        if (transaction.externalPaymentReference != null &&
-            transaction.externalPaymentReference!.trim().isNotEmpty) {
           bytes += generator.text(
-            _formatRow2('Ref No.', transaction.externalPaymentReference!.trim(), colCount),
-          );
-        }
-        if (transaction.externalPaymentConfirmedBy != null &&
-            transaction.externalPaymentConfirmedBy!.trim().isNotEmpty) {
-          bytes += generator.text(
-            _formatRow2('Confirmed By', transaction.externalPaymentConfirmedBy!.trim(), colCount),
-          );
-        }
-        if (transaction.externalPaymentConfirmedAt != null) {
-          bytes += generator.text(
-            _formatRow2(
-              'Confirmed At',
-              DateFormat('dd/MM/yyyy HH:mm').format(transaction.externalPaymentConfirmedAt!),
+            _formatRow4(
+              item.productName.toUpperCase(),
+              qtyStr,
+              CurrencyFormatter.format(item.priceAtSale, currency),
+              '$totalFormatted$taxLetter',
               colCount,
             ),
           );
         }
       }
 
-      // 8. Tax Summary Table
-      bytes += generator.feed(1);
-      if (isTot) {
-        bytes += generator.text('TAX SUMMARY (TURNOVER TAX)', styles: const PosStyles(bold: true));
-        bytes += generator.text(_formatRow2('ITEM OUTPUT TAX:', 'K0.00 (EXEMPT)', colCount));
-        bytes += generator.text('Turnover Tax is remitted monthly at 5%', styles: const PosStyles(align: PosAlign.center));
-      } else {
-        bytes += generator.text('TAX SUMMARY BREAKDOWN', styles: const PosStyles(bold: true));
-        bytes += generator.text(_formatRow3('CODE / RATE', 'TAX AMT', 'TOTAL', colCount), styles: const PosStyles(bold: true));
+      bytes += generator.text(preset.singleDivider);
 
+      // 6. Compact Financial Summary
+      bytes += generator.text(
+        _formatRow2('SUBTOTAL', CurrencyFormatter.format(transaction.subtotal, currency), colCount),
+      );
+
+      if (transaction.discountAmount > 0) {
+        bytes += generator.text(
+          _formatRow2('DISCOUNT', '-${CurrencyFormatter.format(transaction.discountAmount, currency)}', colCount),
+        );
+      }
+
+      if (transaction.taxAmount > 0 && !isTot) {
+        bytes += generator.text(
+          _formatRow2('VAT (INCL)', CurrencyFormatter.format(transaction.taxAmount, currency), colCount),
+        );
+      }
+
+      if (transaction.serviceChargeAmount > 0) {
+        final scLabel = 'SVC CHG (${transaction.serviceChargeRate.toStringAsFixed(0)}%)';
+        bytes += generator.text(
+          _formatRow2(scLabel, CurrencyFormatter.format(transaction.serviceChargeAmount, currency), colCount),
+        );
+      }
+
+      bytes += generator.text(preset.doubleDivider);
+
+      // Grand Total Highlight (normal width bold so it never overflows or wraps)
+      bytes += generator.text(
+        _formatRow2('TOTAL DUE', CurrencyFormatter.format(transaction.totalAmount, currency), colCount),
+        styles: const PosStyles(bold: true),
+      );
+
+      bytes += generator.text(preset.doubleDivider);
+
+      // 7. Payment Tender Details
+      bytes += generator.text(
+        _formatRow2('PAID VIA', transaction.paymentMethod.toUpperCase(), colCount),
+        styles: const PosStyles(bold: true),
+      );
+
+      if (transaction.paymentMethod.toUpperCase() == 'CASH') {
+        bytes += generator.text(
+          _formatRow2(
+            'Tendered',
+            CurrencyFormatter.format(
+              transaction.tenderedAmount > 0 ? transaction.tenderedAmount : transaction.totalAmount,
+              currency,
+            ),
+            colCount,
+          ),
+        );
+        bytes += generator.text(
+          _formatRow2('Change', CurrencyFormatter.format(transaction.changeAmount, currency), colCount),
+          styles: const PosStyles(bold: true),
+        );
+      }
+
+      if (transaction.paymentMethod.toUpperCase().contains('EXTERNAL MOBILE MONEY')) {
+        if (transaction.externalPaymentReference != null &&
+            transaction.externalPaymentReference!.trim().isNotEmpty) {
+          bytes += generator.text(
+            _formatRow2('Ref No:', transaction.externalPaymentReference!.trim(), colCount),
+          );
+        }
+        if (transaction.externalPaymentConfirmedBy != null &&
+            transaction.externalPaymentConfirmedBy!.trim().isNotEmpty) {
+          bytes += generator.text(
+            _formatRow2('Conf By:', transaction.externalPaymentConfirmedBy!.trim(), colCount),
+          );
+        }
+      }
+
+      // 8. Compact Tax Summary
+      if (isTot) {
+        bytes += generator.text(
+          _formatRow2('TURNOVER TAX (5%):', 'EXEMPT', colCount),
+        );
+      } else {
         final breakdown = _getTaxBreakdown(items);
         breakdown.forEach((rate, values) {
           final letter = _getTaxLetter(rate);
-          bytes += generator.text(_formatRow3(
-            '$letter (${rate.toStringAsFixed(0)}%)',
-            CurrencyFormatter.formatTaxPrecision(values['vat']!, currency),
-            CurrencyFormatter.format(values['total']!, currency),
-            colCount,
-          ));
+          bytes += generator.text(
+            _formatRow3(
+              'TAX $letter (${rate.toStringAsFixed(0)}%)',
+              CurrencyFormatter.formatTaxPrecision(values['vat']!, currency),
+              CurrencyFormatter.format(values['total']!, currency),
+              colCount,
+            ),
+          );
         });
       }
 
       // 9. SDC / ZRA Smart Invoice Compliance Block
-      final dateFormatted = DateFormat('dd/MM/yyyy').format(transaction.timestamp);
-      final timeFormatted = DateFormat('HH:mm:ss').format(transaction.timestamp);
+      final dateTimeFiscal = DateFormat('dd/MM/yy HH:mm:ss').format(transaction.timestamp);
       String sdcIdStr = (transaction.zraSdcId != null && transaction.zraSdcId!.isNotEmpty && transaction.zraSdcId != 'PENDING')
           ? transaction.zraSdcId!
           : (config?.sdcId?.isNotEmpty == true ? config!.sdcId! : '');
@@ -1013,7 +1069,9 @@ class PrinterService {
           sdcIdStr = 'SDC${match.group(1)}';
         }
       }
-      if (sdcIdStr.isEmpty) sdcIdStr = 'PENDING';
+      if (sdcIdStr.isEmpty) {
+        sdcIdStr = 'PENDING';
+      }
       final sdcInvNoStr = _formatZraSdcInvoiceNo(transaction.zraReceiptNumber, sdcId: sdcIdStr);
       final signatureStr = (transaction.zraMarkId != null &&
               transaction.zraMarkId!.isNotEmpty &&
@@ -1026,62 +1084,47 @@ class PrinterService {
           ? transaction.zraInternalData!
           : (config?.mrcNo?.isNotEmpty == true ? config!.mrcNo! : 'PENDING');
 
-      bytes += generator.feed(1);
       bytes += generator.text(preset.singleDivider);
 
       if (isFiscalApproved) {
         bytes += generator.text(
-          '*** ZRA FISCAL CONTROL DATA ***',
+          'ZRA FISCAL CONTROL DATA',
           styles: const PosStyles(align: PosAlign.center, bold: true),
         );
-        bytes += generator.text(preset.singleDivider);
-        bytes += generator.text(_formatRow2('Date:', dateFormatted, colCount));
-        bytes += generator.text(_formatRow2('Time:', timeFormatted, colCount));
-        bytes += generator.text(_formatRow2('SDC Id:', sdcIdStr, colCount));
-        bytes += generator.text(_formatRow2('SDC Invoice No:', sdcInvNoStr, colCount));
-        bytes += generator.text(_formatRow2('Signature:', signatureStr, colCount));
-        bytes += generator.text(_formatRow2('Internal Data:', internalDataStr, colCount));
-        bytes += generator.text(_formatRow2('Invoice Type:', transaction.zraInvoiceType ?? 'Normal Sale', colCount));
-        bytes += generator.text(preset.singleDivider);
+        bytes += generator.text(_formatRow2('Date/Time:', dateTimeFiscal, colCount));
+        bytes += generator.text(_formatRow2('SDC ID:', sdcIdStr, colCount));
+        bytes += generator.text(_formatRow2('SDC Inv:', sdcInvNoStr, colCount));
+        bytes += generator.text(_formatRow2('Sig:', signatureStr, colCount));
+        bytes += generator.text(_formatRow2('Int Data:', internalDataStr, colCount));
+        bytes += generator.text(_formatRow2('Type:', transaction.zraInvoiceType ?? 'Normal Sale', colCount));
 
-        // Print Live ZRA Smart Invoice Verification QR Code via universal 1-bit ESC/POS raster
+        // Print Live ZRA Smart Invoice Verification QR Code via compact 1-bit ESC/POS raster
         final zraQrData = (transaction.zraQrCode != null && transaction.zraQrCode!.isNotEmpty)
             ? transaction.zraQrCode!
             : 'https://smartinvoice.zra.org.zm/verify?tpin=${config?.tpin ?? "1000000000"}&sdc=$sdcIdStr&rcpt=$sdcInvNoStr';
-        bytes += generator.feed(1);
         try {
           final qrRasterBytes = _qrToRasterEscPos(
             zraQrData,
-            scale: is58 ? 3 : 4,
+            scale: isNarrow ? 2 : 3,
             align: PosAlign.center,
           );
           if (qrRasterBytes.isNotEmpty) {
             bytes += qrRasterBytes;
-            bytes += generator.feed(1);
             bytes += generator.text(
-              'Scan QR Code to Verify on ZRA Portal',
-              styles: const PosStyles(align: PosAlign.center, bold: true),
+              'Scan QR to Verify on ZRA Portal',
+              styles: const PosStyles(align: PosAlign.center, bold: true, fontType: PosFontType.fontB),
             );
           } else {
-            // Text fallback if QR raster fails
             bytes += generator.text(
-              'VERIFY AT ZRA PORTAL:',
-              styles: const PosStyles(align: PosAlign.center, bold: true),
-            );
-            bytes += generator.text(
-              zraQrData,
-              styles: const PosStyles(align: PosAlign.center),
+              'VERIFY: $zraQrData',
+              styles: const PosStyles(align: PosAlign.center, fontType: PosFontType.fontB),
             );
           }
         } catch (e) {
           debugPrint('QR code generation notice: $e');
           bytes += generator.text(
-            'VERIFY AT ZRA PORTAL:',
-            styles: const PosStyles(align: PosAlign.center, bold: true),
-          );
-          bytes += generator.text(
-            zraQrData,
-            styles: const PosStyles(align: PosAlign.center),
+            'VERIFY: $zraQrData',
+            styles: const PosStyles(align: PosAlign.center, fontType: PosFontType.fontB),
           );
         }
       } else {
@@ -1089,37 +1132,25 @@ class PrinterService {
             transaction.zraStatus == 'OFFLINE_EXEMPT';
         if (!isLocalOnly) {
           bytes += generator.text(
-            '*** OFFLINE TRANSACTION - FISCAL PENDING ***',
+            'OFFLINE - ZRA FISCAL PENDING',
             styles: const PosStyles(align: PosAlign.center, bold: true),
           );
-          bytes += generator.text(
-            'Official ZRA Smart Invoice will sync automatically',
-            styles: const PosStyles(align: PosAlign.center),
-          );
-          bytes += generator.text(preset.singleDivider);
         }
       }
 
-      // 10. Customer Friendly Footer
-      bytes += generator.feed(1);
+      // 10. Compact Customer Footer
       bytes += generator.text(preset.doubleDivider);
       bytes += generator.text(
         'THANK YOU FOR SHOPPING WITH US!',
         styles: const PosStyles(align: PosAlign.center, bold: true),
       );
       bytes += generator.text(
-        'PLEASE VISIT US AGAIN',
-        styles: const PosStyles(align: PosAlign.center),
+        'Goods returnable within 7 days with receipt',
+        styles: const PosStyles(align: PosAlign.center, fontType: PosFontType.fontB),
       );
-      bytes += generator.text('Goods sold are returnable within 7 days with valid receipt.', styles: const PosStyles(align: PosAlign.center));
-      if (config?.contactNumber != null && config!.contactNumber!.isNotEmpty) {
-        bytes += generator.text('Helpline: ${config.contactNumber!}', styles: const PosStyles(align: PosAlign.center));
-      }
-      bytes += generator.text('*** BELEKA POS RETAIL OS ***', styles: const PosStyles(align: PosAlign.center));
       bytes += generator.text(preset.doubleDivider);
       
-      // generator.cut() already prepends 5 blank lines internally.
-      // Avoid extra feed here to prevent the long blank-paper runaway.
+      // generator.cut() already prepends blank lines internally.
       bytes += generator.cut();
 
       // Send to active driver
@@ -1136,6 +1167,9 @@ class PrinterService {
     required StoreConfig? config,
     ThermalPaperPreset? preset,
   }) async {
+    if (config?.paperWidthMm != null && config!.paperWidthMm > 0) {
+      _paperWidthMm = config.paperWidthMm;
+    }
     if (!_isConnected) {
       await autoConnect(config: config);
     }
@@ -1153,49 +1187,48 @@ class PrinterService {
 
     final colCount = currentPreset.columnCount;
     final date = (reportData['date'] is DateTime) ? reportData['date'] as DateTime : DateTime.now();
-    final dateStr = DateFormat('dd/MM/yyyy HH:mm:ss').format(date);
+    final dateStr = DateFormat('dd/MM/yy HH:mm').format(date);
 
     try {
       bytes += generator.reset();
-      bytes += generator.feed(1);
+      bytes += [0x1B, 0x33, 20];
 
       // Store Header
       bytes += generator.text(
         config?.businessName ?? 'BELEKA RETAIL STORE',
-        styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2),
+        styles: const PosStyles(align: PosAlign.center, bold: true),
       );
       if (config?.tpin != null) {
         bytes += generator.text('TPIN: ${config!.tpin!}', styles: const PosStyles(align: PosAlign.center, bold: true));
       }
       bytes += generator.text('SDC ID: ${config?.sdcId ?? "SDC00300000014"}', styles: const PosStyles(align: PosAlign.center));
-      bytes += generator.text('BRANCH CODE (bhfId): ${config?.bhfId ?? "00"}', styles: const PosStyles(align: PosAlign.center));
+      bytes += generator.text('BRANCH (bhfId): ${config?.bhfId ?? "00"}', styles: const PosStyles(align: PosAlign.center));
 
-      bytes += generator.feed(1);
       bytes += generator.text(currentPreset.doubleDivider);
-      bytes += generator.text('ZRA FISCAL DAY SUMMARY (Z-REPORT)', styles: const PosStyles(align: PosAlign.center, bold: true));
-      bytes += generator.text('REPORT DATE: $dateStr', styles: const PosStyles(align: PosAlign.center));
+      bytes += generator.text('ZRA FISCAL Z-REPORT', styles: const PosStyles(align: PosAlign.center, bold: true));
+      bytes += generator.text('DATE: $dateStr', styles: const PosStyles(align: PosAlign.center));
       bytes += generator.text(currentPreset.doubleDivider);
 
       // SDC Invoices Count and Range
-      bytes += generator.text(_formatRow2('TOTAL TRANSACTIONS', '${reportData["totalTransactions"] ?? 0}', colCount));
+      bytes += generator.text(_formatRow2('TOTAL TXNS', '${reportData["totalTransactions"] ?? 0}', colCount));
       bytes += generator.text(_formatRow2('NORMAL INVOICES', '${reportData["normalInvoicesCount"] ?? 0}', colCount));
-      bytes += generator.text(_formatRow2('CREDIT NOTES (REFUNDS)', '${reportData["creditNotesCount"] ?? 0}', colCount));
-      bytes += generator.text(_formatRow2('FIRST SDC INVOICE', '${reportData["firstSdcReceipt"] ?? "N/A"}', colCount));
-      bytes += generator.text(_formatRow2('LAST SDC INVOICE', '${reportData["lastSdcReceipt"] ?? "N/A"}', colCount));
+      bytes += generator.text(_formatRow2('CREDIT NOTES', '${reportData["creditNotesCount"] ?? 0}', colCount));
+      bytes += generator.text(_formatRow2('FIRST SDC INV', '${reportData["firstSdcReceipt"] ?? "N/A"}', colCount));
+      bytes += generator.text(_formatRow2('LAST SDC INV', '${reportData["lastSdcReceipt"] ?? "N/A"}', colCount));
 
       bytes += generator.text(currentPreset.singleDivider);
-      bytes += generator.text('TAX CATEGORIZATION BREAKDOWN', styles: const PosStyles(align: PosAlign.center, bold: true));
+      bytes += generator.text('TAX BREAKDOWN', styles: const PosStyles(align: PosAlign.center, bold: true));
       bytes += generator.text(currentPreset.singleDivider);
 
       // Tax A (16% VAT)
       final taxATaxable = (reportData['taxA16Taxable'] as num?)?.toDouble() ?? 0.0;
       final taxAVat = (reportData['taxA16Vat'] as num?)?.toDouble() ?? 0.0;
-      bytes += generator.text(_formatRow2('TAX A (16.0% VAT) TAXABLE', CurrencyFormatter.format(taxATaxable, currency), colCount));
-      bytes += generator.text(_formatRow2('TAX A (16.0% VAT) TAX AMOUNT', CurrencyFormatter.format(taxAVat, currency), colCount), styles: const PosStyles(bold: true));
+      bytes += generator.text(_formatRow2('TAX A (16%) TAXABLE', CurrencyFormatter.format(taxATaxable, currency), colCount));
+      bytes += generator.text(_formatRow2('TAX A (16%) VAT', CurrencyFormatter.format(taxAVat, currency), colCount), styles: const PosStyles(bold: true));
 
       // Tax B (0.0% Zero-Rated)
       final taxBTaxable = (reportData['taxB0Taxable'] as num?)?.toDouble() ?? 0.0;
-      bytes += generator.text(_formatRow2('TAX B (0.0% ZERO-RATED)', CurrencyFormatter.format(taxBTaxable, currency), colCount));
+      bytes += generator.text(_formatRow2('TAX B (0% ZERO)', CurrencyFormatter.format(taxBTaxable, currency), colCount));
 
       // Tax C (Export)
       final taxCTaxable = (reportData['taxCExportTaxable'] as num?)?.toDouble() ?? 0.0;
@@ -1216,17 +1249,15 @@ class PrinterService {
       final totalTax = (reportData['totalTax'] as num?)?.toDouble() ?? 0.0;
       final netSales = (reportData['netSales'] as num?)?.toDouble() ?? 0.0;
 
-      bytes += generator.text(_formatRow2('NET TAXABLE SALES', CurrencyFormatter.format(netSales, currency), colCount));
-      bytes += generator.text(_formatRow2('TOTAL TAX COLLECTED', CurrencyFormatter.format(totalTax, currency), colCount), styles: const PosStyles(bold: true));
+      bytes += generator.text(_formatRow2('NET SALES', CurrencyFormatter.format(netSales, currency), colCount));
+      bytes += generator.text(_formatRow2('TOTAL TAX', CurrencyFormatter.format(totalTax, currency), colCount), styles: const PosStyles(bold: true));
       bytes += generator.text(
-        _formatRow2('GROSS SALES (INCL)', CurrencyFormatter.format(grossSales, currency), (colCount / 2).floor()),
-        styles: const PosStyles(bold: true, height: PosTextSize.size2, width: PosTextSize.size2),
+        _formatRow2('GROSS SALES', CurrencyFormatter.format(grossSales, currency), colCount),
+        styles: const PosStyles(bold: true),
       );
 
       bytes += generator.text(currentPreset.doubleDivider);
-      bytes += generator.feed(1);
-      bytes += generator.text('*** END OF ZRA FISCAL Z-REPORT ***', styles: const PosStyles(align: PosAlign.center, bold: true));
-      // generator.cut() already prepends 5 blank lines — no extra feed needed.
+      bytes += generator.text('*** END OF ZRA Z-REPORT ***', styles: const PosStyles(align: PosAlign.center, bold: true));
       bytes += generator.cut();
 
       return await _sendBytes(bytes);
@@ -1364,10 +1395,23 @@ class PrinterService {
   }
 
   String _formatRow2(String left, String right, int totalWidth) {
+    left = left.trim();
+    right = right.trim();
+    if (right.isEmpty) {
+      return left.length > totalWidth ? left.substring(0, totalWidth) : left;
+    }
+    if (right.length >= totalWidth - 4) {
+      final maxRight = (totalWidth * 0.65).floor();
+      if (right.length > maxRight) {
+        right = right.substring(0, maxRight);
+      }
+    }
     if (left.length + right.length + 1 > totalWidth) {
       final maxLeft = totalWidth - right.length - 1;
       if (maxLeft > 0) {
         left = left.substring(0, maxLeft);
+      } else {
+        left = '';
       }
     }
     final spaces = totalWidth - left.length - right.length;
@@ -1375,27 +1419,42 @@ class PrinterService {
   }
 
   String _formatRow3(String col1, String col2, String col3, int totalWidth) {
-    int w1 = (totalWidth * 0.45).floor();
-    int w2 = (totalWidth * 0.20).floor();
-    int w3 = totalWidth - w1 - w2;
+    col1 = col1.trim();
+    col2 = col2.trim();
+    col3 = col3.trim();
+    int w3 = (totalWidth * 0.34).floor().clamp(8, 16);
+    int w2 = (totalWidth * 0.18).floor().clamp(4, 9);
+    int w1 = totalWidth - w2 - w3 - 2; // 2 spaces separator
+    if (w1 < 6) {
+      w1 = 6;
+    }
 
     String c1 = col1.length > w1 ? col1.substring(0, w1) : col1.padRight(w1);
-    String c2 = col2.padLeft(w2);
-    String c3 = col3.padLeft(w3);
-    return '$c1$c2$c3';
+    String c2 = col2.length > w2 ? col2.substring(0, w2) : col2.padLeft(w2);
+    String c3 = col3.length > w3 ? col3.substring(0, w3) : col3.padLeft(w3);
+    final line = '$c1 $c2 $c3';
+    return line.length > totalWidth ? line.substring(0, totalWidth) : line;
   }
 
   String _formatRow4(String col1, String col2, String col3, String col4, int totalWidth) {
-    int w1 = (totalWidth * 0.40).floor();
-    int w2 = (totalWidth * 0.14).floor();
-    int w3 = (totalWidth * 0.22).floor();
-    int w4 = totalWidth - w1 - w2 - w3;
+    col1 = col1.trim();
+    col2 = col2.trim();
+    col3 = col3.trim();
+    col4 = col4.trim();
+    int w4 = (totalWidth * 0.25).floor().clamp(8, 14);
+    int w3 = (totalWidth * 0.20).floor().clamp(6, 12);
+    int w2 = (totalWidth * 0.12).floor().clamp(4, 7);
+    int w1 = totalWidth - w2 - w3 - w4 - 3; // 3 spaces separator
+    if (w1 < 8) {
+      w1 = 8;
+    }
 
     String c1 = col1.length > w1 ? col1.substring(0, w1) : col1.padRight(w1);
-    String c2 = col2.padLeft(w2);
-    String c3 = col3.padLeft(w3);
-    String c4 = col4.padLeft(w4);
-    return '$c1$c2$c3$c4';
+    String c2 = col2.length > w2 ? col2.substring(0, w2) : col2.padLeft(w2);
+    String c3 = col3.length > w3 ? col3.substring(0, w3) : col3.padLeft(w3);
+    String c4 = col4.length > w4 ? col4.substring(0, w4) : col4.padLeft(w4);
+    final line = '$c1 $c2 $c3 $c4';
+    return line.length > totalWidth ? line.substring(0, totalWidth) : line;
   }
 
   Future<bool> printDailySummary({
@@ -1404,6 +1463,9 @@ class PrinterService {
     required Map<String, double> paymentDist,
     StoreConfig? config,
   }) async {
+    if (config?.paperWidthMm != null && config!.paperWidthMm > 0) {
+      _paperWidthMm = config.paperWidthMm;
+    }
     if (!_isConnected) {
       await autoConnect(config: config);
     }
@@ -1420,17 +1482,21 @@ class PrinterService {
       List<int> bytes = [];
 
       bytes += generator.reset();
+      bytes += [0x1B, 0x33, 20];
 
       final currency = config?.currencySymbol ?? 'K';
 
-      bytes += generator.setStyles(const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2));
+      bytes += generator.setStyles(const PosStyles(align: PosAlign.center, bold: true));
       bytes += generator.text('DAILY X-REPORT');
       bytes += generator.setStyles(const PosStyles(align: PosAlign.center));
       bytes += generator.text(config?.businessName ?? 'BELEKA POS');
-      if (config?.address != null) bytes += generator.text(config!.address!);
-      if (config?.taxId != null) bytes += generator.text('VAT ID: ${config!.taxId!}');
+      if (config?.address != null) {
+        bytes += generator.text(config!.address!);
+      }
+      if (config?.taxId != null) {
+        bytes += generator.text('VAT ID: ${config!.taxId!}');
+      }
       bytes += generator.text(DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now()));
-      bytes += generator.feed(1);
       bytes += generator.text(preset.doubleDivider);
 
       final todayCount = (stats['todayCount'] ?? 0).isNaN ? 0 : (stats['todayCount'] ?? 0).toInt();
@@ -1443,7 +1509,7 @@ class PrinterService {
       bytes += generator.text(_formatRow2('Total VAT', CurrencyFormatter.format(todayTax, currency), colCount));
       bytes += generator.text(_formatRow2('Net Sales', CurrencyFormatter.format(netSales, currency), colCount));
       
-      bytes += generator.feed(1);
+      bytes += generator.text(preset.singleDivider);
       bytes += generator.text('PAYMENT METHODS', styles: const PosStyles(bold: true));
       double grandTotal = 0.0;
       paymentDist.forEach((method, amount) {
@@ -1454,14 +1520,13 @@ class PrinterService {
       bytes += generator.text(preset.singleDivider);
       bytes += generator.text(_formatRow2('TOTAL COLLECTED', CurrencyFormatter.format(grandTotal, currency), colCount), styles: const PosStyles(bold: true));
 
-      bytes += generator.feed(1);
+      bytes += generator.text(preset.singleDivider);
       bytes += generator.text('TOP PRODUCTS', styles: const PosStyles(bold: true));
       for (var p in topProducts.take(5)) {
         bytes += generator.text(_formatRow2(p['name'].toString(), p['quantity'].toString(), colCount));
       }
       
       bytes += generator.text(preset.doubleDivider);
-      // generator.cut() already prepends 5 blank lines — no extra feed needed.
       bytes += generator.cut();
 
       return await _sendBytes(bytes);
@@ -1479,6 +1544,9 @@ class PrinterService {
     required Map<String, double> stats,
     StoreConfig? config,
   }) async {
+    if (config?.paperWidthMm != null && config!.paperWidthMm > 0) {
+      _paperWidthMm = config.paperWidthMm;
+    }
     if (!_isConnected) {
       await autoConnect(config: config);
     }
@@ -1536,17 +1604,21 @@ class PrinterService {
       List<int> bytes = [];
 
       bytes += generator.reset();
+      bytes += [0x1B, 0x33, 20];
 
       // Header
-      bytes += generator.setStyles(const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2));
+      bytes += generator.setStyles(const PosStyles(align: PosAlign.center, bold: true));
       bytes += generator.text(periodTitle.toUpperCase());
       bytes += generator.setStyles(const PosStyles(align: PosAlign.center));
       bytes += generator.text(config?.businessName ?? 'BELEKA POS');
-      if (config?.address != null && config!.address!.isNotEmpty) bytes += generator.text(config.address!);
-      if (config?.tpin != null && config!.tpin!.isNotEmpty) bytes += generator.text('TPIN: ${config.tpin}');
+      if (config?.address != null && config!.address!.isNotEmpty) {
+        bytes += generator.text(config.address!);
+      }
+      if (config?.tpin != null && config!.tpin!.isNotEmpty) {
+        bytes += generator.text('TPIN: ${config.tpin}');
+      }
       bytes += generator.text('Period: $dateRangeLabel');
-      bytes += generator.text('Generated: ${DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now())}');
-      bytes += generator.feed(1);
+      bytes += generator.text('Generated: ${DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now())}');
       bytes += generator.text(preset.doubleDivider);
 
       // Core Financial Metrics
@@ -1564,16 +1636,21 @@ class PrinterService {
       bytes += generator.setStyles(const PosStyles(bold: true));
       bytes += generator.text('PAYMENT BREAKDOWN');
       bytes += generator.setStyles(const PosStyles());
-      if (cash > 0) bytes += generator.text(_formatRow2('Cash', CurrencyFormatter.format(cash, currency), colCount));
-      if (card > 0) bytes += generator.text(_formatRow2('Card', CurrencyFormatter.format(card, currency), colCount));
-      if (mobileMoney > 0) bytes += generator.text(_formatRow2('Mobile Money', CurrencyFormatter.format(mobileMoney, currency), colCount));
+      if (cash > 0) {
+        bytes += generator.text(_formatRow2('Cash', CurrencyFormatter.format(cash, currency), colCount));
+      }
+      if (card > 0) {
+        bytes += generator.text(_formatRow2('Card', CurrencyFormatter.format(card, currency), colCount));
+      }
+      if (mobileMoney > 0) {
+        bytes += generator.text(_formatRow2('Mobile Money', CurrencyFormatter.format(mobileMoney, currency), colCount));
+      }
       bytes += generator.text(preset.singleDivider);
       bytes += generator.text(_formatRow2('TOTAL COLLECTED', CurrencyFormatter.format(revenue, currency), colCount), styles: const PosStyles(bold: true));
 
       bytes += generator.text(preset.doubleDivider);
       bytes += generator.setStyles(const PosStyles(align: PosAlign.center));
       bytes += generator.text('*** END OF SUMMARY SLIP ***');
-      // generator.cut() already prepends 5 blank lines — no extra feed needed.
       bytes += generator.cut();
 
       return await _sendBytes(bytes);
@@ -1639,10 +1716,14 @@ class PrinterService {
     StoreConfig? config,
     Customer? customer,
   }) async {
+    if (config?.paperWidthMm != null && config!.paperWidthMm > 0) {
+      _paperWidthMm = config.paperWidthMm;
+    }
     final currency = config?.currencySymbol ?? 'K';
     var commands = star.PrintCommands();
 
     final preset = activePreset;
+    final colCount = preset.columnCount;
 
     // Hardware Drawer Kick Pulse (if auto-kick is enabled in config)
     if (config?.autoOpenCashDrawer != false) {
@@ -1659,19 +1740,16 @@ class PrinterService {
       String? logoPath = config?.logoPath;
       if (logoPath != null && File(logoPath).existsSync()) {
         baseImage = img.decodeImage(await File(logoPath).readAsBytes());
-      } else {
-        final byteData = await rootBundle.load('assets/images/logo.png');
-        baseImage = img.decodeImage(byteData.buffer.asUint8List());
       }
       if (baseImage != null) {
-        final img.Image resized = img.copyResize(baseImage, width: preset.logoPixelWidth);
+        final targetW = (preset.logoPixelWidth * 0.75).round();
+        final img.Image resized = img.copyResize(baseImage, width: targetW);
         final Uint8List pngBytes = Uint8List.fromList(img.encodePng(resized));
-        commands.appendBitmapByte(byteData: pngBytes, diffusion: true, width: preset.logoPixelWidth);
+        commands.appendBitmapByte(byteData: pngBytes, diffusion: true, width: targetW);
       }
     } catch (e) {
       debugPrint('Star logo error: $e');
     }
-    commands.append('\n');
 
     final companyName = (config?.businessName != null && config!.businessName.isNotEmpty 
         ? config.businessName 
@@ -1681,39 +1759,51 @@ class PrinterService {
         : 'MAIN BRANCH').toUpperCase();
     final cashier = transaction.cashierName.isNotEmpty ? transaction.cashierName : 'Staff';
 
-    commands.appendMultiple('$companyName\n', 1, 1);
     commands.appendEmphasis(true);
+    commands.append('$companyName\n');
     commands.append('BRANCH: $branchName\n');
+    if (config?.tpin != null && config!.tpin!.isNotEmpty) {
+      commands.append('TPIN: ${config.tpin!}\n');
+    }
     commands.appendEmphasis(false);
-    if (config?.address != null && config!.address!.isNotEmpty) commands.append('${config.address!}\n');
-    if (config?.contactNumber != null && config!.contactNumber!.isNotEmpty) commands.append('Tel: ${config.contactNumber!}\n');
+    if (config?.address != null && config!.address!.isNotEmpty) {
+      commands.append('${config.address!}\n');
+    }
+    if (config?.contactNumber != null && config!.contactNumber!.isNotEmpty) {
+      commands.append('Tel: ${config.contactNumber!}\n');
+    }
     final isFiscalApproved = this.isFiscalApproved(transaction);
 
     final receiptTitle = transaction.isCreditNote
         ? 'ZRA FISCAL CREDIT NOTE'
-        : (isFiscalApproved ? 'TAX INVOICE / OFFICIAL RECEIPT' : 'CUSTOMER SALES SLIP');
+        : (isFiscalApproved ? 'TAX INVOICE / RECEIPT' : 'CUSTOMER SALES SLIP');
 
-    commands.append('\n${preset.singleDivider}\n');
+    commands.append('${preset.doubleDivider}\n');
     commands.appendEmphasis(true);
     commands.append('$receiptTitle\n');
     commands.appendEmphasis(false);
     commands.append('${preset.singleDivider}\n');
 
     commands.appendAlignment(star.StarAlignmentPosition.Left);
-    final dateOnlyStr = DateFormat('dd/MM/yyyy').format(transaction.timestamp);
-    final timeOnlyStr = DateFormat('HH:mm:ss').format(transaction.timestamp);
-    commands.append('RECEIPT: #${transaction.id.toString().padLeft(8, '0')}\n');
-    commands.append('Date: $dateOnlyStr $timeOnlyStr\n');
-    commands.append('Attended by: $cashier\n');
+    final shortDateTime = DateFormat('dd/MM/yy HH:mm').format(transaction.timestamp);
+    final rcptNo = '#${transaction.id.toString().padLeft(6, '0')}';
+    final termName = transaction.terminalName ?? config?.terminalName ?? 'POS-01';
+    commands.append('${_formatRow2('RCPT $rcptNo', shortDateTime, colCount)}\n');
+    commands.append('${_formatRow2('Staff: $cashier', termName, colCount)}\n');
     if (transaction.isCreditNote &&
         transaction.externalPaymentConfirmedBy != null &&
         transaction.externalPaymentConfirmedBy!.trim().isNotEmpty) {
       commands.append(
-        'Approved by: ${transaction.externalPaymentConfirmedBy!.trim()}\n',
+        '${_formatRow2('Appr By:', transaction.externalPaymentConfirmedBy!.trim(), colCount)}\n',
       );
     }
-    commands.append('Terminal: ${transaction.terminalName ?? config?.terminalName ?? "POS-01"}\n');
-    if (customer != null) commands.append('Customer: ${customer.name} (${customer.phoneNumber})\n');
+    if (customer != null) {
+      commands.append('${_formatRow2('Cust: ${customer.name}', customer.phoneNumber, colCount)}\n');
+    }
+    commands.append('${preset.singleDivider}\n');
+    commands.appendEmphasis(true);
+    commands.append('${_formatRow3('ITEM', 'QTY', 'TOTAL', colCount)}\n');
+    commands.appendEmphasis(false);
     commands.append('${preset.singleDivider}\n');
     
     for (var item in items) {
@@ -1721,51 +1811,51 @@ class PrinterService {
       final effectiveQty = (item.isWeighted && item.weight > 0)
           ? item.weight
           : item.quantity.toDouble();
-      String name = item.productName.toUpperCase();
-      if (name.length > 18) name = '${name.substring(0, 15)}...';
-      String price = CurrencyFormatter.format(item.priceAtSale * effectiveQty, currency);
-      commands.append('${name.padRight(19)} ${price.padLeft(10)} $letter\n');
+      final qtyStr = (item.isWeighted && item.weight > 0)
+          ? '${item.weight.toStringAsFixed(2)}${item.unitOfMeasure.isNotEmpty ? item.unitOfMeasure : "kg"}'
+          : '${item.quantity}x';
+      final price = CurrencyFormatter.format(item.priceAtSale * effectiveQty, currency);
+      commands.append(
+        '${_formatRow3(item.productName.toUpperCase(), qtyStr, '$price$letter', colCount)}\n',
+      );
     }
 
     commands.append('${preset.singleDivider}\n');
-    commands.append('${"SUBTOTAL (NET)".padRight(18)}${CurrencyFormatter.format(transaction.subtotal, currency).padLeft(14)}\n');
+    commands.append('${_formatRow2('SUBTOTAL', CurrencyFormatter.format(transaction.subtotal, currency), colCount)}\n');
 
     if (transaction.discountAmount > 0) {
-      commands.append('${"DISCOUNT".padRight(18)}${"-${CurrencyFormatter.format(transaction.discountAmount, currency)}".padLeft(14)}\n');
+      commands.append('${_formatRow2('DISCOUNT', '-${CurrencyFormatter.format(transaction.discountAmount, currency)}', colCount)}\n');
     }
 
     if (transaction.taxAmount > 0) {
-      final taxLabel = (config?.businessTaxType == 'TURNOVER_TAX') ? 'TURNOVER TAX' : 'TOTAL VAT';
-      commands.append('${taxLabel.padRight(18)}${CurrencyFormatter.format(transaction.taxAmount, currency).padLeft(14)}\n');
+      final taxLabel = (config?.businessTaxType == 'TURNOVER_TAX') ? 'TURNOVER TAX' : 'VAT (INCL)';
+      commands.append('${_formatRow2(taxLabel, CurrencyFormatter.format(transaction.taxAmount, currency), colCount)}\n');
     }
 
     if (transaction.serviceChargeAmount > 0) {
-      final scLabel = 'SERVICE (${transaction.serviceChargeRate.toStringAsFixed(0)}% UNTAXED)';
-      commands.append('${scLabel.padRight(18)}${CurrencyFormatter.format(transaction.serviceChargeAmount, currency).padLeft(14)}\n');
+      final scLabel = 'SVC CHG (${transaction.serviceChargeRate.toStringAsFixed(0)}%)';
+      commands.append('${_formatRow2(scLabel, CurrencyFormatter.format(transaction.serviceChargeAmount, currency), colCount)}\n');
     }
 
     commands.append('${preset.doubleDivider}\n');
     commands.appendEmphasis(true);
-    commands.append('${"TOTAL DUE".padRight(16)}${CurrencyFormatter.format(transaction.totalAmount, currency).padLeft(16)}\n');
+    commands.append('${_formatRow2('TOTAL DUE', CurrencyFormatter.format(transaction.totalAmount, currency), colCount)}\n');
     commands.appendEmphasis(false);
     commands.append('${preset.doubleDivider}\n');
 
-    commands.append('Payment: ${transaction.paymentMethod.toUpperCase()}\n');
+    commands.append('${_formatRow2('PAID VIA', transaction.paymentMethod.toUpperCase(), colCount)}\n');
     if (transaction.paymentMethod.toUpperCase() == 'CASH') {
-      commands.append('${"Cash Tendered".padRight(18)}${CurrencyFormatter.format(transaction.tenderedAmount > 0 ? transaction.tenderedAmount : transaction.totalAmount, currency).padLeft(14)}\n');
-      commands.append('${"Change".padRight(18)}${CurrencyFormatter.format(transaction.changeAmount, currency).padLeft(14)}\n');
+      commands.append('${_formatRow2('Tendered', CurrencyFormatter.format(transaction.tenderedAmount > 0 ? transaction.tenderedAmount : transaction.totalAmount, currency), colCount)}\n');
+      commands.append('${_formatRow2('Change', CurrencyFormatter.format(transaction.changeAmount, currency), colCount)}\n');
     }
 
     // Tax Summary Breakdown for Star
-    commands.append('\nTAX SUMMARY BREAKDOWN\n');
-    commands.append('${"CODE/RATE".padRight(12)}${"TAX AMT".padLeft(11)}${"TOTAL".padLeft(9)}\n');
     final starBreakdown = _getTaxBreakdown(items);
     starBreakdown.forEach((rate, values) {
       final letter = _getTaxLetter(rate);
-      final rateStr = '$letter (${rate.toStringAsFixed(0)}%)'.padRight(12);
-      final taxStr = CurrencyFormatter.formatTaxPrecision(values['vat']!, currency).padLeft(11);
-      final totStr = CurrencyFormatter.format(values['total']!, currency).padLeft(9);
-      commands.append('$rateStr$taxStr$totStr\n');
+      commands.append(
+        '${_formatRow3('TAX $letter (${rate.toStringAsFixed(0)}%)', CurrencyFormatter.formatTaxPrecision(values['vat']!, currency), CurrencyFormatter.format(values['total']!, currency), colCount)}\n',
+      );
     });
 
     // ZRA Fiscal Control Block for Star
@@ -1778,7 +1868,9 @@ class PrinterService {
         sdcIdStr = 'SDC${match.group(1)}';
       }
     }
-    if (sdcIdStr.isEmpty) sdcIdStr = 'PENDING';
+    if (sdcIdStr.isEmpty) {
+      sdcIdStr = 'PENDING';
+    }
     final sdcInvNoStr = _formatZraSdcInvoiceNo(transaction.zraReceiptNumber, sdcId: sdcIdStr);
     final signatureStr = (transaction.zraMarkId != null &&
             transaction.zraMarkId!.isNotEmpty &&
@@ -1791,20 +1883,19 @@ class PrinterService {
         ? transaction.zraInternalData!
         : (config?.mrcNo?.isNotEmpty == true ? config!.mrcNo! : 'PENDING');
 
-    commands.append('\n${preset.singleDivider}\n');
+    commands.append('${preset.singleDivider}\n');
     if (isFiscalApproved) {
+      commands.appendAlignment(star.StarAlignmentPosition.Center);
       commands.appendEmphasis(true);
-      commands.append('*** ZRA FISCAL CONTROL DATA ***\n');
+      commands.append('ZRA FISCAL CONTROL DATA\n');
       commands.appendEmphasis(false);
-      commands.append('${preset.singleDivider}\n');
-      commands.append('Date: $dateOnlyStr\n');
-      commands.append('Time: $timeOnlyStr\n');
-      commands.append('SDC Id: $sdcIdStr\n');
-      commands.append('SDC Invoice No: $sdcInvNoStr\n');
-      commands.append('Signature: $signatureStr\n');
-      commands.append('Internal Data: $internalDataStr\n');
-      commands.append('Invoice Type: ${transaction.zraInvoiceType ?? "Normal Sale"}\n');
-      commands.append('${preset.singleDivider}\n');
+      commands.appendAlignment(star.StarAlignmentPosition.Left);
+      commands.append('${_formatRow2('Date/Time:', shortDateTime, colCount)}\n');
+      commands.append('${_formatRow2('SDC ID:', sdcIdStr, colCount)}\n');
+      commands.append('${_formatRow2('SDC Inv:', sdcInvNoStr, colCount)}\n');
+      commands.append('${_formatRow2('Sig:', signatureStr, colCount)}\n');
+      commands.append('${_formatRow2('Int Data:', internalDataStr, colCount)}\n');
+      commands.append('${_formatRow2('Type:', transaction.zraInvoiceType ?? "Normal Sale", colCount)}\n');
 
       final zraQrData = (transaction.zraQrCode != null && transaction.zraQrCode!.isNotEmpty)
           ? transaction.zraQrCode!
@@ -1817,9 +1908,9 @@ class PrinterService {
         );
         final qrImage = QrImage(qrCode);
         final int moduleCount = qrImage.moduleCount;
-        const int margin = 2;
+        const int margin = 1;
         final int totalModules = moduleCount + (margin * 2);
-        const int scale = 3;
+        const int scale = 2;
         final int sizePx = totalModules * scale;
         final img.Image qrBitmap = img.Image(width: sizePx, height: sizePx);
         img.fill(qrBitmap, color: img.ColorRgb8(255, 255, 255));
@@ -1837,36 +1928,30 @@ class PrinterService {
         final Uint8List qrPngBytes = Uint8List.fromList(img.encodePng(qrBitmap));
         commands.appendAlignment(star.StarAlignmentPosition.Center);
         commands.appendBitmapByte(byteData: qrPngBytes, diffusion: false, width: sizePx);
-        commands.append('\nScan QR Code to Verify on ZRA Portal\n\n');
+        commands.append('Scan QR to Verify on ZRA Portal\n');
       } catch (e) {
         debugPrint('Star QR print notice: $e');
         commands.appendAlignment(star.StarAlignmentPosition.Center);
-        commands.append('Scan QR Code to Verify on ZRA Portal\n');
-        commands.append('$zraQrData\n\n');
+        commands.append('VERIFY: $zraQrData\n');
       }
     } else {
       final isLocalOnly = transaction.zraStatus == 'LOCAL_EXEMPT' ||
           transaction.zraStatus == 'OFFLINE_EXEMPT';
       if (!isLocalOnly) {
+        commands.appendAlignment(star.StarAlignmentPosition.Center);
         commands.appendEmphasis(true);
-        commands.append('*** OFFLINE TRANSACTION - FISCAL PENDING ***\n');
+        commands.append('OFFLINE - ZRA FISCAL PENDING\n');
         commands.appendEmphasis(false);
-        commands.append('Official ZRA Smart Invoice will sync automatically\n');
-        commands.append('${preset.singleDivider}\n\n');
       }
     }
 
+    commands.appendAlignment(star.StarAlignmentPosition.Center);
     commands.append('${preset.doubleDivider}\n');
     commands.appendEmphasis(true);
     commands.append('THANK YOU FOR SHOPPING WITH US!\n');
     commands.appendEmphasis(false);
-    commands.append('PLEASE VISIT US AGAIN\n');
     commands.append('Goods returnable within 7 days with receipt\n');
-    if (config?.contactNumber != null && config!.contactNumber!.isNotEmpty) {
-      commands.append('Helpline: ${config.contactNumber!}\n');
-    }
-    commands.append('*** BELEKA POS RETAIL OS ***\n');
-    commands.append('${preset.doubleDivider}\n\n');
+    commands.append('${preset.doubleDivider}\n');
     
     commands.appendCutPaper(star.StarCutPaperAction.PartialCutWithFeed);
 
@@ -1883,6 +1968,51 @@ class PrinterService {
     }
   }
 
+  pw.Widget _pdfRow2(
+    String left,
+    String right, {
+    required double fontSize,
+    bool boldLeft = false,
+    bool boldRight = false,
+    int leftFlex = 5,
+    int rightFlex = 5,
+  }) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(vertical: 0.4),
+      child: pw.Row(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Expanded(
+            flex: leftFlex,
+            child: pw.Text(
+              left,
+              maxLines: 1,
+              overflow: pw.TextOverflow.clip,
+              style: pw.TextStyle(
+                fontSize: fontSize,
+                fontWeight: boldLeft ? pw.FontWeight.bold : pw.FontWeight.normal,
+              ),
+            ),
+          ),
+          pw.SizedBox(width: 3),
+          pw.Expanded(
+            flex: rightFlex,
+            child: pw.Text(
+              right,
+              textAlign: pw.TextAlign.right,
+              maxLines: 1,
+              overflow: pw.TextOverflow.clip,
+              style: pw.TextStyle(
+                fontSize: fontSize,
+                fontWeight: boldRight ? pw.FontWeight.bold : pw.FontWeight.normal,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<bool> _printWithSystem(
     SaleTransaction transaction, 
     List<SaleItem> items, {
@@ -1890,30 +2020,34 @@ class PrinterService {
     Customer? customer,
   }) async {
     try {
+      if (config?.paperWidthMm != null && config!.paperWidthMm > 0) {
+        _paperWidthMm = config.paperWidthMm;
+      }
       final doc = pw.Document();
       final currency = config?.currencySymbol ?? 'K';
 
       pw.ImageProvider? logoImage;
       String? logoPath = config?.logoPath;
-      if (logoPath == null || !File(logoPath).existsSync()) {
-        logoPath = 'assets/images/logo.png';
+      if (logoPath != null && File(logoPath).existsSync()) {
+        try {
+          logoImage = pw.MemoryImage(await File(logoPath).readAsBytes());
+        } catch (e) {
+          debugPrint('Logo load error for PDF: $e');
+        }
       }
 
-      try {
-        if (logoPath == 'assets/images/logo.png') {
-          final byteData = await rootBundle.load('assets/images/logo.png');
-          logoImage = pw.MemoryImage(byteData.buffer.asUint8List());
-        } else {
-          logoImage = pw.MemoryImage(await File(logoPath).readAsBytes());
-        }
-      } catch (e) {
-        debugPrint('Logo load error for PDF: $e');
-      }
+      final isNarrow = _paperWidthMm <= 58;
+      final isWide = _paperWidthMm >= 110;
+      final double titleFont = isNarrow ? 8.5 : (isWide ? 10.5 : 9.5);
+      final double subHeaderFont = isNarrow ? 7.0 : (isWide ? 8.5 : 7.5);
+      final double bodyFont = isNarrow ? 6.5 : (isWide ? 8.0 : 7.0);
+      final double smallFont = isNarrow ? 5.8 : (isWide ? 7.0 : 6.2);
+      final double marginMm = _paperWidthMm <= 55 ? 2.0 : (isNarrow ? 2.5 : 3.5);
 
       final rollFormat = pdf.PdfPageFormat(
         _paperWidthMm * pdf.PdfPageFormat.mm,
         double.infinity,
-        marginAll: (_paperWidthMm <= 58 ? 3 : 4) * pdf.PdfPageFormat.mm,
+        marginAll: marginMm * pdf.PdfPageFormat.mm,
       );
       final companyName = (config?.businessName != null && config!.businessName.isNotEmpty 
           ? config.businessName 
@@ -1923,12 +2057,11 @@ class PrinterService {
           : (config?.branchName ?? 'MAIN BRANCH')).toUpperCase();
       final cashier = transaction.cashierName.isNotEmpty ? transaction.cashierName : 'Staff';
 
-      final dateFormatted = DateFormat('dd/MM/yyyy').format(transaction.timestamp);
-      final timeFormatted = DateFormat('HH:mm:ss').format(transaction.timestamp);
+      final shortDateTime = DateFormat('dd/MM/yy HH:mm').format(transaction.timestamp);
       final sdcIdStr = (transaction.zraSdcId != null && transaction.zraSdcId!.isNotEmpty)
           ? transaction.zraSdcId!
           : (config?.sdcId?.isNotEmpty == true ? config!.sdcId! : 'PENDING');
-      final sdcInvNoStr = _formatZraSdcInvoiceNo(transaction.zraReceiptNumber);
+      final sdcInvNoStr = _formatZraSdcInvoiceNo(transaction.zraReceiptNumber, sdcId: sdcIdStr);
       final signatureStr = (transaction.zraMarkId != null &&
               transaction.zraMarkId!.isNotEmpty &&
               !transaction.zraMarkId!.startsWith('sale_'))
@@ -1944,69 +2077,81 @@ class PrinterService {
       final isFiscalApproved = this.isFiscalApproved(transaction);
       final receiptTitle = transaction.isCreditNote
           ? 'ZRA FISCAL CREDIT NOTE'
-          : (isFiscalApproved ? 'TAX INVOICE / OFFICIAL RECEIPT' : 'CUSTOMER SALES SLIP');
+          : (isFiscalApproved ? 'TAX INVOICE / RECEIPT' : 'CUSTOMER SALES SLIP');
+      final rcptNo = transaction.isCreditNote
+          ? 'CN#${transaction.id.toString().padLeft(6, '0')}'
+          : '#${transaction.id.toString().padLeft(6, '0')}';
 
       doc.addPage(
         pw.Page(
           pageFormat: rollFormat,
-          margin: const pw.EdgeInsets.all(4 * pdf.PdfPageFormat.mm),
+          margin: pw.EdgeInsets.all(marginMm * pdf.PdfPageFormat.mm),
           build: (pw.Context context) {
             return pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.center,
               children: [
                 if (logoImage != null)
                   pw.Container(
-                    height: 25 * pdf.PdfPageFormat.mm,
+                    height: (isNarrow ? 10 : 13) * pdf.PdfPageFormat.mm,
                     child: pw.Image(logoImage),
                   ),
-                pw.SizedBox(height: 2 * pdf.PdfPageFormat.mm),
                 pw.Text(
-                  companyName, 
-                  style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12),
+                  companyName,
+                  textAlign: pw.TextAlign.center,
+                  style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: titleFont),
                 ),
                 pw.Text(
-                  'BRANCH: $branchName', 
-                  style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9),
+                  'BRANCH: $branchName',
+                  textAlign: pw.TextAlign.center,
+                  style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: bodyFont),
                 ),
-                if (config?.address != null && config!.address!.isNotEmpty) pw.Text(config.address!, style: const pw.TextStyle(fontSize: 8)),
-                if (config?.contactNumber != null && config!.contactNumber!.isNotEmpty) pw.Text('Tel: ${config.contactNumber!}', style: const pw.TextStyle(fontSize: 8)),
-                if (config?.tpin != null && config!.tpin!.isNotEmpty) pw.Text('TPIN: ${config.tpin!}', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
-                pw.SizedBox(height: 2 * pdf.PdfPageFormat.mm),
-                pw.Text('================================'),
-                pw.Text(receiptTitle, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
-                pw.Text('================================'),
-                
-                pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Text('RECEIPT: #${transaction.id.toString().padLeft(8, '0')}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8)),
-                    pw.Text('$dateFormatted $timeFormatted', style: const pw.TextStyle(fontSize: 8)),
-                  ],
+                if (config?.address != null && config!.address!.isNotEmpty)
+                  pw.Text(config.address!, textAlign: pw.TextAlign.center, style: pw.TextStyle(fontSize: smallFont)),
+                if (config?.contactNumber != null && config!.contactNumber!.isNotEmpty)
+                  pw.Text('Tel: ${config.contactNumber!}', style: pw.TextStyle(fontSize: smallFont)),
+                if (config?.tpin != null && config!.tpin!.isNotEmpty)
+                  pw.Text('TPIN: ${config.tpin!}', style: pw.TextStyle(fontSize: bodyFont, fontWeight: pw.FontWeight.bold)),
+                pw.Divider(thickness: 0.7, height: 4),
+                pw.Text(receiptTitle, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: subHeaderFont)),
+                pw.Divider(thickness: 0.5, height: 4),
+
+                _pdfRow2(
+                  'RCPT $rcptNo',
+                  shortDateTime,
+                  fontSize: bodyFont,
+                  boldLeft: true,
                 ),
-                pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Text('Cashier: $cashier', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8)),
-                    pw.Text('Terminal: ${transaction.terminalName ?? config?.terminalName ?? "POS-01"}', style: const pw.TextStyle(fontSize: 8)),
-                  ],
+                _pdfRow2(
+                  'Staff: $cashier',
+                  transaction.terminalName ?? config?.terminalName ?? 'POS-01',
+                  fontSize: bodyFont,
                 ),
                 if (transaction.isCreditNote &&
                     transaction.externalPaymentConfirmedBy != null &&
                     transaction.externalPaymentConfirmedBy!.trim().isNotEmpty)
-                  pw.Align(
-                    alignment: pw.Alignment.centerLeft,
-                    child: pw.Text(
-                      'Approved By: ${transaction.externalPaymentConfirmedBy!.trim()}',
-                      style: pw.TextStyle(
-                        fontWeight: pw.FontWeight.bold,
-                        fontSize: 8,
-                      ),
-                    ),
+                  _pdfRow2(
+                    'Appr By:',
+                    transaction.externalPaymentConfirmedBy!.trim(),
+                    fontSize: bodyFont,
+                    boldLeft: true,
+                    boldRight: true,
                   ),
-                if (customer != null)
-                  pw.Align(alignment: pw.Alignment.centerLeft, child: pw.Text('Customer: ${customer.name} (${customer.phoneNumber})', style: const pw.TextStyle(fontSize: 8))),
-                pw.SizedBox(height: 2 * pdf.PdfPageFormat.mm),
-                pw.Divider(thickness: 0.5),
+                if (transaction.customerTpin != null && transaction.customerTpin!.isNotEmpty) ...[
+                  _pdfRow2('BUYER TPIN:', transaction.customerTpin!, fontSize: bodyFont, boldLeft: true, boldRight: true),
+                  if (transaction.customerBusinessName != null && transaction.customerBusinessName!.isNotEmpty)
+                    _pdfRow2('BUYER:', transaction.customerBusinessName!, fontSize: bodyFont, leftFlex: 3, rightFlex: 7),
+                ] else if (customer != null)
+                  _pdfRow2('Cust: ${customer.name}', customer.phoneNumber, fontSize: bodyFont),
+
+                pw.Divider(thickness: 0.5, height: 4),
+                pw.Row(
+                  children: [
+                    pw.Expanded(flex: 6, child: pw.Text('ITEM', style: pw.TextStyle(fontSize: smallFont, fontWeight: pw.FontWeight.bold))),
+                    pw.Expanded(flex: 2, child: pw.Text('QTY', style: pw.TextStyle(fontSize: smallFont, fontWeight: pw.FontWeight.bold), textAlign: pw.TextAlign.center)),
+                    pw.Expanded(flex: 4, child: pw.Text('TOTAL', style: pw.TextStyle(fontSize: smallFont, fontWeight: pw.FontWeight.bold), textAlign: pw.TextAlign.right)),
+                  ],
+                ),
+                pw.Divider(thickness: 0.4, height: 3),
 
                 ...items.map((item) {
                   final letter = _getTaxLetter(item.taxRateAtSale);
@@ -2014,213 +2159,132 @@ class PrinterService {
                       ? item.weight
                       : item.quantity.toDouble();
                   final qtyStr = (item.isWeighted && item.weight > 0)
-                      ? '${item.weight.toStringAsFixed(3)} ${item.unitOfMeasure.isNotEmpty ? item.unitOfMeasure : "kg"}'
+                      ? '${item.weight.toStringAsFixed(2)}${item.unitOfMeasure.isNotEmpty ? item.unitOfMeasure : "kg"}'
                       : '${item.quantity.toStringAsFixed(0)}x';
                   final itemTotal = item.priceAtSale * effectiveQty;
                   return pw.Padding(
-                    padding: const pw.EdgeInsets.symmetric(vertical: 1),
+                    padding: const pw.EdgeInsets.symmetric(vertical: 0.5),
                     child: pw.Row(
                       children: [
-                        pw.Expanded(flex: 6, child: pw.Text(item.productName.toUpperCase(), style: const pw.TextStyle(fontSize: 8))),
-                        pw.Expanded(flex: 2, child: pw.Text(qtyStr, style: const pw.TextStyle(fontSize: 8), textAlign: pw.TextAlign.center)),
-                        pw.Expanded(flex: 4, child: pw.Text('${CurrencyFormatter.format(itemTotal, currency)} $letter', style: const pw.TextStyle(fontSize: 8), textAlign: pw.TextAlign.right)),
+                        pw.Expanded(
+                          flex: 6,
+                          child: pw.Text(
+                            item.productName.toUpperCase(),
+                            maxLines: 1,
+                            overflow: pw.TextOverflow.clip,
+                            style: pw.TextStyle(fontSize: bodyFont),
+                          ),
+                        ),
+                        pw.Expanded(
+                          flex: 2,
+                          child: pw.Text(
+                            qtyStr,
+                            maxLines: 1,
+                            style: pw.TextStyle(fontSize: bodyFont),
+                            textAlign: pw.TextAlign.center,
+                          ),
+                        ),
+                        pw.Expanded(
+                          flex: 4,
+                          child: pw.Text(
+                            '${CurrencyFormatter.format(itemTotal, currency)}$letter',
+                            maxLines: 1,
+                            style: pw.TextStyle(fontSize: bodyFont),
+                            textAlign: pw.TextAlign.right,
+                          ),
+                        ),
                       ],
                     ),
                   );
                 }),
 
-                pw.Divider(thickness: 0.5),
-                pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Text('SUBTOTAL (NET)', style: const pw.TextStyle(fontSize: 8)),
-                    pw.Text(CurrencyFormatter.format(transaction.subtotal, currency), style: const pw.TextStyle(fontSize: 8)),
-                  ],
-                ),
+                pw.Divider(thickness: 0.5, height: 4),
+                _pdfRow2('SUBTOTAL', CurrencyFormatter.format(transaction.subtotal, currency), fontSize: bodyFont),
                 if (transaction.discountAmount > 0)
-                  pw.Row(
-                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                    children: [
-                      pw.Text('DISCOUNT', style: const pw.TextStyle(fontSize: 8)),
-                      pw.Text('-${CurrencyFormatter.format(transaction.discountAmount, currency)}', style: const pw.TextStyle(fontSize: 8)),
-                    ],
-                  ),
+                  _pdfRow2('DISCOUNT', '-${CurrencyFormatter.format(transaction.discountAmount, currency)}', fontSize: bodyFont),
                 if (transaction.taxAmount > 0)
-                  pw.Row(
-                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                    children: [
-                      pw.Text((config?.businessTaxType == 'TURNOVER_TAX') ? 'TURNOVER TAX' : 'TOTAL VAT', style: const pw.TextStyle(fontSize: 8)),
-                      pw.Text(CurrencyFormatter.format(transaction.taxAmount, currency), style: const pw.TextStyle(fontSize: 8)),
-                    ],
+                  _pdfRow2(
+                    (config?.businessTaxType == 'TURNOVER_TAX') ? 'TURNOVER TAX' : 'VAT (INCL)',
+                    CurrencyFormatter.format(transaction.taxAmount, currency),
+                    fontSize: bodyFont,
                   ),
                 if (transaction.serviceChargeAmount > 0)
-                  pw.Row(
-                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                    children: [
-                      pw.Text('SERVICE CHG (${transaction.serviceChargeRate.toStringAsFixed(0)}% UNTAXED)', style: const pw.TextStyle(fontSize: 8)),
-                      pw.Text(CurrencyFormatter.format(transaction.serviceChargeAmount, currency), style: const pw.TextStyle(fontSize: 8)),
-                    ],
+                  _pdfRow2(
+                    'SVC CHG (${transaction.serviceChargeRate.toStringAsFixed(0)}%)',
+                    CurrencyFormatter.format(transaction.serviceChargeAmount, currency),
+                    fontSize: bodyFont,
                   ),
-                pw.Divider(thickness: 1),
-                pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Text('TOTAL DUE', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11)),
-                    pw.Text(CurrencyFormatter.format(transaction.totalAmount, currency), style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11)),
-                  ],
+                pw.Divider(thickness: 0.8, height: 4),
+                _pdfRow2(
+                  'TOTAL DUE',
+                  CurrencyFormatter.format(transaction.totalAmount, currency),
+                  fontSize: subHeaderFont + 0.5,
+                  boldLeft: true,
+                  boldRight: true,
                 ),
-                pw.Divider(thickness: 1),
-                pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Text('Payment (${transaction.paymentMethod.toUpperCase()})', style: const pw.TextStyle(fontSize: 8)),
-                    pw.Text(CurrencyFormatter.format(transaction.tenderedAmount > 0 ? transaction.tenderedAmount : transaction.totalAmount, currency), style: const pw.TextStyle(fontSize: 8)),
-                  ],
+                pw.Divider(thickness: 0.8, height: 4),
+                _pdfRow2(
+                  'Paid (${transaction.paymentMethod.toUpperCase()})',
+                  CurrencyFormatter.format(transaction.tenderedAmount > 0 ? transaction.tenderedAmount : transaction.totalAmount, currency),
+                  fontSize: bodyFont,
                 ),
                 if (transaction.changeAmount > 0)
-                  pw.Row(
-                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                    children: [
-                      pw.Text('CHANGE', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8)),
-                      pw.Text(CurrencyFormatter.format(transaction.changeAmount, currency), style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8)),
-                    ],
+                  _pdfRow2(
+                    'CHANGE',
+                    CurrencyFormatter.format(transaction.changeAmount, currency),
+                    fontSize: bodyFont,
+                    boldLeft: true,
+                    boldRight: true,
                   ),
-                // External mobile money audit trail on PDF receipt
                 if (transaction.paymentMethod.toUpperCase().contains('EXTERNAL MOBILE MONEY')) ...[
                   if (transaction.externalPaymentReference != null &&
                       transaction.externalPaymentReference!.trim().isNotEmpty)
-                    pw.Row(
-                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                      children: [
-                        pw.Text('Ref No.', style: const pw.TextStyle(fontSize: 8)),
-                        pw.Text(transaction.externalPaymentReference!.trim(), style: const pw.TextStyle(fontSize: 8)),
-                      ],
-                    ),
+                    _pdfRow2('Ref No:', transaction.externalPaymentReference!.trim(), fontSize: smallFont),
                   if (transaction.externalPaymentConfirmedBy != null &&
                       transaction.externalPaymentConfirmedBy!.trim().isNotEmpty)
-                    pw.Row(
-                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                      children: [
-                        pw.Text('Confirmed By', style: const pw.TextStyle(fontSize: 8)),
-                        pw.Text(transaction.externalPaymentConfirmedBy!.trim(), style: const pw.TextStyle(fontSize: 8)),
-                      ],
-                    ),
-                  if (transaction.externalPaymentConfirmedAt != null)
-                    pw.Row(
-                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                      children: [
-                        pw.Text('Confirmed At', style: const pw.TextStyle(fontSize: 8)),
-                        pw.Text(
-                          DateFormat('dd/MM/yyyy HH:mm').format(transaction.externalPaymentConfirmedAt!),
-                          style: const pw.TextStyle(fontSize: 8),
-                        ),
-                      ],
-                    ),
+                    _pdfRow2('Conf By:', transaction.externalPaymentConfirmedBy!.trim(), fontSize: smallFont),
                 ],
 
-                pw.SizedBox(height: 1.5 * pdf.PdfPageFormat.mm),
-                pw.Text('TAX SUMMARY BREAKDOWN', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7.5)),
-                pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Text('CODE / RATE', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7)),
-                    pw.Text('TAX AMT', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7)),
-                    pw.Text('TOTAL', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7)),
-                  ],
-                ),
                 ...(() {
                   final pdfBreakdown = _getTaxBreakdown(items);
                   return pdfBreakdown.entries.map((entry) {
                     final letter = _getTaxLetter(entry.key);
                     return pw.Row(
-                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                       children: [
-                        pw.Text('$letter (${entry.key.toStringAsFixed(0)}%)', style: const pw.TextStyle(fontSize: 7)),
-                        pw.Text(CurrencyFormatter.formatTaxPrecision(entry.value['vat']!, currency), style: const pw.TextStyle(fontSize: 7)),
-                        pw.Text(CurrencyFormatter.format(entry.value['total']!, currency), style: const pw.TextStyle(fontSize: 7)),
+                        pw.Expanded(flex: 4, child: pw.Text('TAX $letter (${entry.key.toStringAsFixed(0)}%)', style: pw.TextStyle(fontSize: smallFont))),
+                        pw.Expanded(flex: 4, child: pw.Text(CurrencyFormatter.formatTaxPrecision(entry.value['vat']!, currency), style: pw.TextStyle(fontSize: smallFont), textAlign: pw.TextAlign.center)),
+                        pw.Expanded(flex: 4, child: pw.Text(CurrencyFormatter.format(entry.value['total']!, currency), style: pw.TextStyle(fontSize: smallFont), textAlign: pw.TextAlign.right)),
                       ],
                     );
                   }).toList();
                 })(),
 
-                pw.SizedBox(height: 2 * pdf.PdfPageFormat.mm),
-                pw.Text('--------------------------------'),
+                pw.Divider(thickness: 0.5, height: 4),
                 if (isFiscalApproved) ...[
-                  pw.Text('*** ZRA FISCAL CONTROL DATA ***', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8)),
-                  pw.Text('--------------------------------'),
-                  pw.Row(
-                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                    children: [
-                      pw.Text('Date:', style: const pw.TextStyle(fontSize: 7)),
-                      pw.Text(dateFormatted, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7)),
-                    ],
-                  ),
-                  pw.Row(
-                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                    children: [
-                      pw.Text('Time:', style: const pw.TextStyle(fontSize: 7)),
-                      pw.Text(timeFormatted, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7)),
-                    ],
-                  ),
-                  pw.Row(
-                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                    children: [
-                      pw.Text('SDC Id:', style: const pw.TextStyle(fontSize: 7)),
-                      pw.Text(sdcIdStr, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7)),
-                    ],
-                  ),
-                  pw.Row(
-                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                    children: [
-                      pw.Text('SDC Invoice No:', style: const pw.TextStyle(fontSize: 7)),
-                      pw.Text(sdcInvNoStr, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7)),
-                    ],
-                  ),
-                  pw.Row(
-                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                    children: [
-                      pw.Text('Signature:', style: const pw.TextStyle(fontSize: 7)),
-                      pw.Text(signatureStr, style: const pw.TextStyle(fontSize: 6.5)),
-                    ],
-                  ),
-                  pw.Row(
-                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                    children: [
-                      pw.Text('Internal Data:', style: const pw.TextStyle(fontSize: 7)),
-                      pw.Text(internalDataStr, style: const pw.TextStyle(fontSize: 6.5)),
-                    ],
-                  ),
-                  pw.Row(
-                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                    children: [
-                      pw.Text('Invoice Type:', style: const pw.TextStyle(fontSize: 7)),
-                      pw.Text(transaction.zraInvoiceType ?? 'Normal Sale', style: const pw.TextStyle(fontSize: 6.5)),
-                    ],
-                  ),
-                  pw.SizedBox(height: 2 * pdf.PdfPageFormat.mm),
+                  pw.Text('ZRA FISCAL CONTROL DATA', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: bodyFont)),
+                  _pdfRow2('Date/Time:', shortDateTime, fontSize: smallFont, boldRight: true, leftFlex: 4, rightFlex: 6),
+                  _pdfRow2('SDC ID:', sdcIdStr, fontSize: smallFont, boldRight: true, leftFlex: 3, rightFlex: 7),
+                  _pdfRow2('SDC Inv:', sdcInvNoStr, fontSize: smallFont, boldRight: true, leftFlex: 3, rightFlex: 7),
+                  _pdfRow2('Sig:', signatureStr, fontSize: smallFont, leftFlex: 3, rightFlex: 7),
+                  _pdfRow2('Int Data:', internalDataStr, fontSize: smallFont, leftFlex: 3, rightFlex: 7),
+                  _pdfRow2('Type:', transaction.zraInvoiceType ?? 'Normal Sale', fontSize: smallFont, leftFlex: 4, rightFlex: 6),
+                  pw.SizedBox(height: 1 * pdf.PdfPageFormat.mm),
                   pw.BarcodeWidget(
                     barcode: pw.Barcode.qrCode(),
                     data: zraQrData,
-                    width: 58,
-                    height: 58,
+                    width: isNarrow ? 38 : 46,
+                    height: isNarrow ? 38 : 46,
                     drawText: false,
                   ),
-                  pw.SizedBox(height: 1 * pdf.PdfPageFormat.mm),
-                  pw.Text('Scan QR Code to Verify on ZRA Portal', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 6.5)),
+                  pw.SizedBox(height: 0.5 * pdf.PdfPageFormat.mm),
+                  pw.Text('Scan QR to Verify on ZRA Portal', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: smallFont)),
                 ] else if (transaction.zraStatus != 'LOCAL_EXEMPT' && transaction.zraStatus != 'OFFLINE_EXEMPT') ...[
-                  pw.Text('*** OFFLINE TRANSACTION - FISCAL PENDING ***', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7.5)),
-                  pw.Text('Official ZRA Smart Invoice will sync automatically', style: const pw.TextStyle(fontSize: 6.5)),
-                  pw.Text('--------------------------------'),
+                  pw.Text('OFFLINE - ZRA FISCAL PENDING', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: bodyFont)),
                 ],
 
-                pw.SizedBox(height: 2 * pdf.PdfPageFormat.mm),
-                pw.Text('================================'),
-                pw.Text('THANK YOU FOR SHOPPING WITH US!', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
-                pw.Text('PLEASE VISIT US AGAIN', style: const pw.TextStyle(fontSize: 7)),
-                if (config?.contactNumber != null && config!.contactNumber!.isNotEmpty) 
-                  pw.Text('Helpline: ${config.contactNumber!}', style: const pw.TextStyle(fontSize: 6)),
-                pw.Text('*** BELEKA POS RETAIL OS ***', style: const pw.TextStyle(fontSize: 6)),
-                pw.Text('================================'),
+                pw.Divider(thickness: 0.7, height: 4),
+                pw.Text('THANK YOU FOR SHOPPING WITH US!', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: bodyFont)),
+                pw.Text('Goods returnable within 7 days with receipt', style: pw.TextStyle(fontSize: smallFont)),
               ],
             );
           },
