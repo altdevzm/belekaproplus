@@ -1126,13 +1126,20 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
 
     return _buildTextField(
       controller: _stockController,
-      label: 'INITIAL OPENING STOCK (${_unitOfMeasure.toUpperCase()})',
+      label:
+          'INITIAL OPENING STOCK (${_unitOfMeasure.toUpperCase()}) • OPTIONAL',
       hint: '0',
       keyboardType: TextInputType.number,
       accentColor: accentColor,
-      validator: (v) => int.tryParse(v ?? '') == null
-          ? 'Please enter a valid initial stock'
-          : null,
+      validator: (v) {
+        final trimmed = (v ?? '').trim();
+        if (trimmed.isEmpty) return null;
+        final parsed = int.tryParse(trimmed);
+        if (parsed == null || parsed < 0) {
+          return 'Please enter a valid non-negative stock number';
+        }
+        return null;
+      },
     );
   }
 

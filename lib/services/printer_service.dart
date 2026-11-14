@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -1708,6 +1709,339 @@ class PrinterService {
     }
 
     return false;
+  }
+
+  /// Prints Kitchen Order Tickets (KOT) routed per KitchenStation.
+  /// Stations with a dedicated [KitchenStation.printerAddress] (LAN IP or USB path)
+  /// print directly to the kitchen printer while the cashier counter printer stays free
+  /// for customer receipts (two-way printing).
+  Future<bool> printRoutedKitchenTickets({
+    required RestaurantOrder order,
+    required List<RestaurantOrderItem> items,
+    required List<KitchenStation> stations,
+    StoreConfig? config,
+  }) async {
+    if (items.isEmpty) {
+      return false;
+    }
+
+    final stationById = {for (final s in stations) s.id: s};
+    final grouped = <int?, List<RestaurantOrderItem>>{};
+    for (final item in items) {
+      grouped.putIfAbsent(item.kitchenStationId, () => []).add(item);
+    }
+
+    bool anyPrinted = false;
+    for (final entry in grouped.entries) {
+      final station = entry.key != null
+          ? stationById[entry.key]
+          : (stations.isNotEmpty ? stations.first : null);
+      final ok = await printKitchenOrderTicket(
+        order: order,
+        items: entry.value,
+        stationName: station?.name,
+        targetPrinterAddress: station?.printerAddress,
+        config: config,
+      );
+      if (ok) {
+        anyPrinted = true;
+      }
+    }
+    return anyPrinted;
+  }
+
+  /// Prints a Kitchen Order Ticket (KOT) for the kitchen/bar station.
+  Future<bool> printKitchenOrderTicket({
+    required RestaurantOrder order,
+    required List<RestaurantOrderItem> items,
+    String? stationName,
+    String? targetPrinterAddress,
+    StoreConfig? config,
+  }) async {
+    if (items.isEmpty) {
+      return false;
+    }
+    if (config?.paperWidthMm != null && config!.paperWidthMm > 0) {
+      _paperWidthMm = config.paperWidthMm;
+    }
+    final dedicatedAddress = targetPrinterAddress?.trim() ?? '';
+    if (dedicatedAddress.isEmpty && !_isConnected) {
+      await autoConnect(config: config);
+    }
+
+    if (dedicatedAddress.isEmpty && _activeModel == PrinterModel.system) {
+      return await _printSimpleLinesWithSystem(
+        title: 'KITCHEN ORDER TICKET',
+        lines: [
+          if (stationName != null) 'Station: $stationName',
+          'Order: ${order.orderNumber}',
+          if (order.tableName != null) 'Table: ${order.tableName}',
+          if (order.tableName == null) 'Service: Counter / Takeaway',
+          'Waiter: ${order.waiterName ?? 'Staff'}',
+          'Time: ${DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now())}',
+          '--------------------------------',
+          ...items.expand((item) {
+            final mods = _decodeItemModifiers(item.modifiersJson);
+            return [
+              '${item.quantity}x ${item.productName}',
+              if (mods.isNotEmpty)
+                '   + Extras: ${mods.map((m) => m['name']).join(', ')}',
+              if (item.specialInstructions != null &&
+                  item.specialInstructions!.isNotEmpty)
+                '   Note: ${item.specialInstructions}',
+            ];
+          }),
+        ],
+      );
+    }
+
+    try {
+      final preset = activePreset;
+      final colCount = preset.columnCount;
+      final profile = await CapabilityProfile.load();
+      final generator = Generator(preset.escPosSize, profile);
+      List<int> bytes = [];
+      bytes += generator.reset();
+      bytes += [0x1B, 0x33, 20];
+      bytes += generator.setStyles(
+        const PosStyles(align: PosAlign.center, bold: true),
+      );
+      bytes += generator.text('KITCHEN ORDER TICKET');
+      if (stationName != null) {
+        bytes += generator.text(stationName.toUpperCase());
+      }
+      bytes += generator.setStyles(const PosStyles(align: PosAlign.left));
+      bytes += generator.text('-' * colCount);
+      bytes += generator.text('Order: ${order.orderNumber}');
+      bytes += generator.text(
+        order.tableName != null
+            ? 'Table: ${order.tableName}'
+            : 'Service: Counter',
+      );
+      bytes += generator.text('Waiter: ${order.waiterName ?? 'Staff'}');
+      bytes += generator.text(
+        'Time: ${DateFormat('dd/MM HH:mm').format(DateTime.now())}',
+      );
+      bytes += generator.text('-' * colCount);
+      for (final item in items) {
+        final mods = _decodeItemModifiers(item.modifiersJson);
+        bytes += generator.setStyles(const PosStyles(bold: true));
+        bytes += generator.text('${item.quantity}x ${item.productName}');
+        bytes += generator.setStyles(const PosStyles(bold: false));
+        if (mods.isNotEmpty) {
+          bytes += generator.text(
+            '  + ${mods.map((m) => m['name']).join(', ')}',
+          );
+        }
+        if (item.specialInstructions != null &&
+            item.specialInstructions!.isNotEmpty) {
+          bytes += generator.text('  * ${item.specialInstructions}');
+        }
+      }
+      bytes += generator.text('-' * colCount);
+      bytes += generator.feed(2);
+      bytes += generator.cut();
+      if (dedicatedAddress.isNotEmpty) {
+        return await _sendEscPosToAddress(dedicatedAddress, bytes);
+      }
+      return await _dispatchRawBytes(bytes);
+    } catch (e) {
+      debugPrint('KOT print error: $e');
+      return false;
+    }
+  }
+
+  Future<bool> _sendEscPosToAddress(String address, List<int> bytes) async {
+    try {
+      // 1. Linux USB device path (e.g. /dev/usb/lp0)
+      if (address.startsWith('/dev/')) {
+        await File(address).writeAsBytes(bytes, flush: true);
+        return true;
+      }
+      // 2. Network TCP thermal printer (e.g. 192.168.1.201 or 192.168.1.201:9100)
+      final parts = address.split(':');
+      final host = parts[0].trim();
+      final port = parts.length > 1 ? (int.tryParse(parts[1]) ?? 9100) : 9100;
+      final socket = await Socket.connect(
+        host,
+        port,
+        timeout: const Duration(seconds: 4),
+      );
+      socket.add(bytes);
+      await socket.flush();
+      await socket.close();
+      return true;
+    } catch (e) {
+      debugPrint('Dedicated kitchen printer ($address) error: $e');
+      return false;
+    }
+  }
+
+  /// Prints a non-fiscal Pre-Bill / Table Check before final payment & ZRA fiscalization.
+  Future<bool> printPreBill({
+    required RestaurantOrder order,
+    required List<RestaurantOrderItem> items,
+    StoreConfig? config,
+  }) async {
+    if (config?.paperWidthMm != null && config!.paperWidthMm > 0) {
+      _paperWidthMm = config.paperWidthMm;
+    }
+    if (!_isConnected) {
+      await autoConnect(config: config);
+    }
+
+    final currency = config?.currencySymbol ?? 'ZK';
+    if (_activeModel == PrinterModel.system) {
+      return await _printSimpleLinesWithSystem(
+        title: 'PRE-BILL / TABLE CHECK',
+        lines: [
+          config?.businessName ?? 'BELEKA POS',
+          'Order: ${order.orderNumber}',
+          if (order.tableName != null) 'Table: ${order.tableName}',
+          'Waiter: ${order.waiterName ?? 'Staff'}',
+          '--------------------------------',
+          ...items.expand((item) {
+            final lineTotal = item.unitPrice * item.quantity;
+            final mods = _decodeItemModifiers(item.modifiersJson);
+            return [
+              '${item.quantity}x ${item.productName}   $currency ${lineTotal.toStringAsFixed(2)}',
+              if (mods.isNotEmpty)
+                '   + ${mods.map((m) {
+                  final p = (m['price'] as num?)?.toDouble() ?? 0.0;
+                  return p > 0 ? '${m['name']} (+$currency ${p.toStringAsFixed(2)})' : '${m['name']}';
+                }).join(', ')}',
+            ];
+          }),
+          '--------------------------------',
+          'Subtotal: $currency ${order.subtotal.toStringAsFixed(2)}',
+          if (order.serviceChargeAmount > 0)
+            'Service Charge: $currency ${order.serviceChargeAmount.toStringAsFixed(2)}',
+          'TOTAL DUE: $currency ${order.totalAmount.toStringAsFixed(2)}',
+          '*** NOT A TAX INVOICE ***',
+        ],
+      );
+    }
+
+    try {
+      final preset = activePreset;
+      final colCount = preset.columnCount;
+      final profile = await CapabilityProfile.load();
+      final generator = Generator(preset.escPosSize, profile);
+      List<int> bytes = [];
+      bytes += generator.reset();
+      bytes += [0x1B, 0x33, 20];
+      bytes += generator.setStyles(
+        const PosStyles(align: PosAlign.center, bold: true),
+      );
+      bytes += generator.text(config?.businessName ?? 'BELEKA POS');
+      bytes += generator.text('PRE-BILL / TABLE CHECK');
+      bytes += generator.setStyles(const PosStyles(align: PosAlign.left));
+      bytes += generator.text('-' * colCount);
+      bytes += generator.text('Order: ${order.orderNumber}');
+      if (order.tableName != null) {
+        bytes += generator.text('Table: ${order.tableName}');
+      }
+      bytes += generator.text('Waiter: ${order.waiterName ?? 'Staff'}');
+      bytes += generator.text('-' * colCount);
+      for (final item in items) {
+        final lineTotal = item.unitPrice * item.quantity;
+        final mods = _decodeItemModifiers(item.modifiersJson);
+        bytes += generator.text(
+          '${item.quantity}x ${item.productName} ($currency ${lineTotal.toStringAsFixed(2)})',
+        );
+        if (mods.isNotEmpty) {
+          bytes += generator.text(
+            '  + ${mods.map((m) {
+              final p = (m['price'] as num?)?.toDouble() ?? 0.0;
+              return p > 0 ? '${m['name']} (+$currency ${p.toStringAsFixed(2)})' : '${m['name']}';
+            }).join(', ')}',
+          );
+        }
+      }
+      bytes += generator.text('-' * colCount);
+      bytes += generator.text(
+        'Subtotal: $currency ${order.subtotal.toStringAsFixed(2)}',
+      );
+      if (order.serviceChargeAmount > 0) {
+        bytes += generator.text(
+          'Service Charge: $currency ${order.serviceChargeAmount.toStringAsFixed(2)}',
+        );
+      }
+      bytes += generator.setStyles(const PosStyles(bold: true));
+      bytes += generator.text(
+        'TOTAL DUE: $currency ${order.totalAmount.toStringAsFixed(2)}',
+      );
+      bytes += generator.setStyles(
+        const PosStyles(align: PosAlign.center, bold: false),
+      );
+      bytes += generator.text('*** NOT A FISCAL RECEIPT ***');
+      bytes += generator.feed(2);
+      bytes += generator.cut();
+      return await _dispatchRawBytes(bytes);
+    } catch (e) {
+      debugPrint('Pre-bill print error: $e');
+      return false;
+    }
+  }
+
+  List<Map<String, dynamic>> _decodeItemModifiers(String? jsonStr) {
+    if (jsonStr == null || jsonStr.trim().isEmpty) {
+      return [];
+    }
+    try {
+      final decoded = jsonDecode(jsonStr);
+      if (decoded is List) {
+        return decoded.whereType<Map<String, dynamic>>().toList();
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  Future<bool> _dispatchRawBytes(List<int> bytes) async {
+    if (_activeType != null) {
+      try {
+        return await _printerManager
+            .send(type: _activeType!, bytes: bytes)
+            .timeout(const Duration(seconds: 10), onTimeout: () => false);
+      } catch (e) {
+        debugPrint('Raw bytes send error: $e');
+      }
+    }
+    return false;
+  }
+
+  Future<bool> _printSimpleLinesWithSystem({
+    required String title,
+    required List<String> lines,
+  }) async {
+    try {
+      final doc = pw.Document();
+      doc.addPage(
+        pw.Page(
+          pageFormat: pdf.PdfPageFormat.roll80,
+          build: (ctx) => pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Text(
+                title,
+                style: pw.TextStyle(
+                  fontSize: 12,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+              pw.SizedBox(height: 6),
+              ...lines.map(
+                (l) => pw.Text(l, style: const pw.TextStyle(fontSize: 9)),
+              ),
+            ],
+          ),
+        ),
+      );
+      return await pnt.Printing.layoutPdf(onLayout: (_) async => doc.save());
+    } catch (e) {
+      debugPrint('System ticket print error: $e');
+      return false;
+    }
   }
 
   Future<bool> _printWithStar(

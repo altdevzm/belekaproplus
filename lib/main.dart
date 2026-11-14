@@ -93,6 +93,13 @@ void main() async {
           StoreBranchSchema,
           PosTerminalSchema,
           StockMovementSchema,
+          KitchenStationSchema,
+          RestaurantTableSchema,
+          RestaurantOrderSchema,
+          RestaurantOrderItemSchema,
+          ProductModifierGroupSchema,
+          RecipeIngredientSchema,
+          KitchenIngredientSchema,
         ], directory: dbDir.path);
 
     // Purge any legacy dummy mock seed branches from earlier development versions

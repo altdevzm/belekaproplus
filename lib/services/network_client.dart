@@ -264,6 +264,21 @@ class NetworkClient {
       if (e.response?.statusCode == 401) {
         return null; // Invalid credentials
       }
+      final data = e.response?.data;
+      String? serverError;
+      if (data is Map && data['error'] != null) {
+        serverError = data['error'].toString();
+      } else if (data is String && data.trim().isNotEmpty) {
+        try {
+          final decoded = jsonDecode(data);
+          if (decoded is Map && decoded['error'] != null) {
+            serverError = decoded['error'].toString();
+          }
+        } catch (_) {}
+      }
+      if (serverError != null && serverError.isNotEmpty) {
+        throw Exception(serverError);
+      }
       _isConnected = false;
       rethrow; // Network error
     }

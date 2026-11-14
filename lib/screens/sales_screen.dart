@@ -548,7 +548,14 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       return;
     }
 
-    final success = cartNotifier.addProduct(product, quantity: 1);
+    final allowZeroStock = (config?.businessMode == 'restaurant') &&
+        (product.restaurantProductType == 'menu_item' ||
+            product.useRecipeStockDeduction);
+    final success = cartNotifier.addProduct(
+      product,
+      quantity: 1,
+      allowZeroStock: allowZeroStock,
+    );
 
     if (mounted) {
       if (!success) {
@@ -774,48 +781,78 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
 
     final theme = Theme.of(context);
 
-    return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final size = MediaQuery.of(context).size;
-          final isSquare = AppBreakpoints.isSquare(size.width, size.height);
-
-          if (constraints.maxWidth >= 1250 && !isSquare) {
-            // Widescreen 3-Column POS
-            return _buildDesktopSalesLayout(
-              context,
-              productsAsync,
-              filteredProducts,
-              allCategories,
-              cartState,
-              cartNotifier,
-              currency,
-            );
-          } else if (constraints.maxWidth >= 680) {
-            // Square Monitor / Near-Square POS terminal (4:3, 5:4, 1:1) or Tablet 2-Column POS
-            return _buildSquareSalesLayout(
-              context,
-              productsAsync,
-              filteredProducts,
-              allCategories,
-              cartState,
-              cartNotifier,
-              currency,
-            );
-          } else {
-            // Compact Mobile Phone 1-Column Layout
-            return _buildMobileSalesLayout(
-              context,
-              productsAsync,
-              filteredProducts,
-              allCategories,
-              cartState,
-              cartNotifier,
-              currency,
-            );
+    return CallbackShortcuts(
+      bindings: <ShortcutActivator, VoidCallback>{
+        const SingleActivator(LogicalKeyboardKey.f2): () {
+          if (cartState.items.isNotEmpty) {
+            cartNotifier.clearCart();
           }
         },
+        const SingleActivator(LogicalKeyboardKey.f3): () {
+          _searchFocusNode.requestFocus();
+        },
+        const SingleActivator(LogicalKeyboardKey.slash): () {
+          if (!_searchFocusNode.hasFocus) {
+            _searchFocusNode.requestFocus();
+          }
+        },
+        const SingleActivator(LogicalKeyboardKey.f9): () {
+          if (cartState.items.isNotEmpty && !_isProcessingPayment) {
+            _finalizeSale(cartNotifier);
+          }
+        },
+        const SingleActivator(LogicalKeyboardKey.f12): () {
+          if (cartState.items.isNotEmpty && !_isProcessingPayment) {
+            _finalizeSale(cartNotifier);
+          }
+        },
+      },
+      child: Focus(
+        autofocus: true,
+        child: Scaffold(
+          backgroundColor: theme.scaffoldBackgroundColor,
+          body: LayoutBuilder(
+            builder: (context, constraints) {
+              final size = MediaQuery.of(context).size;
+              final isSquare = AppBreakpoints.isSquare(size.width, size.height);
+
+              if (constraints.maxWidth >= 1250 && !isSquare) {
+                // Widescreen 3-Column POS
+                return _buildDesktopSalesLayout(
+                  context,
+                  productsAsync,
+                  filteredProducts,
+                  allCategories,
+                  cartState,
+                  cartNotifier,
+                  currency,
+                );
+              } else if (constraints.maxWidth >= 680) {
+                // Square Monitor / Near-Square POS terminal (4:3, 5:4, 1:1) or Tablet 2-Column POS
+                return _buildSquareSalesLayout(
+                  context,
+                  productsAsync,
+                  filteredProducts,
+                  allCategories,
+                  cartState,
+                  cartNotifier,
+                  currency,
+                );
+              } else {
+                // Compact Mobile Phone 1-Column Layout
+                return _buildMobileSalesLayout(
+                  context,
+                  productsAsync,
+                  filteredProducts,
+                  allCategories,
+                  cartState,
+                  cartNotifier,
+                  currency,
+                );
+              }
+            },
+          ),
+        ),
       ),
     );
   }
@@ -6686,11 +6723,16 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       transaction.cloudStoreId = config?.cloudStoreId ?? 0;
 
       // 0. Pre-check local stock levels before contacting DigiTax
+      final isRestMode = config?.businessMode == 'restaurant';
       for (final item in saleItems) {
         final product = await db.isar.products.get(item.productId);
         if (product == null) {
           throw Exception('Product Not Found: ${item.productName}');
         }
+        final allowZeroStock = isRestMode &&
+            (product.restaurantProductType == 'menu_item' ||
+                product.useRecipeStockDeduction);
+        if (allowZeroStock) continue;
         final double requiredQty = (item.isWeighted && item.weight > 0)
             ? item.weight
             : item.quantity.toDouble();

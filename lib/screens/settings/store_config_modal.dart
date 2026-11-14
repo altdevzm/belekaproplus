@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:isar/isar.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:beleka_pos/services/database_service.dart';
 import 'package:beleka_pos/models/models.dart';
@@ -41,6 +42,11 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
   String? _logoPath;
   String _selectedBrandColorHex = '#C1F11D';
   CategorySector _selectedSector = CategorySector.other;
+  String _businessMode = 'retail';
+  bool _restaurantTableServiceEnabled = true;
+  bool _restaurantCounterServiceEnabled = true;
+  bool _restaurantAutoPrintKot = true;
+  List<KitchenStation> _kitchenStations = [];
   bool _serviceChargeEnabled = false;
   bool _isManagerMode = true;
   
@@ -104,6 +110,12 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
       _terminalController.text = _currentConfig!.terminalName;
       _logoPath = _currentConfig!.logoPath;
       _selectedSector = _currentConfig!.primarySector;
+      _businessMode = _currentConfig!.businessMode;
+      _restaurantTableServiceEnabled =
+          _currentConfig!.restaurantTableServiceEnabled;
+      _restaurantCounterServiceEnabled =
+          _currentConfig!.restaurantCounterServiceEnabled;
+      _restaurantAutoPrintKot = _currentConfig!.restaurantAutoPrintKot;
       _serviceChargeEnabled = _currentConfig!.serviceChargeEnabled;
       _serviceChargeRateController.text = _currentConfig!.defaultServiceChargeRate > 0 
           ? _currentConfig!.defaultServiceChargeRate.toString() 
@@ -116,15 +128,38 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
         _selectedBrandColorHex = colorHex.startsWith('#') ? colorHex : '#$colorHex';
         _brandColorHexController.text = _selectedBrandColorHex;
       }
-      
+      await _loadKitchenStations();
       if (mounted) setState(() => _isLoading = false);
     } else {
       _currencyController.text = 'ZK';
       _taxController.text = '16.0';
       _terminalController.text = 'TERMINAL-01';
       _serviceChargeRateController.text = '10.0';
+      await _loadKitchenStations();
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  Future<void> _loadKitchenStations() async {
+    final db = ref.read(databaseServiceProvider);
+    final branchCode = _bhfIdController.text.trim().isEmpty
+        ? '00'
+        : _bhfIdController.text.trim();
+    var stations = await db.isar.kitchenStations
+        .filter()
+        .branchCodeEqualTo(branchCode)
+        .findAll();
+    if (stations.isEmpty && _businessMode == 'restaurant') {
+      final defaults = [
+        KitchenStation(name: 'Main Kitchen', branchCode: branchCode),
+        KitchenStation(name: 'Bar / Drinks', branchCode: branchCode),
+      ];
+      await db.isar.writeTxn(() async {
+        await db.isar.kitchenStations.putAll(defaults);
+      });
+      stations = defaults;
+    }
+    _kitchenStations = stations;
   }
 
   @override
@@ -182,6 +217,10 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
     config.logoPath = _logoPath;
     config.brandColorHex = _selectedBrandColorHex;
     config.primarySector = _selectedSector;
+    config.businessMode = _businessMode;
+    config.restaurantTableServiceEnabled = _restaurantTableServiceEnabled;
+    config.restaurantCounterServiceEnabled = _restaurantCounterServiceEnabled;
+    config.restaurantAutoPrintKot = _restaurantAutoPrintKot;
     config.loyaltyEnabled = false;
     config.serviceChargeEnabled = _serviceChargeEnabled;
     config.defaultServiceChargeRate = double.tryParse(_serviceChargeRateController.text) ?? 0.0;
@@ -460,6 +499,13 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
                           hint: 'TERMINAL-01',
                           controller: _terminalController,
                         ),
+
+                        const SizedBox(height: 32),
+
+                        // Section: Business Mode & Restaurant Operations
+                        _buildSectionHeader('BUSINESS MODE & RESTAURANT OPERATIONS', activeBrandColor),
+                        const SizedBox(height: 16),
+                        _buildBusinessModeSection(activeBrandColor),
 
                         const SizedBox(height: 32),
 
@@ -914,6 +960,341 @@ class _StoreConfigModalState extends ConsumerState<StoreConfigModal> {
         ),
       ],
     );
+  }
+
+  Widget _buildBusinessModeSection(Color activeBrandColor) {
+    final isRestaurant = _businessMode == 'restaurant';
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isRestaurant
+            ? activeBrandColor.withValues(alpha: 0.05)
+            : Colors.white.withValues(alpha: 0.02),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isRestaurant
+              ? activeBrandColor.withValues(alpha: 0.2)
+              : Colors.white.withValues(alpha: 0.05),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'OPERATING MODE',
+            style: GoogleFonts.inter(
+              fontWeight: FontWeight.w800,
+              fontSize: 11,
+              color: Colors.white70,
+              letterSpacing: 1,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: _buildModeChip(
+                  label: 'Retail Mode',
+                  icon: Icons.storefront_rounded,
+                  selected: _businessMode == 'retail',
+                  brandColor: activeBrandColor,
+                  onTap: () => setState(() => _businessMode = 'retail'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _buildModeChip(
+                  label: 'Restaurant Mode',
+                  icon: Icons.restaurant_menu_rounded,
+                  selected: _businessMode == 'restaurant',
+                  brandColor: activeBrandColor,
+                  onTap: () async {
+                    setState(() => _businessMode = 'restaurant');
+                    await _loadKitchenStations();
+                    if (mounted) {
+                      setState(() {});
+                    }
+                  },
+                ),
+              ),
+            ],
+          ),
+          if (isRestaurant) ...[
+            const SizedBox(height: 14),
+            SwitchListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              title: Text(
+                'Enable Table Service',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+              subtitle: Text(
+                'Visual floor plan, table sessions, transfer & merge',
+                style: GoogleFonts.inter(fontSize: 10.5, color: Colors.white54),
+              ),
+              value: _restaurantTableServiceEnabled,
+              activeThumbColor: activeBrandColor,
+              onChanged: (v) =>
+                  setState(() => _restaurantTableServiceEnabled = v),
+            ),
+            SwitchListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              title: Text(
+                'Enable Counter Service',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+              subtitle: Text(
+                'Quick takeaway & counter order numbers sent to Kitchen Display',
+                style: GoogleFonts.inter(fontSize: 10.5, color: Colors.white54),
+              ),
+              value: _restaurantCounterServiceEnabled,
+              activeThumbColor: activeBrandColor,
+              onChanged: (v) =>
+                  setState(() => _restaurantCounterServiceEnabled = v),
+            ),
+            SwitchListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              title: Text(
+                'Auto-Print KOT on Submit',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+              subtitle: Text(
+                'Print Kitchen Order Ticket automatically when order is sent',
+                style: GoogleFonts.inter(fontSize: 10.5, color: Colors.white54),
+              ),
+              value: _restaurantAutoPrintKot,
+              activeThumbColor: activeBrandColor,
+              onChanged: (v) => setState(() => _restaurantAutoPrintKot = v),
+            ),
+            const Divider(color: Colors.white12, height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'KITCHEN STATIONS (${_kitchenStations.length})',
+                  style: GoogleFonts.inter(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 11,
+                    color: Colors.white70,
+                    letterSpacing: 1,
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: () => _addKitchenStationDialog(activeBrandColor),
+                  icon: Icon(Icons.add, size: 16, color: activeBrandColor),
+                  label: Text(
+                    'Add Station',
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: activeBrandColor,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (_kitchenStations.isNotEmpty)
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _kitchenStations.map((stn) {
+                  final hasPrinter = stn.printerAddress != null &&
+                      stn.printerAddress!.trim().isNotEmpty;
+                  return ActionChip(
+                    backgroundColor: Colors.white.withValues(alpha: 0.06),
+                    side: BorderSide(
+                      color: hasPrinter
+                          ? activeBrandColor.withValues(alpha: 0.45)
+                          : Colors.white.withValues(alpha: 0.12),
+                    ),
+                    avatar: Icon(
+                      hasPrinter ? Icons.print_rounded : Icons.soup_kitchen_rounded,
+                      size: 15,
+                      color: hasPrinter ? activeBrandColor : Colors.white54,
+                    ),
+                    label: Text(
+                      hasPrinter
+                          ? '${stn.name} (${stn.printerAddress})'
+                          : '${stn.name} (Default Printer)',
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: Colors.white,
+                      ),
+                    ),
+                    onPressed: () =>
+                        _editKitchenStationDialog(activeBrandColor, stn),
+                  );
+                }).toList(),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildModeChip({
+    required String label,
+    required IconData icon,
+    required bool selected,
+    required Color brandColor,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+        decoration: BoxDecoration(
+          color: selected
+              ? brandColor.withValues(alpha: 0.16)
+              : Colors.white.withValues(alpha: 0.03),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: selected ? brandColor : Colors.white.withValues(alpha: 0.08),
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 16,
+              color: selected ? brandColor : Colors.white54,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: selected ? Colors.white : Colors.white60,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _addKitchenStationDialog(Color activeBrandColor) async {
+    await _editKitchenStationDialog(activeBrandColor, null);
+  }
+
+  Future<void> _editKitchenStationDialog(
+    Color activeBrandColor,
+    KitchenStation? existing,
+  ) async {
+    final nameCtrl = TextEditingController(text: existing?.name ?? '');
+    final printerCtrl = TextEditingController(
+      text: existing?.printerAddress ?? '',
+    );
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF141418),
+        title: Text(
+          existing == null ? 'Add Kitchen Station' : 'Edit Kitchen Station',
+          style: GoogleFonts.manrope(
+            color: Colors.white,
+            fontWeight: FontWeight.w700,
+            fontSize: 16,
+          ),
+        ),
+        content: SizedBox(
+          width: 380,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameCtrl,
+                autofocus: true,
+                style: GoogleFonts.inter(color: Colors.white),
+                decoration: InputDecoration(
+                  labelText: 'Station Name',
+                  hintText: 'e.g. Main Kitchen, Grill, Bar',
+                  hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
+                ),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: printerCtrl,
+                style: GoogleFonts.inter(color: Colors.white),
+                decoration: InputDecoration(
+                  labelText: 'Dedicated Kitchen Printer IP / Path (Optional)',
+                  hintText: 'e.g. 192.168.1.201 or /dev/usb/lp1',
+                  hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          if (existing != null && _kitchenStations.length > 1)
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, 'DELETE'),
+              child: const Text(
+                'Delete',
+                style: TextStyle(color: Colors.redAccent),
+              ),
+            ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, 'CANCEL'),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: activeBrandColor,
+              foregroundColor: Colors.black,
+            ),
+            onPressed: () => Navigator.pop(ctx, 'SAVE'),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    final db = ref.read(databaseServiceProvider);
+    if (result == 'DELETE' && existing != null) {
+      await db.isar.writeTxn(() async {
+        await db.isar.kitchenStations.delete(existing.id);
+      });
+      await _loadKitchenStations();
+      if (mounted) {
+        setState(() {});
+      }
+    } else if (result == 'SAVE' && nameCtrl.text.trim().isNotEmpty) {
+      final branchCode = _bhfIdController.text.trim().isEmpty
+          ? '00'
+          : _bhfIdController.text.trim();
+      final station = existing ??
+          KitchenStation(name: nameCtrl.text.trim(), branchCode: branchCode);
+      station.name = nameCtrl.text.trim();
+      station.printerAddress = printerCtrl.text.trim().isEmpty
+          ? null
+          : printerCtrl.text.trim();
+      await db.isar.writeTxn(() async {
+        await db.isar.kitchenStations.put(station);
+      });
+      await _loadKitchenStations();
+      if (mounted) {
+        setState(() {});
+      }
+    }
+    nameCtrl.dispose();
+    printerCtrl.dispose();
   }
 
   Widget _buildServiceChargeToggle(Color activeBrandColor) {

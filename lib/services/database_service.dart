@@ -585,11 +585,17 @@ class DatabaseService {
     }
 
     // 0. Pre-check stock levels for all items
+    final storeConfig = await getStoreConfig();
+    final isRestaurantMode = storeConfig?.businessMode == 'restaurant';
     for (final item in items) {
       final product = await isar.products.get(item.productId);
       if (product == null) {
         throw Exception('Product Not Found: Internal database error.');
       }
+      final allowZeroStock = isRestaurantMode &&
+          (product.restaurantProductType == 'menu_item' ||
+              product.useRecipeStockDeduction);
+      if (allowZeroStock) continue;
       final double requiredQty = (item.isWeighted && item.weight > 0)
           ? item.weight
           : item.quantity.toDouble();

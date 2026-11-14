@@ -166,6 +166,120 @@ class ApiService {
     // Taxpayer TPIN lookup & caching for Cashier terminals over LAN
     router.get('/taxpayers/<tpin>', _handleLookupTaxpayer);
     router.post('/taxpayers', _handleSaveTaxpayer);
+
+    // Restaurant Mode LAN endpoints (Tables, Active Orders, KDS)
+    router.get('/restaurant/tables', _handleGetRestaurantTables);
+    router.get('/restaurant/orders', _handleGetRestaurantOrders);
+    router.post(
+      '/restaurant/kitchen/item-status',
+      _handleUpdateKitchenItemStatus,
+    );
+  }
+
+  Future<Response> _handleGetRestaurantTables(Request request) async {
+    final config = await _db.getStoreConfig();
+    final branch = config?.bhfId.trim().isNotEmpty == true ? config!.bhfId : '00';
+    final tables = await _db.isar.restaurantTables
+        .filter()
+        .branchCodeEqualTo(branch)
+        .findAll();
+    return Response.ok(
+      jsonEncode({
+        'tables': tables
+            .map(
+              (t) => {
+                'id': t.id,
+                'name': t.name,
+                'section': t.section,
+                'capacity': t.capacity,
+                'status': t.status.name,
+                'activeOrderId': t.activeOrderId,
+                'assignedWaiterName': t.assignedWaiterName,
+              },
+            )
+            .toList(),
+      }),
+      headers: {'content-type': 'application/json'},
+    );
+  }
+
+  Future<Response> _handleGetRestaurantOrders(Request request) async {
+    final config = await _db.getStoreConfig();
+    final branch = config?.bhfId.trim().isNotEmpty == true ? config!.bhfId : '00';
+    final orders = await _db.isar.restaurantOrders
+        .filter()
+        .branchCodeEqualTo(branch)
+        .not()
+        .statusEqualTo(RestaurantOrderStatus.paid)
+        .and()
+        .not()
+        .statusEqualTo(RestaurantOrderStatus.cancelled)
+        .findAll();
+    final List<Map<String, dynamic>> payload = [];
+    for (final o in orders) {
+      final items = await _db.isar.restaurantOrderItems
+          .filter()
+          .orderIdEqualTo(o.id)
+          .findAll();
+      payload.add({
+        'id': o.id,
+        'orderNumber': o.orderNumber,
+        'serviceType': o.serviceType.name,
+        'status': o.status.name,
+        'tableId': o.tableId,
+        'tableName': o.tableName,
+        'waiterName': o.waiterName,
+        'totalAmount': o.totalAmount,
+        'items': items
+            .map(
+              (i) => {
+                'id': i.id,
+                'productName': i.productName,
+                'quantity': i.quantity,
+                'kitchenStationId': i.kitchenStationId,
+                'kitchenStatus': i.kitchenStatus.name,
+                'specialInstructions': i.specialInstructions,
+              },
+            )
+            .toList(),
+      });
+    }
+    return Response.ok(
+      jsonEncode({'orders': payload}),
+      headers: {'content-type': 'application/json'},
+    );
+  }
+
+  Future<Response> _handleUpdateKitchenItemStatus(Request request) async {
+    try {
+      final body = jsonDecode(await request.readAsString());
+      final itemId = int.tryParse(body['itemId']?.toString() ?? '');
+      final statusStr = body['status']?.toString() ?? '';
+      final nextStatus = KitchenItemStatus.values
+          .where((e) => e.name == statusStr)
+          .firstOrNull;
+      if (itemId == null || nextStatus == null) {
+        return Response.badRequest(
+          body: jsonEncode({'error': 'Invalid itemId or status'}),
+        );
+      }
+      final item = await _db.isar.restaurantOrderItems.get(itemId);
+      if (item == null) {
+        return Response.notFound(jsonEncode({'error': 'Item not found'}));
+      }
+      await _db.isar.writeTxn(() async {
+        item.kitchenStatus = nextStatus;
+        await _db.isar.restaurantOrderItems.put(item);
+      });
+      return Response.ok(
+        jsonEncode({'ok': true, 'itemId': itemId, 'status': nextStatus.name}),
+        headers: {'content-type': 'application/json'},
+      );
+    } catch (e) {
+      return Response.internalServerError(
+        body: jsonEncode({'error': e.toString()}),
+      );
+    }
   }
 
   Future<String> _resolveEffectiveDigitaxApiKey(StoreConfig? config) async {

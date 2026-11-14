@@ -6,6 +6,7 @@ import 'package:beleka_pos/models/models.dart';
 import 'package:beleka_pos/providers/users_provider.dart';
 import 'package:beleka_pos/providers/store_provider.dart';
 import 'package:beleka_pos/providers/auth_provider.dart';
+import 'package:beleka_pos/providers/restaurant_provider.dart';
 import 'package:beleka_pos/services/database_service.dart';
 import 'package:beleka_pos/services/postgres_sync_service.dart';
 
@@ -42,7 +43,9 @@ class _AddUserModalState extends ConsumerState<AddUserModal> {
     final rawRole = (widget.userToEdit?.role ?? 'cashier').toLowerCase().trim();
     _role = (rawRole == 'admin' || rawRole == 'manager')
         ? 'manager'
-        : (rawRole == 'owner' ? 'owner' : 'cashier');
+        : (rawRole == 'owner' || rawRole == 'waiter' || rawRole == 'kitchen')
+        ? rawRole
+        : 'cashier';
     _selectedBranchCode = widget.userToEdit?.branchCode;
 
     _passwordController.addListener(() {
@@ -411,6 +414,17 @@ class _AddUserModalState extends ConsumerState<AddUserModal> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final primaryColor = theme.colorScheme.primary;
+    final isRestaurant = ref.watch(isRestaurantModeProvider);
+    final isOwner = ref.watch(isOwnerProvider);
+    final showRestaurantRoles =
+        isRestaurant || _role == 'waiter' || _role == 'kitchen' || _role == 'chef';
+    final availableRoles = [
+      if (isOwner) 'owner',
+      'manager',
+      'cashier',
+      if (showRestaurantRoles) ...['waiter', 'kitchen'],
+    ];
+    final normalizedCurrentRole = _role == 'chef' ? 'kitchen' : _role;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -437,8 +451,8 @@ class _AddUserModalState extends ConsumerState<AddUserModal> {
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
-              value: ['owner', 'manager', 'cashier'].contains(_role)
-                  ? _role
+              value: availableRoles.contains(normalizedCurrentRole)
+                  ? normalizedCurrentRole
                   : 'cashier',
               dropdownColor: isDark ? const Color(0xFF151F32) : Colors.white,
               icon: Icon(
@@ -452,23 +466,19 @@ class _AddUserModalState extends ConsumerState<AddUserModal> {
                 fontWeight: FontWeight.w600,
               ),
               borderRadius: BorderRadius.circular(8),
-              items:
-                  (ref.watch(isOwnerProvider)
-                          ? ['owner', 'manager', 'cashier']
-                          : ['manager', 'cashier'])
-                      .map((String value) {
-                        return DropdownMenuItem<String>(
-                          value: value,
-                          child: Text(
-                            value == 'owner'
-                                ? 'OWNER / CORPORATE ADMIN'
-                                : (value == 'manager'
-                                      ? 'BRANCH MANAGER'
-                                      : 'CASHIER / WORKER'),
-                          ),
-                        );
-                      })
-                      .toList(),
+              items: availableRoles.map((String value) {
+                final label = switch (value) {
+                  'owner' => 'OWNER / CORPORATE ADMIN',
+                  'manager' => 'BRANCH MANAGER',
+                  'waiter' => 'WAITER / SERVER',
+                  'kitchen' => 'CHEF / KITCHEN STAFF',
+                  _ => 'CASHIER / WORKER',
+                };
+                return DropdownMenuItem<String>(
+                  value: value,
+                  child: Text(label),
+                );
+              }).toList(),
               onChanged: (v) {
                 if (v != null) setState(() => _role = v);
               },

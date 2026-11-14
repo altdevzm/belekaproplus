@@ -2002,7 +2002,8 @@ class DigiTaxInventoryService {
               // The catalogue snapshot was fetched before this upload. Add this item
               // to it so another local copy in the same sync run links to this record.
               final createdRemoteItem = <String, dynamic>{
-                'id': ?itemId,
+                // ignore: use_null_aware_elements
+                if (itemId != null) 'id': itemId,
                 'item_name': p.name.trim(),
                 'item_code': p.sku.trim(),
                 'bar_code': p.sku.trim(),

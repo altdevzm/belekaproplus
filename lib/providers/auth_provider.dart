@@ -82,6 +82,22 @@ final isCashierProvider = Provider<bool>((ref) {
   return role == 'cashier';
 });
 
+/// Convenient provider to check if a Waiter / Server is logged in.
+final isWaiterProvider = Provider<bool>((ref) {
+  final user = ref.watch(authProvider);
+  if (user == null) return false;
+  final role = normalizeUserRole(user.role);
+  return role == 'waiter';
+});
+
+/// Convenient provider to check if Chef / Kitchen Staff is logged in.
+final isKitchenProvider = Provider<bool>((ref) {
+  final user = ref.watch(authProvider);
+  if (user == null) return false;
+  final role = normalizeUserRole(user.role);
+  return role == 'kitchen' || role == 'chef';
+});
+
 /// Real-time stream provider to retrieve all active users in the system.
 final allUsersProvider = StreamProvider<List<User>>((ref) async* {
   final db = ref.watch(databaseServiceProvider);

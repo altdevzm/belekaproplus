@@ -11,7 +11,14 @@ import 'package:beleka_pos/screens/terminals_screen.dart';
 import 'package:beleka_pos/screens/purchases_screen.dart';
 import 'package:beleka_pos/screens/expenses_screen.dart';
 import 'package:beleka_pos/screens/branches_screen.dart';
+import 'package:beleka_pos/screens/restaurant/restaurant_dashboard_screen.dart';
+import 'package:beleka_pos/screens/restaurant/tables_screen.dart';
+import 'package:beleka_pos/screens/restaurant/order_entry_screen.dart';
+import 'package:beleka_pos/screens/restaurant/kitchen_display_screen.dart';
+import 'package:beleka_pos/screens/restaurant/restaurant_menu_screen.dart';
+import 'package:beleka_pos/screens/restaurant/restaurant_reports_screen.dart';
 import 'package:beleka_pos/providers/auth_provider.dart';
+import 'package:beleka_pos/providers/restaurant_provider.dart';
 import 'package:beleka_pos/providers/store_provider.dart';
 import 'package:beleka_pos/models/models.dart';
 import 'dart:io';
@@ -35,28 +42,78 @@ enum ScreenType {
   terminals,
   settings,
   reports,
+  restaurantDashboard,
+  restaurantTables,
+  restaurantOrders,
+  kitchenDisplay,
+  restaurantMenu,
+  restaurantReports,
 }
 
 ScreenType screenAllowedForRole(ScreenType requestedScreen, String? role) {
   final normalizedRole = normalizeUserRole(role);
-  final canManage = {
+  final isOwner = {
     'owner',
     'admin',
     'super_admin',
-    'branch_manager',
-    'manager',
   }.contains(normalizedRole);
 
-  if (!canManage && requestedScreen != ScreenType.settings) {
-    return ScreenType.sales;
+  if (isOwner) {
+    return requestedScreen;
   }
-  return requestedScreen;
+
+  if (normalizedRole == 'branch_manager' || normalizedRole == 'manager') {
+    if (requestedScreen == ScreenType.branches ||
+        requestedScreen == ScreenType.restaurantMenu ||
+        requestedScreen == ScreenType.restaurantReports) {
+      return ScreenType.dashboard;
+    }
+    return requestedScreen;
+  }
+
+  if (normalizedRole == 'kitchen' || normalizedRole == 'chef') {
+    if (requestedScreen == ScreenType.kitchenDisplay ||
+        requestedScreen == ScreenType.settings) {
+      return requestedScreen;
+    }
+    return ScreenType.kitchenDisplay;
+  }
+
+  if (normalizedRole == 'waiter') {
+    const allowed = {
+      ScreenType.restaurantDashboard,
+      ScreenType.restaurantTables,
+      ScreenType.restaurantOrders,
+      ScreenType.kitchenDisplay,
+      ScreenType.settings,
+    };
+    return allowed.contains(requestedScreen)
+        ? requestedScreen
+        : ScreenType.restaurantTables;
+  }
+
+  // Cashier
+  const cashierAllowed = {
+    ScreenType.sales,
+    ScreenType.restaurantTables,
+    ScreenType.restaurantOrders,
+    ScreenType.kitchenDisplay,
+    ScreenType.settings,
+  };
+  return cashierAllowed.contains(requestedScreen)
+      ? requestedScreen
+      : ScreenType.sales;
 }
 
 final navigationProvider = StateProvider<ScreenType>((ref) {
-  // Cashiers default to Sales screen
   final user = ref.watch(authProvider);
-  if (normalizeUserRole(user?.role) == 'cashier') return ScreenType.sales;
+  final isRestaurant = ref.watch(isRestaurantModeProvider);
+  final role = normalizeUserRole(user?.role);
+  if (role == 'cashier') {
+    return isRestaurant ? ScreenType.restaurantOrders : ScreenType.sales;
+  }
+  if (role == 'waiter') return ScreenType.restaurantTables;
+  if (role == 'kitchen' || role == 'chef') return ScreenType.kitchenDisplay;
   return ScreenType.dashboard;
 });
 
@@ -65,12 +122,40 @@ class ShellScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Listen to auth changes and lock cashiers to sales screen
+    // Listen to auth changes and route staff to their default workspace
     ref.listen(authProvider, (previous, next) {
-      if (next != null && normalizeUserRole(next.role) == 'cashier') {
+      if (next != null) {
+        final role = normalizeUserRole(next.role);
+        final isRestaurant = ref.read(isRestaurantModeProvider);
         final current = ref.read(navigationProvider);
-        if (current != ScreenType.sales && current != ScreenType.settings) {
-          ref.read(navigationProvider.notifier).state = ScreenType.sales;
+        if (role == 'kitchen' || role == 'chef') {
+          if (current != ScreenType.kitchenDisplay &&
+              current != ScreenType.settings) {
+            ref.read(navigationProvider.notifier).state =
+                ScreenType.kitchenDisplay;
+          }
+        } else if (role == 'waiter') {
+          if (current != ScreenType.restaurantTables &&
+              current != ScreenType.restaurantOrders &&
+              current != ScreenType.kitchenDisplay &&
+              current != ScreenType.settings) {
+            ref.read(navigationProvider.notifier).state =
+                ScreenType.restaurantTables;
+          }
+        } else if (role == 'cashier') {
+          if (isRestaurant) {
+            if (current != ScreenType.restaurantOrders &&
+                current != ScreenType.restaurantTables &&
+                current != ScreenType.kitchenDisplay &&
+                current != ScreenType.sales &&
+                current != ScreenType.settings) {
+              ref.read(navigationProvider.notifier).state =
+                  ScreenType.restaurantOrders;
+            }
+          } else if (current != ScreenType.sales &&
+              current != ScreenType.settings) {
+            ref.read(navigationProvider.notifier).state = ScreenType.sales;
+          }
         }
       }
     });
@@ -276,7 +361,10 @@ class ShellScreen extends ConsumerWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final primaryColor = theme.colorScheme.primary;
-    final destinations = _getNavigationDestinations(user);
+    final destinations = _getNavigationDestinations(
+      user,
+      isRestaurantMode: ref.watch(isRestaurantModeProvider),
+    );
 
     showModalBottomSheet(
       context: context,
@@ -756,47 +844,94 @@ class ShellScreen extends ConsumerWidget {
     );
   }
 
-  List<_NavDestination> _getNavigationDestinations(User? user) {
+  List<_NavDestination> _getNavigationDestinations(
+    User? user, {
+    bool isRestaurantMode = false,
+  }) {
     if (user == null) return const [];
 
     final role = normalizeUserRole(user.role);
     final isOwner = role == 'owner' || role == 'admin' || role == 'super_admin';
 
+    const restaurantOpsDestinations = [
+      _NavDestination(
+        ScreenType.restaurantDashboard,
+        Icons.restaurant_rounded,
+        'Rest. Home',
+      ),
+      _NavDestination(
+        ScreenType.restaurantTables,
+        Icons.table_restaurant_rounded,
+        'Tables',
+      ),
+      _NavDestination(
+        ScreenType.restaurantOrders,
+        Icons.restaurant_menu_rounded,
+        'Orders',
+      ),
+      _NavDestination(
+        ScreenType.kitchenDisplay,
+        Icons.soup_kitchen_rounded,
+        'Kitchen',
+      ),
+    ];
+
+    const restaurantOwnerOnlyDestinations = [
+      _NavDestination(
+        ScreenType.restaurantMenu,
+        Icons.menu_book_rounded,
+        'Menu',
+      ),
+      _NavDestination(
+        ScreenType.restaurantReports,
+        Icons.analytics_rounded,
+        'Rest. Reports',
+      ),
+    ];
+
     if (isOwner) {
-      // Headquarters / Corporate Owner (Can manage branches & multi-stores)
-      return const [
-        _NavDestination(
+      // Headquarters / Corporate Owner (Can manage branches, menu & restaurant reports)
+      return [
+        const _NavDestination(
           ScreenType.dashboard,
           Icons.dashboard_rounded,
           'Overview',
         ),
-        _NavDestination(
+        if (isRestaurantMode) ...[
+          ...restaurantOpsDestinations,
+          ...restaurantOwnerOnlyDestinations,
+        ],
+        const _NavDestination(
           ScreenType.inventory,
           Icons.inventory_2_rounded,
           'Stock',
         ),
-        _NavDestination(
+        const _NavDestination(
           ScreenType.purchases,
           Icons.shopping_bag_rounded,
           'Purchases',
         ),
-        _NavDestination(
+        const _NavDestination(
           ScreenType.expenses,
           Icons.receipt_long_rounded,
           'Expenses',
         ),
-        _NavDestination(ScreenType.branches, Icons.store_rounded, 'Branches'),
-        _NavDestination(
+        const _NavDestination(
+          ScreenType.branches,
+          Icons.store_rounded,
+          'Branches',
+        ),
+        const _NavDestination(
           ScreenType.terminals,
           Icons.monitor_rounded,
           'Terminals',
         ),
-        _NavDestination(
+        const _NavDestination(
           ScreenType.reports,
           Icons.assessment_rounded,
           'Reports',
         ),
-        _NavDestination(
+        const _NavDestination(
           ScreenType.settings,
           Icons.settings_rounded,
           'Settings',
@@ -804,36 +939,73 @@ class ShellScreen extends ConsumerWidget {
       ];
     } else if (role == 'branch_manager' || role == 'manager') {
       // Branch Manager (STRICTLY NO access to branches tab)
-      return const [
-        _NavDestination(
+      return [
+        const _NavDestination(
           ScreenType.dashboard,
           Icons.dashboard_rounded,
           'Overview',
         ),
-        _NavDestination(
+        if (isRestaurantMode) ...restaurantOpsDestinations,
+        const _NavDestination(
           ScreenType.inventory,
           Icons.inventory_2_rounded,
           'Stock',
         ),
-        _NavDestination(
+        const _NavDestination(
           ScreenType.purchases,
           Icons.shopping_bag_rounded,
           'Purchases',
         ),
-        _NavDestination(
+        const _NavDestination(
           ScreenType.expenses,
           Icons.receipt_long_rounded,
           'Expenses',
         ),
-        _NavDestination(
+        const _NavDestination(
           ScreenType.terminals,
           Icons.monitor_rounded,
           'Terminals',
         ),
-        _NavDestination(
+        const _NavDestination(
           ScreenType.reports,
           Icons.assessment_rounded,
           'Reports',
+        ),
+        const _NavDestination(
+          ScreenType.settings,
+          Icons.settings_rounded,
+          'Settings',
+        ),
+      ];
+    } else if (role == 'kitchen' || role == 'chef') {
+      return const [
+        _NavDestination(
+          ScreenType.kitchenDisplay,
+          Icons.soup_kitchen_rounded,
+          'Kitchen',
+        ),
+        _NavDestination(
+          ScreenType.settings,
+          Icons.settings_rounded,
+          'Settings',
+        ),
+      ];
+    } else if (role == 'waiter') {
+      return const [
+        _NavDestination(
+          ScreenType.restaurantTables,
+          Icons.table_restaurant_rounded,
+          'Tables',
+        ),
+        _NavDestination(
+          ScreenType.restaurantOrders,
+          Icons.restaurant_menu_rounded,
+          'Orders',
+        ),
+        _NavDestination(
+          ScreenType.kitchenDisplay,
+          Icons.soup_kitchen_rounded,
+          'Kitchen',
         ),
         _NavDestination(
           ScreenType.settings,
@@ -842,9 +1014,42 @@ class ShellScreen extends ConsumerWidget {
         ),
       ];
     } else {
-      // Cashier role (Sales + Hardware/Printer Settings)
+      // Cashier role: Restaurant POS first when Restaurant Mode is active, else Retail Sales
+      if (isRestaurantMode) {
+        return const [
+          _NavDestination(
+            ScreenType.restaurantOrders,
+            Icons.restaurant_menu_rounded,
+            'Orders',
+          ),
+          _NavDestination(
+            ScreenType.restaurantTables,
+            Icons.table_restaurant_rounded,
+            'Tables',
+          ),
+          _NavDestination(
+            ScreenType.kitchenDisplay,
+            Icons.soup_kitchen_rounded,
+            'Kitchen',
+          ),
+          _NavDestination(
+            ScreenType.sales,
+            Icons.point_of_sale_rounded,
+            'Quick POS',
+          ),
+          _NavDestination(
+            ScreenType.settings,
+            Icons.settings_rounded,
+            'Settings',
+          ),
+        ];
+      }
       return const [
-        _NavDestination(ScreenType.sales, Icons.point_of_sale_rounded, 'Sales'),
+        _NavDestination(
+          ScreenType.sales,
+          Icons.point_of_sale_rounded,
+          'Sales',
+        ),
         _NavDestination(
           ScreenType.settings,
           Icons.settings_rounded,
@@ -884,7 +1089,10 @@ class ShellScreen extends ConsumerWidget {
             child: SingleChildScrollView(
               child: Column(
                 children: [
-                  ..._getNavigationDestinations(user).map(
+                  ..._getNavigationDestinations(
+                    user,
+                    isRestaurantMode: ref.watch(isRestaurantModeProvider),
+                  ).map(
                     (dest) => Padding(
                       padding: const EdgeInsets.only(bottom: 6),
                       child: _buildSidebarItem(
@@ -1252,6 +1460,18 @@ class ShellScreen extends ConsumerWidget {
         return const SettingsScreen();
       case ScreenType.reports:
         return const ReportsScreen();
+      case ScreenType.restaurantDashboard:
+        return const RestaurantDashboardScreen();
+      case ScreenType.restaurantTables:
+        return const TablesScreen();
+      case ScreenType.restaurantOrders:
+        return const OrderEntryScreen();
+      case ScreenType.kitchenDisplay:
+        return const KitchenDisplayScreen();
+      case ScreenType.restaurantMenu:
+        return const RestaurantMenuScreen();
+      case ScreenType.restaurantReports:
+        return const RestaurantReportsScreen();
     }
   }
 }

@@ -300,7 +300,19 @@ class Product {
     this.unitOfMeasure = 'kg',
     this.tareWeight = 0.0,
     this.scalePlu,
+    this.restaurantProductType = 'other',
+    this.kitchenStationId,
+    this.prepTimeMinutes = 10,
+    this.isAvailableNow = true,
+    this.useRecipeStockDeduction = false,
   });
+
+  // Restaurant / Hospitality Menu Configuration
+  String restaurantProductType = 'other'; // 'food', 'beverage', 'other'
+  int? kitchenStationId;
+  int prepTimeMinutes = 10;
+  bool isAvailableNow = true;
+  bool useRecipeStockDeduction = false;
 }
 
 @collection
@@ -566,6 +578,12 @@ class StoreConfig {
   String scaleProtocol =
       'generic'; // 'generic', 'toledo', 'cas', 'avery', 'bridge'
   double defaultTareWeight = 0.0;
+
+  // Business Mode & Restaurant Operations Configuration
+  String businessMode = 'retail'; // 'retail' | 'restaurant'
+  bool restaurantTableServiceEnabled = true;
+  bool restaurantCounterServiceEnabled = true;
+  bool restaurantAutoPrintKot = false;
 }
 
 @collection
@@ -989,4 +1007,320 @@ class StockMovement {
     this.isSyncedWithDigitax = false,
     this.digitaxSarNo,
   }) : timestamp = DateTime.now();
+}
+
+// ---------------------------------------------------------------------------
+// RESTAURANT MODE COLLECTIONS (Modular Extension of Beleka POS)
+// ---------------------------------------------------------------------------
+
+enum RestaurantTableStatus {
+  available,
+  occupied,
+  ordering,
+  served,
+  billing,
+  reserved,
+}
+
+enum RestaurantServiceType { table, counter }
+
+enum RestaurantOrderStatus {
+  draft,
+  submitted,
+  inPreparation,
+  partiallyReady,
+  ready,
+  served,
+  awaitingPayment,
+  paid,
+  cancelled,
+}
+
+enum KitchenItemStatus {
+  newTicket,
+  accepted,
+  preparing,
+  ready,
+  served,
+  cancelled,
+}
+
+@collection
+class KitchenStation {
+  Id id = Isar.autoIncrement;
+
+  late String name; // e.g., Main Kitchen, Grill, Bar, Drinks, Desserts
+
+  @Index()
+  String branchCode = '00';
+
+  String? printerAddress; // Optional dedicated thermal printer IP or USB path
+  int sortOrder = 0;
+  bool isActive = true;
+  DateTime createdAt = DateTime.now();
+
+  KitchenStation({
+    this.id = Isar.autoIncrement,
+    required this.name,
+    this.branchCode = '00',
+    this.printerAddress,
+    this.sortOrder = 0,
+    this.isActive = true,
+  });
+}
+
+@collection
+class RestaurantTable {
+  Id id = Isar.autoIncrement;
+
+  late String name; // e.g., T1, T2, VIP-1
+  String section = 'Main Floor'; // e.g., Main Floor, Patio, VIP, Bar
+  int capacity = 4;
+
+  @Enumerated(EnumType.name)
+  RestaurantTableStatus status = RestaurantTableStatus.available;
+
+  @Index()
+  String branchCode = '00';
+
+  String? activeSessionId;
+  int? activeOrderId;
+  int? assignedWaiterId;
+  String? assignedWaiterName;
+  int? mergedIntoTableId;
+  bool isActive = true;
+  DateTime updatedAt = DateTime.now();
+
+  RestaurantTable({
+    this.id = Isar.autoIncrement,
+    required this.name,
+    this.section = 'Main Floor',
+    this.capacity = 4,
+    this.status = RestaurantTableStatus.available,
+    this.branchCode = '00',
+    this.activeSessionId,
+    this.activeOrderId,
+    this.assignedWaiterId,
+    this.assignedWaiterName,
+    this.mergedIntoTableId,
+    this.isActive = true,
+  });
+}
+
+@collection
+class RestaurantOrder {
+  Id id = Isar.autoIncrement;
+
+  @Index(unique: true)
+  late String orderNumber; // e.g., ORD-00-1731580000
+
+  @Enumerated(EnumType.name)
+  RestaurantServiceType serviceType = RestaurantServiceType.table;
+
+  @Index()
+  String branchCode = '00';
+
+  int? tableId;
+  String? tableName;
+  String? sessionId;
+
+  int? waiterId;
+  String? waiterName;
+  String? customerName;
+  int? customerId;
+
+  @Enumerated(EnumType.name)
+  @Index()
+  RestaurantOrderStatus status = RestaurantOrderStatus.draft;
+
+  double subtotal = 0.0;
+  double taxAmount = 0.0;
+  double serviceChargeAmount = 0.0;
+  double discountAmount = 0.0;
+  double totalAmount = 0.0;
+  double paidAmount = 0.0;
+
+  // Linked Beleka SaleTransaction ID(s) when settled through existing checkout
+  int? saleTransactionId;
+  String? notes;
+
+  @Index()
+  DateTime createdAt = DateTime.now();
+  DateTime? submittedAt;
+  DateTime? settledAt;
+  DateTime updatedAt = DateTime.now();
+
+  RestaurantOrder({
+    this.id = Isar.autoIncrement,
+    required this.orderNumber,
+    this.serviceType = RestaurantServiceType.table,
+    this.branchCode = '00',
+    this.tableId,
+    this.tableName,
+    this.sessionId,
+    this.waiterId,
+    this.waiterName,
+    this.customerName,
+    this.customerId,
+    this.status = RestaurantOrderStatus.draft,
+    this.subtotal = 0.0,
+    this.taxAmount = 0.0,
+    this.serviceChargeAmount = 0.0,
+    this.discountAmount = 0.0,
+    this.totalAmount = 0.0,
+    this.paidAmount = 0.0,
+    this.saleTransactionId,
+    this.notes,
+  });
+}
+
+@collection
+class RestaurantOrderItem {
+  Id id = Isar.autoIncrement;
+
+  @Index()
+  late int orderId;
+
+  @Index()
+  late int productId;
+  late String productName;
+  late String productSku;
+
+  double basePrice = 0.0;
+  double modifiersPrice = 0.0;
+  double unitPrice = 0.0;
+  int quantity = 1;
+  double taxRate = 16.0;
+  bool isTaxInclusive = true;
+
+  @Index()
+  int? kitchenStationId;
+  String? kitchenStationName;
+  String? ticketNumber;
+
+  @Enumerated(EnumType.name)
+  KitchenItemStatus kitchenStatus = KitchenItemStatus.newTicket;
+
+  String? modifiersJson; // JSON array of selected {group, option, priceDelta}
+  String? specialInstructions;
+
+  bool isSettled = false;
+  int? settledSaleTransactionId;
+
+  @Index()
+  String branchCode = '00';
+
+  DateTime createdAt = DateTime.now();
+  DateTime? acceptedAt;
+  DateTime? preparingAt;
+  DateTime? readyAt;
+  DateTime? servedAt;
+
+  RestaurantOrderItem({
+    this.id = Isar.autoIncrement,
+    required this.orderId,
+    required this.productId,
+    required this.productName,
+    required this.productSku,
+    required this.basePrice,
+    this.modifiersPrice = 0.0,
+    required this.unitPrice,
+    this.quantity = 1,
+    this.taxRate = 16.0,
+    this.isTaxInclusive = true,
+    this.kitchenStationId,
+    this.kitchenStationName,
+    this.ticketNumber,
+    this.kitchenStatus = KitchenItemStatus.newTicket,
+    this.modifiersJson,
+    this.specialInstructions,
+    this.isSettled = false,
+    this.settledSaleTransactionId,
+    this.branchCode = '00',
+  });
+}
+
+@collection
+class ProductModifierGroup {
+  Id id = Isar.autoIncrement;
+
+  @Index()
+  late int productId;
+  late String name; // e.g., "Size", "Extras"
+  bool isRequired = false;
+  bool allowMultiple = false;
+
+  // JSON array of {"name": "Double", "priceDelta": 35.0}
+  String optionsJson = '[]';
+
+  @Index()
+  String branchCode = '00';
+
+  ProductModifierGroup({
+    this.id = Isar.autoIncrement,
+    required this.productId,
+    required this.name,
+    this.isRequired = false,
+    this.allowMultiple = false,
+    this.optionsJson = '[]',
+    this.branchCode = '00',
+  });
+}
+
+@collection
+class RecipeIngredient {
+  Id id = Isar.autoIncrement;
+
+  @Index()
+  late int productId; // Menu item product ID
+
+  @Index()
+  late int ingredientProductId; // Stocked ingredient product ID
+  late String ingredientName;
+
+  double quantityRequired = 1.0;
+  String unitOfMeasure = 'pcs'; // 'pcs', 'g', 'kg', 'ml', 'L'
+  double unitCost = 0.0;
+  double unitPrice = 0.0;
+
+  @Index()
+  String branchCode = '00';
+
+  RecipeIngredient({
+    this.id = Isar.autoIncrement,
+    required this.productId,
+    required this.ingredientProductId,
+    required this.ingredientName,
+    this.quantityRequired = 1.0,
+    this.unitOfMeasure = 'pcs',
+    this.unitCost = 0.0,
+    this.unitPrice = 0.0,
+    this.branchCode = '00',
+  });
+}
+
+@collection
+class KitchenIngredient {
+  Id id = Isar.autoIncrement;
+
+  @Index()
+  late String name;
+
+  String unitOfMeasure = 'pcs'; // 'pcs', 'g', 'kg', 'ml', 'L'
+  double stockQuantity = 0.0;
+  double unitCost = 0.0;
+  double sellingPrice = 0.0;
+
+  @Index()
+  String branchCode = '00';
+
+  KitchenIngredient({
+    this.id = Isar.autoIncrement,
+    required this.name,
+    this.unitOfMeasure = 'pcs',
+    this.stockQuantity = 0.0,
+    this.unitCost = 0.0,
+    this.sellingPrice = 0.0,
+    this.branchCode = '00',
+  });
 }

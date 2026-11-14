@@ -155,12 +155,16 @@ class CartNotifier extends StateNotifier<CartState> {
 
   double get taxRate => 0.0; // Global tax rate is no longer used
 
-  bool addProduct(Product product, {int quantity = 1}) {
+  bool addProduct(
+    Product product, {
+    int quantity = 1,
+    bool allowZeroStock = false,
+  }) {
     final existingIndex = state.items.indexWhere((item) => item.product.id == product.id && !item.isWeighted);
     
     if (existingIndex != -1) {
       final currentQty = state.items[existingIndex].quantity;
-      if (currentQty + quantity > product.stockLevel) {
+      if (!allowZeroStock && currentQty + quantity > product.stockLevel) {
         return false; // Cannot add more than stock
       }
       
@@ -170,7 +174,7 @@ class CartNotifier extends StateNotifier<CartState> {
       );
       state = state.copyWith(items: newItems);
     } else {
-      if (product.stockLevel < quantity) return false;
+      if (!allowZeroStock && product.stockLevel < quantity) return false;
       state = state.copyWith(items: [
         ...state.items,
         CartItem(product: product, quantity: quantity, isWeighted: false),

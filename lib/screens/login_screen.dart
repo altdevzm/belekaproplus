@@ -331,6 +331,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               ? 'owner'
               : (rawRole == 'manager' || rawRole == 'branch_manager')
               ? 'branch_manager'
+              : (rawRole == 'waiter' ||
+                      rawRole == 'kitchen' ||
+                      rawRole == 'chef')
+              ? rawRole
               : 'cashier';
 
           final remoteUser = User()
