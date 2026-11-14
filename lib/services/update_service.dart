@@ -56,10 +56,16 @@ class UpdateService {
 
       // 1. Direct fetch of static version.json (Fast, no GitHub API 60 req/hr rate limit)
       try {
+        final cacheBustedManifestUrl =
+            '$_githubManifestUrl?t=${DateTime.now().millisecondsSinceEpoch}';
         final manifestResp = await _dio.get(
-          _githubManifestUrl,
+          cacheBustedManifestUrl,
           options: Options(
             responseType: ResponseType.json,
+            headers: const {
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              'Pragma': 'no-cache',
+            },
             validateStatus: (s) => s != null && s < 400,
           ),
         );

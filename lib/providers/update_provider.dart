@@ -16,19 +16,22 @@ class UpdateNotifier extends AsyncNotifier<UpdateInfo?> {
   @override
   Future<UpdateInfo?> build() async {
     Future.delayed(const Duration(seconds: 4), _doCheck);
+    Future.delayed(const Duration(seconds: 30), _doCheck);
     _periodicTimer?.cancel();
     _periodicTimer =
-        Timer.periodic(const Duration(hours: 4), (_) => _doCheck());
+        Timer.periodic(const Duration(minutes: 15), (_) => _doCheck());
     ref.onDispose(() => _periodicTimer?.cancel());
     return null;
   }
 
-  Future<void> _doCheck() async {
+  Future<void> _doCheck({bool ignoreSnooze = false}) async {
     try {
       final service = ref.read(updateServiceProvider);
       final info = await service.checkForUpdate();
       if (info != null && info.hasUpdate) {
-        if (await _isSnoozed(info.latestVersion)) return;
+        if (!ignoreSnooze && await _isSnoozed(info.latestVersion)) {
+          return;
+        }
         state = AsyncValue.data(info);
       }
     } catch (_) {}
@@ -36,7 +39,7 @@ class UpdateNotifier extends AsyncNotifier<UpdateInfo?> {
 
   Future<void> checkNow() async {
     state = const AsyncValue.loading();
-    await _doCheck();
+    await _doCheck(ignoreSnooze: true);
   }
 
   Future<void> snooze() async {
