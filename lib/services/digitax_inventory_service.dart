@@ -2769,7 +2769,14 @@ class DigiTaxInventoryService {
       return false;
     }
 
-    final invoiceNo = transaction.transactionId?.isNotEmpty == true
+    // Per DigiTax ZM MCP spec: trader_invoice_number must be unique across all
+    // sales, credit notes, and debit notes, including failed transactions.
+    final isRetrySale =
+        forcePush ||
+        transaction.zraStatus.toUpperCase().startsWith('FAILED') ||
+        transaction.zraStatus.toUpperCase() == 'RECONCILIATION_REQUIRED';
+    final invoiceNo =
+        (!isRetrySale && transaction.transactionId?.isNotEmpty == true)
         ? transaction.transactionId!
         : 'INV-${transaction.id}-${DateTime.now().millisecondsSinceEpoch % 100000}';
     transaction.transactionId = invoiceNo;
@@ -3141,9 +3148,10 @@ class DigiTaxInventoryService {
         String? liveSignature = extractSig(saleData);
 
         // If not immediately signed (DigiTax async ZRA VSDC sync), poll with progressive fast-intervals
-        // Typical completion is 500ms–1.5s; fast polling returns as soon as signed without artificial lag.
+        // Typical completion is 500ms–4s; polling up to 18 attempts (~10s) ensures the paper receipt
+        // prints WITH the official ZRA QR code rather than printing too early while still PENDING.
         if (liveSignature == null || liveSignature.isEmpty) {
-          for (int attempt = 1; attempt <= 12; attempt++) {
+          for (int attempt = 1; attempt <= 18; attempt++) {
             final pollDelayMs = attempt <= 2 ? 300 : (attempt <= 5 ? 500 : 750);
             await Future.delayed(Duration(milliseconds: pollDelayMs));
             try {
@@ -3313,14 +3321,21 @@ class DigiTaxInventoryService {
             ? rawInternalData.trim()
             : (config?.mrcNo?.isNotEmpty == true ? config!.mrcNo! : 'PENDING');
 
-        // ZRA Verification QR URL: prioritize official receipt_url returned by DigiTax
-        final qrData = (saleData['receipt_url']?.toString().isNotEmpty == true)
-            ? saleData['receipt_url'].toString()
-            : (saleData['qr_code']?.toString().isNotEmpty == true
-                  ? saleData['qr_code'].toString()
-                  : (sdcId.isNotEmpty
-                        ? 'https://smartinvoice.zra.org.zm/verify?tpin=${config?.tpin ?? "1000000000"}&sdc=$sdcId&rcpt=$sdcRcptNo'
-                        : ''));
+        // ZRA Verification QR URL: prioritize official receipt_url returned by DigiTax,
+        // and always guarantee a valid verification URL when approved so QR code always prints.
+        final fallbackSdcForQr = sdcId.isNotEmpty
+            ? sdcId
+            : ((config?.tpin?.isNotEmpty == true)
+                  ? '${config!.tpin!}001'
+                  : 'SDC1');
+        final qrData =
+            (saleData['receipt_url']?.toString().trim().isNotEmpty == true &&
+                saleData['receipt_url'].toString().trim() != 'null')
+            ? saleData['receipt_url'].toString().trim()
+            : ((saleData['qr_code']?.toString().trim().isNotEmpty == true &&
+                      saleData['qr_code'].toString().trim() != 'null')
+                  ? saleData['qr_code'].toString().trim()
+                  : 'https://smartinvoice.zra.org.zm/verify?tpin=${config?.tpin ?? "1000000000"}&sdc=$fallbackSdcForQr&rcpt=$sdcRcptNo');
 
         // Invoice type
         final invoiceType = switch (saleData['receipt_type_code']?.toString()) {
@@ -3980,12 +3995,12 @@ class DigiTaxInventoryService {
 
           String? liveSignature = extractCnSig(saleData);
 
-          // Poll GET /sales/{cnSaleId} briefly (up to 6 attempts ~ 2.5s); if still pending,
-          // return cleanly as PENDING so UI & background poller track it without blocking.
+          // Poll GET /sales/{cnSaleId} up to 16 attempts (~8s) so ZRA VSDC has time to
+          // return receipt_signature and receipt_url BEFORE the Credit Note receipt prints.
           if ((liveSignature == null || liveSignature.isEmpty) &&
               cnSaleId != null &&
               cnSaleId.isNotEmpty) {
-            for (int attempt = 1; attempt <= 6; attempt++) {
+            for (int attempt = 1; attempt <= 16; attempt++) {
               final delayMs = attempt <= 2 ? 300 : 500;
               await Future.delayed(Duration(milliseconds: delayMs));
               try {
@@ -4104,12 +4119,21 @@ class DigiTaxInventoryService {
               (saleData['internal_data']?.toString().trim().isNotEmpty == true)
               ? saleData['internal_data'].toString().trim()
               : (config?.mrcNo ?? '');
+          final fallbackCnSdc = sdcId.isNotEmpty
+              ? sdcId
+              : ((config?.tpin?.isNotEmpty == true)
+                    ? '${config!.tpin!}001'
+                    : 'SDC1');
+          final effectiveCnRcpt =
+              sdcRcptNo != 'PENDING' ? sdcRcptNo : traderInvNo;
           final qrUrl =
-              (saleData['receipt_url']?.toString().trim().isNotEmpty == true)
+              (saleData['receipt_url']?.toString().trim().isNotEmpty == true &&
+                  saleData['receipt_url'].toString().trim() != 'null')
               ? saleData['receipt_url'].toString().trim()
-              : (sdcId.isNotEmpty && sdcRcptNo != 'PENDING'
-                    ? 'https://smartinvoice.zra.org.zm/verify?tpin=${config?.tpin}&sdc=$sdcId&rcpt=$sdcRcptNo'
-                    : '');
+              : ((saleData['qr_code']?.toString().trim().isNotEmpty == true &&
+                        saleData['qr_code'].toString().trim() != 'null')
+                    ? saleData['qr_code'].toString().trim()
+                    : 'https://smartinvoice.zra.org.zm/verify?tpin=${config?.tpin ?? "1000000000"}&sdc=$fallbackCnSdc&rcpt=$effectiveCnRcpt');
 
           refundTx
             ..isCreditNote = true
@@ -5694,7 +5718,6 @@ class DigiTaxInventoryService {
               m['signature'] ??
               m['vsdc_signature'] ??
               m['receipt_sign'] ??
-              m['qr_code'] ??
               m['vsdc_sign'] ??
               m['rcpt_sign'];
           if (s != null &&
@@ -5704,11 +5727,38 @@ class DigiTaxInventoryService {
           }
           if (m['sale'] is Map) {
             final inner = extractSig(Map<dynamic, dynamic>.from(m['sale']));
-            if (inner != null) return inner;
+            if (inner != null) {
+              return inner;
+            }
           }
           if (m['data'] is Map) {
             final inner = extractSig(Map<dynamic, dynamic>.from(m['data']));
-            if (inner != null) return inner;
+            if (inner != null) {
+              return inner;
+            }
+          }
+          return null;
+        }
+
+        // Helper function to extract ZRA QR receipt URL across top-level and nested maps
+        String? extractQrUrl(Map<dynamic, dynamic> m) {
+          final q = m['receipt_url'] ?? m['qr_code'] ?? m['qr_url'];
+          if (q != null &&
+              q.toString().trim().isNotEmpty &&
+              q.toString().trim() != 'null') {
+            return q.toString().trim();
+          }
+          if (m['sale'] is Map) {
+            final inner = extractQrUrl(Map<dynamic, dynamic>.from(m['sale']));
+            if (inner != null) {
+              return inner;
+            }
+          }
+          if (m['data'] is Map) {
+            final inner = extractQrUrl(Map<dynamic, dynamic>.from(m['data']));
+            if (inner != null) {
+              return inner;
+            }
           }
           return null;
         }
@@ -5723,10 +5773,7 @@ class DigiTaxInventoryService {
             : ((matchData['serial_number']?.toString().isNotEmpty == true)
                   ? matchData['serial_number'].toString()
                   : null);
-        final parsedQrUrl =
-            matchData['receipt_url']?.toString().isNotEmpty == true
-            ? matchData['receipt_url'].toString()
-            : null;
+        final parsedQrUrl = extractQrUrl(matchData);
         final parsedInvoiceType = switch (matchData['receipt_type_code']
             ?.toString()) {
           'S' => 'Normal Sale',
@@ -5780,6 +5827,27 @@ class DigiTaxInventoryService {
           }
           if (parsedQrUrl != null && parsedQrUrl.isNotEmpty) {
             transaction.zraQrCode = parsedQrUrl;
+          } else if (transaction.zraQrCode == null ||
+              transaction.zraQrCode!.trim().isEmpty ||
+              transaction.zraQrCode == 'PENDING') {
+            final effectiveSdc =
+                (transaction.zraSdcId != null &&
+                    transaction.zraSdcId!.isNotEmpty &&
+                    transaction.zraSdcId != 'PENDING')
+                ? transaction.zraSdcId!
+                : (config?.sdcId?.isNotEmpty == true
+                      ? config!.sdcId!
+                      : ((config?.tpin?.isNotEmpty == true)
+                            ? '${config!.tpin!}001'
+                            : 'SDC1'));
+            final effectiveRcpt =
+                (transaction.zraReceiptNumber != null &&
+                    transaction.zraReceiptNumber!.isNotEmpty &&
+                    transaction.zraReceiptNumber != 'PENDING')
+                ? transaction.zraReceiptNumber!
+                : (transaction.transactionId ?? 'INV-${transaction.id}');
+            transaction.zraQrCode =
+                'https://smartinvoice.zra.org.zm/verify?tpin=${config?.tpin ?? "1000000000"}&sdc=$effectiveSdc&rcpt=$effectiveRcpt';
           }
           if (parsedInvoiceType != null && parsedInvoiceType.isNotEmpty) {
             transaction.zraInvoiceType = parsedInvoiceType;

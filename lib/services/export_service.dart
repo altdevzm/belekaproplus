@@ -670,25 +670,29 @@ class ExportService {
         ? transaction.zraInternalData!
         : (config?.mrcNo?.isNotEmpty == true ? config!.mrcNo! : 'PENDING');
     final zraQrData =
-        (transaction.zraQrCode != null && transaction.zraQrCode!.isNotEmpty)
-        ? transaction.zraQrCode!
+        (transaction.zraQrCode != null &&
+            transaction.zraQrCode!.trim().isNotEmpty &&
+            transaction.zraQrCode!.trim() != 'PENDING')
+        ? transaction.zraQrCode!.trim()
         : 'https://smartinvoice.zra.org.zm/verify?tpin=${config?.tpin ?? "1000000000"}&sdc=$sdcIdStr&rcpt=$sdcInvNoStr';
 
     final hasQr = transaction.zraQrCode != null &&
         transaction.zraQrCode!.trim().isNotEmpty &&
         transaction.zraQrCode!.trim() != 'PENDING';
 
+    final statusUpper = transaction.zraStatus.toUpperCase();
     final isFiscalApproved = hasQr ||
-        ((transaction.zraStatus.toUpperCase() == 'APPROVED' ||
-                transaction.zraStatus.toUpperCase() == 'FISCALIZED') &&
-            ((transaction.zraReceiptNumber != null &&
-                    transaction.zraReceiptNumber!.isNotEmpty &&
-                    transaction.zraReceiptNumber != 'PENDING') ||
-                (transaction.zraMarkId != null &&
-                    transaction.zraMarkId!.isNotEmpty &&
-                    transaction.zraMarkId != 'PENDING' &&
-                    !transaction.zraMarkId!.startsWith('sale_') &&
-                    !transaction.zraMarkId!.startsWith('SALE_'))));
+        statusUpper == 'APPROVED' ||
+        statusUpper == 'COMPLETED' ||
+        statusUpper == 'FISCALIZED' ||
+        ((transaction.zraReceiptNumber != null &&
+                transaction.zraReceiptNumber!.isNotEmpty &&
+                transaction.zraReceiptNumber != 'PENDING') &&
+            (transaction.zraMarkId != null &&
+                transaction.zraMarkId!.isNotEmpty &&
+                transaction.zraMarkId != 'PENDING' &&
+                !transaction.zraMarkId!.startsWith('sale_') &&
+                !transaction.zraMarkId!.startsWith('SALE_')));
     final receiptTitle = transaction.isCreditNote
         ? 'ZRA FISCAL CREDIT NOTE'
         : (isFiscalApproved

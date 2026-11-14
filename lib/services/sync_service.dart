@@ -75,10 +75,9 @@ class SyncService {
       if (response != null && response['success'] == true) {
         await _isar.writeTxn(() async {
           transaction.isSynced = true;
-          if (response['zraReceiptNumber'] != null &&
-              (response['zraReceiptNumber'] as String).isNotEmpty) {
-            transaction.zraReceiptNumber =
-                response['zraReceiptNumber'] as String;
+          final rcpt = response['zraReceiptNumber'] as String?;
+          if (rcpt != null && rcpt.isNotEmpty && rcpt != 'PENDING') {
+            transaction.zraReceiptNumber = rcpt;
             transaction.zraMarkId = response['zraMarkId'] as String?;
             transaction.zraQrCode = response['zraQrCode'] as String?;
             transaction.zraInternalData =
@@ -192,9 +191,11 @@ class SyncService {
           if (fiscalUpdates != null) {
             for (final upd in fiscalUpdates) {
               if (upd is Map && upd['transactionId'] == tx.transactionId) {
-                if (upd['zraReceiptNumber'] != null &&
-                    (upd['zraReceiptNumber'] as String).isNotEmpty) {
-                  tx.zraReceiptNumber = upd['zraReceiptNumber'] as String;
+                final updRcpt = upd['zraReceiptNumber'] as String?;
+                if (updRcpt != null &&
+                    updRcpt.isNotEmpty &&
+                    updRcpt != 'PENDING') {
+                  tx.zraReceiptNumber = updRcpt;
                   tx.zraMarkId = upd['zraMarkId'] as String?;
                   tx.zraQrCode = upd['zraQrCode'] as String?;
                   tx.zraInternalData = upd['zraInternalData'] as String?;
@@ -300,14 +301,20 @@ class SyncService {
           for (final upd in fiscalUpdates) {
             final txId = upd['transactionId'] as String?;
             final rcptNo = upd['zraReceiptNumber'] as String?;
-            if (txId != null && rcptNo != null && rcptNo.isNotEmpty) {
+            if (txId != null &&
+                rcptNo != null &&
+                rcptNo.isNotEmpty &&
+                rcptNo != 'PENDING') {
               final tx = await _isar.saleTransactions
                   .filter()
                   .transactionIdEqualTo(txId)
                   .findFirst();
               if (tx != null &&
                   (tx.zraReceiptNumber == null ||
-                      tx.zraReceiptNumber!.isEmpty)) {
+                      tx.zraReceiptNumber!.isEmpty ||
+                      tx.zraReceiptNumber == 'PENDING' ||
+                      tx.zraQrCode == null ||
+                      tx.zraQrCode!.isEmpty)) {
                 tx.zraReceiptNumber = rcptNo;
                 tx.zraMarkId = upd['zraMarkId'] as String?;
                 tx.zraQrCode = upd['zraQrCode'] as String?;

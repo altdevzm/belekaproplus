@@ -6809,6 +6809,12 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
               updateFiscalStatus(
                 'ZRA receipt confirmed. The official receipt is ready.',
               );
+            } else if (transaction.zraStatus.toUpperCase().startsWith(
+              'FAILED',
+            )) {
+              updateFiscalStatus(
+                'ZRA rejected this sale. Check the transaction details.',
+              );
             }
           } else if (config?.isManagerMode == false) {
             // Till has no direct internet to DigiTax, but is connected to the Master POS via LAN.
@@ -6844,6 +6850,22 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         } catch (e, stack) {
           debugPrint('DIGITAX_PREFLIGHT_ERROR: $e\n$stack');
         }
+      }
+
+      // Reload latest transaction fields from Isar right before printing so any
+      // ZRA QR code / signature saved during preflight is guaranteed to be on `transaction`.
+      final latestTxBeforePrint = await db.isar.saleTransactions.get(
+        transaction.id,
+      );
+      if (latestTxBeforePrint != null) {
+        transaction
+          ..zraStatus = latestTxBeforePrint.zraStatus
+          ..zraReceiptNumber = latestTxBeforePrint.zraReceiptNumber
+          ..zraMarkId = latestTxBeforePrint.zraMarkId
+          ..zraSdcId = latestTxBeforePrint.zraSdcId
+          ..zraInternalData = latestTxBeforePrint.zraInternalData
+          ..zraQrCode = latestTxBeforePrint.zraQrCode
+          ..zraInvoiceType = latestTxBeforePrint.zraInvoiceType;
       }
 
       // ── STEP 2: Print receipt (official if fiscalized, offline if not) ───
@@ -6998,61 +7020,54 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                     ),
                   ] else if (hasDigitax) ...[
                     const SizedBox(height: 12),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFD97706).withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: const Color(
-                            0xFFD97706,
-                          ).withValues(alpha: 0.25),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          ValueListenableBuilder<String>(
-                            valueListenable: fiscalStatus,
-                            builder: (context, message, _) {
-                              final confirmed = message.startsWith(
-                                'ZRA receipt confirmed',
-                              );
-                              return Icon(
-                                confirmed
-                                    ? Icons.check_circle_rounded
-                                    : Icons.hourglass_top_rounded,
-                                color: confirmed
-                                    ? const Color(0xFF059669)
-                                    : const Color(0xFFD97706),
-                                size: 14,
-                              );
-                            },
+                    ValueListenableBuilder<String>(
+                      valueListenable: fiscalStatus,
+                      builder: (context, message, _) {
+                        final confirmed = message.startsWith(
+                          'ZRA receipt confirmed',
+                        );
+                        final failed = message.startsWith('ZRA rejected');
+                        final badgeColor = confirmed
+                            ? const Color(0xFF059669)
+                            : (failed
+                                  ? const Color(0xFFDC2626)
+                                  : const Color(0xFFD97706));
+                        final badgeIcon = confirmed
+                            ? Icons.check_circle_rounded
+                            : (failed
+                                  ? Icons.error_outline_rounded
+                                  : Icons.hourglass_top_rounded);
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
                           ),
-                          const SizedBox(width: 6),
-                          Flexible(
-                            child: ValueListenableBuilder<String>(
-                              valueListenable: fiscalStatus,
-                              builder: (context, message, _) => Text(
-                                message,
-                                style: GoogleFonts.inter(
-                                  color:
-                                      message.startsWith(
-                                        'ZRA receipt confirmed',
-                                      )
-                                      ? const Color(0xFF059669)
-                                      : const Color(0xFFD97706),
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
+                          decoration: BoxDecoration(
+                            color: badgeColor.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: badgeColor.withValues(alpha: 0.25),
                             ),
                           ),
-                        ],
-                      ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(badgeIcon, color: badgeColor, size: 14),
+                              const SizedBox(width: 6),
+                              Flexible(
+                                child: Text(
+                                  message,
+                                  style: GoogleFonts.inter(
+                                    color: badgeColor,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
                     ),
                   ],
                 ],

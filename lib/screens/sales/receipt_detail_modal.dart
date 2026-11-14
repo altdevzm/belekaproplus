@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:qr/qr.dart';
 import 'package:beleka_pos/models/models.dart';
 import 'package:beleka_pos/services/database_service.dart';
 import 'package:beleka_pos/services/printer_service.dart';
@@ -992,10 +993,58 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
           ),
           _buildFiscalRow(
             'QR Verify URL',
-            widget.transaction.zraQrCode ??
-                'https://smartinvoice.zra.org.zm/verify',
+            (widget.transaction.zraQrCode != null &&
+                    widget.transaction.zraQrCode!.trim().isNotEmpty &&
+                    widget.transaction.zraQrCode!.trim() != 'PENDING')
+                ? widget.transaction.zraQrCode!.trim()
+                : (isApproved
+                      ? 'https://smartinvoice.zra.org.zm/verify?tpin=${config?.tpin ?? "1000000000"}&sdc=$sdcIdStr&rcpt=$sdcInvNoStr'
+                      : 'https://smartinvoice.zra.org.zm/verify'),
             isUrl: true,
           ),
+          if (isApproved) ...[
+            const SizedBox(height: 12),
+            Center(
+              child: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: 112,
+                      height: 112,
+                      child: CustomPaint(
+                        painter: _ZraQrCodePainter(
+                          data: (widget.transaction.zraQrCode != null &&
+                                  widget.transaction.zraQrCode!
+                                      .trim()
+                                      .isNotEmpty &&
+                                  widget.transaction.zraQrCode!.trim() !=
+                                      'PENDING')
+                              ? widget.transaction.zraQrCode!.trim()
+                              : 'https://smartinvoice.zra.org.zm/verify?tpin=${config?.tpin ?? "1000000000"}&sdc=$sdcIdStr&rcpt=$sdcInvNoStr',
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'SCAN TO VERIFY ON ZRA PORTAL',
+                      style: GoogleFonts.manrope(
+                        fontSize: 8.5,
+                        fontWeight: FontWeight.w900,
+                        color: const Color(0xFF0F172A),
+                        letterSpacing: 0.6,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -2028,11 +2077,71 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
 
     setState(() => _isPrinting = true);
     try {
+      final db = ref.read(databaseServiceProvider);
       final selectedConfig = ref.read(selectedPrinterProvider);
       final items = await ref.read(
         transactionItemsProvider(widget.transaction.id).future,
       );
       final config = ref.read(storeConfigProvider).value;
+
+      // 1. Always reload latest transaction fields from Isar first (in case background poller updated it)
+      final latestBeforeRefresh =
+          await db.isar.saleTransactions.get(widget.transaction.id);
+      if (latestBeforeRefresh != null) {
+        widget.transaction
+          ..zraStatus = latestBeforeRefresh.zraStatus
+          ..zraReceiptNumber = latestBeforeRefresh.zraReceiptNumber
+          ..zraMarkId = latestBeforeRefresh.zraMarkId
+          ..zraSdcId = latestBeforeRefresh.zraSdcId
+          ..zraInternalData = latestBeforeRefresh.zraInternalData
+          ..zraQrCode = latestBeforeRefresh.zraQrCode
+          ..zraInvoiceType = latestBeforeRefresh.zraInvoiceType;
+      }
+
+      // 2. Refresh ZRA fiscal data & QR code BEFORE printing (applies to BOTH system PDF printer and thermal printer)
+      final hasRealQr = widget.transaction.zraQrCode != null &&
+          widget.transaction.zraQrCode!.trim().isNotEmpty &&
+          widget.transaction.zraQrCode!.trim() != 'PENDING';
+      final hasRealReceiptNo = widget.transaction.zraReceiptNumber != null &&
+          widget.transaction.zraReceiptNumber!.trim().isNotEmpty &&
+          widget.transaction.zraReceiptNumber!.trim() != 'PENDING';
+      final isLocalOnly = widget.transaction.zraStatus == 'LOCAL_EXEMPT' ||
+          widget.transaction.zraStatus == 'OFFLINE_EXEMPT' ||
+          (items.isNotEmpty && items.every((i) => i.isDigitaxExempt));
+
+      if (!isLocalOnly && (!hasRealQr || !hasRealReceiptNo)) {
+        final refreshed = await ref
+            .read(digitaxInventoryServiceProvider)
+            .refreshTransactionFiscalData(widget.transaction);
+        if (!refreshed) {
+          final statusUpper = widget.transaction.zraStatus.toUpperCase();
+          final isAlreadyApproved = statusUpper == 'APPROVED' ||
+              statusUpper == 'COMPLETED' ||
+              statusUpper == 'FISCALIZED';
+          final hasDigitax = config?.digitaxApiKey != null &&
+              config!.digitaxApiKey!.trim().isNotEmpty;
+          if (!isAlreadyApproved && hasDigitax) {
+            await ref
+                .read(digitaxInventoryServiceProvider)
+                .fiscalizeSaleTransaction(widget.transaction, items);
+          }
+        }
+        final latestAfterRefresh =
+            await db.isar.saleTransactions.get(widget.transaction.id);
+        if (latestAfterRefresh != null) {
+          widget.transaction
+            ..zraStatus = latestAfterRefresh.zraStatus
+            ..zraReceiptNumber = latestAfterRefresh.zraReceiptNumber
+            ..zraMarkId = latestAfterRefresh.zraMarkId
+            ..zraSdcId = latestAfterRefresh.zraSdcId
+            ..zraInternalData = latestAfterRefresh.zraInternalData
+            ..zraQrCode = latestAfterRefresh.zraQrCode
+            ..zraInvoiceType = latestAfterRefresh.zraInvoiceType;
+        }
+        if (mounted) {
+          setState(() {});
+        }
+      }
 
       if (selectedConfig == null) {
         await ref
@@ -2051,35 +2160,6 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
           );
         }
         return;
-      }
-
-      final hasRealQr = widget.transaction.zraQrCode != null &&
-          widget.transaction.zraQrCode!.trim().isNotEmpty &&
-          widget.transaction.zraQrCode!.trim() != 'PENDING';
-      final hasRealReceiptNo = widget.transaction.zraReceiptNumber != null &&
-          widget.transaction.zraReceiptNumber!.trim().isNotEmpty &&
-          widget.transaction.zraReceiptNumber!.trim() != 'PENDING';
-      final isAlreadyFiscalized = hasRealQr ||
-          hasRealReceiptNo ||
-          widget.transaction.zraStatus.toUpperCase() == 'APPROVED' ||
-          widget.transaction.zraStatus.toUpperCase() == 'FISCALIZED';
-
-      if (!isAlreadyFiscalized) {
-        final refreshed = await ref
-            .read(digitaxInventoryServiceProvider)
-            .refreshTransactionFiscalData(widget.transaction);
-        if (!refreshed) {
-          final isLocalOnly = widget.transaction.zraStatus == 'LOCAL_EXEMPT' ||
-              widget.transaction.zraStatus == 'OFFLINE_EXEMPT' ||
-              (items.isNotEmpty && items.every((i) => i.isDigitaxExempt));
-          final hasDigitax = config?.digitaxApiKey != null &&
-              config!.digitaxApiKey!.trim().isNotEmpty;
-          if (!isLocalOnly && hasDigitax) {
-            await ref
-                .read(digitaxInventoryServiceProvider)
-                .fiscalizeSaleTransaction(widget.transaction, items);
-          }
-        }
       }
 
       final printerService = ref.read(printerServiceProvider);
@@ -2140,3 +2220,49 @@ final transactionItemsProvider = FutureProvider.family<List<SaleItem>, int>((
   final db = ref.watch(databaseServiceProvider);
   return db.getTransactionItems(id);
 });
+
+class _ZraQrCodePainter extends CustomPainter {
+  final String data;
+
+  const _ZraQrCodePainter({required this.data});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    try {
+      final qrCode = QrCode.fromData(
+        data: data.isNotEmpty ? data : 'https://smartinvoice.zra.org.zm/verify',
+        errorCorrectLevel: QrErrorCorrectLevel.M,
+      );
+      final qrImage = QrImage(qrCode);
+      final int moduleCount = qrImage.moduleCount;
+      if (moduleCount <= 0) {
+        return;
+      }
+      final double cellSize = size.width / moduleCount;
+      final paint = Paint()
+        ..color = const Color(0xFF0F172A)
+        ..style = PaintingStyle.fill;
+
+      for (int y = 0; y < moduleCount; y++) {
+        for (int x = 0; x < moduleCount; x++) {
+          if (qrImage.isDark(y, x)) {
+            canvas.drawRect(
+              Rect.fromLTWH(
+                x * cellSize,
+                y * cellSize,
+                cellSize + 0.35,
+                cellSize + 0.35,
+              ),
+              paint,
+            );
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  @override
+  bool shouldRepaint(covariant _ZraQrCodePainter oldDelegate) {
+    return oldDelegate.data != data;
+  }
+}

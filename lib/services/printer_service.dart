@@ -682,10 +682,17 @@ class PrinterService {
     final hasQr = transaction.zraQrCode != null &&
         transaction.zraQrCode!.trim().isNotEmpty &&
         transaction.zraQrCode!.trim() != 'PENDING';
-    if (hasQr) return true;
+    if (hasQr) {
+      return true;
+    }
 
     final statusUpper = transaction.zraStatus.toUpperCase();
-    final isApprovedStatus = statusUpper == 'APPROVED' || statusUpper == 'FISCALIZED';
+    final isApprovedStatus = statusUpper == 'APPROVED' ||
+        statusUpper == 'COMPLETED' ||
+        statusUpper == 'FISCALIZED';
+    if (isApprovedStatus) {
+      return true;
+    }
 
     final hasReceiptNo = transaction.zraReceiptNumber != null &&
         transaction.zraReceiptNumber!.trim().isNotEmpty &&
@@ -697,8 +704,9 @@ class PrinterService {
         !transaction.zraMarkId!.startsWith('sale_') &&
         !transaction.zraMarkId!.startsWith('SALE_');
 
-    if (isApprovedStatus && (hasReceiptNo || hasSignature)) return true;
-    if (hasReceiptNo && hasSignature) return true;
+    if (hasReceiptNo && hasSignature) {
+      return true;
+    }
 
     return false;
   }
