@@ -838,6 +838,18 @@ class PrinterService {
       
       bytes += generator.text(_formatRow2('RECEIPT: $receiptNo', '$dateOnlyStr $timeOnlyStr', colCount), styles: const PosStyles(bold: true));
       bytes += generator.text(_formatRow2('Cashier: $cashier', 'Terminal: ${transaction.terminalName ?? config?.terminalName ?? "POS-01"}', colCount));
+      if (transaction.isCreditNote &&
+          transaction.externalPaymentConfirmedBy != null &&
+          transaction.externalPaymentConfirmedBy!.trim().isNotEmpty) {
+        bytes += generator.text(
+          _formatRow2(
+            'Approved By:',
+            transaction.externalPaymentConfirmedBy!.trim(),
+            colCount,
+          ),
+          styles: const PosStyles(bold: true),
+        );
+      }
 
       if (transaction.customerTpin != null && transaction.customerTpin!.isNotEmpty) {
         bytes += generator.text(_formatRow2('BUYER TPIN: ${transaction.customerTpin}', '', colCount), styles: const PosStyles(bold: true));
@@ -1678,6 +1690,13 @@ class PrinterService {
     commands.append('RECEIPT: #${transaction.id.toString().padLeft(8, '0')}\n');
     commands.append('Date: $dateOnlyStr $timeOnlyStr\n');
     commands.append('Attended by: $cashier\n');
+    if (transaction.isCreditNote &&
+        transaction.externalPaymentConfirmedBy != null &&
+        transaction.externalPaymentConfirmedBy!.trim().isNotEmpty) {
+      commands.append(
+        'Approved by: ${transaction.externalPaymentConfirmedBy!.trim()}\n',
+      );
+    }
     commands.append('Terminal: ${transaction.terminalName ?? config?.terminalName ?? "POS-01"}\n');
     if (customer != null) commands.append('Customer: ${customer.name} (${customer.phoneNumber})\n');
     commands.append('${preset.singleDivider}\n');
@@ -1956,6 +1975,19 @@ class PrinterService {
                     pw.Text('Terminal: ${transaction.terminalName ?? config?.terminalName ?? "POS-01"}', style: const pw.TextStyle(fontSize: 8)),
                   ],
                 ),
+                if (transaction.isCreditNote &&
+                    transaction.externalPaymentConfirmedBy != null &&
+                    transaction.externalPaymentConfirmedBy!.trim().isNotEmpty)
+                  pw.Align(
+                    alignment: pw.Alignment.centerLeft,
+                    child: pw.Text(
+                      'Approved By: ${transaction.externalPaymentConfirmedBy!.trim()}',
+                      style: pw.TextStyle(
+                        fontWeight: pw.FontWeight.bold,
+                        fontSize: 8,
+                      ),
+                    ),
+                  ),
                 if (customer != null)
                   pw.Align(alignment: pw.Alignment.centerLeft, child: pw.Text('Customer: ${customer.name} (${customer.phoneNumber})', style: const pw.TextStyle(fontSize: 8))),
                 pw.SizedBox(height: 2 * pdf.PdfPageFormat.mm),

@@ -867,7 +867,12 @@ class DatabaseService {
   }
 
   // Refund methods
-  Future<void> refundItems(Id transactionId, List<Id> itemIds) async {
+  Future<void> refundItems(
+    Id transactionId,
+    List<Id> itemIds, {
+    String? authorizedBy,
+    String? reason,
+  }) async {
     final transaction = await isar.saleTransactions.get(transactionId);
     if (transaction == null) return;
 
@@ -937,10 +942,15 @@ class DatabaseService {
       final refundRecord = RefundTransaction()
         ..refundNumber =
             'REF-${DateTime.now().millisecondsSinceEpoch.toString().substring(6)}'
+        ..saleTransactionUuid = transaction.transactionId
         ..refundType = transaction.paymentMethod.toUpperCase()
         ..amount = refundedAmount
-        ..reason = 'Customer Return (Tx #${transaction.id})'
-        ..authorizedBy = transaction.cashierName
+        ..reason = (reason != null && reason.trim().isNotEmpty)
+            ? '${reason.trim()} (Tx #${transaction.id})'
+            : 'Customer Return (Tx #${transaction.id})'
+        ..authorizedBy = (authorizedBy != null && authorizedBy.trim().isNotEmpty)
+            ? authorizedBy.trim()
+            : transaction.cashierName
         ..createdAt = DateTime.now();
       await isar.refundTransactions.put(refundRecord);
 

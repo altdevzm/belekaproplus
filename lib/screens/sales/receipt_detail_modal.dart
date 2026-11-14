@@ -8,6 +8,7 @@ import 'package:beleka_pos/services/database_service.dart';
 import 'package:beleka_pos/services/printer_service.dart';
 import 'package:beleka_pos/services/export_service.dart';
 import 'package:beleka_pos/services/digitax_inventory_service.dart';
+import 'package:beleka_pos/services/postgres_sync_service.dart';
 import 'package:beleka_pos/providers/store_provider.dart';
 import 'package:beleka_pos/providers/auth_provider.dart';
 import 'package:beleka_pos/widgets/manager_auth_dialog.dart';
@@ -1412,28 +1413,38 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
       return;
     }
 
-    // 1. Manager Authentication Check
-    final isManager = ref.read(isManagerProvider) || ref.read(isAdminProvider);
-    bool authorized = isManager;
+    // 1. Branch-Aware Approval Hierarchy:
+    //    - At Headquarters (HQ): ONLY Owner can approve refunds/credit notes
+    //    - At other branches: Assigned Branch Manager for that branch (or Owner) approves
+    final activeBranchCode =
+        ref.read(authProvider)?.branchCode ??
+        ref.read(storeConfigProvider).value?.bhfId;
+    final approver = await ManagerAuthDialog.ensureBranchAuthorized(
+      context: context,
+      ref: ref,
+      title: 'REFUND / CREDIT NOTE APPROVAL',
+      message:
+          'HQ refunds require Owner PIN. Sub-branch refunds require the assigned Branch Manager PIN.',
+      branchCode: activeBranchCode,
+    );
 
-    if (!isManager) {
-      authorized =
-          await showDialog<bool>(
-            context: context,
-            barrierDismissible: false,
-            builder: (context) => const ManagerAuthDialog(
-              title: 'REFUND AUTHORIZATION',
-              message: 'Manager or Admin PIN is required to process refunds.',
-            ),
-          ) ??
-          false;
+    if (approver == null || !context.mounted) {
+      return;
     }
 
-    if (!authorized || !context.mounted) return;
+    final approverRoleTag =
+        (approver.role.toLowerCase() == 'owner' ||
+            approver.role.toLowerCase() == 'admin' ||
+            approver.role.toLowerCase() == 'super_admin')
+        ? 'OWNER'
+        : 'BRANCH MANAGER';
+    final approverLabel = '${approver.name} ($approverRoleTag)';
 
     // 2. Reason for Refund — required for ZRA credit note compliance
     final reason = await _showRefundReasonDialog(context);
-    if (reason == null || !context.mounted) return;
+    if (reason == null || !context.mounted) {
+      return;
+    }
 
     // 3. Final Confirmation showing items + reason
     final confirm = await showDialog<bool>(
@@ -1568,7 +1579,12 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
         }
 
         // 2. Perform DB refund (stock restore, shift & account deductions, audit records)
-        await db.refundItems(widget.transaction.id, _selectedItemIds.toList());
+        await db.refundItems(
+          widget.transaction.id,
+          _selectedItemIds.toList(),
+          authorizedBy: approverLabel,
+          reason: reason,
+        );
 
         // 3. Generate & Persist official ZRA Credit Note
         // Use the original trader_invoice_number (the one that was sent to DigiTax during the sale)
@@ -1593,19 +1609,23 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
           (refundAmount - taxableRefund).toStringAsFixed(2),
         );
 
+        final currentUser = ref.read(authProvider);
         final refundTx = SaleTransaction(
           totalAmount: refundAmount,
           subtotal: taxableRefund,
           taxAmount: refundTax,
           grossProfit: -(refundAmount - refundCost),
           paymentMethod: widget.transaction.paymentMethod,
-          cashierName: widget.transaction.cashierName,
+          cashierName:
+              currentUser?.name ?? widget.transaction.cashierName,
           status: 'refunded',
           isCreditNote: true,
           orgInvoiceNo: origTraderInvNo,
           creditNoteReason: reason,
           customerTpin: widget.transaction.customerTpin,
           customerBusinessName: widget.transaction.customerBusinessName,
+          cloudStoreId: widget.transaction.cloudStoreId,
+          externalPaymentConfirmedBy: approverLabel,
         );
 
         // Save refund transaction to Isar first so it gets a valid ID and attaches items
@@ -1639,6 +1659,17 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
         } catch (e) {
           debugPrint('PRINTER_CN_ERROR: $e');
         }
+
+        // 5b. Sync refund/credit note & updated stock to Cloud VPS
+        Future(() async {
+          try {
+            final cloudSync = ref.read(postgresSyncServiceProvider);
+            await cloudSync.syncPendingTransactions();
+            await cloudSync.syncInventorySnapshot();
+          } catch (e) {
+            debugPrint('REFUND_CLOUD_SYNC_NOTE: $e');
+          }
+        });
 
         // 6. Invalidate all dashboard, sales, account, and shift providers
         ref.invalidate(transactionItemsProvider(widget.transaction.id));

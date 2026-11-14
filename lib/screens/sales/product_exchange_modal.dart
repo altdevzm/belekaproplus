@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:beleka_pos/models/models.dart';
 import 'package:beleka_pos/services/database_service.dart';
+import 'package:beleka_pos/services/printer_service.dart';
 import 'package:beleka_pos/services/product_exchange_service.dart';
 import 'package:beleka_pos/providers/store_provider.dart';
 import 'package:beleka_pos/providers/auth_provider.dart';
@@ -209,25 +210,18 @@ class _ProductExchangeModalState extends ConsumerState<ProductExchangeModal> {
 
   /// Manager-authorized discount or price adjustment on a replacement item (Rule C)
   Future<void> _authorizeReplacementDiscountOrPrice(int index) async {
-    final isManager =
-        ref.read(isOwnerProvider) ||
-        ref.read(isManagerProvider) ||
-        ref.read(isAdminProvider);
-    bool authorized = isManager;
-    if (!isManager) {
-      authorized =
-          await showDialog<bool>(
-            context: context,
-            barrierDismissible: false,
-            builder: (ctx) => const ManagerAuthDialog(
-              title: 'PRICE / DISCOUNT OVERRIDE',
-              message:
-                  'Manager or Owner PIN is required to adjust replacement item price or discount.',
-            ),
-          ) ??
-          false;
-    }
-    if (!authorized || !mounted) {
+    final activeBranchCode =
+        ref.read(authProvider)?.branchCode ??
+        ref.read(storeConfigProvider).value?.bhfId;
+    final approver = await ManagerAuthDialog.ensureBranchAuthorized(
+      context: context,
+      ref: ref,
+      title: 'PRICE / DISCOUNT OVERRIDE',
+      message:
+          'HQ requires Owner PIN. Sub-branches require the assigned Branch Manager PIN.',
+      branchCode: activeBranchCode,
+    );
+    if (approver == null || !mounted) {
       return;
     }
 
@@ -387,29 +381,30 @@ class _ProductExchangeModalState extends ConsumerState<ProductExchangeModal> {
       return;
     }
 
-    // Manager Authorization check (Section C: Allow authorised managers to approve exchanges)
+    // Branch-Aware Approval Check (Section C: HQ requires Owner PIN; Sub-Branches require assigned Branch Manager PIN)
     final currentUser = ref.read(authProvider);
-    final isManagerOrOwner =
-        ref.read(isOwnerProvider) ||
-        ref.read(isManagerProvider) ||
-        ref.read(isAdminProvider);
-    bool authorized = isManagerOrOwner;
-    if (!isManagerOrOwner) {
-      authorized =
-          await showDialog<bool>(
-            context: context,
-            barrierDismissible: false,
-            builder: (ctx) => const ManagerAuthDialog(
-              title: 'EXCHANGE APPROVAL',
-              message:
-                  'Manager or Owner PIN is required to authorize and complete this product exchange.',
-            ),
-          ) ??
-          false;
-    }
-    if (!authorized || !mounted) {
+    final activeBranchCode =
+        currentUser?.branchCode ??
+        ref.read(storeConfigProvider).value?.bhfId;
+    final approver = await ManagerAuthDialog.ensureBranchAuthorized(
+      context: context,
+      ref: ref,
+      title: 'EXCHANGE APPROVAL',
+      message:
+          'HQ exchanges require Owner PIN. Sub-branch exchanges require the assigned Branch Manager PIN.',
+      branchCode: activeBranchCode,
+    );
+    if (approver == null || !mounted) {
       return;
     }
+
+    final approverRoleTag =
+        (approver.role.toLowerCase() == 'owner' ||
+            approver.role.toLowerCase() == 'admin' ||
+            approver.role.toLowerCase() == 'super_admin')
+        ? 'OWNER'
+        : 'BRANCH MANAGER';
+    final approverLabel = '${approver.name} ($approverRoleTag)';
 
     setState(() {
       _isSubmitting = true;
@@ -441,9 +436,8 @@ class _ProductExchangeModalState extends ConsumerState<ProductExchangeModal> {
         paymentMethod: effectivePaymentMethod,
         cashierName: currentUser?.name ?? 'Cashier',
         cashierId: currentUser?.numericId,
-        approvingManagerName: isManagerOrOwner
-            ? (currentUser?.name ?? 'Manager')
-            : 'Authorized Manager',
+        approvingManagerName: approverLabel,
+        approvingManagerId: approver.numericId,
         customerName: _customerNameCtrl.text.trim(),
         customerPhone: _customerPhoneCtrl.text.trim(),
         customerTpin: _customerTpinCtrl.text.trim(),
@@ -1648,14 +1642,24 @@ class ExchangeReceiptDialog extends ConsumerWidget {
               _metaRow('Original Invoice:', record.originalInvoiceNo),
               if (record.creditNoteSaleId != null)
                 _metaRow(
-                  'Linked Credit Note:',
-                  'CN-#${record.creditNoteSaleId.toString().padLeft(6, '0')}',
+                  'ZRA Credit Note:',
+                  record.zraCreditNoteReceiptNo?.isNotEmpty == true
+                      ? '${record.zraCreditNoteReceiptNo} (CN-#${record.creditNoteSaleId.toString().padLeft(6, '0')})'
+                      : 'CN-#${record.creditNoteSaleId.toString().padLeft(6, '0')}',
                 ),
               if (record.replacementSaleId != null)
                 _metaRow(
-                  'Linked New Sale:',
-                  'INV-#${record.replacementSaleId.toString().padLeft(6, '0')}',
+                  'ZRA New Sale:',
+                  record.zraReplacementReceiptNo?.isNotEmpty == true
+                      ? '${record.zraReplacementReceiptNo} (INV-#${record.replacementSaleId.toString().padLeft(6, '0')})'
+                      : 'INV-#${record.replacementSaleId.toString().padLeft(6, '0')}',
                 ),
+              _metaRow(
+                'DigiTax Fiscal Status:',
+                record.digitaxSynced
+                    ? '✓ SYNCED TO ZRA DIGITAX'
+                    : 'QUEUED FOR DIGITAX SYNC',
+              ),
               _metaRow('Customer:', record.customerName),
               if (record.customerPhone.isNotEmpty)
                 _metaRow('Customer Phone:', record.customerPhone),
@@ -1763,6 +1767,39 @@ class ExchangeReceiptDialog extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 16),
+              if (record.creditNoteSaleId != null) ...[
+                SizedBox(
+                  height: 38,
+                  child: OutlinedButton.icon(
+                    onPressed: () async {
+                      final db = ref.read(databaseServiceProvider);
+                      final cnTx = await db.isar.saleTransactions.get(
+                        record.creditNoteSaleId!,
+                      );
+                      if (cnTx != null) {
+                        final cnItems = await db.getTransactionItems(cnTx.id);
+                        final config = ref.read(storeConfigProvider).value;
+                        await ref
+                            .read(printerServiceProvider)
+                            .printReceipt(cnTx, cnItems, config: config);
+                      }
+                    },
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFFD97706),
+                      side: const BorderSide(color: Color(0xFFD97706)),
+                    ),
+                    icon: const Icon(Icons.receipt_long_rounded, size: 15),
+                    label: Text(
+                      'PRINT ZRA CREDIT NOTE (RETURNED ITEM)',
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
               Row(
                 children: [
                   Expanded(
@@ -1789,7 +1826,7 @@ class ExchangeReceiptDialog extends ConsumerWidget {
                         foregroundColor: Colors.white,
                       ),
                       icon: const Icon(Icons.print_rounded, size: 16),
-                      label: const Text('PRINT RECEIPT'),
+                      label: const Text('PRINT EXCHANGE RECEIPT'),
                     ),
                   ),
                 ],

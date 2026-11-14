@@ -11,6 +11,7 @@ import 'package:beleka_pos/models/models.dart';
 import 'package:beleka_pos/services/database_service.dart';
 import 'package:beleka_pos/services/local_sql_service.dart';
 import 'package:beleka_pos/services/digitax_inventory_service.dart';
+import 'package:beleka_pos/services/postgres_sync_service.dart';
 import 'package:beleka_pos/providers/store_provider.dart';
 import 'package:beleka_pos/utils/formatters.dart';
 
@@ -192,6 +193,9 @@ class ProductExchangeRecord {
   final DateTime createdAt;
   final List<Map<String, dynamic>> returnedItems;
   final List<Map<String, dynamic>> replacementItems;
+  final String? zraCreditNoteReceiptNo;
+  final String? zraReplacementReceiptNo;
+  final bool digitaxSynced;
 
   const ProductExchangeRecord({
     required this.id,
@@ -224,6 +228,9 @@ class ProductExchangeRecord {
     required this.createdAt,
     required this.returnedItems,
     required this.replacementItems,
+    this.zraCreditNoteReceiptNo,
+    this.zraReplacementReceiptNo,
+    this.digitaxSynced = false,
   });
 }
 
@@ -615,6 +622,7 @@ class ProductExchangeService {
         .toList();
 
     final creditNoteTx = SaleTransaction(
+      transactionId: '$exchangeNumber-CN',
       totalAmount: returnedValue,
       subtotal: returnedSubtotal,
       taxAmount: returnedTax,
@@ -625,6 +633,7 @@ class ProductExchangeService {
       cashierName: cashierName,
       cashierId: cashierId,
       terminalName: originalInvoice.terminalName,
+      cloudStoreId: config?.cloudStoreId ?? 0,
       status: 'refunded',
       isCreditNote: true,
       orgInvoiceNo: origInvoiceNo,
@@ -658,6 +667,7 @@ class ProductExchangeService {
         .toList();
 
     final replacementTx = SaleTransaction(
+      transactionId: '$exchangeNumber-SALE',
       totalAmount: replacementValue,
       subtotal: replacementSubtotal,
       taxAmount: replacementTax,
@@ -672,6 +682,7 @@ class ProductExchangeService {
       cashierName: cashierName,
       cashierId: cashierId,
       terminalName: originalInvoice.terminalName,
+      cloudStoreId: config?.cloudStoreId ?? 0,
       status: 'completed',
       isCreditNote: false,
       orgInvoiceNo: origInvoiceNo,
@@ -777,11 +788,24 @@ class ProductExchangeService {
           : 'partially_refunded';
       await db.isar.saleTransactions.put(originalInvoice);
 
-      // 4d. Save Credit Note Transaction & Items
+      // 4d. Save Credit Note Transaction, Items & Refund Audit Record for the returned item(s)
       await db.isar.saleItems.putAll(creditNoteItems);
       creditNoteTx.items.addAll(creditNoteItems);
       await db.isar.saleTransactions.put(creditNoteTx);
       await creditNoteTx.items.save();
+
+      final creditNoteAuditRecord = RefundTransaction()
+        ..refundNumber = '$exchangeNumber-CN'
+        ..saleTransactionUuid = originalInvoice.transactionId
+        ..refundType = refundedAmount > 0
+            ? 'EXCHANGE CREDIT NOTE + ${paymentMethod.toUpperCase()} REFUND'
+            : 'EXCHANGE CREDIT NOTE'
+        ..amount = returnedValue
+        ..reason = 'Product Exchange ($exchangeNumber): $reason'
+        ..authorizedBy = approvingManagerName
+        ..refundDate = now
+        ..createdAt = now;
+      await db.isar.refundTransactions.put(creditNoteAuditRecord);
 
       // 4e. Process Replacement Products Inventory Deduction & Stock Movements (Section D)
       for (final rep in activeReplacements) {
@@ -854,18 +878,6 @@ class ProductExchangeService {
         }
       } else if (refundedAmount > 0) {
         // Customer was refunded the excess difference
-        final refundRecord = RefundTransaction()
-          ..refundNumber =
-              'REF-EXG-${now.millisecondsSinceEpoch.toString().substring(6)}'
-          ..saleTransactionUuid = originalInvoice.transactionId
-          ..refundType = paymentMethod.toUpperCase()
-          ..amount = refundedAmount
-          ..reason = 'Exchange Difference Refund ($exchangeNumber)'
-          ..authorizedBy = approvingManagerName
-          ..refundDate = now
-          ..createdAt = now;
-        await db.isar.refundTransactions.put(refundRecord);
-
         final pUpper = paymentMethod.toUpperCase();
         final accType = pUpper.contains('CASH')
             ? 'CASH'
@@ -984,26 +996,67 @@ class ProductExchangeService {
       });
     }
 
-    // 6. Submit linked Credit Note & Replacement Sale to ZRA DigiTax in background
+    // 6. Live Synchronize Linked Credit Note, Replacement Sale & Stock with ZRA DigiTax + Cloud VPS
     final digitax = ref.read(digitaxInventoryServiceProvider);
+    bool cnSynced = false;
+    bool saleSynced = false;
+    try {
+      cnSynced = await digitax.submitCreditNoteToDigitax(
+        creditNoteTx,
+        items: creditNoteItems,
+        originalSdcInvoiceNo: origInvoiceNo,
+        reason: reason,
+      );
+    } catch (e) {
+      debugPrint('EXCHANGE_DIGITAX_CN_NOTE: $e');
+    }
+
+    try {
+      saleSynced = await digitax.fiscalizeSaleTransaction(
+        replacementTx,
+        replacementSaleItems,
+      );
+    } catch (e) {
+      debugPrint('EXCHANGE_DIGITAX_SALE_NOTE: $e');
+    }
+
+    // For damaged/defective returned items that did NOT return to sellable stock,
+    // push a stock deduction adjustment to DigiTax (since the Credit Note restores DigiTax stock)
+    for (final ret in activeReturns) {
+      if (ret.condition != ReturnedItemCondition.resalable) {
+        try {
+          final prod = await db.isar.products.get(ret.productId);
+          if (prod != null && prod.isDigitaxSyncEnabled) {
+            await digitax.pushStockMovementAdjustment(
+              product: prod,
+              action: 'DEDUCT',
+              movementType: '11', // Damaged / Non-Sellable Return
+              quantity: ret.returnQuantity,
+              remarks:
+                  'Exchange $exchangeNumber damaged/defective return ($reason)',
+              branchCode: branchCode,
+            );
+          }
+        } catch (e) {
+          debugPrint('EXCHANGE_DIGITAX_QUARANTINE_STOCK_NOTE: $e');
+        }
+      }
+    }
+
+    // Reload transactions from Isar to capture updated ZRA fiscal receipt numbers
+    final updatedCnTx = await db.isar.saleTransactions.get(creditNoteTx.id);
+    final updatedRepTx = await db.isar.saleTransactions.get(replacementTx.id);
+    final zraCnNo = updatedCnTx?.zraReceiptNumber ?? creditNoteTx.zraReceiptNumber;
+    final zraRepNo = updatedRepTx?.zraReceiptNumber ?? replacementTx.zraReceiptNumber;
+
+    // Trigger immediate Cloud VPS PostgreSQL sync so HQ & multi-branch servers receive the exchange
     Future(() async {
       try {
-        await digitax.submitCreditNoteToDigitax(
-          creditNoteTx,
-          items: creditNoteItems,
-          originalSdcInvoiceNo: origInvoiceNo,
-          reason: reason,
-        );
+        final cloudSync = ref.read(postgresSyncServiceProvider);
+        await cloudSync.syncPendingTransactions();
+        await cloudSync.syncInventorySnapshot();
       } catch (e) {
-        debugPrint('EXCHANGE_DIGITAX_CN_NOTE: $e');
-      }
-      try {
-        await digitax.fiscalizeSaleTransaction(
-          replacementTx,
-          replacementSaleItems,
-        );
-      } catch (e) {
-        debugPrint('EXCHANGE_DIGITAX_SALE_NOTE: $e');
+        debugPrint('EXCHANGE_CLOUD_SYNC_NOTE: $e');
       }
     });
 
@@ -1038,6 +1091,9 @@ class ProductExchangeService {
       createdAt: now,
       returnedItems: savedReturnMaps,
       replacementItems: savedReplacementMaps,
+      zraCreditNoteReceiptNo: zraCnNo,
+      zraReplacementReceiptNo: zraRepNo,
+      digitaxSynced: cnSynced && saleSynced,
     );
   }
 
@@ -1124,12 +1180,16 @@ class ProductExchangeService {
               if (record.creditNoteSaleId != null)
                 _pdfMetaRow(
                   'Credit Note Ref:',
-                  'CN-#${record.creditNoteSaleId.toString().padLeft(6, '0')}',
+                  record.zraCreditNoteReceiptNo?.isNotEmpty == true
+                      ? '${record.zraCreditNoteReceiptNo} (CN-#${record.creditNoteSaleId.toString().padLeft(6, '0')})'
+                      : 'CN-#${record.creditNoteSaleId.toString().padLeft(6, '0')}',
                 ),
               if (record.replacementSaleId != null)
                 _pdfMetaRow(
-                  'New Sale Ref:',
-                  'INV-#${record.replacementSaleId.toString().padLeft(6, '0')}',
+                  'New Sale Fiscal Ref:',
+                  record.zraReplacementReceiptNo?.isNotEmpty == true
+                      ? '${record.zraReplacementReceiptNo} (INV-#${record.replacementSaleId.toString().padLeft(6, '0')})'
+                      : 'INV-#${record.replacementSaleId.toString().padLeft(6, '0')}',
                 ),
               _pdfMetaRow('Date & Time:', df.format(record.createdAt)),
               _pdfMetaRow('Customer:', record.customerName),
