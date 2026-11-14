@@ -6683,9 +6683,273 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         activeShiftNumber = openShift?.shiftNumber;
       }
       transaction.cashShiftNumber = activeShiftNumber;
-
       transaction.cloudStoreId = config?.cloudStoreId ?? 0;
+
+      // 0. Pre-check local stock levels before contacting DigiTax
+      for (final item in saleItems) {
+        final product = await db.isar.products.get(item.productId);
+        if (product == null) {
+          throw Exception('Product Not Found: ${item.productName}');
+        }
+        final double requiredQty = (item.isWeighted && item.weight > 0)
+            ? item.weight
+            : item.quantity.toDouble();
+        if (product.stockLevel < requiredQty) {
+          throw Exception(
+            'INSUFFICIENT_STOCK: ${product.name} (Only ${product.stockLevel} left)',
+          );
+        }
+      }
+
+      // Resolve local credentials before scheduling network work
+      final resolvedBhf =
+          (currentUser?.branchCode != null &&
+              currentUser!.branchCode!.trim().isNotEmpty)
+          ? currentUser.branchCode!.trim().padLeft(2, '0')
+          : (config?.bhfId.trim().isNotEmpty == true
+                ? config!.bhfId.trim().padLeft(2, '0')
+                : '00');
+      final digitaxService = ref.read(digitaxInventoryServiceProvider);
+      String? branchKey;
+      try {
+        branchKey = await digitaxService.resolveBranchApiKey(resolvedBhf);
+      } catch (e) {
+        debugPrint('DIGITAX_BRANCH_KEY_LOOKUP_NOTICE: $e');
+      }
+      final hasDigitax =
+          (branchKey != null && branchKey.isNotEmpty) ||
+          (config?.digitaxApiKey != null &&
+              config!.digitaxApiKey!.trim().isNotEmpty);
+      final syncService = ref.read(syncServiceProvider);
+
+      // Check if all items in this sale are local/private (offline exempt)
+      final allItemsExempt =
+          saleItems.isNotEmpty && saleItems.every((i) => i.isDigitaxExempt);
+
+      if (allItemsExempt) {
+        transaction.zraStatus = 'LOCAL_EXEMPT';
+        transaction.zraInvoiceType = 'Internal / Non-Fiscal';
+      }
+
+      final fiscalStatus = ValueNotifier<String>(
+        allItemsExempt
+            ? 'Local private sale saved.'
+            : 'Sale saved. ZRA receipt is pending and will update automatically.',
+      );
+      var fiscalStatusDisposed = false;
+      void updateFiscalStatus(String message) {
+        if (!fiscalStatusDisposed) {
+          fiscalStatus.value = message;
+        }
+      }
+
+      // ── STEP 1: Try DigiTax FIRST (before deducting stock or printing) ───
+      // Outcome 1 (COMPLETED): Save sale, deduct stock, print receipt WITH QR code.
+      // Outcome 2 (PENDING):   Save sale, deduct stock, print receipt WITH QR code.
+      // Outcome 3 (FAILED):    Do NOT deduct stock, do NOT print receipt, keep cart,
+      //                        and prompt cashier with the real ZRA error to retry selling again.
+      bool fiscalizedBeforePrint = false;
+      bool reachableDigiTax = false;
+      if (hasDigitax && !allItemsExempt) {
+        try {
+          reachableDigiTax = await DigiTaxInventoryService.canReachDigiTax();
+          if (reachableDigiTax) {
+            fiscalizedBeforePrint = await digitaxService
+                .fiscalizeSaleTransaction(transaction, saleItems);
+            if (fiscalizedBeforePrint) {
+              debugPrint(
+                'DIGITAX_PREFLIGHT: Fiscalized before print for tx ${transaction.transactionId}',
+              );
+              updateFiscalStatus(
+                'ZRA receipt confirmed. The official receipt is ready.',
+              );
+            } else if (transaction.zraStatus.toUpperCase().startsWith(
+              'FAILED',
+            )) {
+              // Real ZRA / DigiTax rejection error:
+              // Stock was NOT deducted, cart is still intact, and receipt must NOT print.
+              bool shouldRetry = false;
+              if (mounted) {
+                setState(() => _isProcessingPayment = false);
+                final rawStatus = transaction.zraStatus;
+                final zraErrorDetail = rawStatus.contains(':')
+                    ? rawStatus.split(':').sublist(1).join(':').trim()
+                    : 'ZRA rejected the sale submission.';
+                final isDark = Theme.of(context).brightness == Brightness.dark;
+                final dialogBg =
+                    isDark ? const Color(0xFF151F32) : Colors.white;
+                shouldRetry =
+                    await showDialog<bool>(
+                      context: context,
+                      barrierDismissible: false,
+                      builder: (ctx) => AlertDialog(
+                        backgroundColor: dialogBg,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          side: BorderSide(
+                            color: const Color(
+                              0xFFDC2626,
+                            ).withValues(alpha: 0.45),
+                          ),
+                        ),
+                        title: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: const Color(
+                                  0xFFDC2626,
+                                ).withValues(alpha: 0.14),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(
+                                Icons.error_outline_rounded,
+                                color: Color(0xFFDC2626),
+                                size: 20,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'Sale Failed — ZRA Rejected',
+                                style: GoogleFonts.inter(
+                                  fontWeight: FontWeight.w800,
+                                  color: const Color(0xFFDC2626),
+                                  fontSize: 15,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        content: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: const Color(
+                                  0xFFDC2626,
+                                ).withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: const Color(
+                                    0xFFDC2626,
+                                  ).withValues(alpha: 0.25),
+                                ),
+                              ),
+                              child: Text(
+                                zraErrorDetail,
+                                style: GoogleFonts.inter(
+                                  color: const Color(0xFFDC2626),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              '• Stock has NOT been deducted (your stock remains the same).\n'
+                              '• No receipt was printed.\n'
+                              '• Please retry selling again.',
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                height: 1.45,
+                                color: Theme.of(context).colorScheme.onSurface,
+                              ),
+                            ),
+                          ],
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () {
+                              Navigator.pop(ctx, false);
+                            },
+                            child: Text(
+                              'BACK TO CART',
+                              style: GoogleFonts.inter(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              Navigator.pop(ctx, true);
+                            },
+                            icon: const Icon(Icons.refresh_rounded, size: 16),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF1D4ED8),
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              elevation: 0,
+                            ),
+                            label: Text(
+                              'RETRY SALE AGAIN',
+                              style: GoogleFonts.inter(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ) ??
+                    false;
+              }
+              fiscalStatusDisposed = true;
+              fiscalStatus.dispose();
+              if (shouldRetry && mounted) {
+                Future.microtask(() {
+                  if (mounted) {
+                    _finalizeSale(cartNotifier);
+                  }
+                });
+              }
+              return;
+            }
+          }
+        } catch (e, stack) {
+          debugPrint('DIGITAX_PREFLIGHT_ERROR: $e\n$stack');
+        }
+      }
+
+      // Save transaction & deduct local stock (only reached when COMPLETED, PENDING, or LOCAL_EXEMPT)
       await db.saveTransaction(transaction, saleItems);
+
+      if (hasDigitax &&
+          !allItemsExempt &&
+          !reachableDigiTax &&
+          config?.isManagerMode == false) {
+        // Till has no direct internet to DigiTax, but is connected to the Master POS via LAN.
+        debugPrint(
+          'DIGITAX_PREFLIGHT: DigiTax unreachable directly from till. Delegating to Master POS over LAN...',
+        );
+        try {
+          final synced = await syncService.trySyncTransaction(
+            transaction,
+            saleItems,
+          );
+          if (synced &&
+              transaction.zraReceiptNumber != null &&
+              transaction.zraReceiptNumber!.isNotEmpty &&
+              transaction.zraReceiptNumber != 'PENDING') {
+            fiscalizedBeforePrint = true;
+            debugPrint(
+              'DIGITAX_PREFLIGHT: Fiscalized via Master POS before print for tx ${transaction.transactionId}',
+            );
+            updateFiscalStatus(
+              'ZRA receipt confirmed via Master POS. Official receipt is ready.',
+            );
+          }
+        } catch (e) {
+          debugPrint('PREFLIGHT_LAN_SYNC_NOTICE: $e');
+        }
+      }
 
       // Real-time push to Cloud VPS Server so HQ receives sales reports immediately
       ref
@@ -6717,7 +6981,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         currency: config?.currencySymbol ?? 'K',
       );
 
-      // Clear cart & reset payment state immediately so sale is marked done and cart is ready for next sale
+      // Clear cart & reset payment state now that the sale is confirmed/pending and saved
       cartNotifier.clear();
       // Clear barcode buffer so the completed sale's last scan cannot bleed into the next transaction
       ref.read(barcodeServiceProvider).clearBuffer();
@@ -6734,50 +6998,6 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         _searchFocusNode.requestFocus();
       }
 
-      // Resolve local credentials before scheduling network work. Checkout must not
-      // wait for DigiTax or the manager server to respond.
-      final resolvedBhf =
-          (currentUser?.branchCode != null &&
-              currentUser!.branchCode!.trim().isNotEmpty)
-          ? currentUser.branchCode!.trim().padLeft(2, '0')
-          : (config?.bhfId.trim().isNotEmpty == true
-                ? config!.bhfId.trim().padLeft(2, '0')
-                : '00');
-      final digitaxService = ref.read(digitaxInventoryServiceProvider);
-      String? branchKey;
-      try {
-        branchKey = await digitaxService.resolveBranchApiKey(resolvedBhf);
-      } catch (e) {
-        debugPrint('DIGITAX_BRANCH_KEY_LOOKUP_NOTICE: $e');
-      }
-      final hasDigitax =
-          (branchKey != null && branchKey.isNotEmpty) ||
-          (config?.digitaxApiKey != null &&
-              config!.digitaxApiKey!.trim().isNotEmpty);
-      final syncService = ref.read(syncServiceProvider);
-
-      // Check if all items in this sale are local/private (offline exempt)
-      final allItemsExempt =
-          saleItems.isNotEmpty && saleItems.every((i) => i.isDigitaxExempt);
-
-      if (allItemsExempt) {
-        transaction.zraStatus = 'LOCAL_EXEMPT';
-        transaction.zraInvoiceType = 'Internal / Non-Fiscal';
-        await db.isar.writeTxn(() async {
-          await db.isar.saleTransactions.put(transaction);
-        });
-      }
-
-      final fiscalStatus = ValueNotifier<String>(
-        allItemsExempt
-            ? 'Local private sale saved.'
-            : 'Sale saved. ZRA receipt is pending and will update automatically.',
-      );
-      var fiscalStatusDisposed = false;
-      void updateFiscalStatus(String message) {
-        if (!fiscalStatusDisposed) fiscalStatus.value = message;
-      }
-
       // Auto-kick Cash Drawer Hardware Driver on payment completion
       if (config?.autoOpenCashDrawer != false) {
         final isCashOrSplit =
@@ -6789,66 +7009,6 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
           } catch (e) {
             debugPrint('Cash drawer payment kick notice: $e');
           }
-        }
-      }
-
-      // ── STEP 1: Try DigiTax FIRST (before printing) ─────────────────────
-      // Only fiscalize if this sale contains at least one product intended for ZRA DigiTax.
-      // Private/local-only sales skip DigiTax completely so they are never rejected or uploaded.
-      bool fiscalizedBeforePrint = false;
-      if (hasDigitax && !allItemsExempt) {
-        try {
-          final reachable = await DigiTaxInventoryService.canReachDigiTax();
-          if (reachable) {
-            fiscalizedBeforePrint = await digitaxService
-                .fiscalizeSaleTransaction(transaction, saleItems);
-            if (fiscalizedBeforePrint) {
-              debugPrint(
-                'DIGITAX_PREFLIGHT: Fiscalized before print for tx ${transaction.transactionId}',
-              );
-              updateFiscalStatus(
-                'ZRA receipt confirmed. The official receipt is ready.',
-              );
-            } else if (transaction.zraStatus.toUpperCase().startsWith(
-              'FAILED',
-            )) {
-              updateFiscalStatus(
-                'ZRA rejected this sale. Check the transaction details.',
-              );
-            }
-          } else if (config?.isManagerMode == false) {
-            // Till has no direct internet to DigiTax, but is connected to the Master POS via LAN.
-            // Delegate fiscalization to Master POS instantly so official ZRA QR receipt prints!
-            debugPrint(
-              'DIGITAX_PREFLIGHT: DigiTax unreachable directly from till. Delegating to Master POS over LAN...',
-            );
-            try {
-              final synced = await syncService.trySyncTransaction(
-                transaction,
-                saleItems,
-              );
-              if (synced &&
-                  transaction.zraReceiptNumber != null &&
-                  transaction.zraReceiptNumber!.isNotEmpty &&
-                  transaction.zraReceiptNumber != 'PENDING') {
-                fiscalizedBeforePrint = true;
-                debugPrint(
-                  'DIGITAX_PREFLIGHT: Fiscalized via Master POS before print for tx ${transaction.transactionId}',
-                );
-                updateFiscalStatus(
-                  'ZRA receipt confirmed via Master POS. Official receipt is ready.',
-                );
-              }
-            } catch (e) {
-              debugPrint('PREFLIGHT_LAN_SYNC_NOTICE: $e');
-            }
-          } else {
-            debugPrint(
-              'DIGITAX_PREFLIGHT: DigiTax unreachable – printing offline receipt and scheduling retry.',
-            );
-          }
-        } catch (e, stack) {
-          debugPrint('DIGITAX_PREFLIGHT_ERROR: $e\n$stack');
         }
       }
 
@@ -7172,8 +7332,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       var fiscalized = alreadyFiscalized;
       var syncSuccess = false;
 
-      // Only attempt fiscalization if not already done in the preflight step
-      if (hasDigitax && !fiscalized) {
+      // Only attempt fiscalization if not already done or submitted in the preflight step
+      final alreadySubmittedToDigitax =
+          tx.zraMarkId != null && tx.zraMarkId!.trim().isNotEmpty;
+      if (hasDigitax && !fiscalized && !alreadySubmittedToDigitax) {
         try {
           fiscalized = await digitaxService.fiscalizeSaleTransaction(tx, items);
         } catch (e, stackTrace) {

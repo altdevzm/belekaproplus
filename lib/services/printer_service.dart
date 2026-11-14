@@ -676,8 +676,16 @@ class PrinterService {
     }
   }
 
-  /// Unified check to determine if a transaction has approved ZRA fiscal data / QR verification code
+  /// Unified check to determine if a transaction should print the ZRA Fiscal Control block & QR Code.
+  /// Both COMPLETED (Approved) and PENDING sales print the QR code; FAILED and LOCAL_EXEMPT do not.
   bool isFiscalApproved(SaleTransaction transaction) {
+    final statusUpper = transaction.zraStatus.toUpperCase();
+    if (statusUpper.startsWith('FAILED') ||
+        statusUpper == 'LOCAL_EXEMPT' ||
+        statusUpper == 'OFFLINE_EXEMPT') {
+      return false;
+    }
+
     // 1. If live or generated ZRA QR Code is present and non-empty, fiscal verification data exists
     final hasQr = transaction.zraQrCode != null &&
         transaction.zraQrCode!.trim().isNotEmpty &&
@@ -686,11 +694,10 @@ class PrinterService {
       return true;
     }
 
-    final statusUpper = transaction.zraStatus.toUpperCase();
-    final isApprovedStatus = statusUpper == 'APPROVED' ||
+    if (statusUpper == 'APPROVED' ||
         statusUpper == 'COMPLETED' ||
-        statusUpper == 'FISCALIZED';
-    if (isApprovedStatus) {
+        statusUpper == 'FISCALIZED' ||
+        statusUpper == 'PENDING') {
       return true;
     }
 

@@ -681,18 +681,23 @@ class ExportService {
         transaction.zraQrCode!.trim() != 'PENDING';
 
     final statusUpper = transaction.zraStatus.toUpperCase();
-    final isFiscalApproved = hasQr ||
-        statusUpper == 'APPROVED' ||
-        statusUpper == 'COMPLETED' ||
-        statusUpper == 'FISCALIZED' ||
-        ((transaction.zraReceiptNumber != null &&
-                transaction.zraReceiptNumber!.isNotEmpty &&
-                transaction.zraReceiptNumber != 'PENDING') &&
-            (transaction.zraMarkId != null &&
-                transaction.zraMarkId!.isNotEmpty &&
-                transaction.zraMarkId != 'PENDING' &&
-                !transaction.zraMarkId!.startsWith('sale_') &&
-                !transaction.zraMarkId!.startsWith('SALE_')));
+    final isFailedOrExempt = statusUpper.startsWith('FAILED') ||
+        statusUpper == 'LOCAL_EXEMPT' ||
+        statusUpper == 'OFFLINE_EXEMPT';
+    final isFiscalApproved = !isFailedOrExempt &&
+        (hasQr ||
+            statusUpper == 'APPROVED' ||
+            statusUpper == 'COMPLETED' ||
+            statusUpper == 'FISCALIZED' ||
+            statusUpper == 'PENDING' ||
+            ((transaction.zraReceiptNumber != null &&
+                    transaction.zraReceiptNumber!.isNotEmpty &&
+                    transaction.zraReceiptNumber != 'PENDING') &&
+                (transaction.zraMarkId != null &&
+                    transaction.zraMarkId!.isNotEmpty &&
+                    transaction.zraMarkId != 'PENDING' &&
+                    !transaction.zraMarkId!.startsWith('sale_') &&
+                    !transaction.zraMarkId!.startsWith('SALE_'))));
     final receiptTitle = transaction.isCreditNote
         ? 'ZRA FISCAL CREDIT NOTE'
         : (isFiscalApproved
