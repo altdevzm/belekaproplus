@@ -138,6 +138,15 @@ jobs:
           tag_name: ${{ needs.create-release.outputs.tag }}
           files: build/windows/installer/Beleka_POS_Setup_v${{ needs.create-release.outputs.version }}.exe
 
+      - name: Upload Windows installer to Main Repo Release
+        uses: softprops/action-gh-release@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag_name: ${{ needs.create-release.outputs.tag }}
+          name: "Beleka POS ${{ needs.create-release.outputs.tag }}"
+          files: build/windows/installer/Beleka_POS_Setup_v${{ needs.create-release.outputs.version }}.exe
+        continue-on-error: true
+
   # ─────────────────────────────────────────────────────────────────────────────
   # Job 3: Build Android APK
   # ─────────────────────────────────────────────────────────────────────────────
@@ -201,13 +210,15 @@ jobs:
           tag_name: ${{ needs.create-release.outputs.tag }}
           files: Beleka_POS_v${{ needs.create-release.outputs.version }}.apk
 
-      - name: Upload License Generator to Private Repo Release
+      - name: Upload POS APK & License Generator to Main Repo Release
         uses: softprops/action-gh-release@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           tag_name: ${{ needs.create-release.outputs.tag }}
-          name: "Beleka POS Private Release ${{ needs.create-release.outputs.tag }}"
-          files: Beleka_License_Generator_v${{ needs.create-release.outputs.version }}.apk
+          name: "Beleka POS ${{ needs.create-release.outputs.tag }}"
+          files: |
+            Beleka_POS_v${{ needs.create-release.outputs.version }}.apk
+            Beleka_License_Generator_v${{ needs.create-release.outputs.version }}.apk
         continue-on-error: true
 
   # ─────────────────────────────────────────────────────────────────────────────
