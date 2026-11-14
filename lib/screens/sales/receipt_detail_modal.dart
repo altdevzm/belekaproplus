@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -32,6 +33,7 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
   bool _isSyncing = false;
   bool _isRefundMode = false;
   final Set<int> _selectedItemIds = {};
+  Timer? _liveFiscalPollTimer;
 
   // Common refund reasons per ZRA requirement
   static const _refundReasons = [
@@ -56,13 +58,47 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref
-          .read(digitaxInventoryServiceProvider)
-          .refreshTransactionFiscalData(widget.transaction)
-          .then((updated) {
-            if (updated && mounted) setState(() {});
-          });
+      _pollLiveFiscalStatus();
+      _liveFiscalPollTimer = Timer.periodic(
+        const Duration(seconds: 4),
+        (_) => _pollLiveFiscalStatus(),
+      );
     });
+  }
+
+  Future<void> _pollLiveFiscalStatus() async {
+    if (!mounted) {
+      return;
+    }
+    final st = widget.transaction.zraStatus.toUpperCase();
+    final isAlreadyCompleted =
+        st == 'APPROVED' ||
+        st == 'COMPLETED' ||
+        st == 'FISCALIZED' ||
+        st == 'LOCAL_EXEMPT' ||
+        st == 'OFFLINE_EXEMPT' ||
+        _isRealZraSig(widget.transaction.zraMarkId);
+    if (isAlreadyCompleted || st.startsWith('FAILED')) {
+      _liveFiscalPollTimer?.cancel();
+      return;
+    }
+    try {
+      await ref
+          .read(digitaxInventoryServiceProvider)
+          .refreshTransactionFiscalData(
+            widget.transaction,
+            useShortTimeout: true,
+          );
+      if (mounted) {
+        setState(() {});
+      }
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    _liveFiscalPollTimer?.cancel();
+    super.dispose();
   }
 
   @override
@@ -784,18 +820,39 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
         ? widget.transaction.zraInternalData!
         : (config?.mrcNo?.isNotEmpty == true ? config!.mrcNo! : 'PENDING');
 
-    final isApproved = hasQr ||
-        widget.transaction.zraStatus == 'APPROVED' ||
-        widget.transaction.zraStatus == 'FISCALIZED' ||
-        _isRealZraSig(signatureRaw);
+    final statusUpper = widget.transaction.zraStatus.toUpperCase();
+    final isFailed = statusUpper.startsWith('FAILED');
+    final isApproved = !isFailed &&
+        (hasQr ||
+            statusUpper == 'APPROVED' ||
+            statusUpper == 'COMPLETED' ||
+            statusUpper == 'FISCALIZED' ||
+            _isRealZraSig(signatureRaw));
+    final String stageBadgeText = isApproved
+        ? 'COMPLETED'
+        : (isFailed ? 'FAILED' : 'PENDING');
+    final String stageSubtitle = isApproved
+        ? 'Accepted by ZRA · Smart Invoice issued.'
+        : (isFailed
+              ? (widget.transaction.zraStatus.contains(':')
+                    ? 'ZRA rejected the submission · needs attention (${widget.transaction.zraStatus.split(':').sublist(1).join(':').trim()}).'
+                    : 'ZRA rejected the submission · needs attention.')
+              : 'Recorded in DigiTax · still syncing with ZRA.');
+    final Color stageColor = isApproved
+        ? const Color(0xFF10B981)
+        : (isFailed ? const Color(0xFFEF4444) : Colors.amber);
+    final bool canSyncOrRetry =
+        !isApproved &&
+        (widget.transaction.isCreditNote ||
+            widget.transaction.status != 'refunded');
 
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF10B981).withValues(alpha: 0.04),
+        color: stageColor.withValues(alpha: 0.04),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: const Color(0xFF10B981).withValues(alpha: 0.2),
+          color: stageColor.withValues(alpha: 0.25),
         ),
       ),
       child: Column(
@@ -806,9 +863,13 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
             children: [
               Row(
                 children: [
-                  const Icon(
-                    Icons.verified_rounded,
-                    color: Color(0xFF10B981),
+                  Icon(
+                    isApproved
+                        ? Icons.verified_rounded
+                        : (isFailed
+                              ? Icons.error_outline_rounded
+                              : Icons.hourglass_top_rounded),
+                    color: stageColor,
                     size: 16,
                   ),
                   const SizedBox(width: 8),
@@ -818,7 +879,7 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
                       fontSize: 10,
                       fontWeight: FontWeight.w900,
                       letterSpacing: 1.2,
-                      color: const Color(0xFF10B981),
+                      color: stageColor,
                     ),
                   ),
                 ],
@@ -830,27 +891,22 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      color: isApproved
-                          ? const Color(0xFF10B981).withValues(alpha: 0.15)
-                          : Colors.amber.withValues(alpha: 0.15),
+                      color: stageColor.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(4),
                       border: Border.all(
-                        color: isApproved
-                            ? const Color(0xFF10B981).withValues(alpha: 0.4)
-                            : Colors.amber.withValues(alpha: 0.4),
+                        color: stageColor.withValues(alpha: 0.4),
                       ),
                     ),
                     child: Text(
-                      isApproved ? 'APPROVED' : 'PENDING',
+                      stageBadgeText,
                       style: GoogleFonts.manrope(
                         fontSize: 8,
                         fontWeight: FontWeight.w900,
-                        color:
-                            isApproved ? const Color(0xFF10B981) : Colors.amber,
+                        color: stageColor,
                       ),
                     ),
                   ),
-                  if (!isApproved && widget.transaction.status != 'refunded') ...[
+                  if (canSyncOrRetry) ...[
                     const SizedBox(width: 8),
                     InkWell(
                       onTap: _isSyncing ? null : _syncToDigitax,
@@ -887,7 +943,9 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
                               ),
                             const SizedBox(width: 4),
                             Text(
-                              _isSyncing ? 'SYNCING...' : 'SYNC ZRA',
+                              _isSyncing
+                                  ? 'SYNCING...'
+                                  : (isFailed ? 'RETRY ZRA' : 'SYNC ZRA'),
                               style: GoogleFonts.manrope(
                                 fontSize: 8,
                                 fontWeight: FontWeight.w900,
@@ -903,7 +961,16 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 6),
+          Text(
+            stageSubtitle,
+            style: GoogleFonts.inter(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w600,
+              color: stageColor,
+            ),
+          ),
+          const SizedBox(height: 10),
           _buildFiscalRow('Date & Time', '$dateFormatted  $timeFormatted'),
           _buildFiscalRow('SDC Id', sdcIdStr),
           _buildFiscalRow('SDC Invoice No', sdcInvNoStr),
@@ -1012,9 +1079,14 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
 
   Widget _buildFooterActions(BuildContext context) {
     final isRefunded = widget.transaction.status == 'refunded';
-    final isApproved = widget.transaction.zraStatus == 'APPROVED' ||
-        widget.transaction.zraStatus == 'FISCALIZED' ||
-        _isRealZraSig(widget.transaction.zraMarkId);
+    final isNonCreditNoteRefunded =
+        isRefunded && !widget.transaction.isCreditNote;
+    final stUpper = widget.transaction.zraStatus.toUpperCase();
+    final isApproved = !stUpper.startsWith('FAILED') &&
+        (stUpper == 'APPROVED' ||
+            stUpper == 'COMPLETED' ||
+            stUpper == 'FISCALIZED' ||
+            _isRealZraSig(widget.transaction.zraMarkId));
 
     if (_isRefundMode) {
       return Row(
@@ -1099,7 +1171,7 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
 
     return Row(
       children: [
-        if (!isApproved && !isRefunded && !isLocalOnly) ...[
+        if (!isApproved && !isNonCreditNoteRefunded && !isLocalOnly) ...[
           Expanded(
             child: SizedBox(
               height: 48,
@@ -1137,7 +1209,9 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
                             ),
                             const SizedBox(width: 6),
                             Text(
-                              'SYNC ZRA',
+                              stUpper.startsWith('FAILED')
+                                  ? 'RETRY ZRA'
+                                  : 'SYNC ZRA',
                               style: GoogleFonts.manrope(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w800,
@@ -1243,12 +1317,13 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
           child: SizedBox(
             height: 48,
             child: ElevatedButton(
-              onPressed: (_isPrinting || isRefunded)
+              onPressed: (_isPrinting || isNonCreditNoteRefunded)
                   ? null
                   : () => _executeReprint(context),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.white.withValues(alpha: 0.05),
-                foregroundColor: isRefunded ? Colors.white24 : Colors.white,
+                foregroundColor:
+                    isNonCreditNoteRefunded ? Colors.white24 : Colors.white,
                 disabledBackgroundColor: Colors.white.withValues(alpha: 0.02),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -1272,7 +1347,9 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
                           const Icon(Icons.print_rounded, size: 16),
                           const SizedBox(width: 6),
                           Text(
-                            isRefunded ? 'REPRINT BLOCKED' : 'REPRINT',
+                            isNonCreditNoteRefunded
+                                ? 'REPRINT BLOCKED'
+                                : 'REPRINT',
                             style: GoogleFonts.manrope(
                               fontSize: 12,
                               fontWeight: FontWeight.w900,
@@ -1685,18 +1762,24 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
         ref.invalidate(reportTransactionsProvider);
 
         if (context.mounted) {
+          final cnStatusUpper = refundTx.zraStatus.toUpperCase();
+          final isCnFailed = cnStatusUpper.startsWith('FAILED');
+          final String statusMsg = digitaxSuccess
+              ? '✓ Completed: Credit Note accepted by ZRA · Smart Invoice issued (${refundTx.zraReceiptNumber ?? "Approved"}).'
+              : (isCnFailed
+                    ? '✗ Failed: ZRA rejected the Credit Note submission · needs attention (${refundTx.zraStatus}).'
+                    : '⏳ Pending: Credit Note recorded in DigiTax · still syncing with ZRA.');
+          final Color statusBg = digitaxSuccess
+              ? const Color(0xFF10B981)
+              : (isCnFailed
+                    ? const Color(0xFFEF4444)
+                    : Colors.amber.shade700);
           Navigator.pop(context);
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(
-                digitaxSuccess
-                    ? '\u2713 ZRA Credit Note submitted & refund processed!'
-                    : 'Refund processed locally. ZRA credit note submission pending.',
-              ),
-              backgroundColor: digitaxSuccess
-                  ? const Color(0xFF10B981)
-                  : Colors.amber.shade700,
-              duration: const Duration(seconds: 4),
+              content: Text(statusMsg),
+              backgroundColor: statusBg,
+              duration: const Duration(seconds: 5),
             ),
           );
         }

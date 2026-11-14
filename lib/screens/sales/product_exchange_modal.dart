@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:beleka_pos/models/models.dart';
 import 'package:beleka_pos/services/database_service.dart';
+import 'package:beleka_pos/services/digitax_inventory_service.dart';
 import 'package:beleka_pos/services/printer_service.dart';
 import 'package:beleka_pos/services/product_exchange_service.dart';
 import 'package:beleka_pos/providers/store_provider.dart';
@@ -1584,16 +1586,242 @@ class _ProductExchangeModalState extends ConsumerState<ProductExchangeModal> {
 }
 
 /// Dialog displaying the generated Exchange Receipt with Print / PDF export buttons (Section E)
-class ExchangeReceiptDialog extends ConsumerWidget {
+class ExchangeReceiptDialog extends ConsumerStatefulWidget {
   final ProductExchangeRecord record;
 
   const ExchangeReceiptDialog({super.key, required this.record});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ExchangeReceiptDialog> createState() =>
+      _ExchangeReceiptDialogState();
+}
+
+class _ExchangeReceiptDialogState extends ConsumerState<ExchangeReceiptDialog> {
+  SaleTransaction? _cnTx;
+  SaleTransaction? _repTx;
+  bool _isSyncingFiscal = false;
+  Timer? _pollTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAndPollTransactions();
+    _pollTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      if (mounted && !_isSyncingFiscal) {
+        _checkPendingAndPoll();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    super.dispose();
+  }
+
+  bool _isTxCompleted(SaleTransaction? tx) {
+    if (tx == null) {
+      return false;
+    }
+    final status = tx.zraStatus.toUpperCase();
+    final rcpt = tx.zraReceiptNumber ?? '';
+    return status == 'APPROVED' ||
+        status == 'COMPLETED' ||
+        (rcpt.isNotEmpty &&
+            rcpt != 'PENDING' &&
+            !status.startsWith('FAILED') &&
+            status != 'REJECTED');
+  }
+
+  bool _isTxFailed(SaleTransaction? tx) {
+    if (tx == null) {
+      return false;
+    }
+    final status = tx.zraStatus.toUpperCase();
+    return status.startsWith('FAILED') || status == 'REJECTED';
+  }
+
+  Future<void> _loadAndPollTransactions() async {
+    final db = ref.read(databaseServiceProvider);
+    SaleTransaction? cn;
+    SaleTransaction? rep;
+    if (widget.record.creditNoteSaleId != null) {
+      cn = await db.isar.saleTransactions.get(widget.record.creditNoteSaleId!);
+    }
+    if (widget.record.replacementSaleId != null) {
+      rep = await db.isar.saleTransactions.get(
+        widget.record.replacementSaleId!,
+      );
+    }
+    if (mounted) {
+      setState(() {
+        _cnTx = cn;
+        _repTx = rep;
+      });
+    }
+    await _checkPendingAndPoll();
+  }
+
+  Future<void> _checkPendingAndPoll() async {
+    final needCnPoll =
+        _cnTx != null && !_isTxCompleted(_cnTx) && !_isTxFailed(_cnTx);
+    final needRepPoll =
+        _repTx != null && !_isTxCompleted(_repTx) && !_isTxFailed(_repTx);
+    if (!needCnPoll && !needRepPoll) {
+      return;
+    }
+    final digitax = ref.read(digitaxInventoryServiceProvider);
+    final db = ref.read(databaseServiceProvider);
+    if (needCnPoll && _cnTx != null) {
+      await digitax.refreshTransactionFiscalData(_cnTx!);
+      _cnTx = await db.isar.saleTransactions.get(_cnTx!.id);
+    }
+    if (needRepPoll && _repTx != null) {
+      await digitax.refreshTransactionFiscalData(_repTx!);
+      _repTx = await db.isar.saleTransactions.get(_repTx!.id);
+    }
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  Future<void> _manualSyncZra() async {
+    if (_isSyncingFiscal) {
+      return;
+    }
+    setState(() => _isSyncingFiscal = true);
+    try {
+      final digitax = ref.read(digitaxInventoryServiceProvider);
+      final db = ref.read(databaseServiceProvider);
+      if (_cnTx != null && !_isTxCompleted(_cnTx)) {
+        await digitax.refreshTransactionFiscalData(_cnTx!);
+        _cnTx = await db.isar.saleTransactions.get(_cnTx!.id);
+        if (_cnTx != null && !_isTxCompleted(_cnTx)) {
+          final cnItems = await db.getTransactionItems(_cnTx!.id);
+          await digitax.fiscalizeSaleTransaction(_cnTx!, cnItems);
+          _cnTx = await db.isar.saleTransactions.get(_cnTx!.id);
+        }
+      }
+      if (_repTx != null && !_isTxCompleted(_repTx)) {
+        await digitax.refreshTransactionFiscalData(_repTx!);
+        _repTx = await db.isar.saleTransactions.get(_repTx!.id);
+        if (_repTx != null && !_isTxCompleted(_repTx)) {
+          final repItems = await db.getTransactionItems(_repTx!.id);
+          await digitax.fiscalizeSaleTransaction(_repTx!, repItems);
+          _repTx = await db.isar.saleTransactions.get(_repTx!.id);
+        }
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSyncingFiscal = false);
+      }
+    }
+  }
+
+  Widget _buildFiscalStatusTile(String label, SaleTransaction? tx, String refNo) {
+    final completed = _isTxCompleted(tx);
+    final failed = _isTxFailed(tx);
+    final String stageTitle = completed
+        ? 'Completed'
+        : (failed ? 'Failed' : 'Pending');
+    final String stageDesc = completed
+        ? 'Accepted by ZRA · Smart Invoice issued.'
+        : (failed
+              ? 'ZRA rejected the submission · needs attention.'
+              : 'Recorded in DigiTax · still syncing with ZRA.');
+    final Color color = completed
+        ? const Color(0xFF10B981)
+        : (failed ? const Color(0xFFEF4444) : const Color(0xFFD97706));
+    final rcptNo =
+        (tx?.zraReceiptNumber != null &&
+            tx!.zraReceiptNumber!.isNotEmpty &&
+            tx.zraReceiptNumber != 'PENDING')
+        ? tx.zraReceiptNumber!
+        : null;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '$label ($refNo)',
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  stageTitle.toUpperCase(),
+                  style: GoogleFonts.inter(
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w900,
+                    color: color,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 3),
+          Text(
+            stageDesc,
+            style: GoogleFonts.inter(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
+          ),
+          if (rcptNo != null) ...[
+            const SizedBox(height: 2),
+            Text(
+              'Smart Invoice Receipt #: $rcptNo',
+              style: GoogleFonts.inter(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w700,
+                color: Colors.white70,
+              ),
+            ),
+          ],
+          if (failed && (tx?.zraStatus ?? '').isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(
+              tx!.zraStatus,
+              style: GoogleFonts.inter(
+                fontSize: 10,
+                color: const Color(0xFFEF4444),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final record = widget.record;
     final currency =
         ref.watch(storeConfigProvider).value?.currencySymbol ?? 'K';
     final df = DateFormat('dd MMM yyyy • HH:mm');
+    final anyNotCompleted =
+        (_cnTx != null && !_isTxCompleted(_cnTx)) ||
+        (_repTx != null && !_isTxCompleted(_repTx));
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -1641,25 +1869,50 @@ class ExchangeReceiptDialog extends ConsumerWidget {
               _metaRow('Exchange No:', record.exchangeNumber),
               _metaRow('Original Invoice:', record.originalInvoiceNo),
               if (record.creditNoteSaleId != null)
-                _metaRow(
-                  'ZRA Credit Note:',
-                  record.zraCreditNoteReceiptNo?.isNotEmpty == true
-                      ? '${record.zraCreditNoteReceiptNo} (CN-#${record.creditNoteSaleId.toString().padLeft(6, '0')})'
-                      : 'CN-#${record.creditNoteSaleId.toString().padLeft(6, '0')}',
+                _buildFiscalStatusTile(
+                  'ZRA Credit Note',
+                  _cnTx,
+                  'CN-#${record.creditNoteSaleId.toString().padLeft(6, '0')}',
                 ),
               if (record.replacementSaleId != null)
-                _metaRow(
-                  'ZRA New Sale:',
-                  record.zraReplacementReceiptNo?.isNotEmpty == true
-                      ? '${record.zraReplacementReceiptNo} (INV-#${record.replacementSaleId.toString().padLeft(6, '0')})'
-                      : 'INV-#${record.replacementSaleId.toString().padLeft(6, '0')}',
+                _buildFiscalStatusTile(
+                  'ZRA New Sale',
+                  _repTx,
+                  'INV-#${record.replacementSaleId.toString().padLeft(6, '0')}',
                 ),
-              _metaRow(
-                'DigiTax Fiscal Status:',
-                record.digitaxSynced
-                    ? '✓ SYNCED TO ZRA DIGITAX'
-                    : 'QUEUED FOR DIGITAX SYNC',
-              ),
+              if (anyNotCompleted)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4, bottom: 4),
+                  child: SizedBox(
+                    height: 32,
+                    child: OutlinedButton.icon(
+                      onPressed: _isSyncingFiscal ? null : _manualSyncZra,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFFD97706),
+                        side: const BorderSide(color: Color(0xFFD97706)),
+                      ),
+                      icon: _isSyncingFiscal
+                          ? const SizedBox(
+                              width: 13,
+                              height: 13,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Color(0xFFD97706),
+                              ),
+                            )
+                          : const Icon(Icons.sync_rounded, size: 15),
+                      label: Text(
+                        _isSyncingFiscal
+                            ? 'CHECKING ZRA DIGITAX...'
+                            : 'SYNC / RETRY ZRA SMART INVOICE',
+                        style: GoogleFonts.inter(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               _metaRow('Customer:', record.customerName),
               if (record.customerPhone.isNotEmpty)
                 _metaRow('Customer Phone:', record.customerPhone),

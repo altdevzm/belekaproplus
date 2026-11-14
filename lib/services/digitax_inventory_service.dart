@@ -3239,11 +3239,11 @@ class DigiTaxInventoryService {
                         : ''));
 
         // SDC Invoice Number (ZRA Smart Invoice format: INV{SDC_ID}/{number})
+        // Never use sale_number here because sale_number is assigned while still PENDING in DigiTax
         final rawRcpt =
             saleData['receipt_number'] ??
             saleData['invoice_number'] ??
-            saleData['sdc_invoice_number'] ??
-            saleData['sale_number'];
+            saleData['sdc_invoice_number'];
         String sdcRcptNo = 'PENDING';
         if (rawRcpt != null &&
             rawRcpt.toString().trim().isNotEmpty &&
@@ -3283,9 +3283,13 @@ class DigiTaxInventoryService {
             liveSignature.isEmpty ||
             liveSignature == 'PENDING') {
           transaction.zraSdcId = sdcId.isEmpty ? null : sdcId;
-          await persistFiscalStatus('RECONCILIATION_REQUIRED');
+          transaction.zraReceiptNumber = 'PENDING';
+          if (saleId != null && saleId.isNotEmpty) {
+            transaction.zraMarkId = saleId;
+          }
+          await persistFiscalStatus('PENDING');
           debugPrint(
-            'DIGITAX_SALES_RECONCILIATION_REQUIRED: DigiTax accepted the request without confirmed receipt metadata for transaction ${transaction.transactionId}.',
+            'DIGITAX_SALES_PENDING_ZRA: Recorded in DigiTax (id=$saleId) · still syncing with ZRA for transaction ${transaction.transactionId}.',
           );
           return false;
         }
@@ -4010,24 +4014,88 @@ class DigiTaxInventoryService {
             }
           }
 
+          final cnRemoteStatus =
+              (saleData['status'] ?? '').toString().trim().toUpperCase();
+          if (cnRemoteStatus == 'FAILED') {
+            final failReason =
+                (saleData['status_reason'] ??
+                        saleData['error_message'] ??
+                        saleData['message'] ??
+                        'ZRA rejected the submission · needs attention.')
+                    .toString()
+                    .trim();
+            refundTx
+              ..isCreditNote = true
+              ..orgInvoiceNo = origTraderInvNo
+              ..creditNoteReason = reason
+              ..zraReceiptNumber = null
+              ..zraMarkId = cnSaleId
+              ..zraQrCode = null
+              ..zraInvoiceType = 'Credit Note (R)'
+              ..zraStatus = 'FAILED: $failReason';
+            await db.isar.writeTxn(() async {
+              await db.isar.saleTransactions.put(refundTx);
+            });
+            debugPrint(
+              'DIGITAX_CN_ZRA_FAILED: Credit Note $cnSaleId rejected by ZRA ($failReason)',
+            );
+            return false;
+          }
+
           final sdcId =
               (saleData['sdc_id']?.toString().trim().isNotEmpty == true)
               ? saleData['sdc_id'].toString().trim()
               : (config?.sdcId ?? '');
+          // Only use ZRA-assigned receipt_number (never sale_number, which is assigned while still pending)
           final rcptNumberRaw =
               saleData['receipt_number'] ??
               saleData['zra_receipt_number'] ??
-              saleData['sale_number'];
-          final rawRcptStr = rcptNumberRaw?.toString().trim() ?? '';
-          String sdcRcptNo = rawRcptStr.isNotEmpty ? rawRcptStr : traderInvNo;
-          if (int.tryParse(rawRcptStr) != null && sdcId.isNotEmpty) {
-            final cleanSdc = sdcId.replaceAll(
-              RegExp(r'^SDC', caseSensitive: false),
-              '',
-            );
-            sdcRcptNo = 'CN$cleanSdc/$rawRcptStr';
+              saleData['sdc_invoice_number'];
+          final rawRcptStr =
+              (rcptNumberRaw != null && rcptNumberRaw.toString() != 'null')
+              ? rcptNumberRaw.toString().trim()
+              : '';
+          String sdcRcptNo = 'PENDING';
+          if (rawRcptStr.isNotEmpty) {
+            if (int.tryParse(rawRcptStr) != null && sdcId.isNotEmpty) {
+              final cleanSdc = sdcId.replaceAll(
+                RegExp(r'^SDC', caseSensitive: false),
+                '',
+              );
+              sdcRcptNo = 'CN$cleanSdc/$rawRcptStr';
+            } else if (int.tryParse(rawRcptStr) != null) {
+              sdcRcptNo = 'CN1/$rawRcptStr';
+            } else {
+              sdcRcptNo = rawRcptStr;
+            }
           }
 
+          final isApproved =
+              (liveSignature != null && liveSignature.isNotEmpty) ||
+              (cnRemoteStatus == 'COMPLETED' && sdcRcptNo != 'PENDING');
+
+          if (!isApproved) {
+            // Stage 1: Pending — Recorded in DigiTax · still syncing with ZRA
+            refundTx
+              ..isCreditNote = true
+              ..orgInvoiceNo = origTraderInvNo
+              ..creditNoteReason = reason
+              ..zraSdcId = sdcId.isNotEmpty ? sdcId : null
+              ..zraReceiptNumber = 'PENDING'
+              ..zraMarkId = cnSaleId ?? 'PENDING'
+              ..zraQrCode = null
+              ..zraInvoiceType = 'Credit Note (R)'
+              ..zraStatus = 'PENDING';
+            await db.isar.writeTxn(() async {
+              await db.isar.saleTransactions.put(refundTx);
+            });
+            debugPrint(
+              'DIGITAX_CN_PENDING_ZRA: Credit Note recorded in DigiTax (ID: $cnSaleId) · still syncing with ZRA.',
+            );
+            return false;
+          }
+
+          // Stage 2: Completed — Accepted by ZRA · Smart Invoice issued
           final internalData =
               (saleData['internal_data']?.toString().trim().isNotEmpty == true)
               ? saleData['internal_data'].toString().trim()
@@ -4035,27 +4103,46 @@ class DigiTaxInventoryService {
           final qrUrl =
               (saleData['receipt_url']?.toString().trim().isNotEmpty == true)
               ? saleData['receipt_url'].toString().trim()
-              : (sdcId.isNotEmpty
+              : (sdcId.isNotEmpty && sdcRcptNo != 'PENDING'
                     ? 'https://smartinvoice.zra.org.zm/verify?tpin=${config?.tpin}&sdc=$sdcId&rcpt=$sdcRcptNo'
                     : '');
-
-          final isApproved = liveSignature != null && liveSignature.isNotEmpty;
 
           refundTx
             ..isCreditNote = true
             ..orgInvoiceNo = origTraderInvNo
             ..creditNoteReason = reason
             ..zraSdcId = sdcId
-            ..zraReceiptNumber = sdcRcptNo
-            ..zraMarkId = isApproved ? liveSignature : (cnSaleId ?? 'PENDING')
+            ..zraReceiptNumber = sdcRcptNo != 'PENDING' ? sdcRcptNo : traderInvNo
+            ..zraMarkId = liveSignature ?? cnSaleId
             ..zraInternalData = internalData
             ..zraQrCode = qrUrl
             ..zraInvoiceType = 'Credit Note (R)'
-            ..zraStatus = isApproved ? 'APPROVED' : 'PENDING';
+            ..zraStatus = 'APPROVED';
 
           await db.isar.writeTxn(() async {
             await db.isar.saleTransactions.put(refundTx);
           });
+
+          // Restock items in DigiTax cloud inventory once ZRA approves
+          for (final item in effectiveItems) {
+            try {
+              final product = await db.isar.products.get(item.productId);
+              if (product != null && product.isDigitaxSyncEnabled) {
+                final int restoreQty = (item.isWeighted && item.weight > 0)
+                    ? item.weight.ceil()
+                    : item.quantity;
+                await pushStockMovementAdjustment(
+                  product: product,
+                  action: 'ADD',
+                  movementType: '11',
+                  quantity: restoreQty,
+                  remarks: 'Restocked via Credit Note for Tx #${refundTx.id}',
+                );
+              }
+            } catch (e) {
+              debugPrint('DIGITAX_RESTOCK_PUSH_ERROR: $e');
+            }
+          }
 
           debugPrint(
             'DIGITAX_DEDICATED_CN_SUCCESS ✓ CN: ${refundTx.zraReceiptNumber} (DigiTax ID: $cnSaleId, Status: ${refundTx.zraStatus})',
@@ -5660,11 +5747,36 @@ class DigiTaxInventoryService {
 
         if (matchData is! Map) return false;
 
+        final remoteStatusUpper =
+            (matchData['status'] ?? '').toString().trim().toUpperCase();
+        final matchedDigiTaxId = matchData['id']?.toString().trim();
+
+        // Stage 3: Failed — ZRA rejected the submission · needs attention
+        if (remoteStatusUpper == 'FAILED') {
+          final failReason =
+              (matchData['status_reason'] ??
+                      matchData['error_message'] ??
+                      matchData['message'] ??
+                      'ZRA rejected the submission · needs attention.')
+                  .toString()
+                  .trim();
+          transaction.zraStatus = 'FAILED: $failReason';
+          transaction.zraReceiptNumber = null;
+          transaction.zraQrCode = null;
+          if (matchedDigiTaxId != null && matchedDigiTaxId.isNotEmpty) {
+            transaction.zraMarkId = matchedDigiTaxId;
+          }
+          await db.isar.writeTxn(() async {
+            await db.isar.saleTransactions.put(transaction);
+          });
+          return false;
+        }
+
+        // Only use ZRA-assigned receipt_number (never sale_number, which is assigned while still pending)
         final rawRcpt =
             matchData['receipt_number'] ??
             matchData['invoice_number'] ??
-            matchData['sdc_invoice_number'] ??
-            matchData['sale_number'];
+            matchData['sdc_invoice_number'];
         String? parsedSdcRcptNo;
         if (rawRcpt != null &&
             rawRcpt.toString().trim().isNotEmpty &&
@@ -5679,7 +5791,8 @@ class DigiTaxInventoryService {
             final cleanNum = rcptStr
                 .replaceFirst(RegExp(r'^(INV|CN)-0*'), '')
                 .replaceFirst(RegExp(r'^(INV|CN)-'), '');
-            parsedSdcRcptNo = 'INV1/$cleanNum';
+            final prefix = transaction.isCreditNote ? 'CN1/' : 'INV1/';
+            parsedSdcRcptNo = '$prefix$cleanNum';
           }
         }
 
@@ -5732,12 +5845,26 @@ class DigiTaxInventoryService {
         };
 
         final isCompletedOrApproved =
-            matchData['status']?.toString().toUpperCase() == 'COMPLETED' ||
-            matchData['status']?.toString().toUpperCase() == 'APPROVED' ||
-            parsedSignature != null ||
+            remoteStatusUpper == 'COMPLETED' ||
+            remoteStatusUpper == 'APPROVED' ||
+            (parsedSignature != null && parsedSignature.isNotEmpty) ||
             (parsedSdcRcptNo != null &&
                 parsedSdcRcptNo.isNotEmpty &&
                 parsedSdcRcptNo != 'PENDING');
+
+        // Stage 1: Pending — Recorded in DigiTax · still syncing with ZRA
+        if (!isCompletedOrApproved) {
+          transaction.zraStatus = 'PENDING';
+          transaction.zraReceiptNumber = 'PENDING';
+          if (matchedDigiTaxId != null && matchedDigiTaxId.isNotEmpty) {
+            transaction.zraMarkId = matchedDigiTaxId;
+          }
+          transaction.zraQrCode = null;
+          await db.isar.writeTxn(() async {
+            await db.isar.saleTransactions.put(transaction);
+          });
+          return false;
+        }
 
         if (isCompletedOrApproved) {
           if (parsedSignature != null &&
