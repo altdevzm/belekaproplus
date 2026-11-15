@@ -50,7 +50,7 @@ class ThermalPaperPreset {
       columnCount: 28,
       logoPixelWidth: 180,
       escPosSize: PaperSize.mm58,
-      qrSize: QRSize.Size3,
+      qrSize: QRSize.Size5,
     ),
     ThermalPaperPreset(
       widthMm: 58,
@@ -59,7 +59,7 @@ class ThermalPaperPreset {
       columnCount: 30,
       logoPixelWidth: 200,
       escPosSize: PaperSize.mm58,
-      qrSize: QRSize.Size3,
+      qrSize: QRSize.Size5,
     ),
     ThermalPaperPreset(
       widthMm: 76,
@@ -68,7 +68,7 @@ class ThermalPaperPreset {
       columnCount: 38,
       logoPixelWidth: 260,
       escPosSize: PaperSize.mm80,
-      qrSize: QRSize.Size3,
+      qrSize: QRSize.Size6,
     ),
     ThermalPaperPreset(
       widthMm: 80,
@@ -77,7 +77,7 @@ class ThermalPaperPreset {
       columnCount: 42,
       logoPixelWidth: 300,
       escPosSize: PaperSize.mm80,
-      qrSize: QRSize.Size4,
+      qrSize: QRSize.Size6,
     ),
     ThermalPaperPreset(
       widthMm: 110,
@@ -86,7 +86,7 @@ class ThermalPaperPreset {
       columnCount: 56,
       logoPixelWidth: 400,
       escPosSize: PaperSize.mm80,
-      qrSize: QRSize.Size4,
+      qrSize: QRSize.Size7,
     ),
     ThermalPaperPreset(
       widthMm: 112,
@@ -95,7 +95,7 @@ class ThermalPaperPreset {
       columnCount: 60,
       logoPixelWidth: 420,
       escPosSize: PaperSize.mm80,
-      qrSize: QRSize.Size4,
+      qrSize: QRSize.Size7,
     ),
   ];
 
@@ -1184,9 +1184,10 @@ class PrinterService {
             ? transaction.zraQrCode!
             : 'https://smartinvoice.zra.org.zm/verify?tpin=${config?.tpin ?? "1000000000"}&sdc=$sdcIdStr&rcpt=$sdcInvNoStr';
         try {
+          final qrScale = isNarrow ? 4 : (preset.widthMm >= 110 ? 6 : 5);
           final qrRasterBytes = _qrToRasterEscPos(
             zraQrData,
-            scale: isNarrow ? 2 : 3,
+            scale: qrScale,
             align: PosAlign.center,
           );
           if (qrRasterBytes.isNotEmpty) {
@@ -2775,8 +2776,8 @@ class PrinterService {
                   pw.BarcodeWidget(
                     barcode: pw.Barcode.qrCode(),
                     data: zraQrData,
-                    width: isNarrow ? 38 : 46,
-                    height: isNarrow ? 38 : 46,
+                    width: isNarrow ? 86 : (activePreset.widthMm >= 110 ? 124 : 104),
+                    height: isNarrow ? 86 : (activePreset.widthMm >= 110 ? 124 : 104),
                     drawText: false,
                   ),
                   pw.SizedBox(height: 0.5 * pdf.PdfPageFormat.mm),
