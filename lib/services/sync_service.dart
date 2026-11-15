@@ -19,6 +19,7 @@ class SyncService {
   Timer? _retryTimer;
   Timer? _metadataTimer;
   bool _isSyncingMetadata = false;
+  bool _isSyncingRestaurant = false;
 
   SyncService(this._isar, this._client);
 
@@ -31,14 +32,15 @@ class SyncService {
   void startSyncLoops(String terminalName, {String? cashierId, String? cashierName}) {
     stopSyncLoops();
 
-    // 1. Transaction retry & live store-mode sync loop (every 15s)
+    // 1. Transaction retry, store-mode & restaurant state sync loop (every 15s)
     _retryTimer = Timer.periodic(const Duration(seconds: 15), (_) {
       syncPendingTransactions();
       syncStoreModeFromServer();
+      syncRestaurantState();
     });
 
-    // 2. Metadata pull loop (every 5 minutes)
-    _metadataTimer = Timer.periodic(const Duration(minutes: 5), (_) {
+    // 2. Metadata pull loop (every 60s)
+    _metadataTimer = Timer.periodic(const Duration(seconds: 60), (_) {
       syncMetadata();
     });
 
@@ -307,7 +309,7 @@ class SyncService {
 
   /// Pulls products, categories, store tax config, and transaction fiscal status updates from the Manager server.
   Future<void> syncMetadata() async {
-    if (_client == null || !_client.isConnected || _isSyncingMetadata) return;
+    if (_client == null || _isSyncingMetadata) return;
     _isSyncingMetadata = true;
 
     try {
@@ -377,6 +379,187 @@ class SyncService {
       debugPrint('SYNC_METADATA_ERROR: $e');
     } finally {
       _isSyncingMetadata = false;
+    }
+
+    await syncRestaurantState();
+  }
+
+  /// Pulls live restaurant tables and active orders/items from the Master POS
+  /// when the store is operating in restaurant mode.
+  Future<void> syncRestaurantState() async {
+    if (_client == null || _isSyncingRestaurant) return;
+    _isSyncingRestaurant = true;
+
+    try {
+      final config = await _isar.storeConfigs.get(1);
+      if (config?.businessMode != 'restaurant') return;
+
+      final tablesJson = await _client.fetchRestaurantTables();
+      final ordersJson = await _client.fetchRestaurantOrders();
+
+      final tables = tablesJson.map((j) {
+        final statusName = j['status'] as String? ?? 'available';
+        final status = RestaurantTableStatus.values.firstWhere(
+          (e) => e.name == statusName,
+          orElse: () => RestaurantTableStatus.available,
+        );
+        final table = RestaurantTable(
+          id: (j['id'] as num).toInt(),
+          name: j['name'] as String? ?? 'Table',
+          section: j['section'] as String? ?? 'Main Floor',
+          capacity: (j['capacity'] as num?)?.toInt() ?? 4,
+          status: status,
+          branchCode: j['branchCode'] as String? ?? '00',
+          activeSessionId: j['activeSessionId'] as String?,
+          activeOrderId: (j['activeOrderId'] as num?)?.toInt(),
+          assignedWaiterId: (j['assignedWaiterId'] as num?)?.toInt(),
+          assignedWaiterName: j['assignedWaiterName'] as String?,
+          mergedIntoTableId: (j['mergedIntoTableId'] as num?)?.toInt(),
+          isActive: j['isActive'] as bool? ?? true,
+        );
+        if (j['updatedAt'] is String) {
+          table.updatedAt =
+              DateTime.tryParse(j['updatedAt'] as String) ?? DateTime.now();
+        }
+        return table;
+      }).toList();
+
+      final orders = <RestaurantOrder>[];
+      final items = <RestaurantOrderItem>[];
+      final serverOrderIds = <int>{};
+
+      for (final j in ordersJson) {
+        final orderId = (j['id'] as num).toInt();
+        serverOrderIds.add(orderId);
+
+        final serviceTypeName = j['serviceType'] as String? ?? 'table';
+        final serviceType = RestaurantServiceType.values.firstWhere(
+          (e) => e.name == serviceTypeName,
+          orElse: () => RestaurantServiceType.table,
+        );
+        final statusName = j['status'] as String? ?? 'submitted';
+        final status = RestaurantOrderStatus.values.firstWhere(
+          (e) => e.name == statusName,
+          orElse: () => RestaurantOrderStatus.submitted,
+        );
+
+        final order = RestaurantOrder(
+          id: orderId,
+          orderNumber: j['orderNumber'] as String? ?? 'ORD-$orderId',
+          serviceType: serviceType,
+          branchCode: j['branchCode'] as String? ?? '00',
+          tableId: (j['tableId'] as num?)?.toInt(),
+          tableName: j['tableName'] as String?,
+          sessionId: j['sessionId'] as String?,
+          waiterId: (j['waiterId'] as num?)?.toInt(),
+          waiterName: j['waiterName'] as String?,
+          customerName: j['customerName'] as String?,
+          customerId: (j['customerId'] as num?)?.toInt(),
+          status: status,
+          subtotal: (j['subtotal'] as num?)?.toDouble() ?? 0.0,
+          taxAmount: (j['taxAmount'] as num?)?.toDouble() ?? 0.0,
+          serviceChargeAmount:
+              (j['serviceChargeAmount'] as num?)?.toDouble() ?? 0.0,
+          discountAmount: (j['discountAmount'] as num?)?.toDouble() ?? 0.0,
+          totalAmount: (j['totalAmount'] as num?)?.toDouble() ?? 0.0,
+          paidAmount: (j['paidAmount'] as num?)?.toDouble() ?? 0.0,
+          saleTransactionId: (j['saleTransactionId'] as num?)?.toInt(),
+          notes: j['notes'] as String?,
+        );
+        if (j['createdAt'] is String) {
+          order.createdAt =
+              DateTime.tryParse(j['createdAt'] as String) ?? DateTime.now();
+        }
+        if (j['submittedAt'] is String) {
+          order.submittedAt = DateTime.tryParse(j['submittedAt'] as String);
+        }
+        if (j['settledAt'] is String) {
+          order.settledAt = DateTime.tryParse(j['settledAt'] as String);
+        }
+        if (j['updatedAt'] is String) {
+          order.updatedAt =
+              DateTime.tryParse(j['updatedAt'] as String) ?? DateTime.now();
+        }
+        orders.add(order);
+
+        final rawItems = j['items'] as List? ?? [];
+        for (final rawItem in rawItems) {
+          final ij = rawItem as Map<String, dynamic>;
+          final kitchenStatusName = ij['kitchenStatus'] as String? ?? 'newTicket';
+          final kitchenStatus = KitchenItemStatus.values.firstWhere(
+            (e) => e.name == kitchenStatusName,
+            orElse: () => KitchenItemStatus.newTicket,
+          );
+          final item = RestaurantOrderItem(
+            id: (ij['id'] as num).toInt(),
+            orderId: (ij['orderId'] as num?)?.toInt() ?? orderId,
+            productId: (ij['productId'] as num?)?.toInt() ?? 0,
+            productName: ij['productName'] as String? ?? 'Item',
+            productSku: ij['productSku'] as String? ?? '',
+            basePrice: (ij['basePrice'] as num?)?.toDouble() ?? 0.0,
+            modifiersPrice: (ij['modifiersPrice'] as num?)?.toDouble() ?? 0.0,
+            unitPrice: (ij['unitPrice'] as num?)?.toDouble() ?? 0.0,
+            quantity: (ij['quantity'] as num?)?.toInt() ?? 1,
+            taxRate: (ij['taxRate'] as num?)?.toDouble() ?? 16.0,
+            isTaxInclusive: ij['isTaxInclusive'] as bool? ?? true,
+            kitchenStationId: (ij['kitchenStationId'] as num?)?.toInt(),
+            kitchenStationName: ij['kitchenStationName'] as String?,
+            ticketNumber: ij['ticketNumber'] as String?,
+            kitchenStatus: kitchenStatus,
+            modifiersJson: ij['modifiersJson'] as String?,
+            specialInstructions: ij['specialInstructions'] as String?,
+            isSettled: ij['isSettled'] as bool? ?? false,
+            settledSaleTransactionId:
+                (ij['settledSaleTransactionId'] as num?)?.toInt(),
+            branchCode: ij['branchCode'] as String? ?? '00',
+          );
+          if (ij['createdAt'] is String) {
+            item.createdAt =
+                DateTime.tryParse(ij['createdAt'] as String) ?? DateTime.now();
+          }
+          items.add(item);
+        }
+      }
+
+      await _isar.writeTxn(() async {
+        if (tables.isNotEmpty) {
+          await _isar.restaurantTables.putAll(tables);
+        }
+
+        // Remove stale non-draft active orders that were settled/cancelled on Master POS
+        final localActive = await _isar.restaurantOrders
+            .filter()
+            .not()
+            .statusEqualTo(RestaurantOrderStatus.paid)
+            .and()
+            .not()
+            .statusEqualTo(RestaurantOrderStatus.cancelled)
+            .findAll();
+        for (final localOrder in localActive) {
+          if (localOrder.status != RestaurantOrderStatus.draft &&
+              !serverOrderIds.contains(localOrder.id)) {
+            localOrder.status = RestaurantOrderStatus.paid;
+            await _isar.restaurantOrders.put(localOrder);
+          }
+        }
+
+        for (final orderId in serverOrderIds) {
+          await _isar.restaurantOrderItems
+              .filter()
+              .orderIdEqualTo(orderId)
+              .deleteAll();
+        }
+        if (orders.isNotEmpty) {
+          await _isar.restaurantOrders.putAll(orders);
+        }
+        if (items.isNotEmpty) {
+          await _isar.restaurantOrderItems.putAll(items);
+        }
+      });
+    } catch (e) {
+      debugPrint('SYNC_RESTAURANT_ERROR: $e');
+    } finally {
+      _isSyncingRestaurant = false;
     }
   }
 

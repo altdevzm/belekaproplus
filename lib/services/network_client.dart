@@ -557,6 +557,40 @@ class NetworkClient {
           j['useRecipeStockDeduction'] as bool? ?? false;
   }
 
+  // ─── Restaurant State (Tables & Active Orders) ────────────────
+
+  /// Fetch all restaurant tables for the current branch from the Master POS.
+  Future<List<Map<String, dynamic>>> fetchRestaurantTables() async {
+    try {
+      final response = await _dio.get('/restaurant/tables');
+      final body = response.data is String
+          ? jsonDecode(response.data as String) as Map<String, dynamic>
+          : response.data as Map<String, dynamic>;
+      _isConnected = true;
+      final list = body['tables'] as List? ?? [];
+      return list.cast<Map<String, dynamic>>();
+    } catch (e) {
+      debugPrint('FETCH_RESTAURANT_TABLES_ERROR: $e');
+      return [];
+    }
+  }
+
+  /// Fetch all active (unpaid, non-cancelled) restaurant orders + items from Master POS.
+  Future<List<Map<String, dynamic>>> fetchRestaurantOrders() async {
+    try {
+      final response = await _dio.get('/restaurant/orders');
+      final body = response.data is String
+          ? jsonDecode(response.data as String) as Map<String, dynamic>
+          : response.data as Map<String, dynamic>;
+      _isConnected = true;
+      final list = body['orders'] as List? ?? [];
+      return list.cast<Map<String, dynamic>>();
+    } catch (e) {
+      debugPrint('FETCH_RESTAURANT_ORDERS_ERROR: $e');
+      return [];
+    }
+  }
+
   static Map<String, dynamic> _transactionToJson(SaleTransaction tx) => {
     'totalAmount': tx.totalAmount,
     'paymentMethod': tx.paymentMethod,

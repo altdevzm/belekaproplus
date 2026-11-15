@@ -37,6 +37,15 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
   int _mobileTab = 0;
 
   @override
+  void initState() {
+    super.initState();
+    Future.microtask(() {
+      if (!mounted) return;
+      ref.read(syncServiceProvider).syncMetadata();
+    });
+  }
+
+  @override
   void dispose() {
     _searchController.dispose();
     _searchFocusNode.dispose();

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_pos_printer_platform/flutter_pos_printer_platform.dart';
 import 'package:esc_pos_utils_plus/esc_pos_utils.dart';
@@ -392,6 +393,22 @@ class PrinterService {
     }
 
     List<PrinterDevice> devices = [];
+
+    if (type == PrinterType.bluetooth && Platform.isAndroid) {
+      final granted = await ensureBluetoothPermissions();
+      if (!granted) {
+        throw Exception(
+          'Bluetooth permission denied. Allow Nearby Devices / Location access to list paired Bluetooth printers.',
+        );
+      }
+      final bonded = await _getAndroidBondedBluetoothDevices();
+      for (final b in bonded) {
+        if (!devices.any((d) => d.address == b.address)) {
+          devices.add(b);
+        }
+      }
+    }
+
     try {
       final sub = _printerManager.discovery(type: type).listen((device) {
         if (!devices.any((d) => d.address == device.address && d.name == device.name)) {
@@ -404,6 +421,21 @@ class PrinterService {
       debugPrint('PrinterManager discovery error: $e');
     }
 
+    // Also probe BLE on Android if Classic discovery + bonded list found nothing
+    if (type == PrinterType.bluetooth && Platform.isAndroid && devices.isEmpty) {
+      try {
+        final bleSub = _printerManager.discovery(type: type, isBle: true).listen((device) {
+          if (!devices.any((d) => d.address == device.address && d.name == device.name)) {
+            devices.add(device);
+          }
+        });
+        await Future.delayed(const Duration(seconds: 2));
+        await bleSub.cancel();
+      } catch (e) {
+        debugPrint('PrinterManager BLE discovery error: $e');
+      }
+    }
+
     // Direct Linux raw ports check
     if (Platform.isLinux && type == PrinterType.usb) {
       for (final port in ['/dev/usb/lp0', '/dev/usb/lp1', '/dev/usb/lp2']) {
@@ -414,6 +446,37 @@ class PrinterService {
     }
 
     return devices;
+  }
+
+  static const _btChannel = MethodChannel('com.belekapos.beleka_pos/bluetooth');
+
+  /// Requests Android runtime Bluetooth permissions (BLUETOOTH_SCAN/CONNECT on Android 12+,
+  /// ACCESS_FINE_LOCATION on Android <= 11). Returns true on non-Android platforms.
+  Future<bool> ensureBluetoothPermissions() async {
+    if (!Platform.isAndroid) return true;
+    try {
+      final granted = await _btChannel.invokeMethod<bool>('requestPermissions');
+      return granted ?? false;
+    } catch (e) {
+      debugPrint('Bluetooth permission request error: $e');
+      return false;
+    }
+  }
+
+  Future<List<PrinterDevice>> _getAndroidBondedBluetoothDevices() async {
+    if (!Platform.isAndroid) return [];
+    try {
+      final raw = await _btChannel.invokeMethod<List<dynamic>>('getBondedDevices');
+      if (raw == null) return [];
+      return raw.whereType<Map>().map((m) {
+        final name = (m['name'] ?? 'Bluetooth Printer').toString();
+        final address = (m['address'] ?? '').toString();
+        return PrinterDevice(name: name, address: address);
+      }).where((d) => (d.address ?? '').isNotEmpty).toList();
+    } catch (e) {
+      debugPrint('Bonded Bluetooth fetch error: $e');
+      return [];
+    }
   }
 
   Future<bool> connect(
@@ -497,6 +560,10 @@ class PrinterService {
           model: TcpPrinterInput(ipAddress: device.address!),
         );
       } else if (type == PrinterType.bluetooth) {
+        if (Platform.isAndroid) {
+          final granted = await ensureBluetoothPermissions();
+          if (!granted) return false;
+        }
         // Dual-mode Bluetooth: Try Bluetooth Classic SPP first (used by 95% of ESC/POS mini printers), then BLE
         try {
           success = await _printerManager.connect(

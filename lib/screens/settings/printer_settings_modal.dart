@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -24,6 +25,7 @@ class _PrinterSettingsModalState extends ConsumerState<PrinterSettingsModal> {
   final star.StarEmulation _selectedEmulation = star.StarEmulation.StarPRNT;
   int _paperWidthMm = 80;
   String _lastScanned = 'Waiting for scan...';
+  String? _scanError;
   final TextEditingController _ipController = TextEditingController(text: '192.168.1.100:9100');
   final TextEditingController _searchController = TextEditingController();
   String _filterQuery = '';
@@ -41,9 +43,9 @@ class _PrinterSettingsModalState extends ConsumerState<PrinterSettingsModal> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadConfig();
-      _scan();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _loadConfig();
+      await _scan();
     });
   }
 
@@ -71,12 +73,17 @@ class _PrinterSettingsModalState extends ConsumerState<PrinterSettingsModal> {
           if (config.defaultPrinterAddress != null) {
             _ipController.text = config.defaultPrinterAddress!;
           }
-          if (config.defaultPrinterType != null) {
+          if (config.defaultPrinterType != null &&
+              config.defaultPrinterType!.trim().isNotEmpty) {
             _selectedType = _parsePrinterType(config.defaultPrinterType);
+          } else if (Platform.isAndroid || Platform.isIOS) {
+            _selectedType = PrinterType.bluetooth;
           }
           if (config.defaultPrinterModel != null) {
             _selectedModel = _parsePrinterModel(config.defaultPrinterModel);
           }
+        } else if (Platform.isAndroid || Platform.isIOS) {
+          _selectedType = PrinterType.bluetooth;
         }
       });
     }
@@ -123,7 +130,10 @@ class _PrinterSettingsModalState extends ConsumerState<PrinterSettingsModal> {
 
   Future<void> _scan() async {
     if (!mounted) return;
-    setState(() => _isScanning = true);
+    setState(() {
+      _isScanning = true;
+      _scanError = null;
+    });
     try {
       final devices = await ref.read(printerServiceProvider).scanPrinters(
         _selectedType, 
@@ -132,8 +142,13 @@ class _PrinterSettingsModalState extends ConsumerState<PrinterSettingsModal> {
       if (mounted) setState(() => _devices = devices);
     } catch (e) {
       if (mounted) {
+        final msg = e.toString().replaceFirst('Exception: ', '');
+        setState(() {
+          _devices = [];
+          _scanError = msg;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Scan notice: $e')),
+          SnackBar(content: Text('Scan notice: $msg')),
         );
       }
     } finally {
@@ -611,9 +626,19 @@ class _PrinterSettingsModalState extends ConsumerState<PrinterSettingsModal> {
                                   ),
                                   const SizedBox(height: 8),
                                   Text(
-                                    _isScanning ? 'Scanning hardware interfaces...' : 'No printer devices found. Click REFRESH or enter Network IP above.',
+                                    _isScanning
+                                        ? 'Scanning hardware interfaces...'
+                                        : (_scanError ??
+                                            (_selectedType == PrinterType.bluetooth
+                                                ? 'No Bluetooth printers found. Pair your printer in Android Bluetooth Settings, grant Nearby Devices permission, and tap REFRESH.'
+                                                : 'No printer devices found. Click REFRESH or enter Network IP above.')),
                                     textAlign: TextAlign.center,
-                                    style: GoogleFonts.inter(fontSize: 11, color: Colors.white38),
+                                    style: GoogleFonts.inter(
+                                      fontSize: 11,
+                                      color: _scanError != null
+                                          ? Colors.orangeAccent
+                                          : Colors.white38,
+                                    ),
                                   ),
                                 ],
                               ),
