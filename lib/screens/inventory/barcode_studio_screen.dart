@@ -406,11 +406,30 @@ class _BarcodeStudioScreenState extends ConsumerState<BarcodeStudioScreen> {
                     ),
                   ),
                   if (queue.isNotEmpty)
-                    TextButton.icon(
+                    OutlinedButton.icon(
                       onPressed: () =>
                           ref.read(barcodeStudioQueueProvider.notifier).clear(),
-                      icon: const Icon(Icons.clear_all_rounded, size: 15),
-                      label: const Text('Clear'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.redAccent,
+                        side: BorderSide(
+                          color: Colors.redAccent.withValues(alpha: 0.4),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      icon: const Icon(Icons.delete_sweep_outlined, size: 16),
+                      label: Text(
+                        'Remove All',
+                        style: GoogleFonts.manrope(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                        ),
+                      ),
                     ),
                 ],
               ),
@@ -462,48 +481,91 @@ class _BarcodeStudioScreenState extends ConsumerState<BarcodeStudioScreen> {
                               ],
                             ),
                           ),
-                          IconButton(
-                            tooltip: 'Decrease copies',
-                            icon: const Icon(Icons.remove_circle_outline, size: 18),
-                            onPressed: () => ref
-                                .read(barcodeStudioQueueProvider.notifier)
-                                .updateCopies(job.product.id, job.copies - 1),
+                          SizedBox(
+                            width: 34,
+                            height: 34,
+                            child: OutlinedButton(
+                              onPressed: () => ref
+                                  .read(barcodeStudioQueueProvider.notifier)
+                                  .updateCopies(job.product.id, job.copies - 1),
+                              style: OutlinedButton.styleFrom(
+                                padding: EdgeInsets.zero,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              child: const Icon(Icons.remove_rounded, size: 16),
+                            ),
                           ),
+                          const SizedBox(width: 6),
                           InkWell(
                             onTap: () => _editCopiesDialog(job),
-                            borderRadius: BorderRadius.circular(6),
+                            borderRadius: BorderRadius.circular(8),
                             child: Container(
+                              height: 34,
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 4,
+                                horizontal: 12,
                               ),
+                              alignment: Alignment.center,
                               decoration: BoxDecoration(
                                 color: accentColor.withValues(alpha: 0.14),
-                                borderRadius: BorderRadius.circular(6),
+                                borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(
                                 '${job.copies}×',
                                 style: GoogleFonts.ibmPlexMono(
                                   fontWeight: FontWeight.w700,
-                                  fontSize: 12,
+                                  fontSize: 12.5,
                                   color: accentColor,
                                 ),
                               ),
                             ),
                           ),
-                          IconButton(
-                            tooltip: 'Increase copies',
-                            icon: const Icon(Icons.add_circle_outline, size: 18),
-                            onPressed: () => ref
-                                .read(barcodeStudioQueueProvider.notifier)
-                                .updateCopies(job.product.id, job.copies + 1),
+                          const SizedBox(width: 6),
+                          SizedBox(
+                            width: 34,
+                            height: 34,
+                            child: OutlinedButton(
+                              onPressed: () => ref
+                                  .read(barcodeStudioQueueProvider.notifier)
+                                  .updateCopies(job.product.id, job.copies + 1),
+                              style: OutlinedButton.styleFrom(
+                                padding: EdgeInsets.zero,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              child: const Icon(Icons.add_rounded, size: 16),
+                            ),
                           ),
-                          IconButton(
-                            tooltip: 'Remove from sheet',
-                            icon: const Icon(Icons.delete_outline, size: 18),
-                            onPressed: () => ref
-                                .read(barcodeStudioQueueProvider.notifier)
-                                .remove(job.product.id),
+                          const SizedBox(width: 8),
+                          SizedBox(
+                            height: 34,
+                            child: OutlinedButton.icon(
+                              onPressed: () => ref
+                                  .read(barcodeStudioQueueProvider.notifier)
+                                  .remove(job.product.id),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.redAccent,
+                                side: BorderSide(
+                                  color: Colors.redAccent.withValues(alpha: 0.4),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              icon: const Icon(Icons.delete_outline_rounded, size: 15),
+                              label: Text(
+                                'Remove',
+                                style: GoogleFonts.manrope(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
                           ),
                         ],
                       );
@@ -598,147 +660,212 @@ class _BarcodeStudioScreenState extends ConsumerState<BarcodeStudioScreen> {
                                 (j) => j?.product.id == p.id,
                                 orElse: () => null,
                               );
-                          return ListTile(
-                            dense: true,
-                            contentPadding:
-                                const EdgeInsets.symmetric(horizontal: 6),
-                            title: Text(
-                              p.name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.inter(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13,
+                          return Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 10,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isDark
+                                  ? Colors.white.withValues(alpha: 0.025)
+                                  : Colors.black.withValues(alpha: 0.02),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: queuedJob != null
+                                    ? const Color(0xFF10B981)
+                                        .withValues(alpha: 0.35)
+                                    : (isDark
+                                        ? Colors.white.withValues(alpha: 0.06)
+                                        : Colors.black.withValues(alpha: 0.06)),
                               ),
                             ),
-                            subtitle: Row(
+                            child: Row(
                               children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 6,
-                                    vertical: 1.5,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: (isInStore
-                                            ? const Color(0xFF10B981)
-                                            : (hasEan
-                                                ? const Color(0xFF3B82F6)
-                                                : Colors.orangeAccent))
-                                        .withValues(alpha: 0.14),
-                                    borderRadius: BorderRadius.circular(5),
-                                  ),
-                                  child: Text(
-                                    sku.isEmpty ? 'NO BARCODE' : sku,
-                                    style: GoogleFonts.ibmPlexMono(
-                                      fontSize: 10.5,
-                                      fontWeight: FontWeight.w600,
-                                      color: isInStore
-                                          ? const Color(0xFF10B981)
-                                          : (hasEan
-                                              ? const Color(0xFF3B82F6)
-                                              : Colors.orangeAccent),
-                                    ),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        p.name,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: GoogleFonts.inter(
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 13.5,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Wrap(
+                                        spacing: 8,
+                                        runSpacing: 4,
+                                        crossAxisAlignment:
+                                            WrapCrossAlignment.center,
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 7,
+                                              vertical: 2,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: (isInStore
+                                                      ? const Color(0xFF10B981)
+                                                      : (hasEan
+                                                          ? const Color(
+                                                              0xFF3B82F6)
+                                                          : Colors
+                                                              .orangeAccent))
+                                                  .withValues(alpha: 0.14),
+                                              borderRadius:
+                                                  BorderRadius.circular(5),
+                                            ),
+                                            child: Text(
+                                              sku.isEmpty ? 'NO BARCODE' : sku,
+                                              style: GoogleFonts.ibmPlexMono(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w600,
+                                                color: isInStore
+                                                    ? const Color(0xFF10B981)
+                                                    : (hasEan
+                                                        ? const Color(
+                                                            0xFF3B82F6)
+                                                        : Colors.orangeAccent),
+                                              ),
+                                            ),
+                                          ),
+                                          Text(
+                                            'Stock: ${p.stockLevel} • $currency${p.price.toStringAsFixed(2)}',
+                                            style: GoogleFonts.inter(
+                                              fontSize: 11.5,
+                                              color: isDark
+                                                  ? Colors.white60
+                                                  : Colors.black54,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
                                   ),
                                 ),
-                                const SizedBox(width: 8),
-                                Flexible(
-                                  child: Text(
-                                    'Stock: ${p.stockLevel} • $currency${p.price.toStringAsFixed(2)}',
-                                    overflow: TextOverflow.ellipsis,
-                                    style: GoogleFonts.inter(
-                                      fontSize: 11,
-                                      color: isDark
-                                          ? Colors.white54
-                                          : Colors.black54,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (!hasEan)
-                                  Padding(
-                                    padding: const EdgeInsets.only(right: 6),
+                                const SizedBox(width: 10),
+                                if (!hasEan) ...[
+                                  SizedBox(
+                                    height: 38,
                                     child: OutlinedButton.icon(
                                       onPressed: () =>
                                           _generateBarcodeForProduct(p),
                                       style: OutlinedButton.styleFrom(
-                                        foregroundColor: Colors.orangeAccent,
+                                        foregroundColor: isDark
+                                            ? Colors.white
+                                            : Colors.black87,
                                         side: BorderSide(
-                                          color: Colors.orangeAccent
-                                              .withValues(alpha: 0.45),
+                                          color: isDark
+                                              ? Colors.white
+                                                  .withValues(alpha: 0.22)
+                                              : Colors.black
+                                                  .withValues(alpha: 0.22),
                                         ),
                                         padding: const EdgeInsets.symmetric(
-                                          horizontal: 10,
-                                          vertical: 6,
+                                          horizontal: 12,
                                         ),
-                                        minimumSize: Size.zero,
                                         shape: RoundedRectangleBorder(
                                           borderRadius:
                                               BorderRadius.circular(8),
                                         ),
                                       ),
                                       icon: const Icon(
-                                        Icons.auto_awesome_rounded,
-                                        size: 14,
+                                        Icons.qr_code_2_rounded,
+                                        size: 17,
                                       ),
                                       label: Text(
                                         'Generate',
                                         style: GoogleFonts.manrope(
-                                          fontSize: 11.5,
+                                          fontSize: 12.5,
                                           fontWeight: FontWeight.w700,
                                         ),
                                       ),
                                     ),
                                   ),
-                                ElevatedButton.icon(
-                                  onPressed: sku.isEmpty
-                                      ? () => _generateBarcodeForProduct(p)
-                                      : () {
-                                          final qty = p.stockLevel > 0
-                                              ? p.stockLevel.clamp(1, 50)
-                                              : 10;
-                                          ref
-                                              .read(barcodeStudioQueueProvider
-                                                  .notifier)
-                                              .addOrUpdate(p, copies: qty);
-                                        },
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: queuedJob != null
-                                        ? const Color(0xFF10B981)
-                                            .withValues(alpha: 0.16)
-                                        : accentColor,
-                                    foregroundColor: queuedJob != null
-                                        ? const Color(0xFF10B981)
-                                        : Colors.black,
-                                    elevation: 0,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 7,
+                                  const SizedBox(width: 8),
+                                ],
+                                if (queuedJob != null)
+                                  SizedBox(
+                                    height: 38,
+                                    child: OutlinedButton.icon(
+                                      onPressed: () => ref
+                                          .read(barcodeStudioQueueProvider
+                                              .notifier)
+                                          .remove(p.id),
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: Colors.redAccent,
+                                        backgroundColor: Colors.redAccent
+                                            .withValues(alpha: 0.08),
+                                        side: BorderSide(
+                                          color: Colors.redAccent
+                                              .withValues(alpha: 0.45),
+                                        ),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                        ),
+                                      ),
+                                      icon: const Icon(
+                                        Icons.delete_outline_rounded,
+                                        size: 17,
+                                      ),
+                                      label: Text(
+                                        'Remove (${queuedJob.copies}×)',
+                                        style: GoogleFonts.manrope(
+                                          fontSize: 12.5,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
                                     ),
-                                    minimumSize: Size.zero,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8),
+                                  )
+                                else
+                                  SizedBox(
+                                    height: 38,
+                                    child: ElevatedButton.icon(
+                                      onPressed: sku.isEmpty
+                                          ? () => _generateBarcodeForProduct(p)
+                                          : () {
+                                              final qty = p.stockLevel > 0
+                                                  ? p.stockLevel.clamp(1, 50)
+                                                  : 10;
+                                              ref
+                                                  .read(
+                                                      barcodeStudioQueueProvider
+                                                          .notifier)
+                                                  .addOrUpdate(p, copies: qty);
+                                            },
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: accentColor,
+                                        foregroundColor: Colors.black,
+                                        elevation: 0,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 14,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                        ),
+                                      ),
+                                      icon: const Icon(
+                                        Icons.add_rounded,
+                                        size: 17,
+                                      ),
+                                      label: Text(
+                                        'Add to Sheet',
+                                        style: GoogleFonts.manrope(
+                                          fontSize: 12.5,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
                                     ),
                                   ),
-                                  icon: Icon(
-                                    queuedJob != null
-                                        ? Icons.check_rounded
-                                        : Icons.add_rounded,
-                                    size: 14,
-                                  ),
-                                  label: Text(
-                                    queuedJob != null
-                                        ? '${queuedJob.copies}×'
-                                        : 'Sheet',
-                                    style: GoogleFonts.manrope(
-                                      fontSize: 11.5,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                ),
                               ],
                             ),
                           );
@@ -849,6 +976,33 @@ class _BarcodeStudioScreenState extends ConsumerState<BarcodeStudioScreen> {
               ),
             ],
           ),
+          if (queue.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: queue.map((job) {
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: InputChip(
+                      label: Text(
+                        '${job.product.name} (${job.copies}×)',
+                        style: GoogleFonts.inter(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      deleteIcon: const Icon(Icons.close_rounded, size: 15),
+                      deleteButtonTooltipMessage: 'Remove from A4 sheet',
+                      onDeleted: () => ref
+                          .read(barcodeStudioQueueProvider.notifier)
+                          .remove(job.product.id),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ],
           const SizedBox(height: 10),
           Expanded(
             child: ClipRRect(
