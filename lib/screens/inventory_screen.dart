@@ -12,6 +12,7 @@ import 'package:beleka_pos/screens/inventory/category_management_modal.dart';
 import 'package:beleka_pos/screens/inventory/add_stock_modal.dart';
 import 'package:beleka_pos/screens/inventory/stock_movement_history_modal.dart';
 import 'package:beleka_pos/screens/inventory/digitax_stock_reconcile_modal.dart';
+import 'package:beleka_pos/screens/shell_screen.dart';
 import 'package:beleka_pos/providers/store_provider.dart';
 import 'package:beleka_pos/services/barcode_service.dart';
 import 'package:beleka_pos/services/digitax_inventory_service.dart';
@@ -1060,6 +1061,10 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                     onSelected: (value) async {
                       final config = ref.read(storeConfigProvider).value;
                       switch (value) {
+                        case 'barcode_studio':
+                          ref.read(navigationProvider.notifier).state =
+                              ScreenType.barcodeStudio;
+                          break;
                         case 'import_csv':
                           final res = await showDialog<bool>(
                             context: context,
@@ -1219,6 +1224,23 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                       }
                     },
                     itemBuilder: (context) => [
+                      const PopupMenuItem(
+                        value: 'barcode_studio',
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.qr_code_2_rounded,
+                              size: 16,
+                              color: Color(0xFFC1F11D),
+                            ),
+                            SizedBox(width: 8),
+                            Text(
+                              'Barcode Studio (A4 Labels)',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                      ),
                       const PopupMenuItem(
                         value: 'import_csv',
                         child: Row(

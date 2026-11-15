@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:beleka_pos/screens/dashboard_screen.dart';
 import 'package:beleka_pos/screens/inventory_screen.dart';
+import 'package:beleka_pos/screens/inventory/barcode_studio_screen.dart';
 import 'package:beleka_pos/screens/sales_screen.dart';
 import 'package:beleka_pos/screens/settings_screen.dart';
 import 'package:beleka_pos/screens/reports_screen.dart';
@@ -36,6 +37,7 @@ enum ScreenType {
   dashboard,
   sales,
   inventory,
+  barcodeStudio,
   purchases,
   expenses,
   branches,
@@ -1025,6 +1027,11 @@ class ShellScreen extends ConsumerWidget {
           'Stock',
         ),
         const _NavDestination(
+          ScreenType.barcodeStudio,
+          Icons.qr_code_2_rounded,
+          'Barcode Studio',
+        ),
+        const _NavDestination(
           ScreenType.purchases,
           Icons.shopping_bag_rounded,
           'Purchases',
@@ -1068,6 +1075,11 @@ class ShellScreen extends ConsumerWidget {
           ScreenType.inventory,
           Icons.inventory_2_rounded,
           'Stock',
+        ),
+        const _NavDestination(
+          ScreenType.barcodeStudio,
+          Icons.qr_code_2_rounded,
+          'Barcode Studio',
         ),
         const _NavDestination(
           ScreenType.purchases,
@@ -1566,6 +1578,8 @@ class ShellScreen extends ConsumerWidget {
         return const SalesScreen();
       case ScreenType.inventory:
         return const InventoryScreen();
+      case ScreenType.barcodeStudio:
+        return const BarcodeStudioScreen();
       case ScreenType.purchases:
         return const PurchasesScreen();
       case ScreenType.expenses:

@@ -14,6 +14,8 @@ import 'package:beleka_pos/screens/inventory/category_management_modal.dart';
 import 'package:beleka_pos/screens/inventory/add_stock_modal.dart';
 import 'package:isar/isar.dart';
 import 'package:beleka_pos/widgets/product_image_widget.dart';
+import 'package:beleka_pos/services/barcode_studio_service.dart';
+import 'package:beleka_pos/screens/shell_screen.dart';
 
 final suppliersProvider = FutureProvider.autoDispose<List<Supplier>>((
   ref,
@@ -65,6 +67,9 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
   bool _isCustomUnit = false;
   int? _selectedCategoryId;
   String? _imagePath;
+  bool _queueForBarcodeStudio = false;
+  final TextEditingController _labelCopiesController =
+      TextEditingController(text: '10');
 
   static const List<Map<String, String>> commonZraClassifications = [
     {
@@ -403,6 +408,7 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
   void dispose() {
     _nameController.dispose();
     _skuController.dispose();
+    _labelCopiesController.dispose();
     _priceController.dispose();
     _unitCostController.dispose();
     _stockController.dispose();
@@ -517,6 +523,102 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
                     const SizedBox(width: 16),
                     Expanded(child: _buildCategoryDropdown(accentColor)),
                   ],
+                ),
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: accentColor.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: accentColor.withValues(alpha: 0.22),
+                    ),
+                  ),
+                  child: Wrap(
+                    spacing: 10,
+                    runSpacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      ElevatedButton.icon(
+                        onPressed: () async {
+                          final exclude = ref
+                              .read(barcodeStudioQueueProvider)
+                              .map((j) => j.product.sku)
+                              .toSet();
+                          final code = await ref
+                              .read(barcodeStudioServiceProvider)
+                              .generateUniqueEan13(excludeCodes: exclude);
+                          if (!mounted) return;
+                          setState(() {
+                            _skuController.text = code;
+                            _queueForBarcodeStudio = true;
+                            final stockQty =
+                                int.tryParse(_stockController.text.trim()) ?? 0;
+                            if (stockQty > 0) {
+                              _labelCopiesController.text =
+                                  stockQty.clamp(1, 500).toString();
+                            }
+                          });
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: accentColor,
+                          foregroundColor: Colors.black,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 9,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        icon: const Icon(Icons.qr_code_2_rounded, size: 16),
+                        label: Text(
+                          'Generate Barcode',
+                          style: GoogleFonts.manrope(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      FilterChip(
+                        selected: _queueForBarcodeStudio,
+                        showCheckmark: true,
+                        label: Text(
+                          'Queue A4 Labels',
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        onSelected: (v) {
+                          setState(() => _queueForBarcodeStudio = v);
+                        },
+                      ),
+                      if (_queueForBarcodeStudio)
+                        SizedBox(
+                          width: 86,
+                          child: TextField(
+                            controller: _labelCopiesController,
+                            keyboardType: TextInputType.number,
+                            style: GoogleFonts.ibmPlexMono(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                            decoration: InputDecoration(
+                              isDense: true,
+                              labelText: 'Copies',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 20),
                 Row(
@@ -3078,9 +3180,35 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
 
       final digitaxService = ref.read(digitaxInventoryServiceProvider);
 
+      if (_queueForBarcodeStudio && product.sku.trim().isNotEmpty) {
+        final copies = int.tryParse(_labelCopiesController.text.trim()) ??
+            (product.stockLevel > 0 ? product.stockLevel.clamp(1, 500) : 10);
+        ref
+            .read(barcodeStudioQueueProvider.notifier)
+            .addOrUpdate(product, copies: copies);
+      }
+
       // Close the modal immediately so the UI is responsive and user cannot double-click
       if (mounted) {
         navigator.pop(true);
+      }
+
+      if (_queueForBarcodeStudio && product.sku.trim().isNotEmpty) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              'Queued "${product.name}" (${product.sku}) for A4 printing in Barcode Studio',
+            ),
+            action: SnackBarAction(
+              label: 'OPEN STUDIO',
+              onPressed: () {
+                ref.read(navigationProvider.notifier).state =
+                    ScreenType.barcodeStudio;
+              },
+            ),
+            duration: const Duration(seconds: 4),
+          ),
+        );
       }
 
       // Push product to DigiTax VSDC Cloud asynchronously in background if enabled
