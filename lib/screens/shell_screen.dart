@@ -159,6 +159,25 @@ class ShellScreen extends ConsumerWidget {
         }
       }
     });
+
+    // Live auto-switch when Master POS toggles Retail <-> Restaurant Mode
+    ref.listen<bool>(isRestaurantModeProvider, (previous, isRestaurant) {
+      final user = ref.read(authProvider);
+      if (user == null) return;
+      final role = normalizeUserRole(user.role);
+      final current = ref.read(navigationProvider);
+      if (role == 'cashier') {
+        if (isRestaurant && current == ScreenType.sales) {
+          ref.read(navigationProvider.notifier).state =
+              ScreenType.restaurantOrders;
+        } else if (!isRestaurant &&
+            (current == ScreenType.restaurantOrders ||
+                current == ScreenType.restaurantTables ||
+                current == ScreenType.kitchenDisplay)) {
+          ref.read(navigationProvider.notifier).state = ScreenType.sales;
+        }
+      }
+    });
     final requestedScreen = ref.watch(navigationProvider);
     final currentScreen = screenAllowedForRole(
       requestedScreen,
@@ -218,6 +237,9 @@ class ShellScreen extends ConsumerWidget {
     final accentColor = theme.colorScheme.primary;
     final role = normalizeUserRole(user?.role);
     final isCashier = role == 'cashier';
+    final isWaiter = role == 'waiter';
+    final isKitchenStaff = role == 'kitchen' || role == 'chef';
+    final isRestaurantMode = ref.watch(isRestaurantModeProvider);
     final navBg = isDark ? const Color(0xFF1E293B) : const Color(0xFFFFFFFF);
     final borderColor = isDark
         ? const Color(0xFF334155)
@@ -240,26 +262,44 @@ class ShellScreen extends ConsumerWidget {
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: isCashier
+            children: (isCashier && isRestaurantMode) || isWaiter
                 ? [
-                    // Cashier Tab 1: Sales
                     _buildMobileNavItem(
                       context,
-                      icon: Icons.point_of_sale_rounded,
-                      label: 'Sales',
-                      isSelected: current == ScreenType.sales,
+                      icon: Icons.restaurant_menu_rounded,
+                      label: 'Orders',
+                      isSelected: current == ScreenType.restaurantOrders,
                       accentColor: accentColor,
                       onTap: () {
                         HapticFeedback.lightImpact();
                         ref.read(navigationProvider.notifier).state =
-                            ScreenType.sales;
+                            ScreenType.restaurantOrders;
                       },
                     ),
-
-                    // Cashier Center Action: Camera Scanner
-                    _buildCenterScanButton(context, ref, accentColor),
-
-                    // Cashier Tab 2: Settings
+                    _buildMobileNavItem(
+                      context,
+                      icon: Icons.table_restaurant_rounded,
+                      label: 'Tables',
+                      isSelected: current == ScreenType.restaurantTables,
+                      accentColor: accentColor,
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        ref.read(navigationProvider.notifier).state =
+                            ScreenType.restaurantTables;
+                      },
+                    ),
+                    _buildMobileNavItem(
+                      context,
+                      icon: Icons.soup_kitchen_rounded,
+                      label: 'Kitchen',
+                      isSelected: current == ScreenType.kitchenDisplay,
+                      accentColor: accentColor,
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        ref.read(navigationProvider.notifier).state =
+                            ScreenType.kitchenDisplay;
+                      },
+                    ),
                     _buildMobileNavItem(
                       context,
                       icon: Icons.settings_rounded,
@@ -272,8 +312,6 @@ class ShellScreen extends ConsumerWidget {
                             ScreenType.settings;
                       },
                     ),
-
-                    // Cashier Tab 3: Logout
                     _buildMobileNavItem(
                       context,
                       icon: Icons.logout_rounded,
@@ -284,7 +322,87 @@ class ShellScreen extends ConsumerWidget {
                       onTap: () => _confirmLogout(context, ref),
                     ),
                   ]
-                : [
+                : isKitchenStaff
+                    ? [
+                        _buildMobileNavItem(
+                          context,
+                          icon: Icons.soup_kitchen_rounded,
+                          label: 'Kitchen',
+                          isSelected: current == ScreenType.kitchenDisplay,
+                          accentColor: accentColor,
+                          onTap: () {
+                            HapticFeedback.lightImpact();
+                            ref.read(navigationProvider.notifier).state =
+                                ScreenType.kitchenDisplay;
+                          },
+                        ),
+                        _buildMobileNavItem(
+                          context,
+                          icon: Icons.settings_rounded,
+                          label: 'Settings',
+                          isSelected: current == ScreenType.settings,
+                          accentColor: accentColor,
+                          onTap: () {
+                            HapticFeedback.lightImpact();
+                            ref.read(navigationProvider.notifier).state =
+                                ScreenType.settings;
+                          },
+                        ),
+                        _buildMobileNavItem(
+                          context,
+                          icon: Icons.logout_rounded,
+                          label: 'Logout',
+                          isSelected: false,
+                          accentColor: const Color(0xFFEF4444),
+                          iconColor: const Color(0xFFEF4444),
+                          onTap: () => _confirmLogout(context, ref),
+                        ),
+                      ]
+                    : isCashier
+                        ? [
+                            // Retail Cashier Tab 1: Sales
+                            _buildMobileNavItem(
+                              context,
+                              icon: Icons.point_of_sale_rounded,
+                              label: 'Sales',
+                              isSelected: current == ScreenType.sales,
+                              accentColor: accentColor,
+                              onTap: () {
+                                HapticFeedback.lightImpact();
+                                ref.read(navigationProvider.notifier).state =
+                                    ScreenType.sales;
+                              },
+                            ),
+
+                            // Cashier Center Action: Camera Scanner
+                            _buildCenterScanButton(context, ref, accentColor),
+
+                            // Cashier Tab 2: Settings
+                            _buildMobileNavItem(
+                              context,
+                              icon: Icons.settings_rounded,
+                              label: 'Settings',
+                              isSelected: current == ScreenType.settings,
+                              accentColor: accentColor,
+                              onTap: () {
+                                HapticFeedback.lightImpact();
+                                ref.read(navigationProvider.notifier).state =
+                                    ScreenType.settings;
+                              },
+                            ),
+
+                            // Cashier Tab 3: Logout
+                            _buildMobileNavItem(
+                              context,
+                              icon: Icons.logout_rounded,
+                              label: 'Logout',
+                              isSelected: false,
+                              accentColor: const Color(0xFFEF4444),
+                              iconColor: const Color(0xFFEF4444),
+                              onTap: () => _confirmLogout(context, ref),
+                            ),
+                          ]
+                        : [
                     // Admin/Manager Tab 1: Overview
                     _buildMobileNavItem(
                       context,

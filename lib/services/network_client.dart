@@ -546,7 +546,15 @@ class NetworkClient {
       isArchived: j['isArchived'] as bool? ?? false,
       imagePath: img,
       colors: (j['colors'] as List?)?.map((e) => e.toString()).toList(),
-    )..id = j['id'] as int;
+      restaurantProductType:
+          (j['restaurantProductType'] as String?) ?? 'other',
+    )
+      ..id = j['id'] as int
+      ..isAvailableNow = j['isAvailableNow'] as bool? ?? true
+      ..prepTimeMinutes = (j['prepTimeMinutes'] as num?)?.toInt() ?? 10
+      ..kitchenStationId = (j['kitchenStationId'] as num?)?.toInt()
+      ..useRecipeStockDeduction =
+          j['useRecipeStockDeduction'] as bool? ?? false;
   }
 
   static Map<String, dynamic> _transactionToJson(SaleTransaction tx) => {

@@ -46,41 +46,50 @@ class _TablesScreenState extends ConsumerState<TablesScreen> {
                   color: theme.colorScheme.outline.withValues(alpha: 0.18),
                 ),
               ),
-              child: Row(
+              child: Wrap(
+                spacing: 14,
+                runSpacing: 12,
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: brandColor.withValues(alpha: 0.14),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      Icons.table_restaurant_rounded,
-                      color: brandColor,
-                      size: 28,
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Floor Plan & Tables',
-                          style: GoogleFonts.manrope(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w800,
-                          ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: brandColor.withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                        Text(
-                          'Tap any table to seat guests, manage orders, transfer or merge bills',
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
+                        child: Icon(
+                          Icons.table_restaurant_rounded,
+                          color: brandColor,
+                          size: 28,
                         ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(width: 14),
+                      Flexible(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Floor Plan & Tables',
+                              style: GoogleFonts.manrope(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            Text(
+                              'Tap any table to seat guests, manage orders, transfer or merge bills',
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                   if (isManager)
                     ElevatedButton.icon(

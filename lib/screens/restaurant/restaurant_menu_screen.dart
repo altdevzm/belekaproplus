@@ -89,43 +89,51 @@ class _RestaurantMenuScreenState extends ConsumerState<RestaurantMenuScreen> {
                   color: theme.colorScheme.outline.withValues(alpha: 0.18),
                 ),
               ),
-              child: Row(
+              child: Wrap(
+                spacing: 14,
+                runSpacing: 12,
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: brandColor.withValues(alpha: 0.14),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      Icons.menu_book_rounded,
-                      color: brandColor,
-                      size: 28,
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Restaurant Menu & Kitchen Routing',
-                          style: GoogleFonts.manrope(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w800,
-                          ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: brandColor.withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                        Text(
-                          'Configure dish availability, kitchen stations, paid extras/modifiers & recipes',
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
+                        child: Icon(
+                          Icons.menu_book_rounded,
+                          color: brandColor,
+                          size: 28,
                         ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(width: 14),
+                      Flexible(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Restaurant Menu & Kitchen Routing',
+                              style: GoogleFonts.manrope(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            Text(
+                              'Configure dish availability, kitchen stations, paid extras/modifiers & recipes',
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 12),
                   ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(

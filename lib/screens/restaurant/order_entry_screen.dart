@@ -290,7 +290,7 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
                           gridDelegate:
                               SliverGridDelegateWithMaxCrossAxisExtent(
                             maxCrossAxisExtent: isCompact ? 175 : 205,
-                            mainAxisExtent: isCompact ? 112 : 125,
+                            mainAxisExtent: isCompact ? 176 : 194,
                             crossAxisSpacing: 10,
                             mainAxisSpacing: 10,
                           ),
@@ -305,7 +305,7 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
                               ),
                               borderRadius: BorderRadius.circular(12),
                               child: Container(
-                                padding: const EdgeInsets.all(12),
+                                clipBehavior: Clip.antiAlias,
                                 decoration: BoxDecoration(
                                   color: theme.colorScheme.surface,
                                   borderRadius: BorderRadius.circular(12),
@@ -317,37 +317,64 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(
-                                      p.name,
-                                      style: GoogleFonts.manrope(
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 13.5,
+                                    Expanded(
+                                      child: Container(
+                                        width: double.infinity,
+                                        color: theme.colorScheme
+                                            .surfaceContainerHighest
+                                            .withValues(alpha: 0.35),
+                                        child: _buildDishImage(
+                                          p.imagePath,
+                                          theme,
+                                        ),
                                       ),
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
                                     ),
-                                    const Spacer(),
-                                    Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Text(
-                                          '$currency ${p.price.toStringAsFixed(2)}',
-                                          style: GoogleFonts.ibmPlexMono(
-                                            fontWeight: FontWeight.w800,
-                                            fontSize: 13,
-                                            color: brandColor,
+                                    Padding(
+                                      padding: const EdgeInsets.fromLTRB(
+                                        10,
+                                        8,
+                                        10,
+                                        10,
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            p.name,
+                                            style: GoogleFonts.manrope(
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 13,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
                                           ),
-                                        ),
-                                        Text(
-                                          '${p.prepTimeMinutes}m',
-                                          style: GoogleFonts.inter(
-                                            fontSize: 11,
-                                            color: theme
-                                                .colorScheme.onSurfaceVariant,
+                                          const SizedBox(height: 4),
+                                          Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Text(
+                                                '$currency ${p.price.toStringAsFixed(2)}',
+                                                style: GoogleFonts.ibmPlexMono(
+                                                  fontWeight: FontWeight.w800,
+                                                  fontSize: 12.5,
+                                                  color: brandColor,
+                                                ),
+                                              ),
+                                              Text(
+                                                '${p.prepTimeMinutes}m',
+                                                style: GoogleFonts.inter(
+                                                  fontSize: 11,
+                                                  color: theme.colorScheme
+                                                      .onSurfaceVariant,
+                                                ),
+                                              ),
+                                            ],
                                           ),
-                                        ),
-                                      ],
+                                        ],
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -518,6 +545,42 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildDishImage(String? imagePath, ThemeData theme) {
+    if (imagePath != null && imagePath.isNotEmpty) {
+      if (imagePath.startsWith('data:image')) {
+        final commaIdx = imagePath.indexOf(',');
+        if (commaIdx != -1) {
+          try {
+            final bytes = base64Decode(imagePath.substring(commaIdx + 1));
+            return Image.memory(
+              bytes,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => _dishPlaceholderIcon(theme),
+            );
+          } catch (_) {}
+        }
+      } else {
+        final f = File(imagePath);
+        if (f.existsSync()) {
+          return Image.file(
+            f,
+            fit: BoxFit.cover,
+            errorBuilder: (_, _, _) => _dishPlaceholderIcon(theme),
+          );
+        }
+      }
+    }
+    return _dishPlaceholderIcon(theme);
+  }
+
+  Widget _dishPlaceholderIcon(ThemeData theme) {
+    return Icon(
+      Icons.fastfood_rounded,
+      size: 32,
+      color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.45),
     );
   }
 

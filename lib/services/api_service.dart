@@ -1227,6 +1227,11 @@ class ApiService {
       'isWeighted': p.isWeighted,
       'tareWeight': p.tareWeight,
       'colors': p.colors,
+      'restaurantProductType': p.restaurantProductType,
+      'isAvailableNow': p.isAvailableNow,
+      'prepTimeMinutes': p.prepTimeMinutes,
+      'kitchenStationId': p.kitchenStationId,
+      'useRecipeStockDeduction': p.useRecipeStockDeduction,
     };
   }
 
