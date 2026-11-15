@@ -458,14 +458,23 @@ class RestaurantService {
     });
   }
 
-  Future<void> setOrderServiceCharge(int orderId, bool enabled) async {
+  Future<void> setOrderServiceCharge(
+    int orderId,
+    bool enabled, {
+    double? customAmount,
+  }) async {
     final order = await isar.restaurantOrders.get(orderId);
     if (order == null) return;
-    final config = await _db.getStoreConfig();
-    final rate = (config?.defaultServiceChargeRate ?? 0.0) > 0
-        ? config!.defaultServiceChargeRate
-        : 10.0;
-    final charge = enabled ? order.subtotal * (rate / 100.0) : 0.0;
+    final double charge;
+    if (customAmount != null) {
+      charge = customAmount > 0 ? customAmount : 0.0;
+    } else {
+      final config = await _db.getStoreConfig();
+      final rate = (config?.defaultServiceChargeRate ?? 0.0) > 0
+          ? config!.defaultServiceChargeRate
+          : 10.0;
+      charge = enabled ? order.subtotal * (rate / 100.0) : 0.0;
+    }
     await isar.writeTxn(() async {
       order.serviceChargeAmount = charge;
       order.totalAmount = order.subtotal + charge;

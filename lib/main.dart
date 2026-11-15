@@ -20,9 +20,11 @@ import 'package:beleka_pos/services/barcode_service.dart';
 
 import 'package:beleka_pos/services/backup_service.dart';
 import 'package:beleka_pos/services/local_sql_service.dart';
+import 'package:beleka_pos/services/wake_lock_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await WakeLockService.instance.enable();
   GoogleFonts.config.allowRuntimeFetching = true;
 
   try {

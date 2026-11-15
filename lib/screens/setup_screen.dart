@@ -862,6 +862,11 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       final currency = (info['currencySymbol'] ?? 'ZK').toString();
       final tpin = (info['tpin'] ?? '').toString();
       final taxType = (info['businessTaxType'] ?? 'TURNOVER_TAX').toString();
+      final businessMode = (info['businessMode'] ?? 'retail').toString();
+      final tableSvc = info['restaurantTableServiceEnabled'] as bool? ?? true;
+      final counterSvc =
+          info['restaurantCounterServiceEnabled'] as bool? ?? true;
+      final autoKot = info['restaurantAutoPrintKot'] as bool? ?? false;
 
       final config = StoreConfig()
         ..businessName = bName
@@ -870,6 +875,10 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
         ..currencySymbol = currency
         ..tpin = tpin
         ..businessTaxType = taxType
+        ..businessMode = businessMode
+        ..restaurantTableServiceEnabled = tableSvc
+        ..restaurantCounterServiceEnabled = counterSvc
+        ..restaurantAutoPrintKot = autoKot
         ..terminalName = tillName
         ..isManagerMode = false
         ..serverIp = ip

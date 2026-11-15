@@ -31,9 +31,10 @@ class SyncService {
   void startSyncLoops(String terminalName, {String? cashierId, String? cashierName}) {
     stopSyncLoops();
 
-    // 1. Transaction retry loop (every 60s)
-    _retryTimer = Timer.periodic(const Duration(seconds: 60), (_) {
+    // 1. Transaction retry & live store-mode sync loop (every 15s)
+    _retryTimer = Timer.periodic(const Duration(seconds: 15), (_) {
       syncPendingTransactions();
+      syncStoreModeFromServer();
     });
 
     // 2. Metadata pull loop (every 5 minutes)
@@ -102,7 +103,7 @@ class SyncService {
 
   /// Push all pending (un-synced) transactions to the Manager server.
   Future<int> syncPendingTransactions() async {
-    if (_client == null || !_client.isConnected) return 0;
+    if (_client == null) return 0;
 
     final pending = await _isar.saleTransactions
         .filter()
@@ -217,6 +218,93 @@ class SyncService {
     return syncedCount;
   }
 
+  /// Lightweight poll to keep the Till's businessMode (Retail vs Restaurant)
+  /// and DigiTax settings in sync with the Master POS.
+  Future<void> syncStoreModeFromServer() async {
+    if (_client == null) return;
+    try {
+      final serverInfo = await _client.getServerInfo();
+      if (serverInfo != null) {
+        await _applyServerConfig(serverInfo);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _applyServerConfig(Map<String, dynamic> serverInfo) async {
+    final apiKey = serverInfo['digitaxApiKey']?.toString().trim();
+    final sdcId = serverInfo['sdcId']?.toString().trim();
+    final tpin = serverInfo['tpin']?.toString().trim();
+    final taxType = serverInfo['businessTaxType']?.toString().trim();
+    final bhfId = serverInfo['bhfId']?.toString().trim();
+    final env = serverInfo['digitaxEnvironment']?.toString().trim();
+    final businessMode = serverInfo['businessMode']?.toString().trim();
+    final tableSvc = serverInfo['restaurantTableServiceEnabled'];
+    final counterSvc = serverInfo['restaurantCounterServiceEnabled'];
+    final autoKot = serverInfo['restaurantAutoPrintKot'];
+
+    final config =
+        await _isar.storeConfigs.where().findFirst() ?? StoreConfig();
+    bool configChanged = false;
+
+    if (apiKey != null &&
+        apiKey.isNotEmpty &&
+        config.digitaxApiKey != apiKey) {
+      config.digitaxApiKey = apiKey;
+      configChanged = true;
+    }
+    if (sdcId != null && sdcId.isNotEmpty && config.sdcId != sdcId) {
+      config.sdcId = sdcId;
+      configChanged = true;
+    }
+    if (tpin != null && tpin.isNotEmpty && config.tpin != tpin) {
+      config.tpin = tpin;
+      configChanged = true;
+    }
+    if (taxType != null &&
+        taxType.isNotEmpty &&
+        config.businessTaxType != taxType) {
+      config.businessTaxType = taxType;
+      configChanged = true;
+    }
+    if (bhfId != null && bhfId.isNotEmpty && config.bhfId != bhfId) {
+      config.bhfId = bhfId;
+      configChanged = true;
+    }
+    if (env != null && env.isNotEmpty && config.digitaxEnvironment != env) {
+      config.digitaxEnvironment = env;
+      configChanged = true;
+    }
+    if (businessMode != null &&
+        businessMode.isNotEmpty &&
+        config.businessMode != businessMode) {
+      config.businessMode = businessMode;
+      configChanged = true;
+    }
+    if (tableSvc is bool &&
+        config.restaurantTableServiceEnabled != tableSvc) {
+      config.restaurantTableServiceEnabled = tableSvc;
+      configChanged = true;
+    }
+    if (counterSvc is bool &&
+        config.restaurantCounterServiceEnabled != counterSvc) {
+      config.restaurantCounterServiceEnabled = counterSvc;
+      configChanged = true;
+    }
+    if (autoKot is bool && config.restaurantAutoPrintKot != autoKot) {
+      config.restaurantAutoPrintKot = autoKot;
+      configChanged = true;
+    }
+
+    if (configChanged) {
+      await _isar.writeTxn(() async {
+        await _isar.storeConfigs.put(config);
+      });
+      debugPrint(
+        'SYNC: Local StoreConfig synced with Master POS (mode=${config.businessMode})',
+      );
+    }
+  }
+
   /// Pulls products, categories, store tax config, and transaction fiscal status updates from the Manager server.
   Future<void> syncMetadata() async {
     if (_client == null || !_client.isConnected || _isSyncingMetadata) return;
@@ -228,54 +316,7 @@ class SyncService {
       // 0. Sync Store Config (including DigiTax API credentials)
       final serverInfo = await _client.getServerInfo();
       if (serverInfo != null) {
-        final apiKey = serverInfo['digitaxApiKey']?.toString().trim();
-        final sdcId = serverInfo['sdcId']?.toString().trim();
-        final tpin = serverInfo['tpin']?.toString().trim();
-        final taxType = serverInfo['businessTaxType']?.toString().trim();
-        final bhfId = serverInfo['bhfId']?.toString().trim();
-        final env = serverInfo['digitaxEnvironment']?.toString().trim();
-
-        final config =
-            await _isar.storeConfigs.where().findFirst() ?? StoreConfig();
-        bool configChanged = false;
-
-        if (apiKey != null &&
-            apiKey.isNotEmpty &&
-            config.digitaxApiKey != apiKey) {
-          config.digitaxApiKey = apiKey;
-          configChanged = true;
-        }
-        if (sdcId != null && sdcId.isNotEmpty && config.sdcId != sdcId) {
-          config.sdcId = sdcId;
-          configChanged = true;
-        }
-        if (tpin != null && tpin.isNotEmpty && config.tpin != tpin) {
-          config.tpin = tpin;
-          configChanged = true;
-        }
-        if (taxType != null &&
-            taxType.isNotEmpty &&
-            config.businessTaxType != taxType) {
-          config.businessTaxType = taxType;
-          configChanged = true;
-        }
-        if (bhfId != null && bhfId.isNotEmpty && config.bhfId != bhfId) {
-          config.bhfId = bhfId;
-          configChanged = true;
-        }
-        if (env != null && env.isNotEmpty && config.digitaxEnvironment != env) {
-          config.digitaxEnvironment = env;
-          configChanged = true;
-        }
-
-        if (configChanged) {
-          await _isar.writeTxn(() async {
-            await _isar.storeConfigs.put(config);
-          });
-          debugPrint(
-            'SYNC: Local StoreConfig synced with Manager DigiTax credentials',
-          );
-        }
+        await _applyServerConfig(serverInfo);
       }
 
       // 1. Sync Categories

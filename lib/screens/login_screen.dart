@@ -304,6 +304,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               if (remoteTpin != null && remoteTpin.isNotEmpty) {
                 config.tpin = remoteTpin;
               }
+              final remoteMode = serverInfo['businessMode']?.toString().trim();
+              if (remoteMode != null && remoteMode.isNotEmpty) {
+                config.businessMode = remoteMode;
+              }
+              if (serverInfo['restaurantTableServiceEnabled'] is bool) {
+                config.restaurantTableServiceEnabled =
+                    serverInfo['restaurantTableServiceEnabled'] as bool;
+              }
+              if (serverInfo['restaurantCounterServiceEnabled'] is bool) {
+                config.restaurantCounterServiceEnabled =
+                    serverInfo['restaurantCounterServiceEnabled'] as bool;
+              }
+              if (serverInfo['restaurantAutoPrintKot'] is bool) {
+                config.restaurantAutoPrintKot =
+                    serverInfo['restaurantAutoPrintKot'] as bool;
+              }
               await db.isar.writeTxn(() async {
                 await db.isar.storeConfigs.put(config);
               });
@@ -387,6 +403,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               }
               if (serverInfo['bhfId'] != null) {
                 activeConfig.bhfId = serverInfo['bhfId'].toString();
+              }
+              final remoteMode = serverInfo['businessMode']?.toString().trim();
+              if (remoteMode != null && remoteMode.isNotEmpty) {
+                activeConfig.businessMode = remoteMode;
+              }
+              if (serverInfo['restaurantTableServiceEnabled'] is bool) {
+                activeConfig.restaurantTableServiceEnabled =
+                    serverInfo['restaurantTableServiceEnabled'] as bool;
+              }
+              if (serverInfo['restaurantCounterServiceEnabled'] is bool) {
+                activeConfig.restaurantCounterServiceEnabled =
+                    serverInfo['restaurantCounterServiceEnabled'] as bool;
+              }
+              if (serverInfo['restaurantAutoPrintKot'] is bool) {
+                activeConfig.restaurantAutoPrintKot =
+                    serverInfo['restaurantAutoPrintKot'] as bool;
               }
               await db.isar.writeTxn(() async {
                 await db.isar.storeConfigs.put(activeConfig);

@@ -54,53 +54,66 @@ class _RestaurantReportsScreenState
                   color: theme.colorScheme.outline.withValues(alpha: 0.18),
                 ),
               ),
-              child: Row(
+              child: Wrap(
+                spacing: 14,
+                runSpacing: 14,
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: brandColor.withValues(alpha: 0.14),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      Icons.analytics_rounded,
-                      color: brandColor,
-                      size: 28,
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Restaurant Reports, Receipts & Pre-Bills',
-                          style: GoogleFonts.manrope(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w800,
-                          ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: brandColor.withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                        Text(
-                          'Order reports, pre-bill slips, paid receipts with extras & PDF export',
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
+                        child: Icon(
+                          Icons.analytics_rounded,
+                          color: brandColor,
+                          size: 28,
                         ),
-                      ],
-                    ),
-                  ),
-                  SegmentedButton<String>(
-                    segments: const [
-                      ButtonSegment(value: 'TODAY', label: Text('Today')),
-                      ButtonSegment(value: 'WEEK', label: Text('7 Days')),
-                      ButtonSegment(value: 'ALL', label: Text('All Time')),
+                      ),
+                      const SizedBox(width: 14),
+                      Flexible(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Restaurant Reports, Receipts & Pre-Bills',
+                              style: GoogleFonts.manrope(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            Text(
+                              'Order reports, pre-bill slips, paid receipts with extras & PDF export',
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
-                    selected: {_range},
-                    onSelectionChanged: (s) => setState(() => _range = s.first),
                   ),
-                  const SizedBox(width: 12),
-                  ordersAsync.maybeWhen(
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      SegmentedButton<String>(
+                        segments: const [
+                          ButtonSegment(value: 'TODAY', label: Text('Today')),
+                          ButtonSegment(value: 'WEEK', label: Text('7 Days')),
+                          ButtonSegment(value: 'ALL', label: Text('All Time')),
+                        ],
+                        selected: {_range},
+                        onSelectionChanged: (s) => setState(() => _range = s.first),
+                      ),
+                      ordersAsync.maybeWhen(
                     data: (allOrders) => ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: brandColor,
@@ -133,6 +146,8 @@ class _RestaurantReportsScreenState
                       ),
                     ),
                     orElse: () => const SizedBox.shrink(),
+                  ),
+                    ],
                   ),
                 ],
               ),

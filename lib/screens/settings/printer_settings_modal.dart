@@ -34,6 +34,10 @@ class _PrinterSettingsModalState extends ConsumerState<PrinterSettingsModal> {
   int _cashDrawerPin = 2;
   int _cashDrawerPulseOnMs = 50;
 
+  // Dual Printer Role Switcher (Receipt vs Kitchen KOT)
+  bool _configuringKitchenPrinter = false;
+  KitchenPrinterConfig? _kitchenConfig;
+
   @override
   void initState() {
     super.initState();
@@ -53,21 +57,26 @@ class _PrinterSettingsModalState extends ConsumerState<PrinterSettingsModal> {
   Future<void> _loadConfig() async {
     final db = ref.read(databaseServiceProvider);
     final config = await db.getStoreConfig();
-    if (config != null && mounted) {
+    final kitchenCfg =
+        await ref.read(printerServiceProvider).loadKitchenPrinterConfig();
+    if (mounted) {
       setState(() {
-        _paperWidthMm = config.paperWidthMm;
-        _autoOpenCashDrawer = config.autoOpenCashDrawer;
-        _openDrawerCashOnly = config.openDrawerCashOnly;
-        _cashDrawerPin = config.cashDrawerPin;
-        _cashDrawerPulseOnMs = config.cashDrawerPulseOnMs;
-        if (config.defaultPrinterAddress != null) {
-          _ipController.text = config.defaultPrinterAddress!;
-        }
-        if (config.defaultPrinterType != null) {
-          _selectedType = _parsePrinterType(config.defaultPrinterType);
-        }
-        if (config.defaultPrinterModel != null) {
-          _selectedModel = _parsePrinterModel(config.defaultPrinterModel);
+        _kitchenConfig = kitchenCfg;
+        if (config != null) {
+          _paperWidthMm = config.paperWidthMm;
+          _autoOpenCashDrawer = config.autoOpenCashDrawer;
+          _openDrawerCashOnly = config.openDrawerCashOnly;
+          _cashDrawerPin = config.cashDrawerPin;
+          _cashDrawerPulseOnMs = config.cashDrawerPulseOnMs;
+          if (config.defaultPrinterAddress != null) {
+            _ipController.text = config.defaultPrinterAddress!;
+          }
+          if (config.defaultPrinterType != null) {
+            _selectedType = _parsePrinterType(config.defaultPrinterType);
+          }
+          if (config.defaultPrinterModel != null) {
+            _selectedModel = _parsePrinterModel(config.defaultPrinterModel);
+          }
         }
       });
     }
@@ -133,6 +142,37 @@ class _PrinterSettingsModalState extends ConsumerState<PrinterSettingsModal> {
   }
 
   Future<void> _selectPrinter(PrinterDevice device) async {
+    final printerService = ref.read(printerServiceProvider);
+
+    if (_configuringKitchenPrinter) {
+      final kCfg = KitchenPrinterConfig(
+        name: device.name,
+        address: device.address ?? '',
+        type: _selectedType.name,
+        model: _selectedModel.name,
+        paperWidthMm: _paperWidthMm,
+      );
+      await printerService.saveKitchenPrinterConfig(kCfg);
+      if (mounted) {
+        setState(() => _kitchenConfig = kCfg);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Kitchen (KOT) printer set to: ${device.name}',
+              style: GoogleFonts.manrope(
+                fontWeight: FontWeight.bold,
+                color: Colors.black,
+              ),
+            ),
+            backgroundColor: const Color(0xFFC1F11D),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+      return;
+    }
+
     final printerConfig = PrinterConfig(
       device: device, 
       type: _selectedType,
@@ -144,7 +184,6 @@ class _PrinterSettingsModalState extends ConsumerState<PrinterSettingsModal> {
     ref.read(selectedPrinterProvider.notifier).state = printerConfig;
 
     // Connect immediately
-    final printerService = ref.read(printerServiceProvider);
     await printerService.connect(
       device, 
       _selectedType, 
@@ -286,6 +325,75 @@ class _PrinterSettingsModalState extends ConsumerState<PrinterSettingsModal> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    // Dual Printer Role Switcher (Receipt / ZRA vs Kitchen KOT)
+                    SegmentedButton<bool>(
+                      segments: const [
+                        ButtonSegment(
+                          value: false,
+                          icon: Icon(Icons.receipt_long_rounded, size: 16),
+                          label: Text('Receipt & ZRA Printer'),
+                        ),
+                        ButtonSegment(
+                          value: true,
+                          icon: Icon(Icons.soup_kitchen_rounded, size: 16),
+                          label: Text('Kitchen Printer (KOT)'),
+                        ),
+                      ],
+                      selected: {_configuringKitchenPrinter},
+                      onSelectionChanged: (s) {
+                        setState(() {
+                          _configuringKitchenPrinter = s.first;
+                          if (_configuringKitchenPrinter &&
+                              _kitchenConfig != null) {
+                            _paperWidthMm = _kitchenConfig!.paperWidthMm;
+                            if (_kitchenConfig!.address.isNotEmpty) {
+                              _ipController.text = _kitchenConfig!.address;
+                            }
+                          }
+                        });
+                      },
+                    ),
+                    if (_configuringKitchenPrinter) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: primaryColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: primaryColor.withValues(alpha: 0.35),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                _kitchenConfig == null
+                                    ? 'Kitchen KOT currently uses the Primary Receipt Printer. Select a device below to assign a dedicated Kitchen Printer.'
+                                    : 'Dedicated Kitchen Printer: ${_kitchenConfig!.name} (${_kitchenConfig!.type.toUpperCase()} • ${_kitchenConfig!.paperWidthMm}mm)',
+                                style: GoogleFonts.inter(fontSize: 11.5),
+                              ),
+                            ),
+                            if (_kitchenConfig != null)
+                              TextButton(
+                                onPressed: () async {
+                                  await ref
+                                      .read(printerServiceProvider)
+                                      .saveKitchenPrinterConfig(null);
+                                  if (mounted) {
+                                    setState(() => _kitchenConfig = null);
+                                  }
+                                },
+                                child: const Text('Clear'),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 14),
                     // Driver Model & Paper Size Selector
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -833,26 +941,68 @@ class _PrinterSettingsModalState extends ConsumerState<PrinterSettingsModal> {
                   final db = ref.read(databaseServiceProvider);
                   final config = await db.getStoreConfig();
 
-                  final sampleTransaction = SaleTransaction(
-                    totalAmount: 45.0,
-                    paymentMethod: 'Cash',
-                    subtotal: 38.79,
-                    taxAmount: 6.21,
-                    tenderedAmount: 50.0,
-                    changeAmount: 5.0,
-                    cashierName: 'Admin',
-                  );
+                  bool success;
+                  if (_configuringKitchenPrinter) {
+                    final sampleOrder = RestaurantOrder(
+                      orderNumber: 'KOT-TEST',
+                      serviceType: RestaurantServiceType.table,
+                      tableName: 'Table 4',
+                      waiterName: 'Kitchen Test',
+                    );
+                    final sampleKotItems = [
+                      RestaurantOrderItem(
+                        orderId: 0,
+                        productId: 1,
+                        productName: 'Chicken Burger',
+                        productSku: 'TEST-01',
+                        basePrice: 0,
+                        unitPrice: 0,
+                        quantity: 2,
+                      )..specialInstructions = 'No onions',
+                      RestaurantOrderItem(
+                        orderId: 0,
+                        productId: 2,
+                        productName: 'Chips Regular',
+                        productSku: 'TEST-02',
+                        basePrice: 0,
+                        unitPrice: 0,
+                        quantity: 1,
+                      ),
+                    ];
+                    success = await printerService.printKitchenOrderTicket(
+                      order: sampleOrder,
+                      items: sampleKotItems,
+                      stationName: 'Main Kitchen',
+                      config: config,
+                    );
+                  } else {
+                    final sampleTransaction = SaleTransaction(
+                      totalAmount: 45.0,
+                      paymentMethod: 'Cash',
+                      subtotal: 38.79,
+                      taxAmount: 6.21,
+                      tenderedAmount: 50.0,
+                      changeAmount: 5.0,
+                      cashierName: 'Admin',
+                    );
 
-                  final sampleItems = [
-                    SaleItem(productId: 1, productName: 'Sample Retail Item A', priceAtSale: 25.0, quantity: 1),
-                    SaleItem(productId: 2, productName: 'Mineral Water 500ml', priceAtSale: 10.0, quantity: 2),
-                  ];
-                  
-                  final success = await printerService.printReceipt(sampleTransaction, sampleItems, config: config);
+                    final sampleItems = [
+                      SaleItem(productId: 1, productName: 'Sample Retail Item A', priceAtSale: 25.0, quantity: 1),
+                      SaleItem(productId: 2, productName: 'Mineral Water 500ml', priceAtSale: 10.0, quantity: 2),
+                    ];
+
+                    success = await printerService.printReceipt(sampleTransaction, sampleItems, config: config);
+                  }
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text(success ? '✓ Receipt sent to thermal printer successfully!' : '✗ Printing failed - please check connection.'),
+                        content: Text(
+                          success
+                              ? (_configuringKitchenPrinter
+                                  ? '✓ Kitchen Order Ticket sent to Kitchen Printer!'
+                                  : '✓ Receipt sent to thermal printer successfully!')
+                              : '✗ Printing failed - please check connection.',
+                        ),
                         backgroundColor: success ? const Color(0xFFC1F11D) : Colors.redAccent,
                         behavior: SnackBarBehavior.floating,
                       ),

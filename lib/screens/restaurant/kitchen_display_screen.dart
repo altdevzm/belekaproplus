@@ -59,71 +59,83 @@ class _KitchenDisplayScreenState extends ConsumerState<KitchenDisplayScreen> {
                   color: theme.colorScheme.outline.withValues(alpha: 0.18),
                 ),
               ),
-              child: Row(
+              child: Wrap(
+                spacing: 14,
+                runSpacing: 14,
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: brandColor.withValues(alpha: 0.14),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      Icons.soup_kitchen_rounded,
-                      color: brandColor,
-                      size: 28,
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Kitchen Display System',
-                          style: GoogleFonts.manrope(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w800,
-                          ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: brandColor.withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                        Text(
-                          'Station ticket routing, live prep timers & bump controls',
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  SegmentedButton<String>(
-                    style: ButtonStyle(
-                      padding: WidgetStateProperty.all(
-                        const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
+                        child: Icon(
+                          Icons.soup_kitchen_rounded,
+                          color: brandColor,
+                          size: 28,
                         ),
                       ),
-                    ),
-                    segments: const [
-                      ButtonSegment(
-                        value: 'ACTIVE',
-                        icon: Icon(Icons.local_fire_department_rounded, size: 18),
-                        label: Text('Active Queue'),
-                      ),
-                      ButtonSegment(
-                        value: 'READY',
-                        icon: Icon(Icons.notifications_active_rounded, size: 18),
-                        label: Text('Ready'),
-                      ),
-                      ButtonSegment(
-                        value: 'SERVED',
-                        icon: Icon(Icons.done_all_rounded, size: 18),
-                        label: Text('Served'),
+                      const SizedBox(width: 14),
+                      Flexible(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Kitchen Display System',
+                              style: GoogleFonts.manrope(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            Text(
+                              'Station ticket routing, live prep timers & bump controls',
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
-                    selected: {_statusFilter},
-                    onSelectionChanged: (s) =>
-                        setState(() => _statusFilter = s.first),
+                  ),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: SegmentedButton<String>(
+                      style: ButtonStyle(
+                        padding: WidgetStateProperty.all(
+                          const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 10,
+                          ),
+                        ),
+                      ),
+                      segments: const [
+                        ButtonSegment(
+                          value: 'ACTIVE',
+                          icon: Icon(Icons.local_fire_department_rounded, size: 18),
+                          label: Text('Active Queue'),
+                        ),
+                        ButtonSegment(
+                          value: 'READY',
+                          icon: Icon(Icons.notifications_active_rounded, size: 18),
+                          label: Text('Ready'),
+                        ),
+                        ButtonSegment(
+                          value: 'SERVED',
+                          icon: Icon(Icons.done_all_rounded, size: 18),
+                          label: Text('Served'),
+                        ),
+                      ],
+                      selected: {_statusFilter},
+                      onSelectionChanged: (s) =>
+                          setState(() => _statusFilter = s.first),
+                    ),
                   ),
                 ],
               ),

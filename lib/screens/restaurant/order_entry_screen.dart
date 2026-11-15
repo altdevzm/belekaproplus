@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -17,6 +18,7 @@ import 'package:beleka_pos/services/database_service.dart';
 import 'package:beleka_pos/services/digitax_inventory_service.dart';
 import 'package:beleka_pos/services/printer_service.dart';
 import 'package:beleka_pos/services/restaurant_service.dart';
+import 'package:beleka_pos/services/sync_service.dart';
 
 class OrderEntryScreen extends ConsumerStatefulWidget {
   const OrderEntryScreen({super.key});
@@ -28,13 +30,17 @@ class OrderEntryScreen extends ConsumerStatefulWidget {
 class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
   final _searchController = TextEditingController();
   final _searchFocusNode = FocusNode();
+  final _ticketTenderedCtrl = TextEditingController();
+  int? _lastTenderOrderId;
   int? _selectedCategoryId;
   bool _isSettling = false;
+  int _mobileTab = 0;
 
   @override
   void dispose() {
     _searchController.dispose();
     _searchFocusNode.dispose();
+    _ticketTenderedCtrl.dispose();
     super.dispose();
   }
 
@@ -111,323 +117,404 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
         autofocus: true,
         child: Scaffold(
           backgroundColor: Colors.transparent,
-          body: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                Expanded(
-                  child: Row(
-                    children: [
-                      // Left: Active Orders Bar + Menu Catalog
-                      Expanded(
-                        flex: 7,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Top Bar: Order Switcher & New Takeaway Order
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: SizedBox(
-                                    height: 44,
-                                    child: ListView(
-                                      scrollDirection: Axis.horizontal,
-                                      children: [
-                                        ...activeOrders.map((o) {
-                                          final selected =
-                                              currentOrder?.id == o.id;
-                                          return Padding(
-                                            padding: const EdgeInsets.only(
-                                              right: 8,
-                                            ),
-                                            child: ChoiceChip(
-                                              label: Text(
-                                                o.tableName != null
-                                                    ? '${o.tableName} (${o.orderNumber})'
-                                                    : 'Takeaway ${o.orderNumber}',
-                                              ),
-                                              selected: selected,
-                                              onSelected: (_) {
-                                                ref
-                                                    .read(
-                                                      selectedRestaurantOrderIdProvider
-                                                          .notifier,
-                                                    )
-                                                    .state = o.id;
-                                              },
-                                            ),
-                                          );
-                                        }),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                OutlinedButton.icon(
-                                  onPressed: () {
-                                    ref
-                                        .read(navigationProvider.notifier)
-                                        .state = ScreenType.restaurantTables;
-                                  },
-                                  icon: const Icon(
-                                    Icons.table_restaurant_rounded,
-                                    size: 18,
-                                  ),
-                                  label: const Text('Tables [F1]'),
-                                ),
-                                const SizedBox(width: 8),
-                                OutlinedButton.icon(
-                                  onPressed: () {
-                                    ref
-                                        .read(customerDisplayProvider.notifier)
-                                        .setOrder(currentOrder);
-                                    Navigator.of(context).push(
-                                      MaterialPageRoute(
-                                        builder: (_) =>
-                                            const CustomerDisplayScreen(),
-                                      ),
-                                    );
-                                  },
-                                  icon: const Icon(
-                                    Icons.desktop_windows_rounded,
-                                    size: 18,
-                                  ),
-                                  label: const Text('Client Screen'),
-                                ),
-                                const SizedBox(width: 8),
-                                if (config?.restaurantCounterServiceEnabled ??
-                                    true)
-                                  ElevatedButton.icon(
-                                    onPressed: _createCounterOrder,
-                                    icon: const Icon(Icons.add_rounded, size: 18),
-                                    label: const Text('New Takeaway [F2]'),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: brandColor,
-                                      foregroundColor: Colors.black,
-                                    ),
-                                  ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
+          body: LayoutBuilder(
+            builder: (context, constraints) {
+              final isCompact = constraints.maxWidth < 820;
 
-                            // Search & Category Filter
-                            TextField(
-                              controller: _searchController,
-                              focusNode: _searchFocusNode,
-                              onChanged: (_) => setState(() {}),
-                              decoration: InputDecoration(
-                                hintText: 'Search menu items... [F3]',
-                                prefixIcon: const Icon(Icons.search_rounded),
-                                isDense: true,
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
+              final menuPanel = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Top Bar: Order Switcher & Action Buttons
+                  if (activeOrders.isNotEmpty)
+                    SizedBox(
+                      height: 44,
+                      child: ListView(
+                        scrollDirection: Axis.horizontal,
+                        children: activeOrders.map((o) {
+                          final selected = currentOrder?.id == o.id;
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: ChoiceChip(
+                              label: Text(
+                                o.tableName != null
+                                    ? '${o.tableName} (${o.orderNumber})'
+                                    : 'Takeaway ${o.orderNumber}',
+                              ),
+                              selected: selected,
+                              onSelected: (_) {
+                                ref
+                                    .read(
+                                      selectedRestaurantOrderIdProvider
+                                          .notifier,
+                                    )
+                                    .state = o.id;
+                              },
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  if (activeOrders.isNotEmpty) const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: () {
+                          ref.read(navigationProvider.notifier).state =
+                              ScreenType.restaurantTables;
+                        },
+                        icon: const Icon(
+                          Icons.table_restaurant_rounded,
+                          size: 18,
+                        ),
+                        label: Text(isCompact ? 'Tables' : 'Tables [F1]'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: () {
+                          ref
+                              .read(customerDisplayProvider.notifier)
+                              .setOrder(currentOrder);
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const CustomerDisplayScreen(),
+                            ),
+                          );
+                        },
+                        icon: const Icon(
+                          Icons.desktop_windows_rounded,
+                          size: 18,
+                        ),
+                        label: const Text('Client Screen'),
+                      ),
+                      if (config?.restaurantCounterServiceEnabled ?? true)
+                        ElevatedButton.icon(
+                          onPressed: _createCounterOrder,
+                          icon: const Icon(Icons.add_rounded, size: 18),
+                          label: Text(
+                            isCompact ? 'New Takeaway' : 'New Takeaway [F2]',
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: brandColor,
+                            foregroundColor: Colors.black,
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Search & Category Filter
+                  TextField(
+                    controller: _searchController,
+                    focusNode: _searchFocusNode,
+                    onChanged: (_) => setState(() {}),
+                    decoration: InputDecoration(
+                      hintText: isCompact
+                          ? 'Search menu items...'
+                          : 'Search menu items... [F3]',
+                      prefixIcon: const Icon(Icons.search_rounded),
+                      isDense: true,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  categoriesAsync.when(
+                    loading: () => const SizedBox.shrink(),
+                    error: (_, _) => const SizedBox.shrink(),
+                    data: (cats) => SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          ChoiceChip(
+                            label: const Text('All'),
+                            selected: _selectedCategoryId == null,
+                            onSelected: (_) =>
+                                setState(() => _selectedCategoryId = null),
+                          ),
+                          const SizedBox(width: 8),
+                          ...cats.map(
+                            (c) => Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: ChoiceChip(
+                                label: Text(c.name),
+                                selected: _selectedCategoryId == c.id,
+                                onSelected: (_) =>
+                                    setState(() => _selectedCategoryId = c.id),
                               ),
                             ),
-                            const SizedBox(height: 10),
-                            categoriesAsync.when(
-                              loading: () => const SizedBox.shrink(),
-                              error: (_, _) => const SizedBox.shrink(),
-                              data: (cats) => SingleChildScrollView(
-                                scrollDirection: Axis.horizontal,
-                                child: Row(
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Menu Grid
+                  Expanded(
+                    child: productsAsync.when(
+                      loading: () =>
+                          const Center(child: CircularProgressIndicator()),
+                      error: (e, _) => Center(child: Text('Error: $e')),
+                      data: (products) {
+                        final q = _searchController.text.trim().toLowerCase();
+                        final menuItems = products.where((p) {
+                          if (!p.isAvailableNow) {
+                            return false;
+                          }
+                          if (p.restaurantProductType != 'menu_item' &&
+                              p.restaurantProductType != 'both') {
+                            return false;
+                          }
+                          if (_selectedCategoryId != null &&
+                              p.categoryId != _selectedCategoryId) {
+                            return false;
+                          }
+                          if (q.isNotEmpty &&
+                              !p.name.toLowerCase().contains(q) &&
+                              !p.sku.toLowerCase().contains(q)) {
+                            return false;
+                          }
+                          return true;
+                        }).toList();
+
+                        if (menuItems.isEmpty) {
+                          return const Center(
+                            child: Text('No available menu items match.'),
+                          );
+                        }
+
+                        return GridView.builder(
+                          gridDelegate:
+                              SliverGridDelegateWithMaxCrossAxisExtent(
+                            maxCrossAxisExtent: isCompact ? 175 : 205,
+                            mainAxisExtent: isCompact ? 112 : 125,
+                            crossAxisSpacing: 10,
+                            mainAxisSpacing: 10,
+                          ),
+                          itemCount: menuItems.length,
+                          itemBuilder: (_, idx) {
+                            final p = menuItems[idx];
+                            return InkWell(
+                              onTap: () => _onProductTap(
+                                currentOrder,
+                                p,
+                                currency,
+                              ),
+                              borderRadius: BorderRadius.circular(12),
+                              child: Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: theme.colorScheme.surface,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: theme.colorScheme.outline
+                                        .withValues(alpha: 0.2),
+                                  ),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    ChoiceChip(
-                                      label: const Text('All'),
-                                      selected: _selectedCategoryId == null,
-                                      onSelected: (_) => setState(
-                                        () => _selectedCategoryId = null,
+                                    Text(
+                                      p.name,
+                                      style: GoogleFonts.manrope(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 13.5,
                                       ),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
-                                    const SizedBox(width: 8),
-                                    ...cats.map(
-                                      (c) => Padding(
-                                        padding: const EdgeInsets.only(right: 8),
-                                        child: ChoiceChip(
-                                          label: Text(c.name),
-                                          selected: _selectedCategoryId == c.id,
-                                          onSelected: (_) => setState(
-                                            () => _selectedCategoryId = c.id,
+                                    const Spacer(),
+                                    Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Text(
+                                          '$currency ${p.price.toStringAsFixed(2)}',
+                                          style: GoogleFonts.ibmPlexMono(
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 13,
+                                            color: brandColor,
                                           ),
                                         ),
+                                        Text(
+                                          '${p.prepTimeMinutes}m',
+                                          style: GoogleFonts.inter(
+                                            fontSize: 11,
+                                            color: theme
+                                                .colorScheme.onSurfaceVariant,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              );
+
+              final ticketPanel = Container(
+                padding: EdgeInsets.all(isCompact ? 12 : 16),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surface,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: theme.colorScheme.outline.withValues(alpha: 0.2),
+                  ),
+                ),
+                child: currentOrder == null
+                    ? Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.receipt_long_outlined,
+                              size: 48,
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              isCompact
+                                  ? 'Tap any menu item to start\na Takeaway Order'
+                                  : 'Tap any menu item to start\na Takeaway Order, or press [F2]',
+                              style: GoogleFonts.manrope(
+                                fontWeight: FontWeight.w700,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      )
+                    : _buildOrderTicketPanel(
+                        context,
+                        currentOrder,
+                        currency,
+                        config,
+                      ),
+              );
+
+              if (isCompact) {
+                return Padding(
+                  padding: const EdgeInsets.all(10),
+                  child: Column(
+                    children: [
+                      SegmentedButton<int>(
+                        segments: [
+                          const ButtonSegment(
+                            value: 0,
+                            icon: Icon(Icons.restaurant_menu_rounded, size: 18),
+                            label: Text('Menu'),
+                          ),
+                          ButtonSegment(
+                            value: 1,
+                            icon: const Icon(
+                              Icons.receipt_long_rounded,
+                              size: 18,
+                            ),
+                            label: Text(
+                              currentOrder == null
+                                  ? 'Ticket'
+                                  : 'Ticket (${currentOrder.orderNumber})',
+                            ),
+                          ),
+                        ],
+                        selected: {_mobileTab},
+                        onSelectionChanged: (s) =>
+                            setState(() => _mobileTab = s.first),
+                      ),
+                      const SizedBox(height: 10),
+                      Expanded(
+                        child: _mobileTab == 0 ? menuPanel : ticketPanel,
+                      ),
+                      if (_mobileTab == 0 && currentOrder != null) ...[
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.surface,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: brandColor.withValues(alpha: 0.4),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      currentOrder.tableName ??
+                                          'Takeaway ${currentOrder.orderNumber}',
+                                      style: GoogleFonts.manrope(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 13,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    Text(
+                                      '$currency ${currentOrder.totalAmount.toStringAsFixed(2)}',
+                                      style: GoogleFonts.ibmPlexMono(
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 14,
+                                        color: brandColor,
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
-                            ),
-                            const SizedBox(height: 12),
-
-                            // Menu Grid
-                            Expanded(
-                              child: productsAsync.when(
-                                loading: () => const Center(
-                                  child: CircularProgressIndicator(),
+                              ElevatedButton.icon(
+                                onPressed: () =>
+                                    setState(() => _mobileTab = 1),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: brandColor,
+                                  foregroundColor: Colors.black,
                                 ),
-                                error: (e, _) =>
-                                    Center(child: Text('Error: $e')),
-                                data: (products) {
-                                  final q = _searchController.text
-                                      .trim()
-                                      .toLowerCase();
-                                  final menuItems = products.where((p) {
-                                    if (!p.isAvailableNow) {
-                                      return false;
-                                    }
-                                    if (p.restaurantProductType ==
-                                        'ingredient') {
-                                      return false;
-                                    }
-                                    if (_selectedCategoryId != null &&
-                                        p.categoryId != _selectedCategoryId) {
-                                      return false;
-                                    }
-                                    if (q.isNotEmpty &&
-                                        !p.name.toLowerCase().contains(q) &&
-                                        !p.sku.toLowerCase().contains(q)) {
-                                      return false;
-                                    }
-                                    return true;
-                                  }).toList();
-
-                                  if (menuItems.isEmpty) {
-                                    return const Center(
-                                      child: Text(
-                                        'No available menu items match.',
-                                      ),
-                                    );
-                                  }
-
-                                  return GridView.builder(
-                                    gridDelegate:
-                                        const SliverGridDelegateWithMaxCrossAxisExtent(
-                                      maxCrossAxisExtent: 205,
-                                      mainAxisExtent: 125,
-                                      crossAxisSpacing: 10,
-                                      mainAxisSpacing: 10,
-                                    ),
-                                    itemCount: menuItems.length,
-                                    itemBuilder: (_, idx) {
-                                      final p = menuItems[idx];
-                                      return InkWell(
-                                        onTap: () => _onProductTap(
-                                          currentOrder,
-                                          p,
-                                          currency,
-                                        ),
-                                        borderRadius: BorderRadius.circular(12),
-                                        child: Container(
-                                          padding: const EdgeInsets.all(12),
-                                          decoration: BoxDecoration(
-                                            color: theme.colorScheme.surface,
-                                            borderRadius:
-                                                BorderRadius.circular(12),
-                                            border: Border.all(
-                                              color: theme.colorScheme.outline
-                                                  .withValues(alpha: 0.2),
-                                            ),
-                                          ),
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                p.name,
-                                                style: GoogleFonts.manrope(
-                                                  fontWeight: FontWeight.w700,
-                                                  fontSize: 13.5,
-                                                ),
-                                                maxLines: 2,
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                              const Spacer(),
-                                              Row(
-                                                mainAxisAlignment:
-                                                    MainAxisAlignment
-                                                        .spaceBetween,
-                                                children: [
-                                                  Text(
-                                                    '$currency ${p.price.toStringAsFixed(2)}',
-                                                    style:
-                                                        GoogleFonts.ibmPlexMono(
-                                                      fontWeight:
-                                                          FontWeight.w800,
-                                                      fontSize: 13,
-                                                      color: brandColor,
-                                                    ),
-                                                  ),
-                                                  Text(
-                                                    '${p.prepTimeMinutes}m',
-                                                    style: GoogleFonts.inter(
-                                                      fontSize: 11,
-                                                      color: theme.colorScheme
-                                                          .onSurfaceVariant,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      );
-                                    },
-                                  );
-                                },
+                                icon: const Icon(
+                                  Icons.receipt_long_rounded,
+                                  size: 18,
+                                ),
+                                label: const Text('View Ticket'),
                               ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-
-                      // Right: Order Ticket & Settlement Panel
-                      Expanded(
-                        flex: 4,
-                        child: Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.surface,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: theme.colorScheme.outline
-                                  .withValues(alpha: 0.2),
-                            ),
+                            ],
                           ),
-                          child: currentOrder == null
-                              ? Center(
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(
-                                        Icons.receipt_long_outlined,
-                                        size: 48,
-                                      ),
-                                      const SizedBox(height: 10),
-                                      Text(
-                                        'Tap any menu item to start\na Takeaway Order, or press [F2]',
-                                        style: GoogleFonts.manrope(
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                        textAlign: TextAlign.center,
-                                      ),
-                                    ],
-                                  ),
-                                )
-                              : _buildOrderTicketPanel(
-                                  context,
-                                  currentOrder,
-                                  currency,
-                                  config,
-                                ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
+                );
+              }
+
+              return Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: Row(
+                        children: [
+                          Expanded(flex: 6, child: menuPanel),
+                          const SizedBox(width: 16),
+                          Expanded(flex: 5, child: ticketPanel),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    _buildShortcutBar(theme),
+                  ],
                 ),
-                const SizedBox(height: 8),
-                _buildShortcutBar(theme),
-              ],
-            ),
+              );
+            },
           ),
         ),
       ),
@@ -646,40 +733,51 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
                     Text(
                       'Service Charge',
                       style: GoogleFonts.inter(
-                        fontSize: 13,
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w600,
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
                     ),
-                    const SizedBox(width: 6),
-                    InkWell(
-                      borderRadius: BorderRadius.circular(6),
-                      onTap: items.isEmpty
+                    const SizedBox(width: 10),
+                    OutlinedButton.icon(
+                      onPressed: items.isEmpty
                           ? null
-                          : () => svc.setOrderServiceCharge(
-                              order.id,
-                              order.serviceChargeAmount <= 0,
+                          : () => _showCustomServiceChargeDialog(
+                              order,
+                              currency,
+                              config,
                             ),
-                      child: Container(
+                      style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
+                          horizontal: 12,
+                          vertical: 8,
                         ),
-                        decoration: BoxDecoration(
-                          color: (order.serviceChargeAmount > 0
-                                  ? const Color(0xFF10B981)
-                                  : theme.colorScheme.primary)
-                              .withValues(alpha: 0.14),
-                          borderRadius: BorderRadius.circular(6),
+                        minimumSize: const Size(0, 38),
+                        side: BorderSide(
+                          color: order.serviceChargeAmount > 0
+                              ? const Color(0xFF10B981)
+                              : theme.colorScheme.primary,
                         ),
-                        child: Text(
-                          order.serviceChargeAmount > 0 ? 'ON' : 'ADD',
-                          style: GoogleFonts.inter(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                            color: order.serviceChargeAmount > 0
-                                ? const Color(0xFF10B981)
-                                : theme.colorScheme.primary,
-                          ),
+                      ),
+                      icon: Icon(
+                        order.serviceChargeAmount > 0
+                            ? Icons.edit_rounded
+                            : Icons.add_rounded,
+                        size: 16,
+                        color: order.serviceChargeAmount > 0
+                            ? const Color(0xFF10B981)
+                            : theme.colorScheme.primary,
+                      ),
+                      label: Text(
+                        order.serviceChargeAmount > 0
+                            ? 'Edit / Clear'
+                            : 'Add Service Charge',
+                        style: GoogleFonts.manrope(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                          color: order.serviceChargeAmount > 0
+                              ? const Color(0xFF10B981)
+                              : theme.colorScheme.primary,
                         ),
                       ),
                     ),
@@ -688,8 +786,8 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
                 Text(
                   '$currency ${order.serviceChargeAmount.toStringAsFixed(2)}',
                   style: GoogleFonts.ibmPlexMono(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ],
@@ -709,31 +807,236 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
               '$currency ${remaining.toStringAsFixed(2)}',
               isBold: true,
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
+            Builder(
+              builder: (context) {
+                if (_lastTenderOrderId != order.id) {
+                  _lastTenderOrderId = order.id;
+                  _ticketTenderedCtrl.clear();
+                }
+                final tenderedVal =
+                    double.tryParse(_ticketTenderedCtrl.text.trim()) ?? 0.0;
+                final changeVal = tenderedVal - remaining;
+                final hasTenderInput = _ticketTenderedCtrl.text.trim().isNotEmpty;
+
+                return Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerHighest
+                        .withValues(alpha: 0.25),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: theme.colorScheme.outline.withValues(alpha: 0.2),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _ticketTenderedCtrl,
+                              onChanged: (_) => setState(() {}),
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                decimal: true,
+                              ),
+                              style: GoogleFonts.ibmPlexMono(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                              ),
+                              decoration: InputDecoration(
+                                labelText: 'Amount Given ($currency)',
+                                hintText: remaining.toStringAsFixed(2),
+                                isDense: true,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 10,
+                                ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                suffixIcon: hasTenderInput
+                                    ? IconButton(
+                                        tooltip: 'Clear',
+                                        icon: const Icon(
+                                          Icons.close_rounded,
+                                          size: 16,
+                                        ),
+                                        onPressed: () => setState(
+                                          () => _ticketTenderedCtrl.clear(),
+                                        ),
+                                      )
+                                    : null,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: (!hasTenderInput
+                                      ? theme.colorScheme.surface
+                                      : (changeVal >= -0.001
+                                          ? const Color(0xFF10B981)
+                                          : Colors.redAccent))
+                                  .withValues(alpha: hasTenderInput ? 0.16 : 0.6),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: !hasTenderInput
+                                    ? theme.colorScheme.outline
+                                        .withValues(alpha: 0.2)
+                                    : (changeVal >= -0.001
+                                        ? const Color(0xFF10B981)
+                                        : Colors.redAccent),
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  !hasTenderInput || changeVal >= -0.001
+                                      ? 'Change Due'
+                                      : 'Short By',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    color: !hasTenderInput
+                                        ? theme.colorScheme.onSurfaceVariant
+                                        : (changeVal >= -0.001
+                                            ? const Color(0xFF10B981)
+                                            : Colors.redAccent),
+                                  ),
+                                ),
+                                Text(
+                                  '$currency ${hasTenderInput ? changeVal.abs().toStringAsFixed(2) : '0.00'}',
+                                  style: GoogleFonts.ibmPlexMono(
+                                    fontSize: 13.5,
+                                    fontWeight: FontWeight.w900,
+                                    color: !hasTenderInput
+                                        ? theme.colorScheme.onSurface
+                                        : (changeVal >= -0.001
+                                            ? const Color(0xFF10B981)
+                                            : Colors.redAccent),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          ActionChip(
+                            label: Text(
+                              'EXACT',
+                              style: GoogleFonts.ibmPlexMono(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.black,
+                              ),
+                            ),
+                            backgroundColor: theme.colorScheme.primary,
+                            visualDensity: VisualDensity.compact,
+                            onPressed: items.isEmpty
+                                ? null
+                                : () => setState(() {
+                                      _ticketTenderedCtrl.text =
+                                          remaining.toStringAsFixed(2);
+                                    }),
+                          ),
+                          for (final note in const [
+                            1,
+                            2,
+                            5,
+                            10,
+                            20,
+                            50,
+                            100,
+                            200,
+                            500,
+                          ])
+                            ActionChip(
+                              label: Text(
+                                '$currency$note',
+                                style: GoogleFonts.ibmPlexMono(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              visualDensity: VisualDensity.compact,
+                              onPressed: items.isEmpty
+                                  ? null
+                                  : () => setState(() {
+                                        final cur = double.tryParse(
+                                              _ticketTenderedCtrl.text.trim(),
+                                            ) ??
+                                            0.0;
+                                        _ticketTenderedCtrl.text =
+                                            (cur + note).toStringAsFixed(2);
+                                      }),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 10),
             Row(
               children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: items.isEmpty
-                        ? null
-                        : () => _sendToKitchen(order, items, config),
-                    icon: const Icon(Icons.send_rounded, size: 17),
-                    label: const Text('Kitchen [F8]'),
+                if (order.serviceType != RestaurantServiceType.counter) ...[
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: items.isEmpty
+                          ? null
+                          : () => _sendToKitchen(order, items, config),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(48),
+                      ),
+                      icon: const Icon(Icons.send_rounded, size: 18),
+                      label: Text(
+                        'Kitchen [F8]',
+                        style: GoogleFonts.manrope(fontWeight: FontWeight.w700),
+                      ),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
+                  const SizedBox(width: 8),
+                ],
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: items.isEmpty
                         ? null
-                        : () => svc.requestBill(order.id),
-                    icon: const Icon(Icons.request_quote_outlined, size: 17),
-                    label: const Text('Bill'),
+                        : () async {
+                            await svc.requestBill(order.id);
+                            await PrinterService().printPreBill(
+                              order: order,
+                              items: items,
+                              config: config,
+                            );
+                          },
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(48),
+                    ),
+                    icon: const Icon(Icons.receipt_outlined, size: 18),
+                    label: Text(
+                      'Pre-Bill [F7]',
+                      style: GoogleFonts.manrope(fontWeight: FontWeight.w700),
+                    ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
@@ -745,23 +1048,30 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
                           remaining,
                           currency,
                           config,
+                          initialTendered: double.tryParse(
+                            _ticketTenderedCtrl.text.trim(),
+                          ),
                         ),
                 icon: _isSettling
                     ? const SizedBox(
-                        width: 16,
-                        height: 16,
+                        width: 18,
+                        height: 18,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Icon(Icons.payments_rounded),
+                    : const Icon(Icons.payments_rounded, size: 20),
                 label: Text(
                   _isSettling
                       ? 'Processing ZRA...'
                       : 'Pay & ZRA Receipt [F9]',
+                  style: GoogleFonts.manrope(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: theme.colorScheme.primary,
                   foregroundColor: Colors.black,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  minimumSize: const Size.fromHeight(54),
                 ),
               ),
             ),
@@ -1122,6 +1432,99 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
     extraPriceCtrl.dispose();
   }
 
+  Future<void> _showCustomServiceChargeDialog(
+    RestaurantOrder order,
+    String currency,
+    StoreConfig? config,
+  ) async {
+    final svc = ref.read(restaurantServiceProvider);
+    final amtCtrl = TextEditingController(
+      text: order.serviceChargeAmount > 0
+          ? order.serviceChargeAmount.toStringAsFixed(2)
+          : '',
+    );
+
+    final result = await showDialog<double>(
+      context: context,
+      builder: (ctx) => RestaurantModalShell(
+        icon: Icons.room_service_rounded,
+        title: 'Custom Service Charge',
+        subtitle:
+            'Shown on receipt & recorded in Restaurant Reports (not sent to ZRA)',
+        width: 440,
+        actions: [
+          if (order.serviceChargeAmount > 0)
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, 0.0),
+              child: const Text(
+                'Clear Charge',
+                style: TextStyle(color: Colors.redAccent),
+              ),
+            ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final val = double.tryParse(amtCtrl.text.trim()) ?? 0.0;
+              Navigator.pop(ctx, val < 0 ? 0.0 : val);
+            },
+            child: const Text('Apply'),
+          ),
+        ],
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            buildModalFieldLabel(ctx, 'Service Charge Amount ($currency)'),
+            TextField(
+              controller: amtCtrl,
+              autofocus: true,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: restaurantInputDecoration(
+                ctx,
+                hintText: 'Enter custom amount (e.g. 25.00)',
+              ),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                ActionChip(
+                  label: const Text('5%'),
+                  onPressed: () => amtCtrl.text =
+                      (order.subtotal * 0.05).toStringAsFixed(2),
+                ),
+                ActionChip(
+                  label: const Text('10%'),
+                  onPressed: () => amtCtrl.text =
+                      (order.subtotal * 0.10).toStringAsFixed(2),
+                ),
+                ActionChip(
+                  label: const Text('15%'),
+                  onPressed: () => amtCtrl.text =
+                      (order.subtotal * 0.15).toStringAsFixed(2),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+    amtCtrl.dispose();
+
+    if (result != null) {
+      await svc.setOrderServiceCharge(
+        order.id,
+        result > 0,
+        customAmount: result,
+      );
+    }
+  }
+
   Future<void> _sendToKitchen(
     RestaurantOrder order,
     List<RestaurantOrderItem> items,
@@ -1129,15 +1532,13 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
   ) async {
     final svc = ref.read(restaurantServiceProvider);
     await svc.submitOrderToKitchen(order.id);
-    if (config?.restaurantAutoPrintKot == true) {
-      final stations = ref.read(kitchenStationsProvider).valueOrNull ?? [];
-      await PrinterService().printRoutedKitchenTickets(
-        order: order,
-        items: items,
-        stations: stations,
-        config: config,
-      );
-    }
+    final stations = ref.read(kitchenStationsProvider).valueOrNull ?? [];
+    await PrinterService().printRoutedKitchenTickets(
+      order: order,
+      items: items,
+      stations: stations,
+      config: config,
+    );
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Order ${order.orderNumber} sent to Kitchen!')),
@@ -1150,108 +1551,556 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
     List<RestaurantOrderItem> items,
     double remaining,
     String currency,
-    StoreConfig? config,
-  ) async {
+    StoreConfig? config, {
+    double? initialTendered,
+  }) async {
     String paymentMethod = 'CASH';
+    String momoNetwork = 'Airtel Money';
+    String cardType = 'Visa / Mastercard';
     final amountCtrl = TextEditingController(
       text: remaining.toStringAsFixed(2),
     );
+    final tenderedCtrl = TextEditingController(
+      text: (initialTendered != null && initialTendered > 0
+              ? initialTendered
+              : remaining)
+          .toStringAsFixed(2),
+    );
+    final refCtrl = TextEditingController();
     bool isSplit = false;
+    bool replaceTenderOnNextKey = true;
 
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setLocal) => RestaurantModalShell(
-          icon: Icons.payments_rounded,
-          title: 'Settle ${order.orderNumber}',
-          subtitle:
-              'Balance Due: $currency ${remaining.toStringAsFixed(2)} • ZRA Smart Invoice',
-          width: 480,
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel'),
-            ),
-            const SizedBox(width: 10),
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 13,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              onPressed: () => Navigator.pop(ctx, true),
-              icon: const Icon(Icons.qr_code_2_rounded, size: 18),
-              label: const Text('Complete Sale & Print ZRA'),
-            ),
-          ],
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              buildModalFieldLabel(ctx, 'Payment Method'),
-              DropdownButtonFormField<String>(
-                initialValue: paymentMethod,
-                decoration: restaurantInputDecoration(ctx),
-                items: const [
-                  DropdownMenuItem(value: 'CASH', child: Text('Cash')),
-                  DropdownMenuItem(value: 'CARD', child: Text('Card / POS')),
-                  DropdownMenuItem(
-                    value: 'MOBILE MONEY',
-                    child: Text('Mobile Money'),
-                  ),
-                ],
-                onChanged: (v) {
-                  if (v != null) {
-                    setLocal(() => paymentMethod = v);
+        builder: (ctx, setLocal) {
+          final theme = Theme.of(ctx);
+          final brandColor = theme.colorScheme.primary;
+          final payVal = (double.tryParse(amountCtrl.text.trim()) ?? 0.0)
+              .clamp(0.0, remaining);
+          final effectivePay = isSplit ? payVal : remaining;
+          final tenderedVal = paymentMethod == 'CASH'
+              ? (double.tryParse(tenderedCtrl.text.trim()) ?? 0.0)
+              : effectivePay;
+          final changeDue =
+              paymentMethod == 'CASH' ? (tenderedVal - effectivePay) : 0.0;
+          final canComplete = effectivePay > 0 &&
+              (paymentMethod != 'CASH' || tenderedVal + 0.001 >= effectivePay);
+
+          void pressKeypad(String key) {
+            setLocal(() {
+              if (key == 'C') {
+                tenderedCtrl.text = '0';
+                replaceTenderOnNextKey = true;
+                return;
+              }
+              if (key == '⌫') {
+                final cur = tenderedCtrl.text;
+                if (cur.length <= 1) {
+                  tenderedCtrl.text = '0';
+                  replaceTenderOnNextKey = true;
+                } else {
+                  tenderedCtrl.text = cur.substring(0, cur.length - 1);
+                  replaceTenderOnNextKey = false;
+                }
+                return;
+              }
+              if (replaceTenderOnNextKey) {
+                tenderedCtrl.text = key == '.' ? '0.' : (key == '00' ? '0' : key);
+                replaceTenderOnNextKey = false;
+              } else {
+                if (key == '.' && tenderedCtrl.text.contains('.')) return;
+                if (tenderedCtrl.text == '0' && key != '.') {
+                  tenderedCtrl.text = key == '00' ? '0' : key;
+                } else {
+                  tenderedCtrl.text = '${tenderedCtrl.text}$key';
+                }
+              }
+            });
+          }
+
+          Widget methodCard({
+            required String value,
+            required String label,
+            required IconData icon,
+            required Color accent,
+          }) {
+            final selected = paymentMethod == value;
+            return Expanded(
+              child: InkWell(
+                onTap: () => setLocal(() {
+                  paymentMethod = value;
+                  if (value == 'CASH') {
+                    tenderedCtrl.text = effectivePay.toStringAsFixed(2);
+                    replaceTenderOnNextKey = true;
                   }
-                },
-              ),
-              const SizedBox(height: 14),
-              Container(
-                decoration: BoxDecoration(
-                  color: Theme.of(ctx)
-                      .colorScheme
-                      .surfaceContainerHighest
-                      .withValues(alpha: 0.25),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: Theme.of(ctx)
-                        .colorScheme
-                        .outline
-                        .withValues(alpha: 0.2),
+                }),
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 12,
+                    horizontal: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? accent.withValues(alpha: 0.16)
+                        : theme.colorScheme.surfaceContainerHighest
+                            .withValues(alpha: 0.25),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: selected
+                          ? accent
+                          : theme.colorScheme.outline.withValues(alpha: 0.2),
+                      width: selected ? 1.8 : 1.0,
+                    ),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        icon,
+                        size: 22,
+                        color: selected
+                            ? accent
+                            : theme.colorScheme.onSurfaceVariant,
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        label,
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.manrope(
+                          fontSize: 12.5,
+                          fontWeight:
+                              selected ? FontWeight.w800 : FontWeight.w600,
+                          color: selected
+                              ? accent
+                              : theme.colorScheme.onSurface,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                child: SwitchListTile(
-                  title: const Text('Split / Partial Payment'),
-                  value: isSplit,
-                  onChanged: (v) => setLocal(() {
-                    isSplit = v;
-                    if (!v) {
-                      amountCtrl.text = remaining.toStringAsFixed(2);
-                    }
-                  }),
+              ),
+            );
+          }
+
+          Widget tenderChip(String label, VoidCallback onTap, {bool highlight = false}) {
+            return ActionChip(
+              label: Text(
+                label,
+                style: GoogleFonts.ibmPlexMono(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 12.5,
+                  color: highlight ? Colors.black : null,
                 ),
               ),
-              const SizedBox(height: 16),
-              buildModalFieldLabel(ctx, 'Payment Amount ($currency)'),
-              TextField(
-                controller: amountCtrl,
-                enabled: isSplit,
-                keyboardType: TextInputType.number,
-                decoration: restaurantInputDecoration(ctx, hintText: '0.00'),
+              backgroundColor: highlight ? brandColor : null,
+              onPressed: onTap,
+            );
+          }
+
+          Widget keyBtn(String label, {Color? bg, Color? fg}) {
+            return Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(3),
+                child: ElevatedButton(
+                  onPressed: () => pressKeypad(label),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: bg ??
+                        theme.colorScheme.surfaceContainerHighest
+                            .withValues(alpha: 0.45),
+                    foregroundColor: fg ?? theme.colorScheme.onSurface,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: Text(
+                    label,
+                    style: GoogleFonts.ibmPlexMono(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }
+
+          return RestaurantModalShell(
+            icon: Icons.point_of_sale_rounded,
+            title: 'Cashier Checkout • ${order.orderNumber}',
+            subtitle:
+                'Total Due: $currency ${remaining.toStringAsFixed(2)} • ZRA Smart Invoice',
+            width: 560,
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel'),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: brandColor,
+                  foregroundColor: Colors.black,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 22,
+                    vertical: 14,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                onPressed: canComplete ? () => Navigator.pop(ctx, true) : null,
+                icon: const Icon(Icons.qr_code_2_rounded, size: 19),
+                label: Text(
+                  'Complete Sale & Print ZRA',
+                  style: GoogleFonts.manrope(fontWeight: FontWeight.w800),
+                ),
               ),
             ],
-          ),
-        ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Balance Due Summary Banner
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: brandColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: brandColor.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        isSplit ? 'Paying Now' : 'Amount Due',
+                        style: GoogleFonts.manrope(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      Text(
+                        '$currency ${effectivePay.toStringAsFixed(2)}',
+                        style: GoogleFonts.ibmPlexMono(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                          color: brandColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+
+                // Payment Method Cards
+                buildModalFieldLabel(ctx, 'Select Payment Method'),
+                Row(
+                  children: [
+                    methodCard(
+                      value: 'CASH',
+                      label: 'Cash',
+                      icon: Icons.payments_rounded,
+                      accent: const Color(0xFF10B981),
+                    ),
+                    const SizedBox(width: 8),
+                    methodCard(
+                      value: 'MOBILE MONEY',
+                      label: 'Mobile Money',
+                      icon: Icons.phone_android_rounded,
+                      accent: const Color(0xFFF59E0B),
+                    ),
+                    const SizedBox(width: 8),
+                    methodCard(
+                      value: 'CARD',
+                      label: 'Card / POS',
+                      icon: Icons.credit_card_rounded,
+                      accent: const Color(0xFF3B82F6),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+
+                // Split / Partial Payment Switch
+                Container(
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerHighest
+                        .withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: theme.colorScheme.outline.withValues(alpha: 0.18),
+                    ),
+                  ),
+                  child: SwitchListTile(
+                    dense: true,
+                    title: Text(
+                      'Split / Partial Payment',
+                      style: GoogleFonts.manrope(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
+                    ),
+                    value: isSplit,
+                    onChanged: (v) => setLocal(() {
+                      isSplit = v;
+                      if (!v) {
+                        amountCtrl.text = remaining.toStringAsFixed(2);
+                        if (paymentMethod == 'CASH') {
+                          tenderedCtrl.text = remaining.toStringAsFixed(2);
+                          replaceTenderOnNextKey = true;
+                        }
+                      }
+                    }),
+                  ),
+                ),
+                if (isSplit) ...[
+                  const SizedBox(height: 10),
+                  buildModalFieldLabel(ctx, 'Split Payment Amount ($currency)'),
+                  TextField(
+                    controller: amountCtrl,
+                    onChanged: (_) => setLocal(() {}),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: restaurantInputDecoration(ctx, hintText: '0.00'),
+                  ),
+                ],
+                const SizedBox(height: 14),
+
+                // Mode-Specific Cashier Tender Screen
+                if (paymentMethod == 'CASH') ...[
+                  buildModalFieldLabel(
+                    ctx,
+                    'Cash Given / Amount Tendered ($currency)',
+                  ),
+                  TextField(
+                    controller: tenderedCtrl,
+                    onChanged: (_) => setLocal(() {
+                      replaceTenderOnNextKey = false;
+                    }),
+                    style: GoogleFonts.ibmPlexMono(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                    ),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: restaurantInputDecoration(
+                      ctx,
+                      hintText: '0.00',
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+
+                  // Quick Bank Note Tender Buttons
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    children: [
+                      tenderChip(
+                        'EXACT',
+                        () => setLocal(() {
+                          tenderedCtrl.text = effectivePay.toStringAsFixed(2);
+                          replaceTenderOnNextKey = true;
+                        }),
+                        highlight: true,
+                      ),
+                      for (final note in const [
+                        1,
+                        2,
+                        5,
+                        10,
+                        20,
+                        50,
+                        100,
+                        200,
+                        500,
+                      ])
+                        tenderChip(
+                          '$currency$note',
+                          () => setLocal(() {
+                            tenderedCtrl.text = note.toStringAsFixed(2);
+                            replaceTenderOnNextKey = true;
+                          }),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+
+                  // Change Due / Shortfall Banner
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: (changeDue >= -0.001
+                              ? const Color(0xFF10B981)
+                              : Colors.redAccent)
+                          .withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: (changeDue >= -0.001
+                                ? const Color(0xFF10B981)
+                                : Colors.redAccent)
+                            .withValues(alpha: 0.4),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          changeDue >= -0.001 ? 'Change Due' : 'Short By',
+                          style: GoogleFonts.manrope(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            color: changeDue >= -0.001
+                                ? const Color(0xFF10B981)
+                                : Colors.redAccent,
+                          ),
+                        ),
+                        Text(
+                          '$currency ${(changeDue >= -0.001 ? changeDue.abs() : changeDue.abs()).toStringAsFixed(2)}',
+                          style: GoogleFonts.ibmPlexMono(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w900,
+                            color: changeDue >= -0.001
+                                ? const Color(0xFF10B981)
+                                : Colors.redAccent,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+
+                  // Touch Numeric Keypad
+                  Column(
+                    children: [
+                      Row(
+                        children: [
+                          keyBtn('1'),
+                          keyBtn('2'),
+                          keyBtn('3'),
+                          keyBtn('⌫', fg: Colors.orangeAccent),
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          keyBtn('4'),
+                          keyBtn('5'),
+                          keyBtn('6'),
+                          keyBtn('C', fg: Colors.redAccent),
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          keyBtn('7'),
+                          keyBtn('8'),
+                          keyBtn('9'),
+                          keyBtn('.'),
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          keyBtn('0'),
+                          keyBtn('00'),
+                        ],
+                      ),
+                    ],
+                  ),
+                ] else if (paymentMethod == 'MOBILE MONEY') ...[
+                  buildModalFieldLabel(ctx, 'Mobile Money Network'),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final net in const [
+                        'Airtel Money',
+                        'MTN MoMo',
+                        'Zamtel Kwacha',
+                      ])
+                        ChoiceChip(
+                          label: Text(net),
+                          selected: momoNetwork == net,
+                          onSelected: (_) => setLocal(() => momoNetwork = net),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  buildModalFieldLabel(
+                    ctx,
+                    'Customer Phone or Txn Reference (Optional)',
+                  ),
+                  TextField(
+                    controller: refCtrl,
+                    decoration: restaurantInputDecoration(
+                      ctx,
+                      hintText: 'e.g. 097XXXXXXX or MoMo Ref #',
+                    ),
+                  ),
+                ] else ...[
+                  buildModalFieldLabel(ctx, 'Card / POS Terminal Type'),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final c in const [
+                        'Visa / Mastercard',
+                        'Debit / Local Bank',
+                      ])
+                        ChoiceChip(
+                          label: Text(c),
+                          selected: cardType == c,
+                          onSelected: (_) => setLocal(() => cardType = c),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  buildModalFieldLabel(
+                    ctx,
+                    'POS Approval / Last 4 Digits (Optional)',
+                  ),
+                  TextField(
+                    controller: refCtrl,
+                    decoration: restaurantInputDecoration(
+                      ctx,
+                      hintText: 'e.g. Auth #123456',
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          );
+        },
       ),
     );
 
-    final payAmount = double.tryParse(amountCtrl.text.trim()) ?? 0.0;
+    final payAmount = (double.tryParse(amountCtrl.text.trim()) ?? 0.0)
+        .clamp(0.0, remaining);
+    final effectivePay = isSplit ? payAmount : remaining;
+    final tenderedAmount = paymentMethod == 'CASH'
+        ? (double.tryParse(tenderedCtrl.text.trim()) ?? effectivePay)
+        : effectivePay;
+    final changeAmount = paymentMethod == 'CASH'
+        ? (tenderedAmount - effectivePay).clamp(0.0, double.infinity)
+        : 0.0;
+    final finalMethod = paymentMethod == 'MOBILE MONEY'
+        ? 'MOBILE MONEY ($momoNetwork)'
+        : (paymentMethod == 'CARD' ? 'CARD ($cardType)' : 'CASH');
+
     amountCtrl.dispose();
-    if (confirm != true || payAmount <= 0) {
+    tenderedCtrl.dispose();
+    refCtrl.dispose();
+    if (confirm != true || effectivePay <= 0) {
       return;
     }
 
@@ -1287,7 +2136,7 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
 
       final isFull = payAmount >= remaining - 0.01;
       final ratio = order.totalAmount > 0
-          ? (payAmount / order.totalAmount).clamp(0.0, 1.0)
+          ? (effectivePay / order.totalAmount).clamp(0.0, 1.0)
           : 1.0;
 
       final openShift = await db.getOpenShiftForTerminal(
@@ -1295,19 +2144,17 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
       );
 
       final tx = SaleTransaction(
-        totalAmount: payAmount,
-        paymentMethod: paymentMethod,
+        totalAmount: effectivePay,
+        paymentMethod: finalMethod,
         cashierName: user?.name ?? 'Cashier',
         cashierId: user?.numericId,
         terminalName: config?.terminalName ?? 'TERMINAL-01',
         subtotal: order.subtotal * ratio,
         taxAmount: order.taxAmount * ratio,
         serviceChargeAmount: order.serviceChargeAmount * ratio,
-        serviceChargeRate: config?.serviceChargeEnabled == true
-            ? config?.defaultServiceChargeRate ?? 0.0
-            : 0.0,
-        tenderedAmount: payAmount,
-        changeAmount: 0.0,
+        serviceChargeRate: 0.0,
+        tenderedAmount: tenderedAmount,
+        changeAmount: changeAmount,
         zraSdcId: config?.sdcId,
       )
         ..cashShiftNumber = openShift?.shiftNumber
@@ -1340,6 +2187,7 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
 
       // 2. Persist sale & deduct stock
       await db.saveTransaction(tx, saleItems);
+      unawaited(ref.read(syncServiceProvider).trySyncTransaction(tx, saleItems));
 
       // 3. Deduct recipe ingredients from Kitchen Mini-Stock when configured
       await svc.deductKitchenIngredientsForOrder(items);
@@ -1364,13 +2212,21 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
         }
       }
 
-      // 4. Auto-submit takeaway orders to Kitchen Display & print KOT if still draft
+      // 4. Auto-submit takeaway / draft orders to Kitchen Display & print KOT automatically for Takeaway
       if (order.status == RestaurantOrderStatus.draft) {
         await svc.submitOrderToKitchen(order.id);
-        if (config?.restaurantAutoPrintKot == true) {
+        final kotPrinter = PrinterService();
+        final isTakeaway = order.serviceType == RestaurantServiceType.counter;
+        final hasKitchenPrinter =
+            (kotPrinter.kitchenPrinterConfig ??
+                await kotPrinter.loadKitchenPrinterConfig()) !=
+            null;
+        if (isTakeaway ||
+            config?.restaurantAutoPrintKot == true ||
+            hasKitchenPrinter) {
           final stations =
               ref.read(kitchenStationsProvider).valueOrNull ?? [];
-          await PrinterService().printRoutedKitchenTickets(
+          await kotPrinter.printRoutedKitchenTickets(
             order: order,
             items: items,
             stations: stations,
@@ -1382,7 +2238,7 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
       // 5. Mark restaurant order paid & close table session if settled
       await svc.recordPaymentAndSettle(
         orderId: order.id,
-        paidAmount: payAmount,
+        paidAmount: effectivePay,
         saleTransactionId: tx.id,
         forceFullSettlement: isFull,
       );
@@ -1399,8 +2255,10 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
           SnackBar(
             content: Text(
               isFull
-                  ? 'Order ${order.orderNumber} settled & ZRA receipt printed!'
-                  : 'Partial payment of $currency ${payAmount.toStringAsFixed(2)} recorded.',
+                  ? (changeAmount > 0
+                      ? 'Order ${order.orderNumber} settled! Change Due: $currency ${changeAmount.toStringAsFixed(2)}'
+                      : 'Order ${order.orderNumber} settled & ZRA receipt printed!')
+                  : 'Partial payment of $currency ${effectivePay.toStringAsFixed(2)} recorded.',
             ),
           ),
         );

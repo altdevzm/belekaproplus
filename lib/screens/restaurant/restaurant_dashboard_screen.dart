@@ -119,13 +119,16 @@ class RestaurantDashboardScreen extends ConsumerWidget {
             // KPI Cards
             LayoutBuilder(
               builder: (context, constraints) {
+                final cols = constraints.maxWidth > 950
+                    ? 4
+                    : (constraints.maxWidth > 550 ? 2 : 1);
                 return GridView.count(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
-                  crossAxisCount: constraints.maxWidth > 950 ? 4 : 2,
+                  crossAxisCount: cols,
                   mainAxisSpacing: 14,
                   crossAxisSpacing: 14,
-                  childAspectRatio: 2.1,
+                  childAspectRatio: cols == 1 ? 3.2 : 2.1,
                   children: [
                     _kpiCard(
                       context,
@@ -172,13 +175,16 @@ class RestaurantDashboardScreen extends ConsumerWidget {
 
             LayoutBuilder(
               builder: (context, constraints) {
+                final cols = constraints.maxWidth > 950
+                    ? 3
+                    : (constraints.maxWidth > 550 ? 2 : 1);
                 return GridView.count(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
-                  crossAxisCount: constraints.maxWidth > 950 ? 3 : 2,
+                  crossAxisCount: cols,
                   mainAxisSpacing: 14,
                   crossAxisSpacing: 14,
-                  childAspectRatio: 2.35,
+                  childAspectRatio: cols == 1 ? 3.3 : 2.35,
                   children: [
                     _navTile(
                       context,

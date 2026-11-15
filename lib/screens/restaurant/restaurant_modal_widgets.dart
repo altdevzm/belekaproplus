@@ -24,8 +24,14 @@ class RestaurantModalShell extends StatelessWidget {
     final theme = Theme.of(context);
     final brandColor = theme.colorScheme.primary;
 
+    final screenSize = MediaQuery.sizeOf(context);
+    final isCompact = screenSize.width < 600;
+
     return Dialog(
       backgroundColor: theme.colorScheme.surface,
+      insetPadding: isCompact
+          ? const EdgeInsets.symmetric(horizontal: 12, vertical: 16)
+          : const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
         side: BorderSide(
@@ -33,7 +39,10 @@ class RestaurantModalShell extends StatelessWidget {
         ),
       ),
       child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: width, maxHeight: 680),
+        constraints: BoxConstraints(
+          maxWidth: isCompact ? screenSize.width - 24 : width,
+          maxHeight: screenSize.height * 0.88,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [

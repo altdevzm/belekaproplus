@@ -12,6 +12,7 @@ import 'package:qr/qr.dart';
 import 'package:printing/printing.dart' as pnt;
 import 'package:pdf/pdf.dart' as pdf;
 import 'package:pdf/widgets.dart' as pw;
+import 'package:path_provider/path_provider.dart';
 import 'package:beleka_pos/utils/formatters.dart';
 
 enum PrinterModel { generic, star, system, directSocket }
@@ -133,7 +134,45 @@ class PrinterConfig {
 
 final selectedPrinterProvider = StateProvider<PrinterConfig?>((ref) => null);
 
+class KitchenPrinterConfig {
+  final String name;
+  final String address;
+  final String type; // 'usb', 'network', 'bluetooth', 'system'
+  final String model; // 'generic', 'star', 'system'
+  final int paperWidthMm;
+
+  const KitchenPrinterConfig({
+    required this.name,
+    required this.address,
+    required this.type,
+    required this.model,
+    this.paperWidthMm = 80,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'name': name,
+    'address': address,
+    'type': type,
+    'model': model,
+    'paperWidthMm': paperWidthMm,
+  };
+
+  factory KitchenPrinterConfig.fromJson(Map<String, dynamic> json) {
+    return KitchenPrinterConfig(
+      name: (json['name'] ?? 'Kitchen Printer').toString(),
+      address: (json['address'] ?? '').toString(),
+      type: (json['type'] ?? 'network').toString(),
+      model: (json['model'] ?? 'generic').toString(),
+      paperWidthMm: (json['paperWidthMm'] as num?)?.toInt() ?? 80,
+    );
+  }
+}
+
 class PrinterService {
+  static final PrinterService _instance = PrinterService._internal();
+  factory PrinterService() => _instance;
+  PrinterService._internal();
+
   final PrinterManager _printerManager = PrinterManager.instance;
   bool _isConnected = false;
   PrinterDevice? _activeDevice;
@@ -142,6 +181,45 @@ class PrinterService {
   star.StarEmulation _starEmulation = star.StarEmulation.StarPRNT;
   pnt.Printer? _activeSystemPrinter;
   int _paperWidthMm = 80;
+  KitchenPrinterConfig? _kitchenPrinterConfig;
+
+  KitchenPrinterConfig? get kitchenPrinterConfig => _kitchenPrinterConfig;
+
+  Future<File> _kitchenConfigFile() async {
+    final dir = await getApplicationSupportDirectory();
+    return File('${dir.path}/kitchen_printer_config.json');
+  }
+
+  Future<KitchenPrinterConfig?> loadKitchenPrinterConfig() async {
+    try {
+      final f = await _kitchenConfigFile();
+      if (await f.exists()) {
+        final raw = await f.readAsString();
+        final data = jsonDecode(raw);
+        if (data is Map<String, dynamic>) {
+          _kitchenPrinterConfig = KitchenPrinterConfig.fromJson(data);
+          return _kitchenPrinterConfig;
+        }
+      }
+    } catch (e) {
+      debugPrint('Load kitchen printer config error: $e');
+    }
+    return _kitchenPrinterConfig;
+  }
+
+  Future<void> saveKitchenPrinterConfig(KitchenPrinterConfig? cfg) async {
+    _kitchenPrinterConfig = cfg;
+    try {
+      final f = await _kitchenConfigFile();
+      if (cfg == null) {
+        if (await f.exists()) await f.delete();
+      } else {
+        await f.writeAsString(jsonEncode(cfg.toJson()));
+      }
+    } catch (e) {
+      debugPrint('Save kitchen printer config error: $e');
+    }
+  }
 
   bool get isConnected => _isConnected;
   PrinterDevice? get activeDevice => _activeDevice;
@@ -985,7 +1063,9 @@ class PrinterService {
       }
 
       if (transaction.serviceChargeAmount > 0) {
-        final scLabel = 'SVC CHG (${transaction.serviceChargeRate.toStringAsFixed(0)}%)';
+        final scLabel = transaction.serviceChargeRate > 0
+            ? 'SVC CHG (${transaction.serviceChargeRate.toStringAsFixed(0)}%)'
+            : 'SVC CHG';
         bytes += generator.text(
           _formatRow2(scLabel, CurrencyFormatter.format(transaction.serviceChargeAmount, currency), colCount),
         );
@@ -1761,17 +1841,32 @@ class PrinterService {
     if (items.isEmpty) {
       return false;
     }
-    if (config?.paperWidthMm != null && config!.paperWidthMm > 0) {
-      _paperWidthMm = config.paperWidthMm;
-    }
     final dedicatedAddress = targetPrinterAddress?.trim() ?? '';
-    if (dedicatedAddress.isEmpty && !_isConnected) {
+    final kitchenCfg =
+        _kitchenPrinterConfig ?? await loadKitchenPrinterConfig();
+    final effectivePaperWidth =
+        (dedicatedAddress.isEmpty && kitchenCfg != null)
+            ? kitchenCfg.paperWidthMm
+            : (config?.paperWidthMm != null && config!.paperWidthMm > 0
+                ? config.paperWidthMm
+                : _paperWidthMm);
+    final savedPaperWidth = _paperWidthMm;
+    _paperWidthMm = effectivePaperWidth;
+
+    if (dedicatedAddress.isEmpty && kitchenCfg == null && !_isConnected) {
       await autoConnect(config: config);
     }
 
-    if (dedicatedAddress.isEmpty && _activeModel == PrinterModel.system) {
-      return await _printSimpleLinesWithSystem(
+    final useSystemKitchen = dedicatedAddress.isEmpty &&
+        ((kitchenCfg != null &&
+                (kitchenCfg.type == 'system' || kitchenCfg.model == 'system')) ||
+            (kitchenCfg == null && _activeModel == PrinterModel.system));
+
+    if (useSystemKitchen) {
+      final ok = await _printSimpleLinesWithSystem(
         title: 'KITCHEN ORDER TICKET',
+        systemPrinterName: kitchenCfg?.name,
+        paperWidthMm: effectivePaperWidth,
         lines: [
           if (stationName != null) 'Station: $stationName',
           'Order: ${order.orderNumber}',
@@ -1793,10 +1888,12 @@ class PrinterService {
           }),
         ],
       );
+      _paperWidthMm = savedPaperWidth;
+      return ok;
     }
 
     try {
-      final preset = activePreset;
+      final preset = ThermalPaperPreset.fromWidth(effectivePaperWidth);
       final colCount = preset.columnCount;
       final profile = await CapabilityProfile.load();
       final generator = Generator(preset.escPosSize, profile);
@@ -1844,10 +1941,18 @@ class PrinterService {
       if (dedicatedAddress.isNotEmpty) {
         return await _sendEscPosToAddress(dedicatedAddress, bytes);
       }
+      if (kitchenCfg != null) {
+        if (kitchenCfg.type == 'network' && kitchenCfg.address.isNotEmpty) {
+          return await _sendEscPosToAddress(kitchenCfg.address, bytes);
+        }
+        return await _sendEscPosToKitchenDevice(kitchenCfg, bytes);
+      }
       return await _dispatchRawBytes(bytes);
     } catch (e) {
       debugPrint('KOT print error: $e');
       return false;
+    } finally {
+      _paperWidthMm = savedPaperWidth;
     }
   }
 
@@ -2010,15 +2115,60 @@ class PrinterService {
     return false;
   }
 
+  Future<bool> _sendEscPosToKitchenDevice(
+    KitchenPrinterConfig kitchenCfg,
+    List<int> bytes,
+  ) async {
+    final prevDevice = _activeDevice;
+    final prevType = _activeType;
+    final prevModel = _activeModel;
+    final prevWidth = _paperWidthMm;
+    try {
+      final type = kitchenCfg.type == 'bluetooth'
+          ? PrinterType.bluetooth
+          : PrinterType.usb;
+      final device = PrinterDevice(
+        name: kitchenCfg.name,
+        address: kitchenCfg.address.isEmpty ? null : kitchenCfg.address,
+      );
+      final connected = await connect(
+        device,
+        type,
+        model: PrinterModel.generic,
+        paperWidth: kitchenCfg.paperWidthMm,
+      );
+      if (!connected) return false;
+      final ok = await _dispatchRawBytes(bytes);
+      return ok;
+    } catch (e) {
+      debugPrint('Kitchen device print error: $e');
+      return false;
+    } finally {
+      if (prevDevice != null && prevType != null) {
+        await connect(
+          prevDevice,
+          prevType,
+          model: prevModel,
+          paperWidth: prevWidth,
+        );
+      }
+    }
+  }
+
   Future<bool> _printSimpleLinesWithSystem({
     required String title,
     required List<String> lines,
+    String? systemPrinterName,
+    int? paperWidthMm,
   }) async {
     try {
+      final wMm = paperWidthMm ?? _paperWidthMm;
+      final format =
+          wMm <= 58 ? pdf.PdfPageFormat.roll57 : pdf.PdfPageFormat.roll80;
       final doc = pw.Document();
       doc.addPage(
         pw.Page(
-          pageFormat: pdf.PdfPageFormat.roll80,
+          pageFormat: format,
           build: (ctx) => pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
@@ -2037,7 +2187,22 @@ class PrinterService {
           ),
         ),
       );
-      return await pnt.Printing.layoutPdf(onLayout: (_) async => doc.save());
+      final pdfBytes = await doc.save();
+      pnt.Printer? targetPrinter =
+          systemPrinterName == null ? _activeSystemPrinter : null;
+      if (systemPrinterName != null && systemPrinterName.isNotEmpty) {
+        final printers = await pnt.Printing.listPrinters();
+        targetPrinter = printers
+            .where((p) => p.name == systemPrinterName || p.url == systemPrinterName)
+            .firstOrNull;
+      }
+      if (targetPrinter != null) {
+        return await pnt.Printing.directPrintPdf(
+          printer: targetPrinter,
+          onLayout: (_) async => pdfBytes,
+        );
+      }
+      return await pnt.Printing.layoutPdf(onLayout: (_) async => pdfBytes);
     } catch (e) {
       debugPrint('System ticket print error: $e');
       return false;
@@ -2167,7 +2332,9 @@ class PrinterService {
     }
 
     if (transaction.serviceChargeAmount > 0) {
-      final scLabel = 'SVC CHG (${transaction.serviceChargeRate.toStringAsFixed(0)}%)';
+      final scLabel = transaction.serviceChargeRate > 0
+          ? 'SVC CHG (${transaction.serviceChargeRate.toStringAsFixed(0)}%)'
+          : 'SVC CHG';
       commands.append('${_formatRow2(scLabel, CurrencyFormatter.format(transaction.serviceChargeAmount, currency), colCount)}\n');
     }
 
@@ -2544,7 +2711,9 @@ class PrinterService {
                   ),
                 if (transaction.serviceChargeAmount > 0)
                   _pdfRow2(
-                    'SVC CHG (${transaction.serviceChargeRate.toStringAsFixed(0)}%)',
+                    transaction.serviceChargeRate > 0
+                        ? 'SVC CHG (${transaction.serviceChargeRate.toStringAsFixed(0)}%)'
+                        : 'SVC CHG',
                     CurrencyFormatter.format(transaction.serviceChargeAmount, currency),
                     fontSize: bodyFont,
                   ),

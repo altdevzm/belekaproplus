@@ -44,7 +44,12 @@ final allInventoryProductsProvider = StreamProvider<List<Product>>((ref) {
 final restaurantProductsProvider = StreamProvider<List<Product>>((ref) {
   return ref.watch(databaseServiceProvider).watchAllProducts().map(
         (products) => products
-            .where((p) => !p.isArchived && p.restaurantProductType != 'ingredient')
+            .where(
+              (p) =>
+                  !p.isArchived &&
+                  (p.restaurantProductType == 'menu_item' ||
+                      p.restaurantProductType == 'both'),
+            )
             .toList(),
       );
 });

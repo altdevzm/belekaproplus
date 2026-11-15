@@ -356,6 +356,12 @@ class ApiService {
         'digitaxApiKey': effectiveApiKey,
         'digitaxEnvironment': config?.digitaxEnvironment ?? 'sandbox',
         'sdcId': config?.sdcId ?? '',
+        'businessMode': config?.businessMode ?? 'retail',
+        'restaurantTableServiceEnabled':
+            config?.restaurantTableServiceEnabled ?? true,
+        'restaurantCounterServiceEnabled':
+            config?.restaurantCounterServiceEnabled ?? true,
+        'restaurantAutoPrintKot': config?.restaurantAutoPrintKot ?? false,
         'maxTills': 3,
         'timestamp': DateTime.now().toIso8601String(),
         'activeTerminals': _activeTerminals.length,
@@ -519,6 +525,12 @@ class ApiService {
             'digitaxApiKey': effectiveApiKey,
             'digitaxEnvironment': config?.digitaxEnvironment ?? 'sandbox',
             'sdcId': config?.sdcId ?? '',
+            'businessMode': config?.businessMode ?? 'retail',
+            'restaurantTableServiceEnabled':
+                config?.restaurantTableServiceEnabled ?? true,
+            'restaurantCounterServiceEnabled':
+                config?.restaurantCounterServiceEnabled ?? true,
+            'restaurantAutoPrintKot': config?.restaurantAutoPrintKot ?? false,
           }
         }),
         headers: _jsonHeaders,
@@ -906,6 +918,12 @@ class ApiService {
             'digitaxApiKey': effectiveApiKey,
             'digitaxEnvironment': config?.digitaxEnvironment ?? 'sandbox',
             'sdcId': config?.sdcId ?? '',
+            'businessMode': config?.businessMode ?? 'retail',
+            'restaurantTableServiceEnabled':
+                config?.restaurantTableServiceEnabled ?? true,
+            'restaurantCounterServiceEnabled':
+                config?.restaurantCounterServiceEnabled ?? true,
+            'restaurantAutoPrintKot': config?.restaurantAutoPrintKot ?? false,
           }
         }),
         headers: _jsonHeaders,

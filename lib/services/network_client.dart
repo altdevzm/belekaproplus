@@ -343,6 +343,7 @@ class NetworkClient {
           'transaction': _transactionToJson(transaction),
           'items': items.map(_saleItemToJson).toList(),
         },
+        options: Options(receiveTimeout: const Duration(seconds: 35)),
       );
 
       _isConnected = true;
@@ -351,7 +352,11 @@ class NetworkClient {
           : response.data;
       return body is Map<String, dynamic> ? body : {'success': true};
     } catch (e) {
-      _isConnected = false;
+      if (e is! DioException ||
+          (e.type != DioExceptionType.receiveTimeout &&
+              e.type != DioExceptionType.sendTimeout)) {
+        _isConnected = false;
+      }
       debugPrint('PUSH_TRANSACTION_ERROR: $e');
       return null;
     }
@@ -365,6 +370,7 @@ class NetworkClient {
       final response = await _dio.post(
         '/transactions/batch',
         data: {'transactions': batch},
+        options: Options(receiveTimeout: const Duration(seconds: 35)),
       );
 
       _isConnected = true;
@@ -373,7 +379,11 @@ class NetworkClient {
           : response.data;
       return body is Map<String, dynamic> ? body : {'synced': 0};
     } catch (e) {
-      _isConnected = false;
+      if (e is! DioException ||
+          (e.type != DioExceptionType.receiveTimeout &&
+              e.type != DioExceptionType.sendTimeout)) {
+        _isConnected = false;
+      }
       debugPrint('BATCH_PUSH_ERROR: $e');
       return null;
     }

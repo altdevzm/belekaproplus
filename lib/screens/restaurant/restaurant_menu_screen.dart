@@ -126,21 +126,6 @@ class _RestaurantMenuScreenState extends ConsumerState<RestaurantMenuScreen> {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 14,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    onPressed: () => _showKitchenMiniStockDialog(currency),
-                    icon: const Icon(Icons.kitchen_rounded, size: 18),
-                    label: const Text('Mini-Stock'),
-                  ),
-                  const SizedBox(width: 10),
                   ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(
@@ -183,7 +168,8 @@ class _RestaurantMenuScreenState extends ConsumerState<RestaurantMenuScreen> {
                       .where(
                         (p) =>
                             !p.isArchived &&
-                            p.restaurantProductType != 'ingredient',
+                            (p.restaurantProductType == 'menu_item' ||
+                                p.restaurantProductType == 'both'),
                       )
                       .toList();
                   final q = _searchCtrl.text.trim().toLowerCase();
@@ -1196,269 +1182,6 @@ class _RestaurantMenuScreenState extends ConsumerState<RestaurantMenuScreen> {
     skuCtrl.dispose();
   }
 
-  Future<void> _showKitchenMiniStockDialog(String currency) async {
-    final svc = ref.read(restaurantServiceProvider);
-    var pantry = await svc.getKitchenIngredients();
-    if (!mounted) return;
-
-    final nameCtrl = TextEditingController();
-    final unitCtrl = TextEditingController(text: 'pcs');
-    final qtyCtrl = TextEditingController(text: '0');
-    final costCtrl = TextEditingController(text: '0');
-    final priceCtrl = TextEditingController(text: '0');
-    String? formError;
-
-    await showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setLocal) => RestaurantModalShell(
-          icon: Icons.kitchen_rounded,
-          title: 'Kitchen Mini-Stock (Ingredients)',
-          subtitle:
-              'Manage raw ingredients (potatoes, spices, chicken fillets) separately from retail stock',
-          width: 600,
-          actions: [
-            ElevatedButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Done'),
-            ),
-          ],
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (pantry.isEmpty)
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: Theme.of(ctx)
-                        .colorScheme
-                        .surfaceContainerHighest
-                        .withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Text(
-                    'No kitchen ingredients yet. Add raw items below (e.g. Chicken Fillet, Potatoes, Spices).',
-                  ),
-                )
-              else
-                ...pantry.map(
-                  (ing) => Container(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Theme.of(ctx)
-                          .colorScheme
-                          .surfaceContainerHighest
-                          .withValues(alpha: 0.25),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                ing.name,
-                                style: GoogleFonts.manrope(
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 13.5,
-                                ),
-                              ),
-                              Text(
-                                'Stock: ${ing.stockQuantity} ${ing.unitOfMeasure}  •  Cost: $currency ${ing.unitCost.toStringAsFixed(2)}  •  Recipe Price: $currency ${ing.sellingPrice.toStringAsFixed(2)}',
-                                style: GoogleFonts.inter(
-                                  fontSize: 12,
-                                  color: Theme.of(ctx)
-                                      .colorScheme
-                                      .onSurfaceVariant,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        IconButton(
-                          tooltip: 'Add +10 stock',
-                          icon: const Icon(
-                            Icons.add_circle_outline_rounded,
-                            color: Color(0xFF10B981),
-                          ),
-                          onPressed: () async {
-                            ing.stockQuantity += 10;
-                            await svc.saveKitchenIngredient(ing);
-                            pantry = await svc.getKitchenIngredients();
-                            setLocal(() {});
-                          },
-                        ),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.delete_outline,
-                            color: Colors.redAccent,
-                          ),
-                          onPressed: () async {
-                            await svc.deleteKitchenIngredient(ing.id);
-                            pantry = await svc.getKitchenIngredients();
-                            setLocal(() {});
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              const Divider(height: 26),
-              Text(
-                'Add Kitchen Ingredient',
-                style: GoogleFonts.manrope(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 14,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    flex: 2,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        buildModalFieldLabel(ctx, 'Ingredient Name'),
-                        TextField(
-                          controller: nameCtrl,
-                          decoration: restaurantInputDecoration(
-                            ctx,
-                            hintText: 'e.g. Chicken Fillet, Potatoes',
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        buildModalFieldLabel(ctx, 'Unit'),
-                        TextField(
-                          controller: unitCtrl,
-                          decoration: restaurantInputDecoration(
-                            ctx,
-                            hintText: 'pcs / g / ml',
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        buildModalFieldLabel(ctx, 'Mini-Stock Qty'),
-                        TextField(
-                          controller: qtyCtrl,
-                          keyboardType: TextInputType.number,
-                          decoration: restaurantInputDecoration(ctx, hintText: '0'),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        buildModalFieldLabel(ctx, 'Cost / Unit ($currency)'),
-                        TextField(
-                          controller: costCtrl,
-                          keyboardType: TextInputType.number,
-                          decoration: restaurantInputDecoration(ctx, hintText: '0'),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        buildModalFieldLabel(ctx, 'Recipe Price ($currency)'),
-                        TextField(
-                          controller: priceCtrl,
-                          keyboardType: TextInputType.number,
-                          decoration: restaurantInputDecoration(ctx, hintText: '0'),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              if (formError != null) ...[
-                const SizedBox(height: 8),
-                Text(
-                  formError!,
-                  style: GoogleFonts.inter(
-                    color: Colors.redAccent,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  icon: const Icon(Icons.add_rounded),
-                  label: const Text('Save to Kitchen Mini-Stock'),
-                  onPressed: () async {
-                    final n = nameCtrl.text.trim();
-                    if (n.isEmpty) {
-                      setLocal(
-                        () => formError = 'Please enter an ingredient name.',
-                      );
-                      return;
-                    }
-                    formError = null;
-                    final ing = KitchenIngredient(
-                      name: n,
-                      unitOfMeasure: unitCtrl.text.trim().isEmpty
-                          ? 'pcs'
-                          : unitCtrl.text.trim(),
-                      stockQuantity:
-                          double.tryParse(qtyCtrl.text.trim()) ?? 0.0,
-                      unitCost: double.tryParse(costCtrl.text.trim()) ?? 0.0,
-                      sellingPrice:
-                          double.tryParse(priceCtrl.text.trim()) ?? 0.0,
-                    );
-                    await svc.saveKitchenIngredient(ing);
-                    pantry = await svc.getKitchenIngredients();
-                    nameCtrl.clear();
-                    qtyCtrl.text = '0';
-                    costCtrl.text = '0';
-                    priceCtrl.text = '0';
-                    setLocal(() {});
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-    nameCtrl.dispose();
-    unitCtrl.dispose();
-    qtyCtrl.dispose();
-    costCtrl.dispose();
-    priceCtrl.dispose();
-  }
-
   Future<void> _showRecipeDialog(Product p, List<Product> allProducts) async {
     final svc = ref.read(restaurantServiceProvider);
     final config = ref.read(storeConfigProvider).valueOrNull;
@@ -1486,22 +1209,15 @@ class _RestaurantMenuScreenState extends ConsumerState<RestaurantMenuScreen> {
     final lineCostCtrl = TextEditingController(
       text: (selectedIng?.unitCost ?? 0.0).toStringAsFixed(2),
     );
-    final linePriceCtrl = TextEditingController(
-      text: (selectedIng?.price ?? 0.0).toStringAsFixed(2),
-    );
     bool applyPriceToDish = p.price == 0.0;
 
     double calcTotalCost() => ingredients.fold<double>(
       0.0,
       (sum, ing) => sum + (ing.quantityRequired * ing.unitCost),
     );
-    double calcTotalPrice() => ingredients.fold<double>(
-      0.0,
-      (sum, ing) => sum + (ing.quantityRequired * ing.unitPrice),
-    );
 
     final finalPriceCtrl = TextEditingController(
-      text: (p.price > 0 ? p.price : calcTotalPrice()).toStringAsFixed(2),
+      text: (p.price > 0 ? p.price : calcTotalCost()).toStringAsFixed(2),
     );
 
     await showDialog(
@@ -1509,7 +1225,6 @@ class _RestaurantMenuScreenState extends ConsumerState<RestaurantMenuScreen> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setLocal) {
           final totalCost = calcTotalCost();
-          final totalCalcPrice = calcTotalPrice();
           return RestaurantModalShell(
             icon: Icons.blender_outlined,
             title: 'Recipe & Costing',
@@ -1617,7 +1332,7 @@ class _RestaurantMenuScreenState extends ConsumerState<RestaurantMenuScreen> {
                                   ),
                                 ),
                                 Text(
-                                  'Qty: ${ing.quantityRequired} ${ing.unitOfMeasure}  •  Cost: $currency ${(ing.quantityRequired * ing.unitCost).toStringAsFixed(2)}  •  Price: $currency ${(ing.quantityRequired * ing.unitPrice).toStringAsFixed(2)}',
+                                  'Qty: ${ing.quantityRequired} ${ing.unitOfMeasure}  •  Cost: $currency ${(ing.quantityRequired * ing.unitCost).toStringAsFixed(2)}',
                                   style: GoogleFonts.inter(
                                     fontSize: 12,
                                     color: Theme.of(ctx)
@@ -1635,8 +1350,10 @@ class _RestaurantMenuScreenState extends ConsumerState<RestaurantMenuScreen> {
                             ),
                             onPressed: () {
                               ingredients.remove(ing);
-                              finalPriceCtrl.text =
-                                  calcTotalPrice().toStringAsFixed(2);
+                              if (p.price == 0) {
+                                finalPriceCtrl.text =
+                                    calcTotalCost().toStringAsFixed(2);
+                              }
                               setLocal(() {});
                             },
                           ),
@@ -1681,7 +1398,6 @@ class _RestaurantMenuScreenState extends ConsumerState<RestaurantMenuScreen> {
                       selectedIng = v;
                       if (v != null) {
                         lineCostCtrl.text = v.unitCost.toStringAsFixed(2);
-                        linePriceCtrl.text = v.price.toStringAsFixed(2);
                       }
                     });
                   },
@@ -1732,21 +1448,6 @@ class _RestaurantMenuScreenState extends ConsumerState<RestaurantMenuScreen> {
                         ],
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          buildModalFieldLabel(ctx, 'Price ($currency)'),
-                          TextField(
-                            controller: linePriceCtrl,
-                            keyboardType: TextInputType.number,
-                            decoration:
-                                restaurantInputDecoration(ctx, hintText: '0'),
-                          ),
-                        ],
-                      ),
-                    ),
                   ],
                 ),
                 const SizedBox(height: 12),
@@ -1776,16 +1477,14 @@ class _RestaurantMenuScreenState extends ConsumerState<RestaurantMenuScreen> {
                                     : unitCtrl.text.trim(),
                                 unitCost:
                                     double.tryParse(lineCostCtrl.text.trim()) ??
-                                        0.0,
-                                unitPrice:
-                                    double.tryParse(
-                                      linePriceCtrl.text.trim(),
-                                    ) ??
-                                        0.0,
+                                        selectedIng!.unitCost,
+                                unitPrice: selectedIng!.price,
                               ),
                             );
-                            finalPriceCtrl.text =
-                                calcTotalPrice().toStringAsFixed(2);
+                            if (p.price == 0) {
+                              finalPriceCtrl.text =
+                                  calcTotalCost().toStringAsFixed(2);
+                            }
                             setLocal(() {});
                           },
                   ),
@@ -1816,26 +1515,6 @@ class _RestaurantMenuScreenState extends ConsumerState<RestaurantMenuScreen> {
                           Text(
                             '$currency ${totalCost.toStringAsFixed(2)}',
                             style: GoogleFonts.ibmPlexMono(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 13.5,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Calculated Recipe Price:',
-                            style: GoogleFonts.inter(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 13,
-                            ),
-                          ),
-                          Text(
-                            '$currency ${totalCalcPrice.toStringAsFixed(2)}',
-                            style: GoogleFonts.ibmPlexMono(
                               fontWeight: FontWeight.w800,
                               fontSize: 14,
                               color: const Color(0xFF10B981),
@@ -1860,7 +1539,7 @@ class _RestaurantMenuScreenState extends ConsumerState<RestaurantMenuScreen> {
                         onChanged: (v) =>
                             setLocal(() => applyPriceToDish = v ?? true),
                         title: Text(
-                          'Update "${p.name}" price & cost from this recipe on save',
+                          'Update "${p.name}" cost & selling price on save',
                           style: GoogleFonts.inter(
                             fontSize: 12.5,
                             fontWeight: FontWeight.w600,
@@ -1879,7 +1558,6 @@ class _RestaurantMenuScreenState extends ConsumerState<RestaurantMenuScreen> {
     qtyCtrl.dispose();
     unitCtrl.dispose();
     lineCostCtrl.dispose();
-    linePriceCtrl.dispose();
     finalPriceCtrl.dispose();
   }
 }
