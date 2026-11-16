@@ -6479,69 +6479,74 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       final tillCode = config?.terminalName ?? 'TILL-01';
 
       Map<String, dynamic>? assignInfo = client?.lastAssignmentInfo;
-      if (client != null && client.isConnected) {
+      if (client != null) {
         try {
-          assignInfo = await client.checkTerminalAssignment(tillCode);
+          final liveInfo = await client.checkTerminalAssignment(tillCode);
+          if (liveInfo != null) {
+            assignInfo = liveInfo;
+          }
         } catch (_) {}
       }
 
-      final assignedId = assignInfo?['assignedCashierId'] as String?;
-      final assignedName = assignInfo?['assignedCashierName'] as String?;
+      if (assignInfo != null) {
+        final assignedId = assignInfo['assignedCashierId'] as String?;
+        final assignedName = assignInfo['assignedCashierName'] as String?;
 
-      if (assignedId == null || assignedId.trim().isEmpty) {
-        if (mounted) {
-          showDialog(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: const Row(
-                children: [
-                  Icon(Icons.lock_clock_rounded, color: Colors.amber),
-                  SizedBox(width: 10),
-                  Text('Till Not Assigned'),
+        if (assignedId == null || assignedId.trim().isEmpty) {
+          if (mounted) {
+            showDialog(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                title: const Row(
+                  children: [
+                    Icon(Icons.lock_clock_rounded, color: Colors.amber),
+                    SizedBox(width: 10),
+                    Text('Till Not Assigned'),
+                  ],
+                ),
+                content: Text(
+                  'Till "$tillCode" is currently unassigned.\n\nPlease ask your Store Manager on the Master POS to assign this till to you and open your shift before making sales.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text('OK'),
+                  ),
                 ],
               ),
-              content: Text(
-                'Till "$tillCode" is currently unassigned.\n\nPlease ask your Store Manager on the Master POS to assign this till to you and open your shift before making sales.',
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('OK'),
-                ),
-              ],
-            ),
-          );
+            );
+          }
+          return;
         }
-        return;
-      }
 
-      if (assignedId != currentUser?.numericId) {
-        if (mounted) {
-          showDialog(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: const Row(
-                children: [
-                  Icon(Icons.lock_rounded, color: Colors.redAccent),
-                  SizedBox(width: 10),
-                  Text('Till Assignment Mismatch'),
+        if (assignedId != currentUser?.numericId) {
+          if (mounted) {
+            showDialog(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                title: const Row(
+                  children: [
+                    Icon(Icons.lock_rounded, color: Colors.redAccent),
+                    SizedBox(width: 10),
+                    Text('Till Assignment Mismatch'),
+                  ],
+                ),
+                content: Text(
+                  'Till "$tillCode" is currently assigned to ${assignedName ?? assignedId}.\n\nYou are logged in as ${currentUser?.name}.\n\nOnly the assigned cashier can complete sales on this till. Please ask your Store Manager to reassign this till.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text('OK'),
+                  ),
                 ],
               ),
-              content: Text(
-                'Till "$tillCode" is currently assigned to ${assignedName ?? assignedId}.\n\nYou are logged in as ${currentUser?.name}.\n\nOnly the assigned cashier can complete sales on this till. Please ask your Store Manager to reassign this till.',
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('OK'),
-                ),
-              ],
-            ),
-          );
+            );
+          }
+          return;
         }
-        return;
       }
 
       final isShiftOpen = assignInfo?['isShiftOpen'] == true;

@@ -1198,7 +1198,7 @@ class PrinterService {
           bytes += generator.text(
             _formatRow3(
               'TAX $letter (${rate.toStringAsFixed(0)}%)',
-              CurrencyFormatter.formatTaxPrecision(values['vat']!, currency),
+              CurrencyFormatter.format(values['vat']!, currency),
               CurrencyFormatter.format(values['total']!, currency),
               colCount,
             ),
@@ -1279,7 +1279,36 @@ class PrinterService {
       } else {
         final isLocalOnly = transaction.zraStatus == 'LOCAL_EXEMPT' ||
             transaction.zraStatus == 'OFFLINE_EXEMPT';
-        if (!isLocalOnly) {
+        if (isLocalOnly) {
+          final localData = _buildLocalControlData(transaction, config);
+          bytes += generator.text(
+            localData['title']!,
+            styles: const PosStyles(align: PosAlign.center, bold: true),
+          );
+          bytes += generator.text(_formatRow2('Date/Time:', dateTimeFiscal, colCount));
+          bytes += generator.text(_formatRow2('SDC ID:', localData['sdcId']!, colCount));
+          bytes += generator.text(_formatRow2('SDC Inv:', localData['sdcInv']!, colCount));
+          bytes += generator.text(_formatRow2('Sig:', localData['sig']!, colCount));
+          bytes += generator.text(_formatRow2('Int Data:', localData['intData']!, colCount));
+          bytes += generator.text(_formatRow2('Type:', localData['type']!, colCount));
+          try {
+            final qrScale = isNarrow ? 4 : (preset.widthMm >= 110 ? 6 : 5);
+            final qrRasterBytes = _qrToRasterEscPos(
+              localData['qrData']!,
+              scale: qrScale,
+              align: PosAlign.center,
+            );
+            if (qrRasterBytes.isNotEmpty) {
+              bytes += qrRasterBytes;
+              bytes += generator.text(
+                localData['qrCaption']!,
+                styles: const PosStyles(align: PosAlign.center, bold: true, fontType: PosFontType.fontB),
+              );
+            }
+          } catch (e) {
+            debugPrint('Local QR code generation notice: $e');
+          }
+        } else {
           bytes += generator.text(
             'OFFLINE - ZRA FISCAL PENDING',
             styles: const PosStyles(align: PosAlign.center, bold: true),
@@ -1299,7 +1328,8 @@ class PrinterService {
       );
       bytes += generator.text(preset.doubleDivider);
       
-      // generator.cut() already prepends blank lines internally.
+      // Feed past the cutter blade so the footer doesn't spill onto the top of the next receipt
+      bytes += generator.feed(3);
       bytes += generator.cut();
 
       // Send to active driver
@@ -1407,6 +1437,7 @@ class PrinterService {
 
       bytes += generator.text(currentPreset.doubleDivider);
       bytes += generator.text('*** END OF ZRA Z-REPORT ***', styles: const PosStyles(align: PosAlign.center, bold: true));
+      bytes += generator.feed(3);
       bytes += generator.cut();
 
       return await _sendBytes(bytes);
@@ -1571,8 +1602,12 @@ class PrinterService {
     col1 = col1.trim();
     col2 = col2.trim();
     col3 = col3.trim();
-    int w3 = (totalWidth * 0.34).floor().clamp(8, 16);
-    int w2 = (totalWidth * 0.18).floor().clamp(4, 9);
+    int w3 = ((totalWidth * 0.34).floor().clamp(8, 16) < col3.length)
+        ? col3.length.clamp(8, 16)
+        : (totalWidth * 0.34).floor().clamp(8, 16);
+    int w2 = ((totalWidth * 0.18).floor().clamp(4, 11) < col2.length)
+        ? col2.length.clamp(4, 11)
+        : (totalWidth * 0.18).floor().clamp(4, 11);
     int w1 = totalWidth - w2 - w3 - 2; // 2 spaces separator
     if (w1 < 6) {
       w1 = 6;
@@ -1676,6 +1711,7 @@ class PrinterService {
       }
       
       bytes += generator.text(preset.doubleDivider);
+      bytes += generator.feed(3);
       bytes += generator.cut();
 
       return await _sendBytes(bytes);
@@ -1800,6 +1836,7 @@ class PrinterService {
       bytes += generator.text(preset.doubleDivider);
       bytes += generator.setStyles(const PosStyles(align: PosAlign.center));
       bytes += generator.text('*** END OF SUMMARY SLIP ***');
+      bytes += generator.feed(3);
       bytes += generator.cut();
 
       return await _sendBytes(bytes);
@@ -2423,7 +2460,7 @@ class PrinterService {
     starBreakdown.forEach((rate, values) {
       final letter = _getTaxLetter(rate);
       commands.append(
-        '${_formatRow3('TAX $letter (${rate.toStringAsFixed(0)}%)', CurrencyFormatter.formatTaxPrecision(values['vat']!, currency), CurrencyFormatter.format(values['total']!, currency), colCount)}\n',
+        '${_formatRow3('TAX $letter (${rate.toStringAsFixed(0)}%)', CurrencyFormatter.format(values['vat']!, currency), CurrencyFormatter.format(values['total']!, currency), colCount)}\n',
       );
     });
 
@@ -2506,7 +2543,20 @@ class PrinterService {
     } else {
       final isLocalOnly = transaction.zraStatus == 'LOCAL_EXEMPT' ||
           transaction.zraStatus == 'OFFLINE_EXEMPT';
-      if (!isLocalOnly) {
+      if (isLocalOnly) {
+        final localData = _buildLocalControlData(transaction, config);
+        commands.appendAlignment(star.StarAlignmentPosition.Center);
+        commands.appendEmphasis(true);
+        commands.append('${localData['title']}\n');
+        commands.appendEmphasis(false);
+        commands.appendAlignment(star.StarAlignmentPosition.Left);
+        commands.append('${_formatRow2('Date/Time:', shortDateTime, colCount)}\n');
+        commands.append('${_formatRow2('SDC ID:', localData['sdcId']!, colCount)}\n');
+        commands.append('${_formatRow2('SDC Inv:', localData['sdcInv']!, colCount)}\n');
+        commands.append('${_formatRow2('Sig:', localData['sig']!, colCount)}\n');
+        commands.append('${_formatRow2('Int Data:', localData['intData']!, colCount)}\n');
+        commands.append('${_formatRow2('Type:', localData['type']!, colCount)}\n');
+      } else {
         commands.appendAlignment(star.StarAlignmentPosition.Center);
         commands.appendEmphasis(true);
         commands.append('OFFLINE - ZRA FISCAL PENDING\n');
@@ -2823,7 +2873,7 @@ class PrinterService {
                     return pw.Row(
                       children: [
                         pw.Expanded(flex: 4, child: pw.Text('TAX $letter (${entry.key.toStringAsFixed(0)}%)', style: pw.TextStyle(fontSize: smallFont))),
-                        pw.Expanded(flex: 4, child: pw.Text(CurrencyFormatter.formatTaxPrecision(entry.value['vat']!, currency), style: pw.TextStyle(fontSize: smallFont), textAlign: pw.TextAlign.center)),
+                        pw.Expanded(flex: 4, child: pw.Text(CurrencyFormatter.format(entry.value['vat']!, currency), style: pw.TextStyle(fontSize: smallFont), textAlign: pw.TextAlign.center)),
                         pw.Expanded(flex: 4, child: pw.Text(CurrencyFormatter.format(entry.value['total']!, currency), style: pw.TextStyle(fontSize: smallFont), textAlign: pw.TextAlign.right)),
                       ],
                     );
@@ -2849,7 +2899,32 @@ class PrinterService {
                   ),
                   pw.SizedBox(height: 0.5 * pdf.PdfPageFormat.mm),
                   pw.Text('Scan QR to Verify on ZRA Portal', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: smallFont)),
-                ] else if (transaction.zraStatus != 'LOCAL_EXEMPT' && transaction.zraStatus != 'OFFLINE_EXEMPT') ...[
+                ] else if (transaction.zraStatus == 'LOCAL_EXEMPT' || transaction.zraStatus == 'OFFLINE_EXEMPT') ...[
+                  () {
+                    final localData = _buildLocalControlData(transaction, config);
+                    return pw.Column(
+                      children: [
+                        pw.Text(localData['title']!, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: bodyFont)),
+                        _pdfRow2('Date/Time:', shortDateTime, fontSize: smallFont, boldRight: true, leftFlex: 4, rightFlex: 6),
+                        _pdfRow2('SDC ID:', localData['sdcId']!, fontSize: smallFont, boldRight: true, leftFlex: 3, rightFlex: 7),
+                        _pdfRow2('SDC Inv:', localData['sdcInv']!, fontSize: smallFont, boldRight: true, leftFlex: 3, rightFlex: 7),
+                        _pdfRow2('Sig:', localData['sig']!, fontSize: smallFont, leftFlex: 3, rightFlex: 7),
+                        _pdfRow2('Int Data:', localData['intData']!, fontSize: smallFont, leftFlex: 3, rightFlex: 7),
+                        _pdfRow2('Type:', localData['type']!, fontSize: smallFont, leftFlex: 4, rightFlex: 6),
+                        pw.SizedBox(height: 1 * pdf.PdfPageFormat.mm),
+                        pw.BarcodeWidget(
+                          barcode: pw.Barcode.qrCode(),
+                          data: localData['qrData']!,
+                          width: isNarrow ? 86 : (activePreset.widthMm >= 110 ? 124 : 104),
+                          height: isNarrow ? 86 : (activePreset.widthMm >= 110 ? 124 : 104),
+                          drawText: false,
+                        ),
+                        pw.SizedBox(height: 0.5 * pdf.PdfPageFormat.mm),
+                        pw.Text(localData['qrCaption']!, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: smallFont)),
+                      ],
+                    );
+                  }(),
+                ] else ...[
                   pw.Text('OFFLINE - ZRA FISCAL PENDING', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: bodyFont)),
                 ],
 
@@ -3216,6 +3291,45 @@ class PrinterService {
       default:
         return PrinterModel.generic;
     }
+  }
+
+  Map<String, String> _buildLocalControlData(
+    SaleTransaction transaction,
+    StoreConfig? config,
+  ) {
+    final sdcId = (config?.sdcId != null && config!.sdcId!.trim().isNotEmpty)
+        ? config.sdcId!.trim()
+        : ((config?.tpin != null && config!.tpin!.trim().isNotEmpty)
+              ? '${config.tpin!.trim()}001'
+              : (config?.terminalName.trim().isNotEmpty == true
+                    ? config!.terminalName.trim().toUpperCase()
+                    : 'POS-01'));
+    final invNo = 'INV-${transaction.id.toString().padLeft(6, '0')}';
+    final rawRef = (transaction.transactionId?.trim().isNotEmpty == true)
+        ? transaction.transactionId!.trim()
+        : 'LOC${transaction.id.toString().padLeft(8, '0')}';
+    final sig = rawRef.length > 16
+        ? rawRef.substring(0, 16).toUpperCase()
+        : rawRef.toUpperCase();
+    final intData = (config?.mrcNo != null && config!.mrcNo!.trim().isNotEmpty)
+        ? config.mrcNo!.trim()
+        : (config?.branchName?.trim().isNotEmpty == true
+              ? config!.branchName!.trim().toUpperCase()
+              : 'LOCAL-STORE');
+    final type = transaction.zraInvoiceType ??
+        (transaction.isCreditNote ? 'Credit Note' : 'Normal Sale');
+    final qrData =
+        'RCPT:${transaction.transactionId}|INV:$invNo|STORE:${config?.businessName ?? "BELEKA POS"}|TOTAL:${transaction.totalAmount.toStringAsFixed(2)}|DATE:${transaction.timestamp.toIso8601String()}';
+    return {
+      'title': 'RECEIPT CONTROL DATA',
+      'sdcId': sdcId,
+      'sdcInv': invNo,
+      'sig': sig,
+      'intData': intData,
+      'type': type,
+      'qrData': qrData,
+      'qrCaption': 'Scan QR for Receipt Details',
+    };
   }
 
   String _formatZraSdcInvoiceNo(String? raw, {String? sdcId}) {

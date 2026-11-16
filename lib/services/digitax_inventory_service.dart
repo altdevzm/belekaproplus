@@ -637,7 +637,7 @@ class DigiTaxInventoryService {
 
   void _startPeriodicFiscalWorker() {
     _fiscalQueueTimer?.cancel();
-    _fiscalQueueTimer = Timer.periodic(const Duration(seconds: 45), (_) async {
+    _fiscalQueueTimer = Timer.periodic(const Duration(seconds: 20), (_) async {
       try {
         // Skip immediately if DigiTax API is unreachable – avoids wasting 8 s
         // per connect attempt when the terminal has no internet.
@@ -3145,31 +3145,71 @@ class DigiTaxInventoryService {
               m['vsdc_signature'] ??
               m['receipt_sign'] ??
               m['vsdc_sign'] ??
-              m['rcpt_sign'];
+              m['rcpt_sign'] ??
+              m['rcptSign'] ??
+              m['sdc_signature'] ??
+              m['digital_signature'];
           if (s != null &&
               s.toString().trim().isNotEmpty &&
               s.toString() != 'null') {
             return s.toString().trim();
           }
-          if (m['sale'] is Map) {
-            final inner = extractSig(Map<String, dynamic>.from(m['sale']));
-            if (inner != null) return inner;
-          }
-          if (m['data'] is Map) {
-            final inner = extractSig(Map<String, dynamic>.from(m['data']));
-            if (inner != null) return inner;
+          for (final nestedKey in const [
+            'sale',
+            'data',
+            'vsdc',
+            'zra',
+            'fiscal_data',
+            'receipt',
+          ]) {
+            if (m[nestedKey] is Map) {
+              final inner = extractSig(
+                Map<String, dynamic>.from(m[nestedKey] as Map),
+              );
+              if (inner != null) return inner;
+            }
           }
           return null;
         }
 
-        String? liveSignature = extractSig(saleData);
+        bool hasConfirmedReceipt(Map<String, dynamic> m, String? statusUpper) {
+          if (statusUpper != 'COMPLETED' &&
+              statusUpper != 'APPROVED' &&
+              statusUpper != 'CONFIRMED') {
+            return false;
+          }
+          final rcpt =
+              m['receipt_number'] ??
+              m['invoice_number'] ??
+              m['sdc_invoice_number'];
+          final qr = m['receipt_url'] ?? m['qr_code'];
+          final hasRcpt = rcpt != null &&
+              rcpt.toString().trim().isNotEmpty &&
+              rcpt.toString() != 'null';
+          final hasQr = qr != null &&
+              qr.toString().trim().isNotEmpty &&
+              qr.toString() != 'null';
+          return hasRcpt && hasQr;
+        }
 
-        // If not immediately signed (DigiTax async ZRA VSDC sync), poll with progressive fast-intervals
-        // Typical completion is 500ms–4s; polling up to 18 attempts (~10s) ensures the paper receipt
-        // prints WITH the official ZRA QR code rather than printing too early while still PENDING.
+        String? liveSignature = extractSig(saleData);
+        final initialStatus = saleData['status']?.toString().toUpperCase();
+        if ((liveSignature == null || liveSignature.isEmpty) &&
+            hasConfirmedReceipt(saleData, initialStatus)) {
+          liveSignature =
+              saleData['internal_data']?.toString().trim().isNotEmpty == true
+                  ? saleData['internal_data'].toString().trim()
+                  : 'CONFIRMED';
+        }
+
+        // If not immediately signed (DigiTax async ZRA VSDC sync), poll with progressive intervals.
+        // Sandbox responds in <1s; Live ZRA VSDC can take 12-28s. Polling up to 32 attempts (~28s)
+        // ensures Live receipts print WITH the official ZRA QR code instead of timing out as PENDING.
         if (liveSignature == null || liveSignature.isEmpty) {
-          for (int attempt = 1; attempt <= 18; attempt++) {
-            final pollDelayMs = attempt <= 2 ? 300 : (attempt <= 5 ? 500 : 750);
+          for (int attempt = 1; attempt <= 32; attempt++) {
+            final pollDelayMs = attempt <= 2
+                ? 300
+                : (attempt <= 6 ? 500 : (attempt <= 14 ? 800 : 1100));
             await Future.delayed(Duration(milliseconds: pollDelayMs));
             try {
               // Always prefer GET /sales/{id} when we have the DigiTax sale ID
@@ -3214,13 +3254,24 @@ class DigiTaxInventoryService {
                       );
                       break;
                     }
+                    if (hasConfirmedReceipt(saleData, pollStatus)) {
+                      liveSignature =
+                          saleData['internal_data']?.toString().trim().isNotEmpty ==
+                                  true
+                              ? saleData['internal_data'].toString().trim()
+                              : 'CONFIRMED';
+                      debugPrint(
+                        'DIGITAX_POLL_SUCCESS: Sale #$invoiceNo confirmed with receipt & QR after $attempt attempt(s) (status=$pollStatus)',
+                      );
+                      break;
+                    }
                     if (pollStatus == 'FAILED') {
                       debugPrint(
                         'DIGITAX_POLL_FAILED: Sale #$invoiceNo was marked FAILED by ZRA VSDC',
                       );
                       break;
                     }
-                    // If status is COMPLETED but signature still missing, keep polling
+                    // If status is COMPLETED but signature/receipt still missing, keep polling
                     debugPrint(
                       'DIGITAX_POLL_WAIT: Attempt $attempt — status=$pollStatus, sig=$sig',
                     );

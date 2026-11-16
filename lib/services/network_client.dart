@@ -31,15 +31,28 @@ class NetworkClient {
     : _dio = Dio(
         BaseOptions(
           baseUrl: serverUrl,
-          connectTimeout: const Duration(seconds: 5),
-          receiveTimeout: const Duration(seconds: 10),
+          connectTimeout: const Duration(seconds: 6),
+          receiveTimeout: const Duration(seconds: 20),
           headers: {'Content-Type': 'application/json'},
         ),
       );
 
   /// Whether the server is reachable.
   bool _isConnected = false;
+  int _consecutiveFailures = 0;
   bool get isConnected => _isConnected;
+
+  void _markSuccess() {
+    _consecutiveFailures = 0;
+    _isConnected = true;
+  }
+
+  void _markFailure() {
+    _consecutiveFailures++;
+    if (_consecutiveFailures >= 3) {
+      _isConnected = false;
+    }
+  }
 
   // ─── Connection ───────────────────────────────────────────────
 
@@ -123,9 +136,9 @@ class NetworkClient {
     // Send immediate heartbeat on startup
     _sendHeartbeat();
 
-    // Heartbeat every 30 seconds
+    // Heartbeat every 12 seconds so Master POS never marks a live till offline
     _heartbeatTimer?.cancel();
-    _heartbeatTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+    _heartbeatTimer = Timer.periodic(const Duration(seconds: 12), (_) {
       _sendHeartbeat();
     });
   }
@@ -148,7 +161,7 @@ class NetworkClient {
           'cashierName': _cashierName,
         },
       );
-      _isConnected = true;
+      _markSuccess();
       if (response.statusCode == 200 && response.data != null) {
         final data = response.data is String
             ? jsonDecode(response.data as String)
@@ -158,7 +171,7 @@ class NetworkClient {
         }
       }
     } catch (_) {
-      _isConnected = false;
+      _markFailure();
     }
   }
 
@@ -169,9 +182,12 @@ class NetworkClient {
         '/terminals/heartbeat',
         data: {
           'terminalName': terminalCode.trim().toUpperCase(),
+          'cashierId': _cashierId,
+          'cashierName': _cashierName,
         },
       );
       if (response.statusCode == 200 && response.data != null) {
+        _markSuccess();
         final data = response.data is String
             ? jsonDecode(response.data as String)
             : response.data;
@@ -180,10 +196,11 @@ class NetworkClient {
           return data;
         }
       }
-      return null;
+      return _lastAssignmentInfo;
     } catch (e) {
+      _markFailure();
       debugPrint('CHECK_ASSIGNMENT_ERROR: $e');
-      return null;
+      return _lastAssignmentInfo;
     }
   }
 
