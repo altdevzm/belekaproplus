@@ -2158,21 +2158,8 @@ class ReportsScreen extends ConsumerWidget {
     }
 
     final unapprovedTransactions = transactions.where((t) {
-      final hasQr = t.zraQrCode != null &&
-          t.zraQrCode!.trim().isNotEmpty &&
-          t.zraQrCode!.trim() != 'PENDING';
-      final isApproved = hasQr ||
-          ((t.zraStatus.toUpperCase() == 'APPROVED' ||
-                  t.zraStatus.toUpperCase() == 'FISCALIZED') &&
-              ((t.zraReceiptNumber != null &&
-                      t.zraReceiptNumber!.isNotEmpty &&
-                      t.zraReceiptNumber != 'PENDING') ||
-                  (t.zraMarkId != null &&
-                      t.zraMarkId!.isNotEmpty &&
-                      t.zraMarkId != 'PENDING')));
-      final isLocalExempt = t.zraStatus == 'LOCAL_EXEMPT' ||
-          t.zraStatus == 'OFFLINE_EXEMPT' ||
-          (t.items.isNotEmpty && t.items.every((i) => i.isDigitaxExempt));
+      final isApproved = DigiTaxInventoryService.isOfficiallyFiscalised(t);
+      final isLocalExempt = DigiTaxInventoryService.isLocalExempt(t);
       return !isApproved && !isLocalExempt && t.status != 'refunded';
     }).toList();
     final pendingCount = unapprovedTransactions.length;
@@ -2240,29 +2227,13 @@ class ReportsScreen extends ConsumerWidget {
         .map((i) => '${i.quantity}x ${i.productName}')
         .join(', ');
 
-    final hasQr = tx.zraQrCode != null &&
-        tx.zraQrCode!.trim().isNotEmpty &&
-        tx.zraQrCode!.trim() != 'PENDING';
-
     final txStatusUpper = tx.zraStatus.toUpperCase();
-    final isFiscalFailed = txStatusUpper.startsWith('FAILED');
-    final isFiscalApproved = !isFiscalFailed &&
-        (hasQr ||
-            ((txStatusUpper == 'APPROVED' ||
-                    txStatusUpper == 'COMPLETED' ||
-                    txStatusUpper == 'FISCALIZED') &&
-                ((tx.zraReceiptNumber != null &&
-                        tx.zraReceiptNumber!.isNotEmpty &&
-                        tx.zraReceiptNumber != 'PENDING') ||
-                    (tx.zraMarkId != null &&
-                        tx.zraMarkId!.isNotEmpty &&
-                        tx.zraMarkId != 'PENDING' &&
-                        !tx.zraMarkId!.startsWith('sale_')))));
+    final isFiscalFailed = txStatusUpper.startsWith('FAILED') ||
+        txStatusUpper.startsWith('REJECTED');
+    final isFiscalApproved =
+        DigiTaxInventoryService.isOfficiallyFiscalised(tx);
 
-    final isLocalExempt = !isFiscalApproved &&
-        (tx.zraStatus == 'LOCAL_EXEMPT' ||
-            tx.zraStatus == 'OFFLINE_EXEMPT' ||
-            (tx.items.isNotEmpty && tx.items.every((i) => i.isDigitaxExempt)));
+    final isLocalExempt = DigiTaxInventoryService.isLocalExempt(tx);
 
     return Container(
       decoration: BoxDecoration(
@@ -2477,7 +2448,8 @@ class ReportsScreen extends ConsumerWidget {
                                     ),
                                     const SizedBox(width: 4),
                                     Text(
-                                      'PENDING (SYNCING ZRA)',
+                                      DigiTaxInventoryService
+                                          .friendlyFiscalStateLabel(tx),
                                       style: GoogleFonts.inter(
                                         fontSize: 8.5,
                                         fontWeight: FontWeight.w800,
@@ -2994,24 +2966,9 @@ class _SyncAllPendingButtonState
 
       // Also process any genuinely unapproved online transactions in the current report view
       for (final tx in widget.unapprovedTransactions) {
-        final hasQr = tx.zraQrCode != null &&
-            tx.zraQrCode!.trim().isNotEmpty &&
-            tx.zraQrCode!.trim() != 'PENDING';
-        final isApproved = hasQr ||
-            ((tx.zraStatus.toUpperCase() == 'APPROVED' ||
-                    tx.zraStatus.toUpperCase() == 'FISCALIZED') &&
-                ((tx.zraReceiptNumber != null &&
-                        tx.zraReceiptNumber!.isNotEmpty &&
-                        tx.zraReceiptNumber != 'PENDING') ||
-                    (tx.zraMarkId != null &&
-                        tx.zraMarkId!.isNotEmpty &&
-                        tx.zraMarkId != 'PENDING')));
-        if (isApproved) continue;
+        if (DigiTaxInventoryService.isOfficiallyFiscalised(tx)) continue;
 
-        final isLocalExempt = tx.zraStatus == 'LOCAL_EXEMPT' ||
-            tx.zraStatus == 'OFFLINE_EXEMPT' ||
-            (tx.items.isNotEmpty && tx.items.every((i) => i.isDigitaxExempt));
-        if (isLocalExempt) continue;
+        if (DigiTaxInventoryService.isLocalExempt(tx)) continue;
 
         try {
           await tx.items.load();

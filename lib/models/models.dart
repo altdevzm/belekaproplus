@@ -363,6 +363,11 @@ class SaleTransaction {
   String? zraInvoiceType;
   String zraStatus = 'pending';
 
+  // DigiTax Audit & Idempotency Tracking
+  String? digitaxSaleId;
+  String? digitaxResponseRaw;
+  DateTime? fiscalUpdatedAt;
+
   // Cloud Sync: Backend store_id that this transaction belongs to (0 = local/unsynced)
   @Index()
   int cloudStoreId = 0;
@@ -408,6 +413,9 @@ class SaleTransaction {
     this.zraQrCode,
     this.zraInvoiceType,
     this.zraStatus = 'pending',
+    this.digitaxSaleId,
+    this.digitaxResponseRaw,
+    this.fiscalUpdatedAt,
     this.isCreditNote = false,
     this.orgInvoiceNo,
     this.creditNoteReason,

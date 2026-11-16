@@ -15,6 +15,7 @@ import 'package:pdf/pdf.dart' as pdf;
 import 'package:pdf/widgets.dart' as pw;
 import 'package:path_provider/path_provider.dart';
 import 'package:beleka_pos/utils/formatters.dart';
+import 'package:beleka_pos/services/digitax_inventory_service.dart';
 
 enum PrinterModel { generic, star, system, directSocket }
 
@@ -839,46 +840,11 @@ class PrinterService {
     }
   }
 
-  /// Unified check to determine if a transaction should print the ZRA Fiscal Control block & QR Code.
-  /// Both COMPLETED (Approved) and PENDING sales print the QR code; FAILED and LOCAL_EXEMPT do not.
+  /// Unified check to determine if a transaction is officially confirmed by DigiTax/ZRA.
+  /// Delegates directly to DigiTaxInventoryService.isOfficiallyFiscalised so receipts,
+  /// history modals, PDF exports, and Owner Reports always agree 100%.
   bool isFiscalApproved(SaleTransaction transaction) {
-    final statusUpper = transaction.zraStatus.toUpperCase();
-    if (statusUpper.startsWith('FAILED') ||
-        statusUpper == 'LOCAL_EXEMPT' ||
-        statusUpper == 'OFFLINE_EXEMPT') {
-      return false;
-    }
-
-    // 1. If live or generated ZRA QR Code is present and non-empty, fiscal verification data exists
-    final hasQr = transaction.zraQrCode != null &&
-        transaction.zraQrCode!.trim().isNotEmpty &&
-        transaction.zraQrCode!.trim() != 'PENDING';
-    if (hasQr) {
-      return true;
-    }
-
-    if (statusUpper == 'APPROVED' ||
-        statusUpper == 'COMPLETED' ||
-        statusUpper == 'FISCALIZED' ||
-        statusUpper == 'PENDING') {
-      return true;
-    }
-
-    final hasReceiptNo = transaction.zraReceiptNumber != null &&
-        transaction.zraReceiptNumber!.trim().isNotEmpty &&
-        transaction.zraReceiptNumber!.trim() != 'PENDING';
-
-    final hasSignature = transaction.zraMarkId != null &&
-        transaction.zraMarkId!.trim().isNotEmpty &&
-        transaction.zraMarkId!.trim() != 'PENDING' &&
-        !transaction.zraMarkId!.startsWith('sale_') &&
-        !transaction.zraMarkId!.startsWith('SALE_');
-
-    if (hasReceiptNo && hasSignature) {
-      return true;
-    }
-
-    return false;
+    return DigiTaxInventoryService.isOfficiallyFiscalised(transaction);
   }
 
   /// Master Method to Print High-Fidelity Compact Thermal Receipt (55mm, 58mm, 76mm, 80mm, 110mm, 112mm)
@@ -1246,39 +1212,38 @@ class PrinterService {
         bytes += generator.text(_formatRow2('Int Data:', internalDataStr, colCount));
         bytes += generator.text(_formatRow2('Type:', transaction.zraInvoiceType ?? 'Normal Sale', colCount));
 
-        // Print Live ZRA Smart Invoice Verification QR Code via compact 1-bit ESC/POS raster
-        final zraQrData = (transaction.zraQrCode != null && transaction.zraQrCode!.isNotEmpty)
-            ? transaction.zraQrCode!
-            : 'https://smartinvoice.zra.org.zm/verify?tpin=${config?.tpin ?? "1000000000"}&sdc=$sdcIdStr&rcpt=$sdcInvNoStr';
-        try {
-          final qrScale = isNarrow ? 4 : (preset.widthMm >= 110 ? 6 : 5);
-          final qrRasterBytes = _qrToRasterEscPos(
-            zraQrData,
-            scale: qrScale,
-            align: PosAlign.center,
-          );
-          if (qrRasterBytes.isNotEmpty) {
-            bytes += qrRasterBytes;
-            bytes += generator.text(
-              'Scan QR to Verify on ZRA Portal',
-              styles: const PosStyles(align: PosAlign.center, bold: true, fontType: PosFontType.fontB),
+        // Print Live ZRA Smart Invoice Verification QR Code returned by DigiTax (never fabricate)
+        final zraQrData = (transaction.zraQrCode ?? '').trim();
+        if (zraQrData.isNotEmpty && zraQrData.toUpperCase() != 'PENDING') {
+          try {
+            final qrScale = isNarrow ? 4 : (preset.widthMm >= 110 ? 6 : 5);
+            final qrRasterBytes = _qrToRasterEscPos(
+              zraQrData,
+              scale: qrScale,
+              align: PosAlign.center,
             );
-          } else {
+            if (qrRasterBytes.isNotEmpty) {
+              bytes += qrRasterBytes;
+              bytes += generator.text(
+                'Scan QR to Verify on ZRA Portal',
+                styles: const PosStyles(align: PosAlign.center, bold: true, fontType: PosFontType.fontB),
+              );
+            } else {
+              bytes += generator.text(
+                'VERIFY: $zraQrData',
+                styles: const PosStyles(align: PosAlign.center, fontType: PosFontType.fontB),
+              );
+            }
+          } catch (e) {
+            debugPrint('QR code generation notice: $e');
             bytes += generator.text(
               'VERIFY: $zraQrData',
               styles: const PosStyles(align: PosAlign.center, fontType: PosFontType.fontB),
             );
           }
-        } catch (e) {
-          debugPrint('QR code generation notice: $e');
-          bytes += generator.text(
-            'VERIFY: $zraQrData',
-            styles: const PosStyles(align: PosAlign.center, fontType: PosFontType.fontB),
-          );
         }
       } else {
-        final isLocalOnly = transaction.zraStatus == 'LOCAL_EXEMPT' ||
-            transaction.zraStatus == 'OFFLINE_EXEMPT';
+        final isLocalOnly = DigiTaxInventoryService.isLocalExempt(transaction);
         if (isLocalOnly) {
           final localData = _buildLocalControlData(transaction, config);
           bytes += generator.text(
@@ -1286,10 +1251,10 @@ class PrinterService {
             styles: const PosStyles(align: PosAlign.center, bold: true),
           );
           bytes += generator.text(_formatRow2('Date/Time:', dateTimeFiscal, colCount));
-          bytes += generator.text(_formatRow2('SDC ID:', localData['sdcId']!, colCount));
-          bytes += generator.text(_formatRow2('SDC Inv:', localData['sdcInv']!, colCount));
-          bytes += generator.text(_formatRow2('Sig:', localData['sig']!, colCount));
-          bytes += generator.text(_formatRow2('Int Data:', localData['intData']!, colCount));
+          bytes += generator.text(_formatRow2('POS ID:', localData['sdcId']!, colCount));
+          bytes += generator.text(_formatRow2('Rcpt No:', localData['sdcInv']!, colCount));
+          bytes += generator.text(_formatRow2('Ref:', localData['sig']!, colCount));
+          bytes += generator.text(_formatRow2('Branch:', localData['intData']!, colCount));
           bytes += generator.text(_formatRow2('Type:', localData['type']!, colCount));
           try {
             final qrScale = isNarrow ? 4 : (preset.widthMm >= 110 ? 6 : 5);
@@ -1309,10 +1274,22 @@ class PrinterService {
             debugPrint('Local QR code generation notice: $e');
           }
         } else {
+          final stateLabel =
+              DigiTaxInventoryService.friendlyFiscalStateLabel(transaction);
           bytes += generator.text(
-            'OFFLINE - ZRA FISCAL PENDING',
+            'NON-FISCAL SLIP - ZRA $stateLabel',
             styles: const PosStyles(align: PosAlign.center, bold: true),
           );
+          bytes += generator.text(
+            'Not a confirmed ZRA Tax Invoice',
+            styles: const PosStyles(align: PosAlign.center, fontType: PosFontType.fontB),
+          );
+          if (transaction.transactionId != null &&
+              transaction.transactionId!.isNotEmpty) {
+            bytes += generator.text(
+              _formatRow2('Ref:', transaction.transactionId!, colCount),
+            );
+          }
         }
       }
 
@@ -2511,46 +2488,44 @@ class PrinterService {
       commands.append('${_formatRow2('Int Data:', internalDataStr, colCount)}\n');
       commands.append('${_formatRow2('Type:', transaction.zraInvoiceType ?? "Normal Sale", colCount)}\n');
 
-      final zraQrData = (transaction.zraQrCode != null && transaction.zraQrCode!.isNotEmpty)
-          ? transaction.zraQrCode!
-          : 'https://smartinvoice.zra.org.zm/verify?tpin=${config?.tpin ?? "1000000000"}&sdc=$sdcIdStr&rcpt=$sdcInvNoStr';
-
-      try {
-        final qrCode = QrCode.fromData(
-          data: zraQrData,
-          errorCorrectLevel: QrErrorCorrectLevel.M,
-        );
-        final qrImage = QrImage(qrCode);
-        final int moduleCount = qrImage.moduleCount;
-        const int margin = 1;
-        final int totalModules = moduleCount + (margin * 2);
-        const int scale = 2;
-        final int sizePx = totalModules * scale;
-        final img.Image qrBitmap = img.Image(width: sizePx, height: sizePx);
-        img.fill(qrBitmap, color: img.ColorRgb8(255, 255, 255));
-        for (int mY = 0; mY < moduleCount; mY++) {
-          for (int mX = 0; mX < moduleCount; mX++) {
-            if (qrImage.isDark(mY, mX)) {
-              for (int dy = 0; dy < scale; dy++) {
-                for (int dx = 0; dx < scale; dx++) {
-                  qrBitmap.setPixelRgb((mX + margin) * scale + dx, (mY + margin) * scale + dy, 0, 0, 0);
+      final zraQrData = (transaction.zraQrCode ?? '').trim();
+      if (zraQrData.isNotEmpty && zraQrData.toUpperCase() != 'PENDING') {
+        try {
+          final qrCode = QrCode.fromData(
+            data: zraQrData,
+            errorCorrectLevel: QrErrorCorrectLevel.M,
+          );
+          final qrImage = QrImage(qrCode);
+          final int moduleCount = qrImage.moduleCount;
+          const int margin = 1;
+          final int totalModules = moduleCount + (margin * 2);
+          const int scale = 2;
+          final int sizePx = totalModules * scale;
+          final img.Image qrBitmap = img.Image(width: sizePx, height: sizePx);
+          img.fill(qrBitmap, color: img.ColorRgb8(255, 255, 255));
+          for (int mY = 0; mY < moduleCount; mY++) {
+            for (int mX = 0; mX < moduleCount; mX++) {
+              if (qrImage.isDark(mY, mX)) {
+                for (int dy = 0; dy < scale; dy++) {
+                  for (int dx = 0; dx < scale; dx++) {
+                    qrBitmap.setPixelRgb((mX + margin) * scale + dx, (mY + margin) * scale + dy, 0, 0, 0);
+                  }
                 }
               }
             }
           }
+          final Uint8List qrPngBytes = Uint8List.fromList(img.encodePng(qrBitmap));
+          commands.appendAlignment(star.StarAlignmentPosition.Center);
+          commands.appendBitmapByte(byteData: qrPngBytes, diffusion: false, width: sizePx);
+          commands.append('Scan QR to Verify on ZRA Portal\n');
+        } catch (e) {
+          debugPrint('Star QR print notice: $e');
+          commands.appendAlignment(star.StarAlignmentPosition.Center);
+          commands.append('VERIFY: $zraQrData\n');
         }
-        final Uint8List qrPngBytes = Uint8List.fromList(img.encodePng(qrBitmap));
-        commands.appendAlignment(star.StarAlignmentPosition.Center);
-        commands.appendBitmapByte(byteData: qrPngBytes, diffusion: false, width: sizePx);
-        commands.append('Scan QR to Verify on ZRA Portal\n');
-      } catch (e) {
-        debugPrint('Star QR print notice: $e');
-        commands.appendAlignment(star.StarAlignmentPosition.Center);
-        commands.append('VERIFY: $zraQrData\n');
       }
     } else {
-      final isLocalOnly = transaction.zraStatus == 'LOCAL_EXEMPT' ||
-          transaction.zraStatus == 'OFFLINE_EXEMPT';
+      final isLocalOnly = DigiTaxInventoryService.isLocalExempt(transaction);
       if (isLocalOnly) {
         final localData = _buildLocalControlData(transaction, config);
         commands.appendAlignment(star.StarAlignmentPosition.Center);
@@ -2559,15 +2534,17 @@ class PrinterService {
         commands.appendEmphasis(false);
         commands.appendAlignment(star.StarAlignmentPosition.Left);
         commands.append('${_formatRow2('Date/Time:', shortDateTime, colCount)}\n');
-        commands.append('${_formatRow2('SDC ID:', localData['sdcId']!, colCount)}\n');
-        commands.append('${_formatRow2('SDC Inv:', localData['sdcInv']!, colCount)}\n');
-        commands.append('${_formatRow2('Sig:', localData['sig']!, colCount)}\n');
-        commands.append('${_formatRow2('Int Data:', localData['intData']!, colCount)}\n');
+        commands.append('${_formatRow2('POS ID:', localData['sdcId']!, colCount)}\n');
+        commands.append('${_formatRow2('Rcpt No:', localData['sdcInv']!, colCount)}\n');
+        commands.append('${_formatRow2('Ref:', localData['sig']!, colCount)}\n');
+        commands.append('${_formatRow2('Branch:', localData['intData']!, colCount)}\n');
         commands.append('${_formatRow2('Type:', localData['type']!, colCount)}\n');
       } else {
+        final stateLabel =
+            DigiTaxInventoryService.friendlyFiscalStateLabel(transaction);
         commands.appendAlignment(star.StarAlignmentPosition.Center);
         commands.appendEmphasis(true);
-        commands.append('OFFLINE - ZRA FISCAL PENDING\n');
+        commands.append('NON-FISCAL SLIP - ZRA $stateLabel\n');
         commands.appendEmphasis(false);
       }
     }
@@ -2697,9 +2674,7 @@ class PrinterService {
       final internalDataStr = (transaction.zraInternalData != null && transaction.zraInternalData!.isNotEmpty)
           ? transaction.zraInternalData!
           : (config?.mrcNo?.isNotEmpty == true ? config!.mrcNo! : 'PENDING');
-      final zraQrData = (transaction.zraQrCode != null && transaction.zraQrCode!.isNotEmpty)
-          ? transaction.zraQrCode!
-          : 'https://smartinvoice.zra.org.zm/verify?tpin=${config?.tpin ?? "1000000000"}&sdc=$sdcIdStr&rcpt=$sdcInvNoStr';
+      final zraQrData = (transaction.zraQrCode ?? '').trim();
 
       final isFiscalApproved = this.isFiscalApproved(transaction);
       final receiptTitle = transaction.isCreditNote
@@ -2897,27 +2872,29 @@ class PrinterService {
                   _pdfRow2('Sig:', signatureStr, fontSize: smallFont, leftFlex: 3, rightFlex: 7),
                   _pdfRow2('Int Data:', internalDataStr, fontSize: smallFont, leftFlex: 3, rightFlex: 7),
                   _pdfRow2('Type:', transaction.zraInvoiceType ?? 'Normal Sale', fontSize: smallFont, leftFlex: 4, rightFlex: 6),
-                  pw.SizedBox(height: 1 * pdf.PdfPageFormat.mm),
-                  pw.BarcodeWidget(
-                    barcode: pw.Barcode.qrCode(),
-                    data: zraQrData,
-                    width: isNarrow ? 86 : (activePreset.widthMm >= 110 ? 124 : 104),
-                    height: isNarrow ? 86 : (activePreset.widthMm >= 110 ? 124 : 104),
-                    drawText: false,
-                  ),
-                  pw.SizedBox(height: 0.5 * pdf.PdfPageFormat.mm),
-                  pw.Text('Scan QR to Verify on ZRA Portal', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: smallFont)),
-                ] else if (transaction.zraStatus == 'LOCAL_EXEMPT' || transaction.zraStatus == 'OFFLINE_EXEMPT') ...[
+                  if (zraQrData.isNotEmpty) ...[
+                    pw.SizedBox(height: 1 * pdf.PdfPageFormat.mm),
+                    pw.BarcodeWidget(
+                      barcode: pw.Barcode.qrCode(),
+                      data: zraQrData,
+                      width: isNarrow ? 86 : (activePreset.widthMm >= 110 ? 124 : 104),
+                      height: isNarrow ? 86 : (activePreset.widthMm >= 110 ? 124 : 104),
+                      drawText: false,
+                    ),
+                    pw.SizedBox(height: 0.5 * pdf.PdfPageFormat.mm),
+                    pw.Text('Scan QR to Verify on ZRA Portal', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: smallFont)),
+                  ],
+                ] else if (DigiTaxInventoryService.isLocalExempt(transaction)) ...[
                   () {
                     final localData = _buildLocalControlData(transaction, config);
                     return pw.Column(
                       children: [
                         pw.Text(localData['title']!, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: bodyFont)),
                         _pdfRow2('Date/Time:', shortDateTime, fontSize: smallFont, boldRight: true, leftFlex: 4, rightFlex: 6),
-                        _pdfRow2('SDC ID:', localData['sdcId']!, fontSize: smallFont, boldRight: true, leftFlex: 3, rightFlex: 7),
-                        _pdfRow2('SDC Inv:', localData['sdcInv']!, fontSize: smallFont, boldRight: true, leftFlex: 3, rightFlex: 7),
-                        _pdfRow2('Sig:', localData['sig']!, fontSize: smallFont, leftFlex: 3, rightFlex: 7),
-                        _pdfRow2('Int Data:', localData['intData']!, fontSize: smallFont, leftFlex: 3, rightFlex: 7),
+                        _pdfRow2('POS ID:', localData['sdcId']!, fontSize: smallFont, boldRight: true, leftFlex: 3, rightFlex: 7),
+                        _pdfRow2('Rcpt No:', localData['sdcInv']!, fontSize: smallFont, boldRight: true, leftFlex: 3, rightFlex: 7),
+                        _pdfRow2('Ref:', localData['sig']!, fontSize: smallFont, leftFlex: 3, rightFlex: 7),
+                        _pdfRow2('Branch:', localData['intData']!, fontSize: smallFont, leftFlex: 3, rightFlex: 7),
                         _pdfRow2('Type:', localData['type']!, fontSize: smallFont, leftFlex: 4, rightFlex: 6),
                         pw.SizedBox(height: 1 * pdf.PdfPageFormat.mm),
                         pw.BarcodeWidget(
@@ -2933,7 +2910,10 @@ class PrinterService {
                     );
                   }(),
                 ] else ...[
-                  pw.Text('OFFLINE - ZRA FISCAL PENDING', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: bodyFont)),
+                  pw.Text(
+                    'NON-FISCAL SLIP - ZRA ${DigiTaxInventoryService.friendlyFiscalStateLabel(transaction)}',
+                    style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: bodyFont),
+                  ),
                 ],
 
                 pw.Divider(thickness: 0.7, height: 4),

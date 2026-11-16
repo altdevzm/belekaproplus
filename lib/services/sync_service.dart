@@ -32,10 +32,11 @@ class SyncService {
   void startSyncLoops(String terminalName, {String? cashierId, String? cashierName}) {
     stopSyncLoops();
 
-    // 1. Transaction retry, store-mode & restaurant state sync loop (every 15s)
+    // 1. Transaction retry, store-mode, fiscal updates & restaurant state sync loop (every 15s)
     _retryTimer = Timer.periodic(const Duration(seconds: 15), (_) {
       syncPendingTransactions();
       syncStoreModeFromServer();
+      syncFiscalUpdatesOnly();
       syncRestaurantState();
     });
 
@@ -76,35 +77,47 @@ class SyncService {
     try {
       final response = await _client.pushTransaction(transaction, items);
       if (response != null && response['success'] == true) {
-        await _isar.writeTxn(() async {
-          transaction.isSynced = true;
-          final rcpt = response['zraReceiptNumber'] as String?;
-          if (rcpt != null && rcpt.isNotEmpty && rcpt != 'PENDING') {
-            transaction.zraReceiptNumber = rcpt;
-            transaction.zraMarkId = response['zraMarkId'] as String?;
-            transaction.zraQrCode = response['zraQrCode'] as String?;
-            transaction.zraInternalData =
-                response['zraInternalData'] as String?;
-            transaction.zraSdcId = response['zraSdcId'] as String?;
-            transaction.zraInvoiceType = response['zraInvoiceType'] as String?;
-            transaction.zraStatus =
-                response['zraStatus'] as String? ?? 'APPROVED';
-          } else {
-            final mark = response['zraMarkId'] as String?;
-            if (mark != null && mark.isNotEmpty) {
-              transaction.zraMarkId = mark;
-            }
-            final sdc = response['zraSdcId'] as String?;
-            if (sdc != null && sdc.isNotEmpty && sdc != 'PENDING') {
-              transaction.zraSdcId = sdc;
-            }
-            final qr = response['zraQrCode'] as String?;
-            if (qr != null && qr.isNotEmpty) {
-              transaction.zraQrCode = qr;
-            }
+        transaction.isSynced = true;
+        final dSaleId = response['digitaxSaleId'] as String?;
+        if (dSaleId != null && dSaleId.isNotEmpty) {
+          transaction.digitaxSaleId = dSaleId;
+        }
+        final respStatus = (response['zraStatus'] as String?) ?? '';
+        final rcpt = response['zraReceiptNumber'] as String?;
+        final mark = response['zraMarkId'] as String?;
+        final qr = response['zraQrCode'] as String?;
+        final isConfirmed = respStatus.toUpperCase() == 'APPROVED' &&
+            rcpt != null &&
+            rcpt.isNotEmpty &&
+            rcpt != 'PENDING' &&
+            mark != null &&
+            mark.isNotEmpty &&
+            !mark.startsWith('sale_') &&
+            qr != null &&
+            qr.isNotEmpty &&
+            qr != 'PENDING';
+        if (isConfirmed) {
+          transaction.zraReceiptNumber = rcpt;
+          transaction.zraMarkId = mark;
+          transaction.zraQrCode = qr;
+          transaction.zraInternalData = response['zraInternalData'] as String?;
+          transaction.zraSdcId = response['zraSdcId'] as String?;
+          transaction.zraInvoiceType = response['zraInvoiceType'] as String?;
+          transaction.zraStatus = 'APPROVED';
+        } else {
+          if (respStatus.isNotEmpty) {
+            transaction.zraStatus = respStatus;
           }
-          await _isar.saleTransactions.put(transaction);
-        });
+          final sdc = response['zraSdcId'] as String?;
+          if (sdc != null && sdc.isNotEmpty && sdc != 'PENDING') {
+            transaction.zraSdcId = sdc;
+          }
+        }
+        if (transaction.id > 0 && transaction.id != Isar.autoIncrement) {
+          await _isar.writeTxn(() async {
+            await _isar.saleTransactions.put(transaction);
+          });
+        }
         debugPrint(
           'SYNC: Transaction ${transaction.id} synced immediately (Fiscal: ${transaction.zraStatus})',
         );
@@ -395,6 +408,64 @@ class SyncService {
     }
 
     await syncRestaurantState();
+  }
+
+  /// Lightweight 15s pull of ZRA fiscal updates for any local PENDING transactions on Tills.
+  Future<void> syncFiscalUpdatesOnly() async {
+    if (_client == null) return;
+    try {
+      final hasPending = await _isar.saleTransactions
+          .filter()
+          .zraReceiptNumberEqualTo('PENDING')
+          .or()
+          .zraReceiptNumberIsNull()
+          .or()
+          .zraStatusEqualTo('PENDING')
+          .or()
+          .zraStatusEqualTo('SUBMITTED_TO_DIGITAX')
+          .or()
+          .zraStatusEqualTo('VERIFICATION_REQUIRED')
+          .or()
+          .zraStatusEqualTo('PENDING_SUBMISSION')
+          .count();
+      if (hasPending == 0) return;
+
+      final fiscalUpdates = await _client.fetchTransactionFiscalUpdates();
+      if (fiscalUpdates.isEmpty) return;
+
+      await _isar.writeTxn(() async {
+        for (final upd in fiscalUpdates) {
+          final txId = upd['transactionId'] as String?;
+          final rcptNo = upd['zraReceiptNumber'] as String?;
+          if (txId != null &&
+              rcptNo != null &&
+              rcptNo.isNotEmpty &&
+              rcptNo != 'PENDING') {
+            final tx = await _isar.saleTransactions
+                .filter()
+                .transactionIdEqualTo(txId)
+                .findFirst();
+            if (tx != null &&
+                (tx.zraReceiptNumber == null ||
+                    tx.zraReceiptNumber!.isEmpty ||
+                    tx.zraReceiptNumber == 'PENDING' ||
+                    tx.zraQrCode == null ||
+                    tx.zraQrCode!.isEmpty)) {
+              tx.zraReceiptNumber = rcptNo;
+              tx.zraMarkId = upd['zraMarkId'] as String?;
+              tx.zraQrCode = upd['zraQrCode'] as String?;
+              tx.zraInternalData = upd['zraInternalData'] as String?;
+              tx.zraSdcId = upd['zraSdcId'] as String?;
+              tx.zraInvoiceType = upd['zraInvoiceType'] as String?;
+              tx.zraStatus = upd['zraStatus'] as String? ?? 'APPROVED';
+              await _isar.saleTransactions.put(tx);
+            }
+          }
+        }
+      });
+    } catch (e) {
+      debugPrint('SYNC_FISCAL_UPDATES_ERROR: $e');
+    }
   }
 
   /// Pulls live restaurant tables and active orders/items from the Master POS

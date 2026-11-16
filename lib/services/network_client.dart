@@ -638,6 +638,7 @@ class NetworkClient {
     'zraQrCode': tx.zraQrCode,
     'zraInvoiceType': tx.zraInvoiceType,
     'zraStatus': tx.zraStatus,
+    'digitaxSaleId': tx.digitaxSaleId,
     'orgInvoiceNo': tx.orgInvoiceNo,
     'isCreditNote': tx.isCreditNote,
     'creditNoteReason': tx.creditNoteReason,

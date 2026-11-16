@@ -693,22 +693,8 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
     // Check if the sale was force-pushed to DigiTax and subsequently approved.
     // A sale that was originally local/private but then pushed to ZRA should
     // display the full ZRA QR card, not the "Local / Private" card.
-    final hasQr = widget.transaction.zraQrCode != null &&
-        widget.transaction.zraQrCode!.trim().isNotEmpty &&
-        widget.transaction.zraQrCode!.trim() != 'PENDING';
-
-    final isFiscalApproved = hasQr ||
-        widget.transaction.zraStatus == 'APPROVED' ||
-        widget.transaction.zraStatus == 'FISCALIZED' ||
-        (widget.transaction.zraMarkId != null &&
-            widget.transaction.zraMarkId!.isNotEmpty &&
-            widget.transaction.zraMarkId != 'PENDING');
-
-    final isLocalOnly = !isFiscalApproved &&
-        (widget.transaction.zraStatus == 'LOCAL_EXEMPT' ||
-            widget.transaction.zraStatus == 'OFFLINE_EXEMPT' ||
-            (widget.transaction.items.isNotEmpty &&
-                widget.transaction.items.every((i) => i.isDigitaxExempt)));
+    final isLocalOnly =
+        DigiTaxInventoryService.isLocalExempt(widget.transaction);
 
     if (isLocalOnly) {
       return Container(
@@ -828,16 +814,12 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
         : (config?.mrcNo?.isNotEmpty == true ? config!.mrcNo! : 'PENDING');
 
     final statusUpper = widget.transaction.zraStatus.toUpperCase();
-    final isFailed = statusUpper.startsWith('FAILED');
-    final isApproved = !isFailed &&
-        (hasQr ||
-            statusUpper == 'APPROVED' ||
-            statusUpper == 'COMPLETED' ||
-            statusUpper == 'FISCALIZED' ||
-            _isRealZraSig(signatureRaw));
-    final String stageBadgeText = isApproved
-        ? 'COMPLETED'
-        : (isFailed ? 'FAILED' : 'PENDING');
+    final isFailed = statusUpper.startsWith('FAILED') ||
+        statusUpper.startsWith('REJECTED');
+    final isApproved =
+        DigiTaxInventoryService.isOfficiallyFiscalised(widget.transaction);
+    final String stageBadgeText =
+        DigiTaxInventoryService.friendlyFiscalStateLabel(widget.transaction);
     final String stageSubtitle = isApproved
         ? 'Accepted by ZRA · Smart Invoice issued.'
         : (isFailed
@@ -991,18 +973,14 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
                     : 'Normal Sale'),
             isMono: false,
           ),
-          _buildFiscalRow(
-            'QR Verify URL',
-            (widget.transaction.zraQrCode != null &&
-                    widget.transaction.zraQrCode!.trim().isNotEmpty &&
-                    widget.transaction.zraQrCode!.trim() != 'PENDING')
-                ? widget.transaction.zraQrCode!.trim()
-                : (isApproved
-                      ? 'https://smartinvoice.zra.org.zm/verify?tpin=${config?.tpin ?? "1000000000"}&sdc=$sdcIdStr&rcpt=$sdcInvNoStr'
-                      : 'https://smartinvoice.zra.org.zm/verify'),
-            isUrl: true,
-          ),
-          if (isApproved) ...[
+          if (isApproved &&
+              widget.transaction.zraQrCode != null &&
+              widget.transaction.zraQrCode!.trim().isNotEmpty) ...[
+            _buildFiscalRow(
+              'QR Verify URL',
+              widget.transaction.zraQrCode!.trim(),
+              isUrl: true,
+            ),
             const SizedBox(height: 12),
             Center(
               child: Container(
@@ -1019,14 +997,7 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
                       height: 112,
                       child: CustomPaint(
                         painter: _ZraQrCodePainter(
-                          data: (widget.transaction.zraQrCode != null &&
-                                  widget.transaction.zraQrCode!
-                                      .trim()
-                                      .isNotEmpty &&
-                                  widget.transaction.zraQrCode!.trim() !=
-                                      'PENDING')
-                              ? widget.transaction.zraQrCode!.trim()
-                              : 'https://smartinvoice.zra.org.zm/verify?tpin=${config?.tpin ?? "1000000000"}&sdc=$sdcIdStr&rcpt=$sdcInvNoStr',
+                          data: widget.transaction.zraQrCode!.trim(),
                         ),
                       ),
                     ),
@@ -1043,6 +1014,12 @@ class _ReceiptDetailModalState extends ConsumerState<ReceiptDetailModal> {
                   ],
                 ),
               ),
+            ),
+          ] else if (!isFailed) ...[
+            _buildFiscalRow(
+              'ZRA QR Status',
+              'Awaiting DigiTax / ZRA confirmation (no QR issued yet)',
+              isMono: false,
             ),
           ],
         ],
@@ -2229,8 +2206,9 @@ class _ZraQrCodePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     try {
+      if (data.trim().isEmpty) return;
       final qrCode = QrCode.fromData(
-        data: data.isNotEmpty ? data : 'https://smartinvoice.zra.org.zm/verify',
+        data: data.trim(),
         errorCorrectLevel: QrErrorCorrectLevel.M,
       );
       final qrImage = QrImage(qrCode);

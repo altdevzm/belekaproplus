@@ -14,6 +14,7 @@ import 'package:printing/printing.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:beleka_pos/utils/formatters.dart';
 import 'package:beleka_pos/utils/product_sales_report.dart';
+import 'package:beleka_pos/services/digitax_inventory_service.dart';
 
 final exportServiceProvider = Provider((ref) => ExportService());
 
@@ -667,35 +668,10 @@ class ExportService {
             transaction.zraInternalData != 'PENDING')
         ? transaction.zraInternalData!
         : (config?.mrcNo?.isNotEmpty == true ? config!.mrcNo! : 'PENDING');
-    final zraQrData =
-        (transaction.zraQrCode != null &&
-            transaction.zraQrCode!.trim().isNotEmpty &&
-            transaction.zraQrCode!.trim() != 'PENDING')
-        ? transaction.zraQrCode!.trim()
-        : 'https://smartinvoice.zra.org.zm/verify?tpin=${config?.tpin ?? "1000000000"}&sdc=$sdcIdStr&rcpt=$sdcInvNoStr';
+    final zraQrData = (transaction.zraQrCode ?? '').trim();
 
-    final hasQr = transaction.zraQrCode != null &&
-        transaction.zraQrCode!.trim().isNotEmpty &&
-        transaction.zraQrCode!.trim() != 'PENDING';
-
-    final statusUpper = transaction.zraStatus.toUpperCase();
-    final isFailedOrExempt = statusUpper.startsWith('FAILED') ||
-        statusUpper == 'LOCAL_EXEMPT' ||
-        statusUpper == 'OFFLINE_EXEMPT';
-    final isFiscalApproved = !isFailedOrExempt &&
-        (hasQr ||
-            statusUpper == 'APPROVED' ||
-            statusUpper == 'COMPLETED' ||
-            statusUpper == 'FISCALIZED' ||
-            statusUpper == 'PENDING' ||
-            ((transaction.zraReceiptNumber != null &&
-                    transaction.zraReceiptNumber!.isNotEmpty &&
-                    transaction.zraReceiptNumber != 'PENDING') &&
-                (transaction.zraMarkId != null &&
-                    transaction.zraMarkId!.isNotEmpty &&
-                    transaction.zraMarkId != 'PENDING' &&
-                    !transaction.zraMarkId!.startsWith('sale_') &&
-                    !transaction.zraMarkId!.startsWith('SALE_'))));
+    final isFiscalApproved =
+        DigiTaxInventoryService.isOfficiallyFiscalised(transaction);
     final receiptTitle = transaction.isCreditNote
         ? 'ZRA FISCAL CREDIT NOTE'
         : (isFiscalApproved
@@ -1061,21 +1037,23 @@ class ExportService {
                 pdfRow2('Type:', transaction.zraInvoiceType ?? 'Normal Sale', fSize: smallFont, leftFlex: 4, rightFlex: 6),
 
                 pw.SizedBox(height: 1 * PdfPageFormat.mm),
-                pw.BarcodeWidget(
-                  barcode: pw.Barcode.qrCode(),
-                  data: zraQrData,
-                  width: isNarrow ? 38 : 46,
-                  height: isNarrow ? 38 : 46,
-                  drawText: false,
-                ),
-                pw.SizedBox(height: 0.5 * PdfPageFormat.mm),
-                pw.Text(
-                  'Scan QR to Verify on ZRA Portal',
-                  style: pw.TextStyle(
-                    fontWeight: pw.FontWeight.bold,
-                    fontSize: smallFont,
+                if (zraQrData.isNotEmpty) ...[
+                  pw.BarcodeWidget(
+                    barcode: pw.Barcode.qrCode(),
+                    data: zraQrData,
+                    width: isNarrow ? 38 : 46,
+                    height: isNarrow ? 38 : 46,
+                    drawText: false,
                   ),
-                ),
+                  pw.SizedBox(height: 0.5 * PdfPageFormat.mm),
+                  pw.Text(
+                    'Scan QR to Verify on ZRA Portal',
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      fontSize: smallFont,
+                    ),
+                  ),
+                ],
               ] else ...[
                 pw.Text(
                   'OFFLINE - ZRA FISCAL PENDING',

@@ -7120,148 +7120,163 @@ const SaleTransactionSchema = CollectionSchema(
       name: r'customerTpin',
       type: IsarType.string,
     ),
-    r'discountAmount': PropertySchema(
+    r'digitaxResponseRaw': PropertySchema(
       id: 10,
+      name: r'digitaxResponseRaw',
+      type: IsarType.string,
+    ),
+    r'digitaxSaleId': PropertySchema(
+      id: 11,
+      name: r'digitaxSaleId',
+      type: IsarType.string,
+    ),
+    r'discountAmount': PropertySchema(
+      id: 12,
       name: r'discountAmount',
       type: IsarType.double,
     ),
     r'externalPaymentConfirmedAt': PropertySchema(
-      id: 11,
+      id: 13,
       name: r'externalPaymentConfirmedAt',
       type: IsarType.dateTime,
     ),
     r'externalPaymentConfirmedBy': PropertySchema(
-      id: 12,
+      id: 14,
       name: r'externalPaymentConfirmedBy',
       type: IsarType.string,
     ),
     r'externalPaymentReference': PropertySchema(
-      id: 13,
+      id: 15,
       name: r'externalPaymentReference',
       type: IsarType.string,
     ),
+    r'fiscalUpdatedAt': PropertySchema(
+      id: 16,
+      name: r'fiscalUpdatedAt',
+      type: IsarType.dateTime,
+    ),
     r'grossProfit': PropertySchema(
-      id: 14,
+      id: 17,
       name: r'grossProfit',
       type: IsarType.double,
     ),
     r'isCreditNote': PropertySchema(
-      id: 15,
+      id: 18,
       name: r'isCreditNote',
       type: IsarType.bool,
     ),
     r'isSynced': PropertySchema(
-      id: 16,
+      id: 19,
       name: r'isSynced',
       type: IsarType.bool,
     ),
     r'orgInvoiceNo': PropertySchema(
-      id: 17,
+      id: 20,
       name: r'orgInvoiceNo',
       type: IsarType.string,
     ),
     r'paymentMethod': PropertySchema(
-      id: 18,
+      id: 21,
       name: r'paymentMethod',
       type: IsarType.string,
     ),
     r'pointsEarned': PropertySchema(
-      id: 19,
+      id: 22,
       name: r'pointsEarned',
       type: IsarType.long,
     ),
     r'pointsRedeemed': PropertySchema(
-      id: 20,
+      id: 23,
       name: r'pointsRedeemed',
       type: IsarType.long,
     ),
     r'serviceChargeAmount': PropertySchema(
-      id: 21,
+      id: 24,
       name: r'serviceChargeAmount',
       type: IsarType.double,
     ),
     r'serviceChargeRate': PropertySchema(
-      id: 22,
+      id: 25,
       name: r'serviceChargeRate',
       type: IsarType.double,
     ),
     r'status': PropertySchema(
-      id: 23,
+      id: 26,
       name: r'status',
       type: IsarType.string,
     ),
     r'subtotal': PropertySchema(
-      id: 24,
+      id: 27,
       name: r'subtotal',
       type: IsarType.double,
     ),
     r'taxAmount': PropertySchema(
-      id: 25,
+      id: 28,
       name: r'taxAmount',
       type: IsarType.double,
     ),
     r'tenderedAmount': PropertySchema(
-      id: 26,
+      id: 29,
       name: r'tenderedAmount',
       type: IsarType.double,
     ),
     r'terminalName': PropertySchema(
-      id: 27,
+      id: 30,
       name: r'terminalName',
       type: IsarType.string,
     ),
     r'timestamp': PropertySchema(
-      id: 28,
+      id: 31,
       name: r'timestamp',
       type: IsarType.dateTime,
     ),
     r'totalAmount': PropertySchema(
-      id: 29,
+      id: 32,
       name: r'totalAmount',
       type: IsarType.double,
     ),
     r'totalCost': PropertySchema(
-      id: 30,
+      id: 33,
       name: r'totalCost',
       type: IsarType.double,
     ),
     r'transactionId': PropertySchema(
-      id: 31,
+      id: 34,
       name: r'transactionId',
       type: IsarType.string,
     ),
     r'zraInternalData': PropertySchema(
-      id: 32,
+      id: 35,
       name: r'zraInternalData',
       type: IsarType.string,
     ),
     r'zraInvoiceType': PropertySchema(
-      id: 33,
+      id: 36,
       name: r'zraInvoiceType',
       type: IsarType.string,
     ),
     r'zraMarkId': PropertySchema(
-      id: 34,
+      id: 37,
       name: r'zraMarkId',
       type: IsarType.string,
     ),
     r'zraQrCode': PropertySchema(
-      id: 35,
+      id: 38,
       name: r'zraQrCode',
       type: IsarType.string,
     ),
     r'zraReceiptNumber': PropertySchema(
-      id: 36,
+      id: 39,
       name: r'zraReceiptNumber',
       type: IsarType.string,
     ),
     r'zraSdcId': PropertySchema(
-      id: 37,
+      id: 40,
       name: r'zraSdcId',
       type: IsarType.string,
     ),
     r'zraStatus': PropertySchema(
-      id: 38,
+      id: 41,
       name: r'zraStatus',
       type: IsarType.string,
     )
@@ -7371,6 +7386,18 @@ int _saleTransactionEstimateSize(
     }
   }
   {
+    final value = object.digitaxResponseRaw;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
+  {
+    final value = object.digitaxSaleId;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
+  {
     final value = object.externalPaymentConfirmedBy;
     if (value != null) {
       bytesCount += 3 + value.length * 3;
@@ -7458,35 +7485,38 @@ void _saleTransactionSerialize(
   writer.writeString(offsets[7], object.customerBusinessName);
   writer.writeLong(offsets[8], object.customerId);
   writer.writeString(offsets[9], object.customerTpin);
-  writer.writeDouble(offsets[10], object.discountAmount);
-  writer.writeDateTime(offsets[11], object.externalPaymentConfirmedAt);
-  writer.writeString(offsets[12], object.externalPaymentConfirmedBy);
-  writer.writeString(offsets[13], object.externalPaymentReference);
-  writer.writeDouble(offsets[14], object.grossProfit);
-  writer.writeBool(offsets[15], object.isCreditNote);
-  writer.writeBool(offsets[16], object.isSynced);
-  writer.writeString(offsets[17], object.orgInvoiceNo);
-  writer.writeString(offsets[18], object.paymentMethod);
-  writer.writeLong(offsets[19], object.pointsEarned);
-  writer.writeLong(offsets[20], object.pointsRedeemed);
-  writer.writeDouble(offsets[21], object.serviceChargeAmount);
-  writer.writeDouble(offsets[22], object.serviceChargeRate);
-  writer.writeString(offsets[23], object.status);
-  writer.writeDouble(offsets[24], object.subtotal);
-  writer.writeDouble(offsets[25], object.taxAmount);
-  writer.writeDouble(offsets[26], object.tenderedAmount);
-  writer.writeString(offsets[27], object.terminalName);
-  writer.writeDateTime(offsets[28], object.timestamp);
-  writer.writeDouble(offsets[29], object.totalAmount);
-  writer.writeDouble(offsets[30], object.totalCost);
-  writer.writeString(offsets[31], object.transactionId);
-  writer.writeString(offsets[32], object.zraInternalData);
-  writer.writeString(offsets[33], object.zraInvoiceType);
-  writer.writeString(offsets[34], object.zraMarkId);
-  writer.writeString(offsets[35], object.zraQrCode);
-  writer.writeString(offsets[36], object.zraReceiptNumber);
-  writer.writeString(offsets[37], object.zraSdcId);
-  writer.writeString(offsets[38], object.zraStatus);
+  writer.writeString(offsets[10], object.digitaxResponseRaw);
+  writer.writeString(offsets[11], object.digitaxSaleId);
+  writer.writeDouble(offsets[12], object.discountAmount);
+  writer.writeDateTime(offsets[13], object.externalPaymentConfirmedAt);
+  writer.writeString(offsets[14], object.externalPaymentConfirmedBy);
+  writer.writeString(offsets[15], object.externalPaymentReference);
+  writer.writeDateTime(offsets[16], object.fiscalUpdatedAt);
+  writer.writeDouble(offsets[17], object.grossProfit);
+  writer.writeBool(offsets[18], object.isCreditNote);
+  writer.writeBool(offsets[19], object.isSynced);
+  writer.writeString(offsets[20], object.orgInvoiceNo);
+  writer.writeString(offsets[21], object.paymentMethod);
+  writer.writeLong(offsets[22], object.pointsEarned);
+  writer.writeLong(offsets[23], object.pointsRedeemed);
+  writer.writeDouble(offsets[24], object.serviceChargeAmount);
+  writer.writeDouble(offsets[25], object.serviceChargeRate);
+  writer.writeString(offsets[26], object.status);
+  writer.writeDouble(offsets[27], object.subtotal);
+  writer.writeDouble(offsets[28], object.taxAmount);
+  writer.writeDouble(offsets[29], object.tenderedAmount);
+  writer.writeString(offsets[30], object.terminalName);
+  writer.writeDateTime(offsets[31], object.timestamp);
+  writer.writeDouble(offsets[32], object.totalAmount);
+  writer.writeDouble(offsets[33], object.totalCost);
+  writer.writeString(offsets[34], object.transactionId);
+  writer.writeString(offsets[35], object.zraInternalData);
+  writer.writeString(offsets[36], object.zraInvoiceType);
+  writer.writeString(offsets[37], object.zraMarkId);
+  writer.writeString(offsets[38], object.zraQrCode);
+  writer.writeString(offsets[39], object.zraReceiptNumber);
+  writer.writeString(offsets[40], object.zraSdcId);
+  writer.writeString(offsets[41], object.zraStatus);
 }
 
 SaleTransaction _saleTransactionDeserialize(
@@ -7506,37 +7536,40 @@ SaleTransaction _saleTransactionDeserialize(
     customerBusinessName: reader.readStringOrNull(offsets[7]),
     customerId: reader.readLongOrNull(offsets[8]),
     customerTpin: reader.readStringOrNull(offsets[9]),
-    discountAmount: reader.readDoubleOrNull(offsets[10]) ?? 0.0,
-    externalPaymentConfirmedAt: reader.readDateTimeOrNull(offsets[11]),
-    externalPaymentConfirmedBy: reader.readStringOrNull(offsets[12]),
-    externalPaymentReference: reader.readStringOrNull(offsets[13]),
-    grossProfit: reader.readDoubleOrNull(offsets[14]) ?? 0.0,
-    isCreditNote: reader.readBoolOrNull(offsets[15]) ?? false,
-    isSynced: reader.readBoolOrNull(offsets[16]) ?? false,
-    orgInvoiceNo: reader.readStringOrNull(offsets[17]),
-    paymentMethod: reader.readString(offsets[18]),
-    pointsEarned: reader.readLongOrNull(offsets[19]) ?? 0,
-    pointsRedeemed: reader.readLongOrNull(offsets[20]) ?? 0,
-    serviceChargeAmount: reader.readDoubleOrNull(offsets[21]) ?? 0.0,
-    serviceChargeRate: reader.readDoubleOrNull(offsets[22]) ?? 0.0,
-    status: reader.readStringOrNull(offsets[23]) ?? 'completed',
-    subtotal: reader.readDoubleOrNull(offsets[24]) ?? 0.0,
-    taxAmount: reader.readDoubleOrNull(offsets[25]) ?? 0.0,
-    tenderedAmount: reader.readDoubleOrNull(offsets[26]) ?? 0.0,
-    terminalName: reader.readStringOrNull(offsets[27]),
-    totalAmount: reader.readDouble(offsets[29]),
-    totalCost: reader.readDoubleOrNull(offsets[30]) ?? 0.0,
-    transactionId: reader.readStringOrNull(offsets[31]),
-    zraInternalData: reader.readStringOrNull(offsets[32]),
-    zraInvoiceType: reader.readStringOrNull(offsets[33]),
-    zraMarkId: reader.readStringOrNull(offsets[34]),
-    zraQrCode: reader.readStringOrNull(offsets[35]),
-    zraReceiptNumber: reader.readStringOrNull(offsets[36]),
-    zraSdcId: reader.readStringOrNull(offsets[37]),
-    zraStatus: reader.readStringOrNull(offsets[38]) ?? 'pending',
+    digitaxResponseRaw: reader.readStringOrNull(offsets[10]),
+    digitaxSaleId: reader.readStringOrNull(offsets[11]),
+    discountAmount: reader.readDoubleOrNull(offsets[12]) ?? 0.0,
+    externalPaymentConfirmedAt: reader.readDateTimeOrNull(offsets[13]),
+    externalPaymentConfirmedBy: reader.readStringOrNull(offsets[14]),
+    externalPaymentReference: reader.readStringOrNull(offsets[15]),
+    fiscalUpdatedAt: reader.readDateTimeOrNull(offsets[16]),
+    grossProfit: reader.readDoubleOrNull(offsets[17]) ?? 0.0,
+    isCreditNote: reader.readBoolOrNull(offsets[18]) ?? false,
+    isSynced: reader.readBoolOrNull(offsets[19]) ?? false,
+    orgInvoiceNo: reader.readStringOrNull(offsets[20]),
+    paymentMethod: reader.readString(offsets[21]),
+    pointsEarned: reader.readLongOrNull(offsets[22]) ?? 0,
+    pointsRedeemed: reader.readLongOrNull(offsets[23]) ?? 0,
+    serviceChargeAmount: reader.readDoubleOrNull(offsets[24]) ?? 0.0,
+    serviceChargeRate: reader.readDoubleOrNull(offsets[25]) ?? 0.0,
+    status: reader.readStringOrNull(offsets[26]) ?? 'completed',
+    subtotal: reader.readDoubleOrNull(offsets[27]) ?? 0.0,
+    taxAmount: reader.readDoubleOrNull(offsets[28]) ?? 0.0,
+    tenderedAmount: reader.readDoubleOrNull(offsets[29]) ?? 0.0,
+    terminalName: reader.readStringOrNull(offsets[30]),
+    totalAmount: reader.readDouble(offsets[32]),
+    totalCost: reader.readDoubleOrNull(offsets[33]) ?? 0.0,
+    transactionId: reader.readStringOrNull(offsets[34]),
+    zraInternalData: reader.readStringOrNull(offsets[35]),
+    zraInvoiceType: reader.readStringOrNull(offsets[36]),
+    zraMarkId: reader.readStringOrNull(offsets[37]),
+    zraQrCode: reader.readStringOrNull(offsets[38]),
+    zraReceiptNumber: reader.readStringOrNull(offsets[39]),
+    zraSdcId: reader.readStringOrNull(offsets[40]),
+    zraStatus: reader.readStringOrNull(offsets[41]) ?? 'pending',
   );
   object.id = id;
-  object.timestamp = reader.readDateTime(offsets[28]);
+  object.timestamp = reader.readDateTime(offsets[31]);
   return object;
 }
 
@@ -7568,53 +7601,53 @@ P _saleTransactionDeserializeProp<P>(
     case 9:
       return (reader.readStringOrNull(offset)) as P;
     case 10:
-      return (reader.readDoubleOrNull(offset) ?? 0.0) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 11:
-      return (reader.readDateTimeOrNull(offset)) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 12:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readDoubleOrNull(offset) ?? 0.0) as P;
     case 13:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readDateTimeOrNull(offset)) as P;
     case 14:
-      return (reader.readDoubleOrNull(offset) ?? 0.0) as P;
-    case 15:
-      return (reader.readBoolOrNull(offset) ?? false) as P;
-    case 16:
-      return (reader.readBoolOrNull(offset) ?? false) as P;
-    case 17:
       return (reader.readStringOrNull(offset)) as P;
+    case 15:
+      return (reader.readStringOrNull(offset)) as P;
+    case 16:
+      return (reader.readDateTimeOrNull(offset)) as P;
+    case 17:
+      return (reader.readDoubleOrNull(offset) ?? 0.0) as P;
     case 18:
-      return (reader.readString(offset)) as P;
+      return (reader.readBoolOrNull(offset) ?? false) as P;
     case 19:
-      return (reader.readLongOrNull(offset) ?? 0) as P;
+      return (reader.readBoolOrNull(offset) ?? false) as P;
     case 20:
-      return (reader.readLongOrNull(offset) ?? 0) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 21:
-      return (reader.readDoubleOrNull(offset) ?? 0.0) as P;
+      return (reader.readString(offset)) as P;
     case 22:
-      return (reader.readDoubleOrNull(offset) ?? 0.0) as P;
+      return (reader.readLongOrNull(offset) ?? 0) as P;
     case 23:
-      return (reader.readStringOrNull(offset) ?? 'completed') as P;
+      return (reader.readLongOrNull(offset) ?? 0) as P;
     case 24:
       return (reader.readDoubleOrNull(offset) ?? 0.0) as P;
     case 25:
       return (reader.readDoubleOrNull(offset) ?? 0.0) as P;
     case 26:
-      return (reader.readDoubleOrNull(offset) ?? 0.0) as P;
+      return (reader.readStringOrNull(offset) ?? 'completed') as P;
     case 27:
-      return (reader.readStringOrNull(offset)) as P;
-    case 28:
-      return (reader.readDateTime(offset)) as P;
-    case 29:
-      return (reader.readDouble(offset)) as P;
-    case 30:
       return (reader.readDoubleOrNull(offset) ?? 0.0) as P;
+    case 28:
+      return (reader.readDoubleOrNull(offset) ?? 0.0) as P;
+    case 29:
+      return (reader.readDoubleOrNull(offset) ?? 0.0) as P;
+    case 30:
+      return (reader.readStringOrNull(offset)) as P;
     case 31:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readDateTime(offset)) as P;
     case 32:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readDouble(offset)) as P;
     case 33:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readDoubleOrNull(offset) ?? 0.0) as P;
     case 34:
       return (reader.readStringOrNull(offset)) as P;
     case 35:
@@ -7624,6 +7657,12 @@ P _saleTransactionDeserializeProp<P>(
     case 37:
       return (reader.readStringOrNull(offset)) as P;
     case 38:
+      return (reader.readStringOrNull(offset)) as P;
+    case 39:
+      return (reader.readStringOrNull(offset)) as P;
+    case 40:
+      return (reader.readStringOrNull(offset)) as P;
+    case 41:
       return (reader.readStringOrNull(offset) ?? 'pending') as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -9310,6 +9349,314 @@ extension SaleTransactionQueryFilter
   }
 
   QueryBuilder<SaleTransaction, SaleTransaction, QAfterFilterCondition>
+      digitaxResponseRawIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'digitaxResponseRaw',
+      ));
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterFilterCondition>
+      digitaxResponseRawIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'digitaxResponseRaw',
+      ));
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterFilterCondition>
+      digitaxResponseRawEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'digitaxResponseRaw',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterFilterCondition>
+      digitaxResponseRawGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'digitaxResponseRaw',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterFilterCondition>
+      digitaxResponseRawLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'digitaxResponseRaw',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterFilterCondition>
+      digitaxResponseRawBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'digitaxResponseRaw',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterFilterCondition>
+      digitaxResponseRawStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'digitaxResponseRaw',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterFilterCondition>
+      digitaxResponseRawEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'digitaxResponseRaw',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterFilterCondition>
+      digitaxResponseRawContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'digitaxResponseRaw',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterFilterCondition>
+      digitaxResponseRawMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'digitaxResponseRaw',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterFilterCondition>
+      digitaxResponseRawIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'digitaxResponseRaw',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterFilterCondition>
+      digitaxResponseRawIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'digitaxResponseRaw',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterFilterCondition>
+      digitaxSaleIdIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'digitaxSaleId',
+      ));
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterFilterCondition>
+      digitaxSaleIdIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'digitaxSaleId',
+      ));
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterFilterCondition>
+      digitaxSaleIdEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'digitaxSaleId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterFilterCondition>
+      digitaxSaleIdGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'digitaxSaleId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterFilterCondition>
+      digitaxSaleIdLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'digitaxSaleId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterFilterCondition>
+      digitaxSaleIdBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'digitaxSaleId',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterFilterCondition>
+      digitaxSaleIdStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'digitaxSaleId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterFilterCondition>
+      digitaxSaleIdEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'digitaxSaleId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterFilterCondition>
+      digitaxSaleIdContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'digitaxSaleId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterFilterCondition>
+      digitaxSaleIdMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'digitaxSaleId',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterFilterCondition>
+      digitaxSaleIdIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'digitaxSaleId',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterFilterCondition>
+      digitaxSaleIdIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'digitaxSaleId',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterFilterCondition>
       discountAmountEqualTo(
     double value, {
     double epsilon = Query.epsilon,
@@ -9757,6 +10104,80 @@ extension SaleTransactionQueryFilter
       return query.addFilterCondition(FilterCondition.greaterThan(
         property: r'externalPaymentReference',
         value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterFilterCondition>
+      fiscalUpdatedAtIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'fiscalUpdatedAt',
+      ));
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterFilterCondition>
+      fiscalUpdatedAtIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'fiscalUpdatedAt',
+      ));
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterFilterCondition>
+      fiscalUpdatedAtEqualTo(DateTime? value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'fiscalUpdatedAt',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterFilterCondition>
+      fiscalUpdatedAtGreaterThan(
+    DateTime? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'fiscalUpdatedAt',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterFilterCondition>
+      fiscalUpdatedAtLessThan(
+    DateTime? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'fiscalUpdatedAt',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterFilterCondition>
+      fiscalUpdatedAtBetween(
+    DateTime? lower,
+    DateTime? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'fiscalUpdatedAt',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
       ));
     });
   }
@@ -12538,6 +12959,34 @@ extension SaleTransactionQuerySortBy
   }
 
   QueryBuilder<SaleTransaction, SaleTransaction, QAfterSortBy>
+      sortByDigitaxResponseRaw() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'digitaxResponseRaw', Sort.asc);
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterSortBy>
+      sortByDigitaxResponseRawDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'digitaxResponseRaw', Sort.desc);
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterSortBy>
+      sortByDigitaxSaleId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'digitaxSaleId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterSortBy>
+      sortByDigitaxSaleIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'digitaxSaleId', Sort.desc);
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterSortBy>
       sortByDiscountAmount() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'discountAmount', Sort.asc);
@@ -12590,6 +13039,20 @@ extension SaleTransactionQuerySortBy
       sortByExternalPaymentReferenceDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'externalPaymentReference', Sort.desc);
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterSortBy>
+      sortByFiscalUpdatedAt() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'fiscalUpdatedAt', Sort.asc);
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterSortBy>
+      sortByFiscalUpdatedAtDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'fiscalUpdatedAt', Sort.desc);
     });
   }
 
@@ -13086,6 +13549,34 @@ extension SaleTransactionQuerySortThenBy
   }
 
   QueryBuilder<SaleTransaction, SaleTransaction, QAfterSortBy>
+      thenByDigitaxResponseRaw() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'digitaxResponseRaw', Sort.asc);
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterSortBy>
+      thenByDigitaxResponseRawDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'digitaxResponseRaw', Sort.desc);
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterSortBy>
+      thenByDigitaxSaleId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'digitaxSaleId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterSortBy>
+      thenByDigitaxSaleIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'digitaxSaleId', Sort.desc);
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterSortBy>
       thenByDiscountAmount() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'discountAmount', Sort.asc);
@@ -13138,6 +13629,20 @@ extension SaleTransactionQuerySortThenBy
       thenByExternalPaymentReferenceDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'externalPaymentReference', Sort.desc);
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterSortBy>
+      thenByFiscalUpdatedAt() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'fiscalUpdatedAt', Sort.asc);
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QAfterSortBy>
+      thenByFiscalUpdatedAtDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'fiscalUpdatedAt', Sort.desc);
     });
   }
 
@@ -13580,6 +14085,22 @@ extension SaleTransactionQueryWhereDistinct
   }
 
   QueryBuilder<SaleTransaction, SaleTransaction, QDistinct>
+      distinctByDigitaxResponseRaw({bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'digitaxResponseRaw',
+          caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QDistinct>
+      distinctByDigitaxSaleId({bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'digitaxSaleId',
+          caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QDistinct>
       distinctByDiscountAmount() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'discountAmount');
@@ -13606,6 +14127,13 @@ extension SaleTransactionQueryWhereDistinct
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'externalPaymentReference',
           caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<SaleTransaction, SaleTransaction, QDistinct>
+      distinctByFiscalUpdatedAt() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'fiscalUpdatedAt');
     });
   }
 
@@ -13865,6 +14393,20 @@ extension SaleTransactionQueryProperty
     });
   }
 
+  QueryBuilder<SaleTransaction, String?, QQueryOperations>
+      digitaxResponseRawProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'digitaxResponseRaw');
+    });
+  }
+
+  QueryBuilder<SaleTransaction, String?, QQueryOperations>
+      digitaxSaleIdProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'digitaxSaleId');
+    });
+  }
+
   QueryBuilder<SaleTransaction, double, QQueryOperations>
       discountAmountProperty() {
     return QueryBuilder.apply(this, (query) {
@@ -13890,6 +14432,13 @@ extension SaleTransactionQueryProperty
       externalPaymentReferenceProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'externalPaymentReference');
+    });
+  }
+
+  QueryBuilder<SaleTransaction, DateTime?, QQueryOperations>
+      fiscalUpdatedAtProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'fiscalUpdatedAt');
     });
   }
 

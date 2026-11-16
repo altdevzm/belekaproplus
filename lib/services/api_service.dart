@@ -624,11 +624,28 @@ class ApiService {
             .transactionIdEqualTo(transaction.transactionId)
             .findFirst();
         if (existing != null) {
+          final existingLocalOnly =
+              DigiTaxInventoryService.isLocalExempt(existing);
+          if (ref != null &&
+              !existingLocalOnly &&
+              !DigiTaxInventoryService.isOfficiallyFiscalised(existing)) {
+            try {
+              await existing.items.load();
+              final digitaxService = ref!.read(digitaxInventoryServiceProvider);
+              await digitaxService.fiscalizeSaleTransaction(
+                existing,
+                existing.items.toList(),
+              );
+            } catch (e) {
+              debugPrint('LAN_SERVER_DUPLICATE_REFRESH_NOTICE: $e');
+            }
+          }
           return Response.ok(
             jsonEncode({
               'success': true,
               'transactionId': existing.id,
               'duplicate': true,
+              'digitaxSaleId': existing.digitaxSaleId,
               'zraReceiptNumber': existing.zraReceiptNumber,
               'zraMarkId': existing.zraMarkId,
               'zraQrCode': existing.zraQrCode,
@@ -660,9 +677,7 @@ class ApiService {
 
       if (ref != null &&
           !isLocalOnly &&
-          (transaction.zraReceiptNumber == null ||
-              transaction.zraReceiptNumber!.isEmpty ||
-              transaction.zraReceiptNumber == 'PENDING')) {
+          !DigiTaxInventoryService.isOfficiallyFiscalised(transaction)) {
         try {
           final digitaxService = ref!.read(digitaxInventoryServiceProvider);
           await digitaxService.fiscalizeSaleTransaction(transaction, items);
@@ -684,6 +699,7 @@ class ApiService {
         jsonEncode({
           'success': true,
           'transactionId': transaction.id,
+          'digitaxSaleId': transaction.digitaxSaleId,
           'zraReceiptNumber': transaction.zraReceiptNumber,
           'zraMarkId': transaction.zraMarkId,
           'zraQrCode': transaction.zraQrCode,
@@ -1305,6 +1321,7 @@ class ApiService {
       zraQrCode: j['zraQrCode'] as String?,
       zraInvoiceType: j['zraInvoiceType'] as String?,
       zraStatus: j['zraStatus'] as String? ?? 'pending',
+      digitaxSaleId: j['digitaxSaleId'] as String?,
       orgInvoiceNo: j['orgInvoiceNo'] as String?,
       isCreditNote: j['isCreditNote'] as bool? ?? false,
       creditNoteReason: j['creditNoteReason'] as String?,

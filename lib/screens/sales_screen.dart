@@ -6776,12 +6776,14 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       if (allItemsExempt) {
         transaction.zraStatus = 'LOCAL_EXEMPT';
         transaction.zraInvoiceType = 'Internal / Non-Fiscal';
+      } else {
+        transaction.zraStatus = hasDigitax ? 'PENDING_SUBMISSION' : 'LOCAL_EXEMPT';
       }
 
       final fiscalStatus = ValueNotifier<String>(
         allItemsExempt
             ? 'Local private sale saved.'
-            : 'Sale saved. ZRA receipt is pending and will update automatically.',
+            : 'Submitting transaction to DigiTax for ZRA confirmation...',
       );
       var fiscalStatusDisposed = false;
       void updateFiscalStatus(String message) {
@@ -6790,11 +6792,11 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         }
       }
 
-      // ── STEP 1: Try DigiTax FIRST (before deducting stock or printing) ───
-      // Outcome 1 (COMPLETED): Save sale, deduct stock, print receipt WITH QR code.
-      // Outcome 2 (PENDING):   Save sale, deduct stock, print receipt WITH QR code.
-      // Outcome 3 (FAILED):    Do NOT deduct stock, do NOT print receipt, keep cart,
-      //                        and prompt cashier with the real ZRA error to retry selling again.
+      // ── STEP 1: Submit to DigiTax in real time BEFORE deducting stock or printing ───
+      // Outcome 1 (APPROVED): Official ZRA receipt number, signature & QR URL confirmed -> save & print TAX INVOICE.
+      // Outcome 2 (REJECTED / FAILED): Explicit rejection/auth error -> do NOT deduct stock, do NOT print, offer Retry.
+      // Outcome 3 (SUBMITTED_TO_DIGITAX / VERIFICATION_REQUIRED / PENDING_SUBMISSION):
+      //   Never fabricate a QR or pretend it succeeded; let cashier Check Status Now, Complete with Non-Fiscal Slip, or Cancel.
       bool fiscalizedBeforePrint = false;
       bool reachableDigiTax = false;
       if (hasDigitax && !allItemsExempt) {
@@ -6803,16 +6805,17 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
           if (reachableDigiTax) {
             fiscalizedBeforePrint = await digitaxService
                 .fiscalizeSaleTransaction(transaction, saleItems);
-            if (fiscalizedBeforePrint) {
+            final statusAfter = transaction.zraStatus.toUpperCase().trim();
+            if (fiscalizedBeforePrint &&
+                DigiTaxInventoryService.isOfficiallyFiscalised(transaction)) {
               debugPrint(
-                'DIGITAX_PREFLIGHT: Fiscalized before print for tx ${transaction.transactionId}',
+                'DIGITAX_PREFLIGHT: Officially fiscalised before print for tx ${transaction.transactionId}',
               );
               updateFiscalStatus(
-                'ZRA receipt confirmed. The official receipt is ready.',
+                'ZRA receipt confirmed. Official fiscal receipt is ready.',
               );
-            } else if (transaction.zraStatus.toUpperCase().startsWith(
-              'FAILED',
-            )) {
+            } else if (statusAfter.startsWith('FAILED') ||
+                statusAfter.startsWith('REJECTED')) {
               // Real ZRA / DigiTax rejection error:
               // Stock was NOT deducted, cart is still intact, and receipt must NOT print.
               bool shouldRetry = false;
@@ -6965,37 +6968,145 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         }
       }
 
-      // Save transaction & deduct local stock (only reached when COMPLETED, PENDING, or LOCAL_EXEMPT)
+      // If not yet confirmed by DigiTax (e.g. SUBMITTED_TO_DIGITAX awaiting ZRA,
+      // VERIFICATION_REQUIRED after timeout, or PENDING_SUBMISSION offline), ask cashier
+      // rather than silently printing a misleading fiscal receipt.
+      if (hasDigitax &&
+          !allItemsExempt &&
+          !DigiTaxInventoryService.isOfficiallyFiscalised(transaction)) {
+        if (config?.isManagerMode == false) {
+          // If Till couldn't confirm directly, try delegating/verifying via Master POS over LAN first
+          try {
+            final synced = await syncService.trySyncTransaction(
+              transaction,
+              saleItems,
+            );
+            if (synced &&
+                DigiTaxInventoryService.isOfficiallyFiscalised(transaction)) {
+              fiscalizedBeforePrint = true;
+              updateFiscalStatus(
+                'ZRA receipt confirmed via Master POS. Official receipt is ready.',
+              );
+            }
+          } catch (e) {
+            debugPrint('PREFLIGHT_LAN_SYNC_NOTICE: $e');
+          }
+        }
+
+        if (!DigiTaxInventoryService.isOfficiallyFiscalised(transaction) &&
+            mounted) {
+          setState(() => _isProcessingPayment = false);
+          final bool? proceed = await showDialog<bool>(
+            context: context,
+            barrierDismissible: false,
+            builder: (ctx) {
+              var checking = false;
+              return StatefulBuilder(
+                builder: (ctx, setDialogState) {
+                  final stateLabel =
+                      DigiTaxInventoryService.friendlyFiscalStateLabel(
+                        transaction,
+                      );
+                  return AlertDialog(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    title: Row(
+                      children: [
+                        const Icon(
+                          Icons.hourglass_top_rounded,
+                          color: Colors.amber,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(child: Text('ZRA Status: $stateLabel')),
+                      ],
+                    ),
+                    content: Text(
+                      transaction.digitaxSaleId != null
+                          ? 'Transaction was submitted to DigiTax (Ref: ${transaction.digitaxSaleId}), but ZRA has not returned a confirmed fiscal signature & QR code yet.\n\nNo fake QR code will be printed. You can check DigiTax status again now or save and print a Non-Fiscal Slip while background verification completes.'
+                          : 'Could not obtain a confirmed ZRA fiscal response (${transaction.zraStatus}).\n\nNo fiscal receipt or QR code can be issued without DigiTax confirmation. Check status with DigiTax first to avoid duplicates, or print a clearly marked Non-Fiscal Slip.',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: checking
+                            ? null
+                            : () => Navigator.pop(ctx, false),
+                        child: const Text('Cancel Sale'),
+                      ),
+                      TextButton(
+                        onPressed: checking
+                            ? null
+                            : () => Navigator.pop(ctx, true),
+                        child: const Text('Print Non-Fiscal Slip'),
+                      ),
+                      ElevatedButton.icon(
+                        onPressed: checking
+                            ? null
+                            : () async {
+                                setDialogState(() => checking = true);
+                                bool ok = false;
+                                try {
+                                  ok = await digitaxService
+                                      .fiscalizeSaleTransaction(
+                                        transaction,
+                                        saleItems,
+                                      );
+                                } catch (_) {}
+                                if (!ctx.mounted) return;
+                                if (ok &&
+                                    DigiTaxInventoryService
+                                        .isOfficiallyFiscalised(transaction)) {
+                                  fiscalizedBeforePrint = true;
+                                  Navigator.pop(ctx, true);
+                                } else {
+                                  setDialogState(() => checking = false);
+                                }
+                              },
+                        icon: checking
+                            ? const SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.refresh_rounded, size: 16),
+                        label: Text(
+                          checking ? 'Checking...' : 'Check Status Now',
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              );
+            },
+          );
+          if (proceed != true) {
+            fiscalStatusDisposed = true;
+            fiscalStatus.dispose();
+            return;
+          }
+          if (DigiTaxInventoryService.isOfficiallyFiscalised(transaction)) {
+            fiscalizedBeforePrint = true;
+            updateFiscalStatus(
+              'ZRA receipt confirmed. Official fiscal receipt is ready.',
+            );
+          } else {
+            updateFiscalStatus(
+              'Saved as ${DigiTaxInventoryService.friendlyFiscalStateLabel(transaction)} (non-fiscal slip printed).',
+            );
+          }
+        }
+      }
+
+      // Save transaction & deduct local stock (only reached when confirmed, local-exempt, or cashier chose non-fiscal slip)
       await db.saveTransaction(transaction, saleItems);
 
       if (hasDigitax &&
           !allItemsExempt &&
           !reachableDigiTax &&
           config?.isManagerMode == false) {
-        // Till has no direct internet to DigiTax, but is connected to the Master POS via LAN.
-        debugPrint(
-          'DIGITAX_PREFLIGHT: DigiTax unreachable directly from till. Delegating to Master POS over LAN...',
-        );
-        try {
-          final synced = await syncService.trySyncTransaction(
-            transaction,
-            saleItems,
-          );
-          if (synced &&
-              transaction.zraReceiptNumber != null &&
-              transaction.zraReceiptNumber!.isNotEmpty &&
-              transaction.zraReceiptNumber != 'PENDING') {
-            fiscalizedBeforePrint = true;
-            debugPrint(
-              'DIGITAX_PREFLIGHT: Fiscalized via Master POS before print for tx ${transaction.transactionId}',
-            );
-            updateFiscalStatus(
-              'ZRA receipt confirmed via Master POS. Official receipt is ready.',
-            );
-          }
-        } catch (e) {
-          debugPrint('PREFLIGHT_LAN_SYNC_NOTICE: $e');
-        }
+        // Already checked via LAN above if reachable
       }
 
       // Real-time push to Cloud VPS Server so HQ receives sales reports immediately
@@ -7379,9 +7490,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       var fiscalized = alreadyFiscalized;
       var syncSuccess = false;
 
-      // Only attempt fiscalization if not already done or submitted in the preflight step
+      // Only attempt fiscalization if not already confirmed or submitted in the preflight step
       final alreadySubmittedToDigitax =
-          tx.zraMarkId != null && tx.zraMarkId!.trim().isNotEmpty;
+          (tx.digitaxSaleId != null && tx.digitaxSaleId!.trim().isNotEmpty) ||
+          (tx.zraMarkId != null && tx.zraMarkId!.trim().isNotEmpty);
       if (hasDigitax && !fiscalized && !alreadySubmittedToDigitax) {
         try {
           fiscalized = await digitaxService.fiscalizeSaleTransaction(tx, items);
@@ -7400,18 +7512,16 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         syncSuccess = true;
       }
 
-      if (syncSuccess &&
-          (tx.zraReceiptNumber?.isNotEmpty == true ||
-              tx.zraStatus.toUpperCase() == 'APPROVED')) {
+      if (DigiTaxInventoryService.isOfficiallyFiscalised(tx)) {
         fiscalized = true;
       }
 
       final status = tx.zraStatus.toUpperCase();
-      if (fiscalized) {
+      if (fiscalized && DigiTaxInventoryService.isOfficiallyFiscalised(tx)) {
         onFiscalStatusChanged(
           'ZRA receipt confirmed. The official receipt is ready.',
         );
-      } else if (status == 'FAILED') {
+      } else if (status.startsWith('FAILED') || status.startsWith('REJECTED')) {
         onFiscalStatusChanged(
           'ZRA rejected this sale. Check the transaction details.',
         );

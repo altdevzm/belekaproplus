@@ -2215,6 +2215,7 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
         config?.terminalName ?? 'TERMINAL-01',
       );
 
+      final allItemsExempt = saleItems.every((i) => i.isDigitaxExempt);
       final tx = SaleTransaction(
         totalAmount: effectivePay,
         paymentMethod: finalMethod,
@@ -2227,21 +2228,23 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
         serviceChargeRate: 0.0,
         tenderedAmount: tenderedAmount,
         changeAmount: changeAmount,
-        zraSdcId: config?.sdcId,
+        zraStatus: allItemsExempt ? 'LOCAL_EXEMPT' : 'PENDING_SUBMISSION',
       )
         ..cashShiftNumber = openShift?.shiftNumber
         ..cloudStoreId = config?.cloudStoreId ?? 0;
 
-      // 1. ZRA DigiTax fiscalization BEFORE stock deduction & receipt printing
+      // 1. Real-time ZRA DigiTax fiscalization BEFORE stock deduction & receipt printing
       final hasDigitax =
           config?.digitaxApiKey != null && config!.digitaxApiKey!.isNotEmpty;
-      final allItemsExempt = saleItems.every((i) => i.isDigitaxExempt);
+      final syncService = ref.read(syncServiceProvider);
       if (hasDigitax && !allItemsExempt) {
         final reachable = await DigiTaxInventoryService.canReachDigiTax();
         if (reachable) {
           final digitax = ref.read(digitaxInventoryServiceProvider);
           await digitax.fiscalizeSaleTransaction(tx, saleItems);
-          if (tx.zraStatus.toUpperCase().startsWith('FAILED')) {
+          final statusUpper = tx.zraStatus.toUpperCase();
+          if (statusUpper.startsWith('FAILED') ||
+              statusUpper.startsWith('REJECTED')) {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
@@ -2254,12 +2257,16 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
             }
             return;
           }
+        } else if (config.isManagerMode == false) {
+          await syncService.trySyncTransaction(tx, saleItems);
         }
       }
 
       // 2. Persist sale & deduct stock
       await db.saveTransaction(tx, saleItems);
-      unawaited(ref.read(syncServiceProvider).trySyncTransaction(tx, saleItems));
+      if (!tx.isSynced) {
+        unawaited(syncService.trySyncTransaction(tx, saleItems));
+      }
 
       // 3. Deduct recipe ingredients from Kitchen Mini-Stock when configured
       await svc.deductKitchenIngredientsForOrder(items);
