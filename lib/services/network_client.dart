@@ -86,7 +86,7 @@ class NetworkClient {
 
       return _isConnected;
     } catch (e) {
-      _isConnected = false;
+      _markFailure();
       debugPrint('CONNECTION_TEST_FAILED: $e');
       return false;
     }
@@ -115,13 +115,13 @@ class NetworkClient {
             ? jsonDecode(response.data as String)
             : response.data;
         if (data is Map<String, dynamic>) {
-          _isConnected = true;
+          _markSuccess();
           return data;
         }
       }
       return null;
     } catch (e) {
-      _isConnected = false;
+      _markFailure();
       debugPrint('GET_SERVER_INFO_ERROR: $e');
       return null;
     }
@@ -230,7 +230,7 @@ class NetworkClient {
       );
 
       if (response.statusCode == 200 && response.data != null) {
-        _isConnected = true;
+        _markSuccess();
         final data = response.data is String
             ? jsonDecode(response.data as String)
             : response.data;
@@ -242,7 +242,7 @@ class NetworkClient {
       }
       return null;
     } catch (e) {
-      _isConnected = false;
+      _markFailure();
       debugPrint('REGISTER_TERMINAL_ERROR: $e');
       return null;
     }
@@ -272,7 +272,7 @@ class NetworkClient {
             ? jsonDecode(response.data as String)
             : response.data;
         if (body['success'] == true) {
-          _isConnected = true;
+          _markSuccess();
           return body['user'] as Map<String, dynamic>;
         }
       }
@@ -296,7 +296,7 @@ class NetworkClient {
       if (serverError != null && serverError.isNotEmpty) {
         throw Exception(serverError);
       }
-      _isConnected = false;
+      _markFailure();
       rethrow; // Network error
     }
   }
@@ -311,12 +311,12 @@ class NetworkClient {
           ? jsonDecode(response.data as String) as List
           : response.data as List;
 
-      _isConnected = true;
+      _markSuccess();
       return data
           .map((j) => _jsonToProduct(j as Map<String, dynamic>))
           .toList();
     } catch (e) {
-      _isConnected = false;
+      _markFailure();
       debugPrint('FETCH_PRODUCTS_ERROR: $e');
       return [];
     }
@@ -330,7 +330,7 @@ class NetworkClient {
           ? jsonDecode(response.data as String) as List
           : response.data as List;
 
-      _isConnected = true;
+      _markSuccess();
       return data.map((j) {
         final map = j as Map<String, dynamic>;
         return Category(
@@ -340,7 +340,7 @@ class NetworkClient {
         )..id = map['id'] as int;
       }).toList();
     } catch (e) {
-      _isConnected = false;
+      _markFailure();
       debugPrint('FETCH_CATEGORIES_ERROR: $e');
       return [];
     }
@@ -363,7 +363,7 @@ class NetworkClient {
         options: Options(receiveTimeout: const Duration(seconds: 35)),
       );
 
-      _isConnected = true;
+      _markSuccess();
       final body = response.data is String
           ? jsonDecode(response.data as String)
           : response.data;
@@ -372,7 +372,7 @@ class NetworkClient {
       if (e is! DioException ||
           (e.type != DioExceptionType.receiveTimeout &&
               e.type != DioExceptionType.sendTimeout)) {
-        _isConnected = false;
+        _markFailure();
       }
       debugPrint('PUSH_TRANSACTION_ERROR: $e');
       return null;
@@ -390,7 +390,7 @@ class NetworkClient {
         options: Options(receiveTimeout: const Duration(seconds: 35)),
       );
 
-      _isConnected = true;
+      _markSuccess();
       final body = response.data is String
           ? jsonDecode(response.data as String)
           : response.data;
@@ -399,7 +399,7 @@ class NetworkClient {
       if (e is! DioException ||
           (e.type != DioExceptionType.receiveTimeout &&
               e.type != DioExceptionType.sendTimeout)) {
-        _isConnected = false;
+        _markFailure();
       }
       debugPrint('BATCH_PUSH_ERROR: $e');
       return null;
@@ -410,7 +410,7 @@ class NetworkClient {
   Future<List<Map<String, dynamic>>> fetchTransactionFiscalUpdates() async {
     try {
       final response = await _dio.get('/transactions/updates');
-      _isConnected = true;
+      _markSuccess();
       if (response.statusCode == 200 && response.data != null) {
         final data = response.data is String
             ? jsonDecode(response.data as String)
@@ -421,7 +421,7 @@ class NetworkClient {
       }
       return [];
     } catch (e) {
-      _isConnected = false;
+      _markFailure();
       debugPrint('FETCH_FISCAL_UPDATES_ERROR: $e');
       return [];
     }
@@ -437,10 +437,10 @@ class NetworkClient {
           ? jsonDecode(response.data as String) as List
           : response.data as List;
 
-      _isConnected = true;
+      _markSuccess();
       return data.cast<Map<String, dynamic>>();
     } catch (e) {
-      _isConnected = false;
+      _markFailure();
       return [];
     }
   }
@@ -454,10 +454,10 @@ class NetworkClient {
       final data = response.data is String
           ? jsonDecode(response.data as String) as List
           : response.data as List;
-      _isConnected = true;
+      _markSuccess();
       return data.cast<Map<String, dynamic>>();
     } catch (e) {
-      _isConnected = false;
+      _markFailure();
       return [];
     }
   }
@@ -583,7 +583,7 @@ class NetworkClient {
       final body = response.data is String
           ? jsonDecode(response.data as String) as Map<String, dynamic>
           : response.data as Map<String, dynamic>;
-      _isConnected = true;
+      _markSuccess();
       final list = body['tables'] as List? ?? [];
       return list.cast<Map<String, dynamic>>();
     } catch (e) {
@@ -599,7 +599,7 @@ class NetworkClient {
       final body = response.data is String
           ? jsonDecode(response.data as String) as Map<String, dynamic>
           : response.data as Map<String, dynamic>;
-      _isConnected = true;
+      _markSuccess();
       final list = body['orders'] as List? ?? [];
       return list.cast<Map<String, dynamic>>();
     } catch (e) {

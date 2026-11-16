@@ -71,7 +71,7 @@ class SyncService {
     SaleTransaction transaction,
     List<SaleItem> items,
   ) async {
-    if (_client == null || !_client.isConnected) return false;
+    if (_client == null) return false;
 
     try {
       final response = await _client.pushTransaction(transaction, items);
@@ -89,6 +89,19 @@ class SyncService {
             transaction.zraInvoiceType = response['zraInvoiceType'] as String?;
             transaction.zraStatus =
                 response['zraStatus'] as String? ?? 'APPROVED';
+          } else {
+            final mark = response['zraMarkId'] as String?;
+            if (mark != null && mark.isNotEmpty) {
+              transaction.zraMarkId = mark;
+            }
+            final sdc = response['zraSdcId'] as String?;
+            if (sdc != null && sdc.isNotEmpty && sdc != 'PENDING') {
+              transaction.zraSdcId = sdc;
+            }
+            final qr = response['zraQrCode'] as String?;
+            if (qr != null && qr.isNotEmpty) {
+              transaction.zraQrCode = qr;
+            }
           }
           await _isar.saleTransactions.put(transaction);
         });

@@ -660,7 +660,9 @@ class ApiService {
 
       if (ref != null &&
           !isLocalOnly &&
-          (transaction.zraReceiptNumber == null || transaction.zraReceiptNumber!.isEmpty)) {
+          (transaction.zraReceiptNumber == null ||
+              transaction.zraReceiptNumber!.isEmpty ||
+              transaction.zraReceiptNumber == 'PENDING')) {
         try {
           final digitaxService = ref!.read(digitaxInventoryServiceProvider);
           await digitaxService.fiscalizeSaleTransaction(transaction, items);

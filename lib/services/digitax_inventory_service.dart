@@ -3198,13 +3198,13 @@ class DigiTaxInventoryService {
         }
 
         // If not immediately signed (DigiTax async ZRA VSDC sync), poll with progressive intervals.
-        // Sandbox responds in <1s; Live ZRA VSDC can take 12-28s. Polling up to 32 attempts (~28s)
-        // ensures Live receipts print WITH the official ZRA QR code instead of timing out as PENDING.
+        // Sandbox responds in <1s; Live ZRA VSDC typically completes in 2-10s.
+        // Polling up to 14 attempts (~11.4s) breaks out immediately once confirmed without freezing checkout for 30s.
         if (liveSignature == null || liveSignature.isEmpty) {
-          for (int attempt = 1; attempt <= 32; attempt++) {
+          for (int attempt = 1; attempt <= 14; attempt++) {
             final pollDelayMs = attempt <= 2
                 ? 300
-                : (attempt <= 6 ? 500 : (attempt <= 14 ? 800 : 1100));
+                : (attempt <= 6 ? 500 : 1100);
             await Future.delayed(Duration(milliseconds: pollDelayMs));
             try {
               // Always prefer GET /sales/{id} when we have the DigiTax sale ID
@@ -3233,13 +3233,17 @@ class DigiTaxInventoryService {
                       pData['data'] ??
                       pData['items'] ??
                       pData['results'];
-                  if (list is List && list.isNotEmpty) pData = list.first;
+                  if (list is List && list.isNotEmpty) {
+                    pData = list.cast<dynamic>().firstWhere(
+                      (item) =>
+                          item is Map &&
+                          item['trader_invoice_number']?.toString().trim() ==
+                              invoiceNo,
+                      orElse: () => null,
+                    );
+                  }
                   if (pData is Map) {
                     final mapData = Map<String, dynamic>.from(pData);
-                    final pollStatus = mapData['status']
-                        ?.toString()
-                        .toUpperCase();
-                    final sig = extractSig(mapData);
                     // Update saleData from the nested object if present
                     if (mapData['sale'] is Map) {
                       saleData = Map<String, dynamic>.from(mapData['sale']);
@@ -3248,6 +3252,10 @@ class DigiTaxInventoryService {
                     } else {
                       saleData = mapData;
                     }
+                    final pollStatus = saleData['status']
+                        ?.toString()
+                        .toUpperCase();
+                    final sig = extractSig(saleData);
                     if (sig != null && sig.isNotEmpty) {
                       liveSignature = sig;
                       debugPrint(
@@ -3316,22 +3324,25 @@ class DigiTaxInventoryService {
         // The refreshTransactionFiscalData() method will fill it in later.
         liveSignature ??= 'PENDING';
 
-        // Virtual SDC Device ID (from DigiTax registration)
-        // DigiTax returns sdc_id = "" (empty) — derive from TPIN+branch when missing
+        // Virtual SDC Device ID (from DigiTax / ZRA response)
+        // Never invent a fake "${tpin}001" ID when ZRA has not returned sdc_id yet
         final rawSdc =
             saleData['sdc_id'] ??
             saleData['sdcId'] ??
             saleData['serial_number'];
+        final fakeTpinSdc = (config?.tpin?.isNotEmpty == true)
+            ? '${config!.tpin!}001'
+            : null;
+        final cachedRealSdc = (config?.sdcId?.isNotEmpty == true &&
+                config!.sdcId != fakeTpinSdc)
+            ? config.sdcId!
+            : '';
         String sdcId =
             (rawSdc != null &&
                 rawSdc.toString().trim().isNotEmpty &&
                 rawSdc.toString() != 'null')
             ? rawSdc.toString().trim()
-            : (config?.sdcId?.isNotEmpty == true
-                  ? config!.sdcId!
-                  : ((config?.tpin?.isNotEmpty == true)
-                        ? '${config!.tpin!}001'
-                        : ''));
+            : cachedRealSdc;
 
         // SDC Invoice Number (ZRA Smart Invoice format: INV{SDC_ID}/{number})
         // Only fall back to sale_number when DigiTax explicitly reports COMPLETED/APPROVED
@@ -3384,9 +3395,7 @@ class DigiTaxInventoryService {
             liveSignature == 'PENDING') {
           final fallbackSdcForPendingQr = sdcId.isNotEmpty
               ? sdcId
-              : ((config?.tpin?.isNotEmpty == true)
-                    ? '${config!.tpin!}001'
-                    : 'SDC1');
+              : 'PENDING';
           final pendingRcptRef =
               (saleData['sale_number']?.toString().trim().isNotEmpty == true &&
                   saleData['sale_number'].toString().trim() != 'null')
@@ -3400,7 +3409,7 @@ class DigiTaxInventoryService {
                         saleData['qr_code'].toString().trim() != 'null')
                     ? saleData['qr_code'].toString().trim()
                     : 'https://smartinvoice.zra.org.zm/verify?tpin=${config?.tpin ?? "1000000000"}&sdc=$fallbackSdcForPendingQr&rcpt=$pendingRcptRef');
-          transaction.zraSdcId = fallbackSdcForPendingQr;
+          transaction.zraSdcId = sdcId.isNotEmpty ? sdcId : 'PENDING';
           transaction.zraReceiptNumber = 'PENDING';
           transaction.zraQrCode = pendingQrData;
           if (saleId != null && saleId.isNotEmpty) {
@@ -5944,16 +5953,19 @@ class DigiTaxInventoryService {
 
         // Stage 1: Pending — Recorded in DigiTax · still syncing with ZRA
         if (!isCompletedOrApproved) {
+          final fakeTpinSdc = (config?.tpin?.isNotEmpty == true)
+              ? '${config!.tpin!}001'
+              : null;
+          final cachedRealSdc = (config?.sdcId?.isNotEmpty == true &&
+                  config!.sdcId != fakeTpinSdc)
+              ? config.sdcId!
+              : 'PENDING';
           final fallbackPendingSdc =
               (parsedSdcId != null &&
                   parsedSdcId.isNotEmpty &&
                   parsedSdcId != 'PENDING')
               ? parsedSdcId
-              : (config?.sdcId?.isNotEmpty == true
-                    ? config!.sdcId!
-                    : ((config?.tpin?.isNotEmpty == true)
-                          ? '${config!.tpin!}001'
-                          : 'SDC1'));
+              : cachedRealSdc;
           final pendingSaleRef =
               (matchData['sale_number']?.toString().trim().isNotEmpty == true &&
                   matchData['sale_number'].toString().trim() != 'null')
@@ -5997,6 +6009,12 @@ class DigiTaxInventoryService {
               parsedSdcId.isNotEmpty &&
               parsedSdcId != 'PENDING') {
             transaction.zraSdcId = parsedSdcId;
+            if (config != null && config.sdcId != parsedSdcId) {
+              config.sdcId = parsedSdcId;
+              try {
+                await db.saveStoreConfig(config);
+              } catch (_) {}
+            }
           }
           if (parsedQrUrl != null && parsedQrUrl.isNotEmpty) {
             transaction.zraQrCode = parsedQrUrl;
