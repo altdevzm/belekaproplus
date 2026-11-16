@@ -1064,7 +1064,7 @@ class PrinterService {
       // 4. Line Items Table Header & Compact Single-Line Rows
       if (isNarrow) {
         bytes += generator.text(
-          _formatRow3('ITEM', 'QTY', 'TOTAL', colCount),
+          _formatRow2('ITEM / QTY @ PRICE', 'TOTAL', colCount),
           styles: const PosStyles(bold: true),
         );
       } else {
@@ -1089,13 +1089,13 @@ class PrinterService {
         final totalFormatted = CurrencyFormatter.format(itemTotal, currency);
 
         if (isNarrow) {
+          final priceFormatted = CurrencyFormatter.format(item.priceAtSale, currency);
           bytes += generator.text(
-            _formatRow3(
-              item.productName.toUpperCase(),
-              qtyStr,
-              '$totalFormatted$taxLetter',
-              colCount,
-            ),
+            item.productName.toUpperCase(),
+            styles: const PosStyles(bold: true),
+          );
+          bytes += generator.text(
+            _formatRow2('  $qtyStr @ $priceFormatted', '$totalFormatted$taxLetter', colCount),
           );
         } else {
           bytes += generator.text(
@@ -1328,8 +1328,10 @@ class PrinterService {
       );
       bytes += generator.text(preset.doubleDivider);
       
-      // Feed past the cutter blade so the footer doesn't spill onto the top of the next receipt
-      bytes += generator.feed(3);
+      // Reset normal line spacing (ESC 2) and feed past the cutter blade
+      // so the footer never spills onto the top of the next receipt
+      bytes += [0x1B, 0x32];
+      bytes += generator.feed(5);
       bytes += generator.cut();
 
       // Send to active driver
@@ -1625,12 +1627,18 @@ class PrinterService {
     col2 = col2.trim();
     col3 = col3.trim();
     col4 = col4.trim();
-    int w4 = (totalWidth * 0.25).floor().clamp(8, 14);
-    int w3 = (totalWidth * 0.20).floor().clamp(6, 12);
-    int w2 = (totalWidth * 0.12).floor().clamp(4, 7);
+    int w4 = ((totalWidth * 0.23).floor().clamp(8, 14) < col4.length)
+        ? col4.length.clamp(8, 14)
+        : (totalWidth * 0.23).floor().clamp(8, 14);
+    int w3 = ((totalWidth * 0.19).floor().clamp(6, 12) < col3.length)
+        ? col3.length.clamp(6, 12)
+        : (totalWidth * 0.19).floor().clamp(6, 12);
+    int w2 = ((totalWidth * 0.10).floor().clamp(4, 7) < col2.length)
+        ? col2.length.clamp(4, 7)
+        : (totalWidth * 0.10).floor().clamp(4, 7);
     int w1 = totalWidth - w2 - w3 - w4 - 3; // 3 spaces separator
-    if (w1 < 8) {
-      w1 = 8;
+    if (w1 < 4) {
+      w1 = 4;
     }
 
     String c1 = col1.length > w1 ? col1.substring(0, w1) : col1.padRight(w1);

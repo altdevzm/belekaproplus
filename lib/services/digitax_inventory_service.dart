@@ -3173,23 +3173,18 @@ class DigiTaxInventoryService {
         }
 
         bool hasConfirmedReceipt(Map<String, dynamic> m, String? statusUpper) {
-          if (statusUpper != 'COMPLETED' &&
-              statusUpper != 'APPROVED' &&
-              statusUpper != 'CONFIRMED') {
-            return false;
-          }
           final rcpt =
               m['receipt_number'] ??
               m['invoice_number'] ??
               m['sdc_invoice_number'];
-          final qr = m['receipt_url'] ?? m['qr_code'];
           final hasRcpt = rcpt != null &&
               rcpt.toString().trim().isNotEmpty &&
-              rcpt.toString() != 'null';
-          final hasQr = qr != null &&
-              qr.toString().trim().isNotEmpty &&
-              qr.toString() != 'null';
-          return hasRcpt && hasQr;
+              rcpt.toString() != 'null' &&
+              rcpt.toString().trim().toUpperCase() != 'PENDING';
+          if (hasRcpt) return true;
+          return statusUpper == 'COMPLETED' ||
+              statusUpper == 'APPROVED' ||
+              statusUpper == 'CONFIRMED';
         }
 
         String? liveSignature = extractSig(saleData);
@@ -3216,12 +3211,18 @@ class DigiTaxInventoryService {
               final pollResp = (saleId != null && saleId.isNotEmpty)
                   ? await _dio.get(
                       '$digitaxZambiaApiBaseUrl/sales/$saleId',
-                      options: Options(headers: headers),
+                      options: Options(
+                        headers: headers,
+                        validateStatus: (s) => s != null && s < 500,
+                      ),
                     )
                   : await _dio.get(
                       '$digitaxZambiaApiBaseUrl/sales',
                       queryParameters: {'trader_invoice_number': invoiceNo},
-                      options: Options(headers: headers),
+                      options: Options(
+                        headers: headers,
+                        validateStatus: (s) => s != null && s < 500,
+                      ),
                     );
 
               if (pollResp.statusCode == 200 && pollResp.data != null) {
@@ -3333,11 +3334,16 @@ class DigiTaxInventoryService {
                         : ''));
 
         // SDC Invoice Number (ZRA Smart Invoice format: INV{SDC_ID}/{number})
-        // Never use sale_number here because sale_number is assigned while still PENDING in DigiTax
+        // Only fall back to sale_number when DigiTax explicitly reports COMPLETED/APPROVED
+        final isExplicitlyCompleted =
+            saleStatusUpper == 'COMPLETED' ||
+            saleStatusUpper == 'APPROVED' ||
+            saleStatusUpper == 'CONFIRMED';
         final rawRcpt =
             saleData['receipt_number'] ??
             saleData['invoice_number'] ??
-            saleData['sdc_invoice_number'];
+            saleData['sdc_invoice_number'] ??
+            (isExplicitlyCompleted ? saleData['sale_number'] : null);
         String sdcRcptNo = 'PENDING';
         if (rawRcpt != null &&
             rawRcpt.toString().trim().isNotEmpty &&
@@ -3430,7 +3436,10 @@ class DigiTaxInventoryService {
             : ((saleData['qr_code']?.toString().trim().isNotEmpty == true &&
                       saleData['qr_code'].toString().trim() != 'null')
                   ? saleData['qr_code'].toString().trim()
-                  : 'https://smartinvoice.zra.org.zm/verify?tpin=${config?.tpin ?? "1000000000"}&sdc=$fallbackSdcForQr&rcpt=$sdcRcptNo');
+                  : ((saleData['qr_url']?.toString().trim().isNotEmpty == true &&
+                            saleData['qr_url'].toString().trim() != 'null')
+                        ? saleData['qr_url'].toString().trim()
+                        : 'https://smartinvoice.zra.org.zm/verify?tpin=${config?.tpin ?? "1000000000"}&sdc=$fallbackSdcForQr&rcpt=$sdcRcptNo'));
 
         // Invoice type
         final invoiceType = switch (saleData['receipt_type_code']?.toString()) {
