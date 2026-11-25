@@ -10,6 +10,8 @@ import 'dart:io';
 import 'package:beleka_pos/providers/store_provider.dart';
 import 'package:beleka_pos/providers/auth_provider.dart';
 import 'package:beleka_pos/services/digitax_inventory_service.dart';
+import 'package:beleka_pos/data/digitax_classifications.dart';
+import 'package:beleka_pos/widgets/digitax_classification_picker_dialog.dart';
 import 'package:beleka_pos/screens/inventory/category_management_modal.dart';
 import 'package:beleka_pos/screens/inventory/add_stock_modal.dart';
 import 'package:isar/isar.dart';
@@ -380,21 +382,22 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
     // ZRA UNSPSC Item Classification
     final rawCls = widget.product?.zraUnspscClassCode.trim() ?? '';
     if (RegExp(r'^\d{8}$').hasMatch(rawCls) &&
-        rawCls != '50000000' &&
-        rawCls != '52000000' &&
-        rawCls != '53100000' &&
-        rawCls != '51000000' &&
-        rawCls != '30000000' &&
-        rawCls != '43211500') {
+        (DigitaxClassifications.isKnownCode(rawCls) ||
+            (rawCls != '50000000' &&
+                rawCls != '52000000' &&
+                rawCls != '53100000' &&
+                rawCls != '51000000' &&
+                rawCls != '30000000' &&
+                rawCls != '43211500'))) {
       _selectedItemClsCode = rawCls;
     } else {
       _selectedItemClsCode = _selectedZraTaxCode == 'B'
           ? '50202301'
           : (_selectedZraTaxCode == 'C' ? '42141501' : '52151501');
     }
-    final isPredefinedCls = commonZraClassifications.any(
-      (c) => c['code'] == _selectedItemClsCode,
-    );
+    final isPredefinedCls =
+        commonZraClassifications.any((c) => c['code'] == _selectedItemClsCode) ||
+        DigitaxClassifications.isKnownCode(_selectedItemClsCode);
     _isCustomClsCode = !isPredefinedCls && _selectedItemClsCode.isNotEmpty;
     _customClsCodeController = TextEditingController(
       text: _selectedItemClsCode,
@@ -2196,69 +2199,122 @@ class _ProductEditorModalState extends ConsumerState<ProductEditorModal> {
             ],
           ),
           const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.05),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.white12),
-            ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                isExpanded: true,
-                dropdownColor: const Color(0xFF1E293B),
-                value:
-                    commonZraClassifications.any(
-                      (c) => c['code'] == _selectedItemClsCode,
-                    )
-                    ? _selectedItemClsCode
-                    : 'CUSTOM',
-                items: [
-                  ...commonZraClassifications.map((item) {
-                    return DropdownMenuItem<String>(
-                      value: item['code'],
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              '${item['name']} (${item['code']})',
-                              style: GoogleFonts.inter(
-                                fontSize: 12.5,
-                                color: Colors.white,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }),
-                  DropdownMenuItem<String>(
-                    value: 'CUSTOM',
-                    child: Text(
-                      'Custom 8-digit UNSPSC Code...',
-                      style: GoogleFonts.inter(
-                        fontSize: 12.5,
-                        color: Colors.amberAccent,
-                      ),
-                    ),
-                  ),
-                ],
-                onChanged: (val) {
-                  if (val != null) {
+          Builder(
+            builder: (context) {
+              final matchedCls = DigitaxClassifications.findByCode(
+                _selectedItemClsCode,
+              );
+              final matchedLabel =
+                  matchedCls?.name ??
+                  commonZraClassifications
+                      .cast<Map<String, String>?>()
+                      .firstWhere(
+                        (c) => c?['code'] == _selectedItemClsCode,
+                        orElse: () => null,
+                      )?['name'] ??
+                  'Custom 8-digit ZRA UNSPSC Code';
+              final envStr =
+                  (ref.watch(storeConfigProvider).value?.digitaxEnvironment ??
+                          'sandbox')
+                      .trim()
+                      .toLowerCase();
+              final isSandboxEnv = envStr != 'production';
+
+              return InkWell(
+                borderRadius: BorderRadius.circular(10),
+                onTap: () async {
+                  final picked = await DigitaxClassificationPickerDialog.show(
+                    context,
+                    initialCode: _selectedItemClsCode,
+                    isSandboxEnvironment: isSandboxEnv,
+                    accentColor: accentColor,
+                  );
+                  if (picked != null && mounted) {
                     setState(() {
-                      if (val == 'CUSTOM') {
-                        _isCustomClsCode = true;
-                      } else {
-                        _isCustomClsCode = false;
-                        _selectedItemClsCode = val;
-                        _customClsCodeController.text = val;
-                      }
+                      _selectedItemClsCode = picked;
+                      _customClsCodeController.text = picked;
+                      _isCustomClsCode = !DigitaxClassifications.isKnownCode(
+                        picked,
+                      );
                     });
                   }
                 },
-              ),
-            ),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: accentColor.withValues(alpha: 0.35),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              matchedLabel,
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              matchedCls != null
+                                  ? '${matchedCls.levelLabel} · ${isSandboxEnv ? 'Sandbox Mode' : 'Live Mode · ${DigitaxClassifications.productionCodes.length} ZRA codes'}'
+                                  : 'Tap to search ${isSandboxEnv ? 'Sandbox / Live' : '${DigitaxClassifications.productionCodes.length} Live'} codes',
+                              style: GoogleFonts.inter(
+                                fontSize: 11,
+                                color: Colors.white54,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: accentColor.withValues(alpha: 0.16),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.search_rounded,
+                              size: 16,
+                              color: accentColor,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Browse',
+                              style: GoogleFonts.inter(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w700,
+                                color: accentColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
           ),
           if (_isCustomClsCode) ...[
             const SizedBox(height: 10),

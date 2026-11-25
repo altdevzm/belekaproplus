@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:isar/isar.dart';
 import 'package:beleka_pos/models/models.dart';
+import 'package:beleka_pos/data/digitax_classifications.dart';
 import 'package:beleka_pos/services/database_service.dart';
 import 'package:beleka_pos/services/local_sql_service.dart';
 import 'package:beleka_pos/services/network_client.dart';
@@ -492,14 +493,16 @@ class DigiTaxInventoryService {
     String? productName,
   }) {
     final explicit = (explicitClsCode ?? '').trim();
-    // Use valid 8-digit code if provided and not an unapproved 2-digit segment code ending in 000000
+    // Use valid 8-digit code if it belongs to DigiTax's official classification table
+    // or is a valid custom code other than deprecated placeholder segments.
     if (RegExp(r'^\d{8}$').hasMatch(explicit) &&
-        explicit != '50000000' &&
-        explicit != '52000000' &&
-        explicit != '53100000' &&
-        explicit != '51000000' &&
-        explicit != '30000000' &&
-        explicit != '43211500') {
+        (DigitaxClassifications.isKnownCode(explicit) ||
+            (explicit != '50000000' &&
+                explicit != '52000000' &&
+                explicit != '53100000' &&
+                explicit != '51000000' &&
+                explicit != '30000000' &&
+                explicit != '43211500'))) {
       return explicit;
     }
 
